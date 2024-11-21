@@ -250,6 +250,7 @@
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent-ot                    @DataDog/opentelemetry
+/Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metrics-logs
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
