@@ -203,6 +203,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	// Create fake tagger
 	c := configmock.New(t)
 	c.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
+	c.SetWithoutSource("origin_detection_unified", true)
 	params := tagger.Params{
 		UseFakeTagger: true,
 	}
@@ -217,12 +218,16 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	assert.NoError(t, err)
 	fakeTagger := tagger.defaultTagger.(*FakeTagger)
 
-	fakeTagger.SetTags(types.NewEntityID(types.EntityIDPrefix("foo"), "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+
 	tb := tagset.NewHashingTagsAccumulator()
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	// Test with none cardinality
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
-	assert.Equal(t, []string{}, tb.Get())
+
+	// Test without none cardinality
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "low", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	assert.Equal(t, []string{"container-low"}, tb.Get())
 }
 
 func TestGenerateContainerIDFromExternalData(t *testing.T) {

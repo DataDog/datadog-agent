@@ -9,23 +9,15 @@ package cdn
 import (
 	"context"
 	"errors"
-	"regexp"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
 
-const configOrderID = "configuration_order"
-
 var (
-	datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
 	// ErrProductNotSupported is returned when the product is not supported.
 	ErrProductNotSupported = errors.New("product not supported")
 )
-
-type orderConfig struct {
-	Order []string `json:"order"`
-}
 
 // Config represents a configuration.
 type Config interface {

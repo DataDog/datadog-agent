@@ -1089,7 +1089,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

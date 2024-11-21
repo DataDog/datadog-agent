@@ -148,7 +148,7 @@ func (m *nodeJSMonitor) Start() {
 		return
 	}
 
-	m.attacher.Start()
+	m.attacher.Start() //nolint:errcheck // TODO
 	log.Info("Node JS TLS monitoring enabled")
 }
 
@@ -163,7 +163,7 @@ func (m *nodeJSMonitor) Stop() {
 }
 
 // getNodeJSPath checks if the given PID is a NodeJS process and returns the path to the binary
-func isNodeJSBinary(path string, procInfo *uprobes.ProcInfo) bool {
+func isNodeJSBinary(path string, procInfo *uprobes.ProcInfo) bool { //nolint:revive // TODO
 	exe, err := procInfo.Exe()
 	if err != nil {
 		return false
