@@ -741,7 +741,7 @@ func (c *LocalCDN) AddLayer(name string, content string) error {
 
 	layerPath := filepath.Join(c.DirPath, name)
 
-	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
+	jsonContent := fmt.Sprintf(`{"name": "%s", %s}`, name, content)
 
 	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
 	require.NoError(c.host.t, err)

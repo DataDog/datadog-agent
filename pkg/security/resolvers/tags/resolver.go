@@ -12,14 +12,22 @@ import (
 	"strings"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remotetagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Event defines the tags event type
+type Event int
+
+const (
+	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
+	WorkloadSelectorResolved Event = iota
 )
 
 // Tagger defines a Tagger for the Tags Resolver
@@ -34,29 +42,13 @@ type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
 	Resolve(id string) []string
-	ResolveWithErr(id string) ([]string, error)
+	ResolveWithErr(fid string) ([]string, error)
 	GetValue(id string, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
 	tagger Tagger
-}
-
-// Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context) error {
-	go func() {
-		if err := t.tagger.Start(ctx); err != nil {
-			log.Errorf("failed to init tagger: %s", err)
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		_ = t.tagger.Stop()
-	}()
-
-	return nil
 }
 
 // Resolve returns the tags for the given id
@@ -83,16 +75,35 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
+// Start the resolver
+func (t *DefaultResolver) Start(ctx context.Context) error {
+	go func() {
+		if err := t.tagger.Start(ctx); err != nil {
+			log.Errorf("failed to init tagger: %s", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = t.tagger.Stop()
+	}()
+
+	return nil
+}
+
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
 	return t.tagger.Stop()
 }
 
-// NewResolver returns a new tags resolver
-func NewResolver(telemetry telemetry.Component) Resolver {
+// NewDefaultResolver returns a new default tags resolver
+func NewDefaultResolver(telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
 	ddConfig := pkgconfigsetup.Datadog()
+	resolver := &DefaultResolver{
+		tagger: tagger,
+	}
 
-	params := tagger.RemoteParams{
+	params := taggerdef.RemoteParams{
 		RemoteFilter: types.NewMatchAllFilter(),
 		RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
 		RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
@@ -102,11 +113,9 @@ func NewResolver(telemetry telemetry.Component) Resolver {
 		},
 	}
 
-	tagger, _ := remoteTagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
-
-	return &DefaultResolver{
-		// TODO: (components) use the actual remote tagger instance from the Fx entry point
-		tagger: tagger,
+	if tagger == nil {
+		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
 	}
 
+	return resolver
 }

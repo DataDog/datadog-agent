@@ -57,7 +57,7 @@ type testOpts struct {
 	enableSBOM                                 bool
 	enableHostSBOM                             bool
 	preStartCallback                           func(test *testModule)
-	tagsResolver                               tags.Resolver
+	tagger                                     tags.Tagger
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
