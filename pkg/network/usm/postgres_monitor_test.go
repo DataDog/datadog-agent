@@ -49,7 +49,6 @@ const (
 	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery       = "TRUNCATE TABLE dummy"
 	showQuery                = "SHOW search_path"
-	maxSupportedMessages     = protocols.PostgresMaxMessagesPerTailCall * protocols.PostgresMaxTailCalls
 )
 
 var (
@@ -609,7 +608,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
 				// We reduce the limit by 2 messages because the protocol adds messages at the beginning of the maximum message response.
-				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages-3)...)))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages-3)...)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -640,7 +639,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages+1)...)))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages+1)...)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -997,8 +996,9 @@ func validateKernelBuckets(t *testing.T, monitor *Monitor, tls bool, expected [e
 	var actual *ebpf.PostgresKernelMsgCount
 	assert.Eventually(t, func() bool {
 		found, err := getKernelTelemetry(monitor, tls)
-		require.NoError(t, err)
-		require.NotNil(t, found)
+		if err != nil {
+			return false
+		}
 		actual = found
 		return compareMessagesCount(found, expected)
 	}, time.Second*2, time.Millisecond*100)
