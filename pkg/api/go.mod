@@ -40,6 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
@@ -55,7 +56,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
