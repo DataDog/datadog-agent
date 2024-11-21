@@ -59,7 +59,11 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
 def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     owners = read_owners(owners_file)
-    test_output = gitlab.artifact(job["id"], "test_output.json", ignore_not_found=True)
+    try:
+        test_output = gitlab.artifact(job["id"], "test_output.json", ignore_not_found=True)
+    except Exception as e:
+        print("Ignoring test fetching error", e)
+        test_output = None
     failed_tests = {}  # type: dict[tuple[str, str], Test]
     if test_output:
         for line in test_output.iter_lines():
