@@ -63,10 +63,8 @@ new-e2e-agent-platform-install-script-upgrade7-centos-x86_64:
   variables:
     FLAVOR: datadog-agent
     FROM_CURRENT_TO_STABLE: true
-  parallel:
-    matrix:
-      - START_MAJOR_VERSION: [6]
-        END_MAJOR_VERSION: [7]
+    START_MAJOR_VERSION: 6
+    END_MAJOR_VERSION: 7
 
 .new-e2e_centos6_a6_x86_64:
   variables:

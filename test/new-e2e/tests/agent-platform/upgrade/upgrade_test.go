@@ -123,7 +123,6 @@ func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient, toCurre
 		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
 	} else {
 		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true), installparams.WithPipelineID(""))
-
 	}
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
