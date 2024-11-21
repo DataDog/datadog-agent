@@ -90,7 +90,7 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		return nil, nil, err
 	}
 
-	return ipHdr, packet[:hdrlen], nil
+	return ipHdr, packet[hdrlen:], nil
 }
 
 func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
