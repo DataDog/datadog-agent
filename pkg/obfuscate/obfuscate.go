@@ -193,7 +193,7 @@ type SQLConfig struct {
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
 
-	// Cache is deprecated. Please use `apm_config.cache` instead.
+	// Cache is deprecated. Please use `apm_config.obfucsation.cache` instead.
 	Cache bool `json:"cache" yaml:"cache"`
 }
 
