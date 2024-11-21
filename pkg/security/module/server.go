@@ -21,6 +21,7 @@ import (
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -218,7 +220,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
-func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage) {
+func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
 	// apply ecs tag if possible
 	if a.ecsTags != nil {
 		for key, value := range a.ecsTags {
@@ -226,6 +228,18 @@ func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage) {
 				return strings.HasPrefix(tag, key+":")
 			}) {
 				msg.Tags = append(msg.Tags, key+":"+value)
+			}
+		}
+	}
+
+	// on fargate, append global tags
+	if includeGlobalTags && fargate.IsFargateInstance() {
+		for _, tag := range a.getGlobalTags() {
+			key, _, _ := strings.Cut(tag, ":")
+			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
+				return strings.HasPrefix(t, key+":")
+			}) {
+				msg.Tags = append(msg.Tags, tag)
 			}
 		}
 	}
@@ -277,7 +291,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
-				a.updateMsgTags(m)
+				a.updateMsgTags(m, false)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -403,7 +417,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
-		a.updateMsgTags(m)
+		a.updateMsgTags(m, true)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -538,6 +552,21 @@ func (a *APIServer) Stop() {
 // SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
+}
+
+func (a *APIServer) getGlobalTags() []string {
+	tagger := a.probe.Opts.Tagger
+
+	if tagger == nil {
+		return nil
+	}
+
+	globalTags, err := tagger.GlobalTags(types.OrchestratorCardinality)
+	if err != nil {
+		seclog.Errorf("failed to get global tags: %v", err)
+		return nil
+	}
+	return globalTags
 }
 
 // NewAPIServer returns a new gRPC event server

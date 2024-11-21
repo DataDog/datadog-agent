@@ -28,6 +28,7 @@ type Tagger interface {
 	Start(ctx context.Context) error
 	Stop() error
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
+	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 }
 
 // Resolver represents a cache resolver
