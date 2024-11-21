@@ -297,7 +297,11 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 			// Run the actual agent/service
 			err = s.service.Run(ctx)
 			if err != nil {
-				s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+				if errors.Is(err, ErrCleanStopAfterInit) {
+					s.eventlog(messagestrings.MSG_AGENT_CLEAN_STOP_AFTER_INIT, err.Error())
+				} else {
+					s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+				}
 			}
 		}()
 		select {
