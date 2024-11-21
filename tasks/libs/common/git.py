@@ -5,6 +5,7 @@ import tempfile
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
@@ -100,12 +101,18 @@ def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
 
+def is_agent6(ctx) -> bool:
+    return get_current_branch(ctx).startswith("6.")
+
+
 def get_default_branch():
     """Returns the default git branch given the current context (agent 6 / 7)."""
 
-    from tasks.libs.common.agent6 import AGENT6_BRANCH, is_agent6
+    # We create a context to avoid passing context in each function
+    # This context is used to get the current branch so there is no side effect
+    ctx = Context()
 
-    return AGENT6_BRANCH if is_agent6() else 'main'
+    return '6.53.x' if is_agent6(ctx) else 'main'
 
 
 def get_common_ancestor(ctx, branch, base=None) -> str:

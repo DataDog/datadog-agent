@@ -755,6 +755,6 @@ def get_metric_origin(origin_product, origin_sub_product, origin_product_detail,
 def agent_working_directory():
     """Returns the working directory for the current context (agent 6 / 7)."""
 
-    from tasks.libs.common.agent6 import AGENT6_WORKING_DIRECTORY, AGENT7_WORKING_DIRECTORY, is_agent6
+    from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
 
-    return AGENT6_WORKING_DIRECTORY if is_agent6() else AGENT7_WORKING_DIRECTORY
+    return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY

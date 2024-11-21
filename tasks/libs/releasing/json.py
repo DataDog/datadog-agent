@@ -6,9 +6,9 @@ from collections import OrderedDict
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.agent6 import is_agent6
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch
+from tasks.libs.common.worktree import is_worktree
 from tasks.libs.releasing.documentation import _stringify_config, nightly_entry_for, release_entry_for
 from tasks.libs.releasing.version import (
     VERSION_RE,
@@ -347,7 +347,7 @@ def generate_repo_data(warning_mode, next_version, release_branch):
             branch = (
                 next_version.branch()
                 if repo == "integrations-core"
-                else (DEFAULT_BRANCHES_AGENT6 if is_agent6() else DEFAULT_BRANCHES).get(repo, get_default_branch())
+                else (DEFAULT_BRANCHES_AGENT6 if is_worktree() else DEFAULT_BRANCHES).get(repo, get_default_branch())
             )
         data[repo] = {
             'branch': branch,
