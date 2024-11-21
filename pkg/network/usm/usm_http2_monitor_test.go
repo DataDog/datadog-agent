@@ -1510,6 +1510,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 func TestHTTP2InFlightMapCleaner(t *testing.T) {
 	skipIfKernelNotSupported(t)
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
