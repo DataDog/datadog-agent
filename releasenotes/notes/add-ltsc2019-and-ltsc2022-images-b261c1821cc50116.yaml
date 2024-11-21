@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add new windows images for LTSC 2019 and LTSC 2022:
+    - `datadog-agent:7-servercore-ltsc2019-amd64`
+    - `datadog-agent:7-servercore-ltsc2022-amd64`
+    - `datadog-agent:7-servercore-ltsc2019-jmx-amd64`
+    - `datadog-agent:7-servercore-ltsc2022-jmx-amd64`
+    - `datadog-agent:latest-servercore-ltsc2019-jmx`
+    - `datadog-agent:latest-servercore-ltsc2022-jmx`
+    - `datadog-agent:latest-servercore-ltsc2019`
+    - `datadog-agent:latest-servercore-ltsc2022`
+    - `datadog-agent:7.X.Y-ltsc2019`
+    - `datadog-agent:7.X.Y-ltsc2022`
+    - `datadog-agent:7.X.Y-ltsc2019-jmx`
+    - `datadog-agent:7.X.Y-ltsc2022-jmx`
+    - `datadog-agent:7.X.Y-servercore-ltsc2019`
+    - `datadog-agent:7.X.Y-servercore-ltsc2022`
+    - `datadog-agent:7.X.Y-servercore-ltsc2019-jmx`
+    - `datadog-agent:7.X.Y-servercore-ltsc2022-jmx`
+    - `datadog-agent:latest-ltsc2019`
+    - `datadog-agent:latest-ltsc2022`
