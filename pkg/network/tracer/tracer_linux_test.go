@@ -1151,7 +1151,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 // sets up two udp sockets talking to each other locally.
 // returns (listener, dialer)
-func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
+func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) { //nolint:revive // TODO
 	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
 	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
@@ -1489,7 +1489,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
-	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) { //nolint:revive // TODO
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections := getConnections(t, tr)
 

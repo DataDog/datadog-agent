@@ -386,7 +386,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
 
 func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"log_level\": \"debug\"")
+	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
@@ -409,9 +409,115 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.executeConfigGoldenPath(localCDN.DirPath, "c78c5e96820c89c6cbc178ddba4ce20a167138a3a580ed4637369a9c5ed804c3")
 }
 
+func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
+	localCDN := host.NewLocalCDN(s.host)
+	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
+	timestamp := s.host.LastJournaldTimestamp()
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+		"DD_REMOTE_POLICIES=true",
+		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+	)
+	defer s.Purge()
+
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	// Make sure security agent and system probe are disabled
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Skipped(probeUnit).
+			Skipped(securityUnit),
+		),
+	)
+
+	state := s.host.State()
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", "/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
+
+	// Enables security agent & sysprobe
+	localCDN.AddLayer("config", `
+  "config": {
+    "sbom": {
+      "container_image": {
+        "enabled": true
+      },
+      "host": {
+        "enabled": true
+      }
+    }
+  },
+  "security_agent": {
+    "runtime_security_config": {
+      "enabled": true
+    },
+    "compliance_config": {
+      "enabled": true
+    }
+  },
+  "system_probe": {
+    "runtime_security_config": {
+      "enabled": true
+    }
+  }
+`)
+	hash := "4681728e9932105c5eea80056151172764d99e348d09a78158874389d25f3c00"
+	timestamp = s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(localCDN.DirPath, datadogAgent, hash)
+	// Assert the successful start of the experiment
+	s.host.WaitForUnitActivating(agentUnitXP)
+	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
+
+	// Assert experiment is running
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Stopped(agentUnit).
+			Stopped(traceUnit).
+			Stopped(processUnit),
+		).
+		Unordered(host.SystemdEvents().
+			Starting(agentUnitXP).
+			Started(traceUnitXP).
+			Started(processUnitXP).
+			Started(securityUnitXP).
+			Started(probeUnitXP),
+		),
+	)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	s.mustPromoteConfigExperiment(localCDN.DirPath, datadogAgent)
+	s.host.WaitForUnitActive(agentUnit)
+
+	// Assert experiment is promoted
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Stopped(agentUnitXP).
+			Stopped(processUnitXP).
+			Stopped(traceUnitXP).
+			Stopped(securityUnitXP).
+			Stopped(probeUnitXP),
+		).
+		Unordered(host.SystemdEvents().
+			Started(agentUnit).
+			Stopped(processUnit).
+			Stopped(traceUnit).
+			Started(securityUnit).
+			Started(probeUnit),
+		),
+	)
+
+	state = s.host.State()
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+}
+
 func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"log_level\": \"debug\"")
+	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
@@ -445,7 +551,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 
 func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	localCDN := host.NewLocalCDN(s.host)
-	localCDN.AddLayer("config", "\"log_level\": \"debug\"")
+	localCDN.AddLayer("config", "\"config\": {\"log_level\": \"debug\"}")
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",

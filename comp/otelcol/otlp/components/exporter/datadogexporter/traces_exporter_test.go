@@ -21,6 +21,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -66,18 +67,20 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}))
 
 	defer server.Close()
-	cfg := Config{
-		API: APIConfig{
+	cfg := datadogconfig.Config{
+		API: datadogconfig.APIConfig{
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
-		TagsConfig: TagsConfig{
+		TagsConfig: datadogconfig.TagsConfig{
 			Hostname: "test-host",
 		},
-		Traces: TracesConfig{
+		Traces: datadogconfig.TracesExporterConfig{
 			TCPAddrConfig: confignet.TCPAddrConfig{
 				Endpoint: server.URL,
 			},
-			IgnoreResources: []string{},
+			TracesConfig: datadogconfig.TracesConfig{
+				IgnoreResources: []string{},
+			},
 		},
 	}
 
@@ -122,7 +125,7 @@ func TestNewTracesExporter(t *testing.T) {
 }
 
 func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	cfg := &Config{}
+	cfg := &datadogconfig.Config{}
 	cfg.API.Key = "ddog_32_characters_long_api_key1"
 	params := exportertest.NewNopSettings()
 	tcfg := config.New()

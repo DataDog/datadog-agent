@@ -76,13 +76,13 @@ agent_suse-x64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["datadog-agent-7-x64"]
   variables:
-    DD_PRODUCT: agent
+    DD_PROJECT: agent
 
 agent_suse-arm64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64"]
   variables:
-    DD_PRODUCT: agent
+    DD_PROJECT: agent
 
 installer_rpm-amd64:
   extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
