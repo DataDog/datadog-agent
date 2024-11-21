@@ -191,9 +191,10 @@ new-e2e-windows-service-test:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-agent
   parallel:
-    - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
-    - EXTRA_PARAMS: --run TestServiceBehaviorPowerShell
-    - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabled
+    matrix:
+      - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabled
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
