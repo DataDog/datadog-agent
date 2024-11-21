@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
@@ -61,6 +62,9 @@ func setupDiscoveryModule(t *testing.T) string {
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
+
+	tagger := taggermock.SetupFakeTagger(t)
+
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -84,7 +88,7 @@ func setupDiscoveryModule(t *testing.T) string {
 			return false
 		},
 	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, nil)
+	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(mux)
