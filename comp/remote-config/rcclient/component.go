@@ -29,8 +29,9 @@ type Component interface {
 
 // Params is the input parameter struct for the RC client Component.
 type Params struct {
-	AgentName    string
-	AgentVersion string
+	AgentName     string
+	AgentVersion  string
+	IsSystemProbe bool
 }
 
 // NoneModule return a None optional type for rcclient.Component.

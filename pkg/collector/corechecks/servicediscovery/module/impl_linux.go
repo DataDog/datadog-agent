@@ -53,7 +53,7 @@ type serviceInfo struct {
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
-	startTimeSecs      uint64
+	startTimeMilli     uint64
 	cpuTime            uint64
 	cpuUsage           float64
 }
@@ -80,15 +80,19 @@ type discovery struct {
 	lastCPUTimeUpdate time.Time
 }
 
-// NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+func newDiscovery() *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
-	}, nil
+	}
+}
+
+// NewDiscoveryModule creates a new discovery system probe module.
+func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+	return newDiscovery(), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -370,7 +374,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		apmInstrumentation: apmInstrumentation,
 		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeSecs:      uint64(createTime / 1000),
+		startTimeMilli:     uint64(createTime),
 	}, nil
 }
 
@@ -402,7 +406,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	if shouldIgnoreComm(proc) {
+	if s.shouldIgnoreComm(proc) {
 		return nil
 	}
 
@@ -499,7 +503,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		Language:           string(info.language),
 		RSS:                rss,
 		CommandLine:        info.cmdLine,
-		StartTimeSecs:      info.startTimeSecs,
+		StartTimeMilli:     info.startTimeMilli,
 		CPUCores:           info.cpuUsage,
 	}
 }

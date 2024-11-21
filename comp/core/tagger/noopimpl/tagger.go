@@ -31,9 +31,10 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
-			newTaggerClient,
+			NewTaggerClient,
 		),
 	)
+
 }
 
 type noopTagger struct{}
@@ -55,6 +56,10 @@ func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 }
 
 func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (n *noopTagger) LegacyTag(string, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
@@ -104,6 +109,7 @@ func (n *noopTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
 
-func newTaggerClient() tagger.Component {
+// NewTaggerClient returns a new noop tagger client
+func NewTaggerClient() tagger.Component {
 	return &noopTagger{}
 }

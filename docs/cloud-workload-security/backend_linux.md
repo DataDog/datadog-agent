@@ -198,6 +198,19 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "object",
             "description": "CGroupContextSerializer serializes a cgroup context to JSON"
         },
+        "ConnectEvent": {
+            "properties": {
+                "addr": {
+                    "$ref": "#/$defs/IPPortFamily"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "addr"
+            ],
+            "description": "ConnectEventSerializer serializes a connect event to JSON"
+        },
         "ContainerContext": {
             "properties": {
                 "id": {
@@ -1742,6 +1755,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         "bind": {
             "$ref": "#/$defs/BindEvent"
         },
+        "connect": {
+            "$ref": "#/$defs/ConnectEvent"
+        },
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
@@ -1793,6 +1809,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `imds` | $ref | Please see [IMDSEvent](#imdsevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
+| `connect` | $ref | Please see [ConnectEvent](#connectevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
@@ -2099,6 +2116,31 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `id` | CGroup ID |
 | `manager` | CGroup manager |
 
+
+## `ConnectEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "addr": {
+            "$ref": "#/$defs/IPPortFamily"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "addr"
+    ],
+    "description": "ConnectEventSerializer serializes a connect event to JSON"
+}
+
+{{< /code-block >}}
+
+
+| References |
+| ---------- |
+| [IPPortFamily](#ipportfamily) |
 
 ## `ContainerContext`
 

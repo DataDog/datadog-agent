@@ -2,6 +2,67 @@
 Release Notes
 =============
 
+.. _Release Notes_7.58.2:
+
+7.58.2
+======
+
+.. _Release Notes_7.58.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-11-04
+
+
+.. _Release Notes_7.58.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Use of cloud-provided hostname as default when running the Agent
+  in AKS introduced in `7.56.0` is reverted due to cases where the
+  hostname returned is non-unique. This feature will be fixed and
+  added again in a future release.
+
+
+.. _Release Notes_7.58.1:
+
+7.58.1
+======
+
+.. _Release Notes_7.58.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-10-24
+
+
+.. _Release Notes_7.58.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Removes a log statement which was causing a lot of noise in the Network Path logs.
+
+
+.. _Release Notes_7.58.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- [CWS] Fixes an issue where the `cws-instrumentation trace` command could panic
+  before launching the traced executable when running on AWS Fargate.
+
+- [CWS] Fixes an issue where ECS Fargate tags would not be resolved correctly
+  on CWS events.
+
+- Fixes an error in system-probe triggered by packet capture in environments with multiple VLANs.
+
+- Fix USM's GO-TLS support for Golang 1.23
+
+
 .. _Release Notes_7.58.0:
 
 7.58.0

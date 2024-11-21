@@ -42,6 +42,18 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 	return loader.loadCOREAsset(filename, startFn)
 }
 
+// GetBTFLoaderInfo Returns where the ebpf BTF files were sourced from
+func GetBTFLoaderInfo() (string, error) {
+	loader, err := coreLoader(NewConfig())
+	if err != nil {
+		return "", err
+	}
+
+	metadataStr := loader.btfLoader.resultMetadata.String()
+	infoStr := fmt.Sprintf("btfLoader result: %d\n%s", loader.btfLoader.result, metadataStr)
+	return infoStr, nil
+}
+
 func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
 	var result ebpftelemetry.COREResult
 	base := strings.TrimSuffix(filename, path.Ext(filename))

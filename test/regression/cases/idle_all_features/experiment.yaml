@@ -1,5 +1,7 @@
 # Agent 'all features enabled' idle experiment. Represents an agent install with
 # all sub-agents enabled in configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle_all_features
 
 optimization_goal: memory
 erratic: false
@@ -41,11 +43,12 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
 
 checks:
+  # Note: quality gates will stop using this experiment in the future in favor of quality_gate_idle_all_features.
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "785.0 MiB"
+      upper_bound: "770.0 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

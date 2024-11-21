@@ -8,8 +8,8 @@ github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4ti
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.20.0 h1:fKv05WFWHCXQmUTehW1eEZvXJP65Qv00W4V01B1EqSA=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.20.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
-github.com/DataDog/sketches-go v1.4.2 h1:gppNudE9d19cQ98RYABOetxIhpTCl4m7CnbRZjvVA/o=
-github.com/DataDog/sketches-go v1.4.2/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
+github.com/DataDog/sketches-go v1.4.6 h1:acd5fb+QdUzGrosfNLwrIhqyrbMORpvBy7mE+vHlT3I=
+github.com/DataDog/sketches-go v1.4.6/go.mod h1:7Y8GN8Jf66DLyDhc94zuWA3uHEt/7ttt8jHOBWWrSOg=
 github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
 github.com/DataDog/zstd v1.5.5/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpzfwIujj1a84=
@@ -189,7 +189,6 @@ github.com/stretchr/objx v0.5.2 h1:xuMeJ0Sdp5ZMRXx/aWO6RZxdr3beISkG5/G/aIRr3pY=
 github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
-github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
@@ -436,7 +435,6 @@ google.golang.org/protobuf v1.23.1-0.20200526195155-81db48ad09cc/go.mod h1:EGpAD
 google.golang.org/protobuf v1.25.0/go.mod h1:9JNX74DMeImyA3h4bdi1ymwjUzf21/xIlbajtzgsN7c=
 google.golang.org/protobuf v1.26.0-rc.1/go.mod h1:jlhhOSvTdKEhbULTjvd4ARK9grFBp09yW+WbY/TyQbw=
 google.golang.org/protobuf v1.26.0/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
-google.golang.org/protobuf v1.28.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.34.2 h1:6xV6lTsCfpGD21XK49h7MhtcApnLqkfYgPcdHftf6hg=
 google.golang.org/protobuf v1.34.2/go.mod h1:qYOHts0dSfpeUzUFpOMr/WGzszTmLH+DiWniOlNbLDw=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=

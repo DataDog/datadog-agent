@@ -23,6 +23,8 @@ const (
 	Datadog DestinationType = iota
 	// Vector endpoints
 	Vector
+	// Local endpoints
+	Local
 )
 
 // DomainResolver interface abstracts domain selection by `transaction.Endpoint`
@@ -40,6 +42,8 @@ type DomainResolver interface {
 	SetBaseDomain(domain string)
 	// UpdateAPIKey replaces instances of the oldKey with the newKey
 	UpdateAPIKey(oldKey, newKey string)
+	// GetBearerAuthToken returns Bearer authtoken, used for internal communication
+	GetBearerAuthToken() string
 }
 
 // SingleDomainResolver will always return the same host
@@ -107,6 +111,11 @@ func (r *SingleDomainResolver) UpdateAPIKey(oldKey, newKey string) {
 		}
 	}
 	r.apiKeys = replace
+}
+
+// GetBearerAuthToken is not implemented for SingleDomainResolver
+func (r *SingleDomainResolver) GetBearerAuthToken() string {
+	return ""
 }
 
 type destination struct {
@@ -196,6 +205,11 @@ func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwar
 	r.alternateDomainList = append(r.alternateDomainList, domain)
 }
 
+// GetBearerAuthToken is not implemented for MultiDomainResolver
+func (r *MultiDomainResolver) GetBearerAuthToken() string {
+	return ""
+}
+
 // NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
 func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, vectorEndpoint string) *MultiDomainResolver {
 	r := NewMultiDomainResolver(mainEndpoint, apiKeys)
@@ -203,4 +217,53 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, 
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SketchSeriesEndpoint.Name, Vector)
 	return r
+}
+
+// LocalDomainResolver contains domain address in local cluster and authToken for internal communication
+type LocalDomainResolver struct {
+	domain    string
+	authToken string
+}
+
+// NewLocalDomainResolver creates a LocalDomainResolver with domain in local cluster and authToken for internal communication
+// For example, the internal cluster-agent endpoint
+func NewLocalDomainResolver(domain string, authToken string) *LocalDomainResolver {
+	return &LocalDomainResolver{
+		domain,
+		authToken,
+	}
+}
+
+// Resolve returns the domain to be used to send data and local destination type
+func (r *LocalDomainResolver) Resolve(transaction.Endpoint) (string, DestinationType) {
+	return r.domain, Local
+}
+
+// GetBaseDomain returns the base domain for this LocalDomainResolver
+func (r *LocalDomainResolver) GetBaseDomain() string {
+	return r.domain
+}
+
+// GetAPIKeys is not implemented for LocalDomainResolver
+func (r *LocalDomainResolver) GetAPIKeys() []string {
+	return []string{}
+}
+
+// SetBaseDomain sets the base domain to a new value
+func (r *LocalDomainResolver) SetBaseDomain(domain string) {
+	r.domain = domain
+}
+
+// GetAlternateDomains is not implemented for LocalDomainResolver
+func (r *LocalDomainResolver) GetAlternateDomains() []string {
+	return []string{}
+}
+
+// UpdateAPIKey is not implemented for LocalDomainResolver
+func (r *LocalDomainResolver) UpdateAPIKey(_, _ string) {
+}
+
+// GetBearerAuthToken returns Bearer authtoken, used for internal communication
+func (r *LocalDomainResolver) GetBearerAuthToken() string {
+	return r.authToken
 }

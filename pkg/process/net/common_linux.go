@@ -10,6 +10,7 @@ package net
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -30,6 +31,9 @@ const (
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
 	telemetryURL         = "http://unix/telemetry"
+	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
+	ebpfBTFLoaderURL     = "http://unix/debug/ebpf_btf_loader_info"
 	netType              = "unix"
 )
 
@@ -80,4 +84,29 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 	}
+}
+
+// GetBTFLoaderInfo queries ebpf_btf_loader_info to get information about where btf files came from
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetEbpfBtfInfo got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }

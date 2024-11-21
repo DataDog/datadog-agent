@@ -317,7 +317,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["system_probe_core_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_co_re")
 	ia.data["system_probe_runtime_compilation_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_runtime_compiler")
 	ia.data["system_probe_kernel_headers_download_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_kernel_header_download")
-	ia.data["system_probe_prebuilt_fallback_enabled"] = sysProbeConf.GetBool("system_probe_config.allow_precompiled_fallback")
+	ia.data["system_probe_prebuilt_fallback_enabled"] = sysProbeConf.GetBool("system_probe_config.allow_prebuilt_fallback")
 	ia.data["system_probe_telemetry_enabled"] = sysProbeConf.GetBool("system_probe_config.telemetry_enabled")
 	ia.data["system_probe_max_connections_per_message"] = sysProbeConf.GetInt("system_probe_config.max_conns_per_message")
 	ia.data["system_probe_track_tcp_4_connections"] = sysProbeConf.GetBool("network_config.collect_tcp_v4")

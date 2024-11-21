@@ -244,14 +244,16 @@ func init() {
 	osinit()
 
 	// Configure Datadog global configuration
-	envvar, found := os.LookupEnv("DD_CONF_NODETREEMODEL")
+	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
 	// Possible values for DD_CONF_NODETREEMODEL:
-	// - "enable": Use the nodetreemodel for the config, instead of viper
-	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
-	// - other:    Use viper for the config
-	if found && envvar == "enable" {
+	// - "enable":    Use the nodetreemodel for the config, instead of viper
+	// - "tee":       Construct both viper and nodetreemodel. Write to both, only read from viper
+	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
+	//                nodetreemodel internals
+	// - other:       Use viper for the config
+	if envvar == "enable" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	} else if found && envvar == "tee" {
+	} else if envvar == "tee" {
 		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
 		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
@@ -263,6 +265,7 @@ func init() {
 
 	// Configuration defaults
 	initConfig()
+	datadog.BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -469,6 +472,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
+	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
+	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Kube ApiServer
@@ -560,6 +565,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
+	config.BindEnvAndSetDefault("ec2_imdsv2_transition_payload_enabled", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -672,6 +678,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnv("autoscaling.failover.metrics")
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes

@@ -104,18 +104,40 @@ func TestMacroMerge(t *testing.T) {
 
 func TestRuleMerge(t *testing.T) {
 	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-		}},
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+			},
+			{
+				ID:         "test_rule_foo",
+				Expression: `exec.file.name == "foo"`,
+			},
+			{
+				ID:         "test_rule_bar",
+				Expression: `exec.file.name == "bar"`,
+				Disabled:   true,
+			},
+		},
 	}
 
 	testPolicy2 := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-			Combine:    OverridePolicy,
-		}},
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Combine:    OverridePolicy,
+			},
+			{
+				ID:         "test_rule_foo",
+				Expression: `exec.file.name == "foo"`,
+				Disabled:   true,
+			},
+			{
+				ID:         "test_rule_bar",
+				Expression: `exec.file.name == "bar"`,
+			},
+		},
 	}
 
 	tmpDir := t.TempDir()
@@ -139,20 +161,36 @@ func TestRuleMerge(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
-	if rule == nil {
-		t.Fatal("failed to find test_rule in ruleset")
-	}
+	t.Run("override", func(t *testing.T) {
+		rule := rs.GetRules()["test_rule"]
+		if rule == nil {
+			t.Fatal("failed to find test_rule in ruleset")
+		}
 
-	testPolicy2.Rules[0].Combine = ""
+		testPolicy2.Rules[0].Combine = ""
 
-	if err := savePolicy(filepath.Join(tmpDir, "test2.policy"), testPolicy2); err != nil {
-		t.Fatal(err)
-	}
+		if err := savePolicy(filepath.Join(tmpDir, "test2.policy"), testPolicy2); err != nil {
+			t.Fatal(err)
+		}
 
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
-		t.Error("expected rule ID conflict")
-	}
+		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected rule ID conflict")
+		}
+	})
+
+	t.Run("enabled-disabled", func(t *testing.T) {
+		rule := rs.GetRules()["test_rule_foo"]
+		if rule != nil {
+			t.Fatal("expected test_rule_foo to not be loaded")
+		}
+	})
+
+	t.Run("disabled-enabled", func(t *testing.T) {
+		rule := rs.GetRules()["test_rule_bar"]
+		if rule == nil {
+			t.Fatal("expected test_rule_bar to be loaded")
+		}
+	})
 }
 
 func TestActionSetVariable(t *testing.T) {

@@ -346,7 +346,6 @@ github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
 github.com/aws/aws-sdk-go-v2/aws/defaults
 github.com/aws/aws-sdk-go-v2/aws/middleware
-github.com/aws/aws-sdk-go-v2/aws/middleware/private/metrics
 github.com/aws/aws-sdk-go-v2/aws/protocol/query
 github.com/aws/aws-sdk-go-v2/aws/protocol/restjson
 github.com/aws/aws-sdk-go-v2/aws/protocol/xml
@@ -440,6 +439,7 @@ github.com/ebitengine/purego/internal/strings
 github.com/fatih/color
 github.com/felixge/httpsnoop
 github.com/fsnotify/fsnotify
+github.com/fsnotify/fsnotify/internal
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
