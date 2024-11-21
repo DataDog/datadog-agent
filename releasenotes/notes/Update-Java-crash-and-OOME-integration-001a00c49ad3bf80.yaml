@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    Update Java auto-instrumentation support scripts. It now allows also tracking OOMEs (OutOfMemoryErrors)
+    Update Java auto-instrumentation support scripts. These scripts now allow tracking of OOMEs (OutOfMemoryErrors).
