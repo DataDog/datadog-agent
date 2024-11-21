@@ -6,11 +6,14 @@
 package sources
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestSingletonInstance(t *testing.T) {
@@ -91,20 +94,29 @@ func TestSubscribeAllConfig(t *testing.T) {
 	tempFile := CreateTestFile(tempDir)
 	defer os.RemoveAll(tempDir)
 	defer os.Remove(tempFile.Name())
-
+	fmt.Println("wack1")
+	log.Debug("WACKTEST1")
 	// Add the file source
 	configSource := GetInstance()
+	fmt.Println("wack2")
+	log.Debug("WACKTEST2")
 	err := configSource.AddFileSource(tempFile.Name())
+	fmt.Println("wack3")
+	log.Debug("WACKTEST3")
 	assert.NoError(t, err)
-
+	fmt.Println("wack4")
+	log.Debug("WACKTEST4")
 	// Subscribe for all sources
 	addedChan, _ := configSource.SubscribeAll()
-
+	fmt.Println("wack5")
+	log.Debug("WACKTEST5")
 	select {
 	case added := <-addedChan:
 		// Check the type and path of the source added
 		assert.Equal(t, "file", added.Config.Type)
 	case <-time.After(10 * time.Second):
+		fmt.Println("ERROR TIME OUT")
+		log.Debug("ERROR TIME OUT 2")
 		t.Fatal("Timeout waiting for source addition")
 	}
 }
