@@ -124,7 +124,6 @@ type tcpTestFixture struct {
 	t    *testing.T
 	tcp  *TCPProcessor
 	conn *network.ConnectionStats
-	pb   packetBuilder
 }
 
 type packetBuilder struct {
