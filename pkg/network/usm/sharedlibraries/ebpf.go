@@ -13,7 +13,6 @@ import (
 	"math"
 	"os"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 
@@ -56,6 +55,7 @@ type libsetHandler struct {
 	done           chan struct{}
 	perfHandler    *ddebpf.PerfHandler
 	enabled        bool
+	requested      bool
 }
 
 // EbpfProgram represents the shared libraries eBPF program.
@@ -123,6 +123,12 @@ func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	return ok && data.enabled
 }
 
+// isLibsetEnabled checks if the libset has been requested to be enabled. Assumes initMutex is locked
+func (e *EbpfProgram) isLibsetRequested(libset Libset) bool {
+	data, ok := e.libsets[libset]
+	return ok && data.requested
+}
+
 // setupManagerAndPerfHandlers sets up the manager and perf handlers for the eBPF program, creating the perf handlers
 // Assumes initMutex is locked
 func (e *EbpfProgram) setupManagerAndPerfHandlers() {
@@ -174,10 +180,10 @@ func (e *EbpfProgram) areLibsetsAlreadyEnabled(libsets ...Libset) bool {
 	return true
 }
 
-func (e *EbpfProgram) loadProgram(libsets []Libset) error {
+func (e *EbpfProgram) loadProgram() error {
 	var err error
 	if e.cfg.EnableCORE {
-		err = e.initCORE(libsets)
+		err = e.initCORE()
 		if err == nil {
 			return nil
 		}
@@ -189,7 +195,7 @@ func (e *EbpfProgram) loadProgram(libsets []Libset) error {
 	}
 
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
-		err = e.initRuntimeCompiler(libsets)
+		err = e.initRuntimeCompiler()
 		if err == nil {
 			return nil
 		}
@@ -200,7 +206,7 @@ func (e *EbpfProgram) loadProgram(libsets []Libset) error {
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	if err := e.initPrebuilt(libsets); err != nil {
+	if err := e.initPrebuilt(); err != nil {
 		return fmt.Errorf("prebuilt load failed: %w", err)
 	}
 
@@ -242,7 +248,13 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 
 	e.setupManagerAndPerfHandlers()
 
-	if err := e.loadProgram(libsets); err != nil {
+	// Mark the libsets as requested so they can be started
+	// Note that other libsets might be requested from previous executions
+	for _, libset := range libsets {
+		e.libsets[libset].requested = true
+	}
+
+	if err := e.loadProgram(); err != nil {
 		return fmt.Errorf("cannot load program: %w", err)
 	}
 
@@ -250,10 +262,6 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
-	// Add the libsets to the enabled libsets
-	for _, libset := range libsets {
-		e.enableLibset(libset)
-	}
 	e.isInitialized = true
 	return nil
 }
@@ -266,7 +274,7 @@ func (e *EbpfProgram) start() error {
 	}
 
 	for _, handler := range e.libsets {
-		if !handler.enabled {
+		if !handler.requested {
 			continue
 		}
 
@@ -274,6 +282,8 @@ func (e *EbpfProgram) start() error {
 		handler.done = make(chan struct{})
 		e.wg.Add(1)
 		go handler.eventLoop(&e.wg)
+
+		handler.enabled = true
 	}
 
 	return nil
@@ -307,15 +317,23 @@ func (l *libsetHandler) handleEvent(event *ebpf.DataEvent) {
 	defer l.callbacksMutex.RUnlock()
 
 	libpath := ToLibPath(event.Data)
+	fmt.Println(libpath.String())
 	for callback := range l.callbacks {
 		// Not using a callback runner for now, as we don't have a lot of callbacks
 		(*callback)(libpath)
 	}
 }
 
+// stop stops the libset handler. Assumes the initMutex for the main ebpfProgram is locked. To be called
 func (l *libsetHandler) stop() {
-	l.perfHandler.Stop()
-	close(l.done)
+	if l.perfHandler != nil {
+		l.perfHandler.Stop()
+	}
+
+	// The done channel might not be initialized if the program is stopped before it starts (e.g., two sequential calls to InitWithLibsets()).
+	if l.done != nil {
+		close(l.done)
+	}
 }
 
 // subscribe subscribes to the shared libraries events for this libset, returns the function
@@ -409,7 +427,7 @@ func (e *EbpfProgram) stopImpl() {
 	e.Manager = nil
 }
 
-func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, libsets []Libset) error {
+func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	options.RLimit = &unix.Rlimit{
 		Cur: math.MaxUint64,
 		Max: math.MaxUint64,
@@ -426,7 +444,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, li
 	var enabledMsgs []string
 	for libset := range LibsetToLibSuffixes {
 		value := uint64(0)
-		if slices.Contains(libsets, libset) {
+		if e.isLibsetRequested(libset) {
 			value = uint64(1)
 		}
 
@@ -445,29 +463,29 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, li
 	return e.InitWithOptions(buf, &options)
 }
 
-func (e *EbpfProgram) initCORE(libsets []Libset) error {
+func (e *EbpfProgram) initCORE() error {
 	assetName := getAssetName("shared-libraries", e.cfg.BPFDebug)
-	fn := func(buf bytecode.AssetReader, options manager.Options) error { return e.init(buf, options, libsets) }
+	fn := func(buf bytecode.AssetReader, options manager.Options) error { return e.init(buf, options) }
 	return ddebpf.LoadCOREAsset(assetName, fn)
 }
 
-func (e *EbpfProgram) initRuntimeCompiler(libsets []Libset) error {
+func (e *EbpfProgram) initRuntimeCompiler() error {
 	bc, err := getRuntimeCompiledSharedLibraries(e.cfg)
 	if err != nil {
 		return err
 	}
 	defer bc.Close()
-	return e.init(bc, manager.Options{}, libsets)
+	return e.init(bc, manager.Options{})
 }
 
-func (e *EbpfProgram) initPrebuilt(libsets []Libset) error {
+func (e *EbpfProgram) initPrebuilt() error {
 	bc, err := netebpf.ReadSharedLibrariesModule(e.cfg.BPFDir, e.cfg.BPFDebug)
 	if err != nil {
 		return err
 	}
 	defer bc.Close()
 
-	return e.init(bc, manager.Options{}, libsets)
+	return e.init(bc, manager.Options{})
 }
 
 func sysOpenAt2Supported() bool {
