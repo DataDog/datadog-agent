@@ -51,7 +51,7 @@ func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Con
 	}
 }
 
-func AutodiscoveryConfigFromprotobufConfig(config *core.Config) integration.Config {
+func AutodiscoveryConfigFromProtobufConfig(config *core.Config) integration.Config {
 	instances := []integration.Data{}
 
 	for _, instance := range config.Instances {
