@@ -871,7 +871,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	TlmOracleStatementMetricsLatency.Observe(float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
 		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
-		TlmOracleStatementMetricsErrorCount.Add(float64(planErrors))
+		TlmOracleStatementMetricsErrorCount.Set(float64(planErrors))
 	}
 	sender.Commit()
 

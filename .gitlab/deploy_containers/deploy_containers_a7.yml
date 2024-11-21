@@ -32,6 +32,17 @@ include:
     - if [[ "$FLAVOR" == "-linux" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES}"; elif [[ "$FLAVOR" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}${JMX}"
 
+.deploy_containers-a7_win_only_image:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - OS=$(echo $OS_LTSC_MAPPING | cut -d ':' -f 1)
+    - LTSC_VERSION=$(echo $OS_LTSC_MAPPING | cut -d ':' -f 2)
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_SOURCES="${IMG_BASE_SRC}-7${JMX}-win${OS}${FLAVOR}-amd64"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}-ltsc${LTSC_VERSION}${JMX}"
 
 .deploy_containers-a7_external:
   extends: .deploy_containers-a7-base
@@ -44,6 +55,20 @@ include:
           - ""
           - "-servercore"
           - "-linux"
+
+.deploy_containers-a7_win_only_external:
+  extends: .deploy_containers-a7_win_only_image
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
+        OS_LTSC_MAPPING:
+          - "ltsc2022:2022"
+          - "1809:2019"
+        FLAVOR:
+          - ""
+          - "-servercore"
 
 .deploy_containers-a7-base-ot:
   extends: .docker_publish_job_definition
@@ -59,6 +84,11 @@ deploy_containers-a7:
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
 
+deploy_containers-a7-win-only:
+  extends: .deploy_containers-a7_win_only_external
+  rules:
+    !reference [.manual_on_deploy_auto_on_rc]
+
 deploy_containers-a7-ot:
   extends: .deploy_containers-a7-base-ot
   rules:
@@ -71,6 +101,13 @@ deploy_containers-a7-ot:
 
 deploy_containers-a7-rc:
   extends: .deploy_containers-a7_external
+  rules:
+    !reference [.on_rc]
+  variables:
+    VERSION: 7-rc
+
+deploy_containers-a7-win-only-rc:
+  extends: .deploy_containers-a7_win_only_external
   rules:
     !reference [.on_rc]
   variables:
@@ -159,6 +196,25 @@ deploy_containers_latest-a7:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
+      # Windows only images
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+        IMG_SOURCES: "%BASE%-win1809-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7,${AGENT_REPOSITORY}:latest-ltsc2019
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+        IMG_SOURCES: "%BASE%-winltsc2022-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7,${AGENT_REPOSITORY}:latest-ltsc2022
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+        IMG_SOURCES: "%BASE%-win1809-servercore-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019,${AGENT_REPOSITORY}:latest-servercore-ltsc2019
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+        IMG_SOURCES: "BASE%-winltsc2022-servercore-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022,${AGENT_REPOSITORY}:latest-servercore-ltsc2022
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
+        IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2022-jmx
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
+        IMG_SOURCES: "%BASE%-winltsc1809-servercore-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2019-jmx
 
 deploy_containers_latest-a7_internal:
   extends: .docker_publish_job_definition

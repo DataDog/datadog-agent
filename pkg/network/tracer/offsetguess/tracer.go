@@ -77,7 +77,7 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
-func NewTracerOffsetGuesser() (OffsetGuesser, error) {
+func NewTracerOffsetGuesser() (OffsetGuesser, error) { //nolint:revive // TODO
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{
@@ -286,7 +286,7 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 // IPv6LinkLocalPrefix is only exposed for testing purposes
 var IPv6LinkLocalPrefix = "fe80::"
 
-func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
+func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) { //nolint:revive // TODO
 	ints, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -1085,7 +1085,7 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
+func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) { //nolint:revive // TODO
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return nil, fmt.Errorf("not a TCPConn")
@@ -1149,7 +1149,7 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
-var TracerOffsets tracerOffsets
+var TracerOffsets tracerOffsets //nolint:revive // TODO
 
 type tracerOffsets struct {
 	offsets []manager.ConstantEditor

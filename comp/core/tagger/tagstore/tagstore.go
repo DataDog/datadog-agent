@@ -16,7 +16,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -45,23 +44,23 @@ type TagStore struct {
 
 	clock clock.Clock
 
-	cfg            config.Component
 	telemetryStore *telemetry.Store
 }
 
 // NewTagStore creates new LocalTaggerTagStore.
-func NewTagStore(cfg config.Component, telemetryStore *telemetry.Store) *TagStore {
-	return newTagStoreWithClock(cfg, clock.New(), telemetryStore)
+func NewTagStore(telemetryStore *telemetry.Store) *TagStore {
+	return newTagStoreWithClock(clock.New(), telemetryStore)
 }
 
-func newTagStoreWithClock(cfg config.Component, clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
+func newTagStoreWithClock(clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
 		telemetry:           make(map[string]map[string]float64),
 		store:               genericstore.NewObjectStore[EntityTags](),
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
 		clock:               clock,
-		cfg:                 cfg,
-		telemetryStore:      telemetryStore,
+		// telemetryStore is optional. If it is nil, we will not collect
+		// telemetry. The fake tagger does not have a telemetry store.
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -140,7 +139,9 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			s.store.Set(info.EntityID, storedTags)
 		}
 
-		s.telemetryStore.UpdatedEntities.Inc()
+		if s.telemetryStore != nil {
+			s.telemetryStore.UpdatedEntities.Inc()
+		}
 		storedTags.setTagsForSource(info.Source, newSt)
 
 		events = append(events, types.EntityEvent{
@@ -177,7 +178,9 @@ func (s *TagStore) collectTelemetry() {
 
 	for prefix, sources := range s.telemetry {
 		for source, storedEntities := range sources {
-			s.telemetryStore.StoredEntities.Set(storedEntities, source, prefix)
+			if s.telemetryStore != nil {
+				s.telemetryStore.StoredEntities.Set(storedEntities, source, prefix)
+			}
 			s.telemetry[prefix][source] = 0
 		}
 	}
@@ -223,7 +226,9 @@ func (s *TagStore) Prune() {
 		}
 
 		if et.shouldRemove() {
-			s.telemetryStore.PrunedEntities.Inc()
+			if s.telemetryStore != nil {
+				s.telemetryStore.PrunedEntities.Inc()
+			}
 			s.store.Unset(eid)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,

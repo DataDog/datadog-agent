@@ -45,7 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
@@ -113,11 +113,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						AgentType: catalog,
 					}
 				}),
-				dualTaggerfx.Module(tagger.DualParams{
-					UseRemote: func(c config.Component) bool {
-						return c.GetBool("security_agent.remote_tagger")
-					},
-				}, tagger.Params{}, tagger.RemoteParams{
+				remoteTaggerfx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
 						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 					},

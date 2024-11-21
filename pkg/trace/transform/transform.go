@@ -50,7 +50,7 @@ func OtelSpanToDDSpanMinimal(
 	}
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelService(otelspan, otelres, true),
+		Service:  traceutil.GetOTelService(otelres, true),
 		Name:     operationName,
 		Resource: resourceName,
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
@@ -119,9 +119,8 @@ func OtelSpanToDDSpan(
 		}
 	}
 
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	if _, ok := ddspan.Meta["env"]; !ok {
-		if env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+		if env := traceutil.GetOTelEnv(otelres); env != "" {
 			ddspan.Meta["env"] = env
 		}
 	}
@@ -146,7 +145,7 @@ func OtelSpanToDDSpan(
 		default:
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
-			if k != "http.method" && k != "http.status_code" {
+			if k != "http.method" && k != "http.status_code" && k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
 				SetMetaOTLP(ddspan, k, value)
 			}
 		}

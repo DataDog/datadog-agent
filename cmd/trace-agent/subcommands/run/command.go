@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
@@ -27,12 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -93,19 +89,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
 		logtracefx.Module(),
-		// setup workloadmeta
-		wmcatalog.GetCatalog(),
-		workloadmetafx.Module(workloadmeta.Params{
-			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
-		}),
 		autoexitimpl.Module(),
 		statsd.Module(),
-		dualTaggerfx.Module(tagger.DualParams{
-			UseRemote: func(c coreconfig.Component) bool {
-				return c.GetBool("apm_config.remote_tagger")
-			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},
