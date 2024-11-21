@@ -101,7 +101,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 		}
 	}
 
-	if providerKind := pkgconfigsetup.Datadog().GetString("provider.kind"); providerKind != "" {
+	if providerKind := pkgconfigsetup.Datadog().GetString("provider_kind"); providerKind != "" {
 		tags = append(tags, fmt.Sprintf("provider_kind:%s", providerKind))
 	}
 

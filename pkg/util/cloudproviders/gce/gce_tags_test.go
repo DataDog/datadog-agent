@@ -151,10 +151,10 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 func TestGetHostTagsWithProviderKind(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
-	defaultProviderKind := mockConfig.GetStringSlice("provider.kind")
-	defer mockConfig.SetWithoutSource("provider.kind", defaultProviderKind)
+	defaultProviderKind := mockConfig.GetStringSlice("provider_kind")
+	defer mockConfig.SetWithoutSource("provider_kind", defaultProviderKind)
 
-	mockConfig.SetWithoutSource("provider.kind", "test-provider")
+	mockConfig.SetWithoutSource("provider_kind", "test-provider")
 
 	server := mockMetadataRequest(t)
 	defer server.Close()

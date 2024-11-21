@@ -798,7 +798,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 
-	config.BindEnv("provider.kind")
+	config.BindEnv("provider_kind")
 
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
