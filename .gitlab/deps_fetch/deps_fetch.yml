@@ -114,7 +114,11 @@ fetch_openjdk:
     - !reference [.manual]
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  variables:
+    JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
+    JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9
+    JDK_SHA256: 052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84
   script:
-    - wget https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9/OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip -O OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
-    - echo '052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84  OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip' | sha256sum -c
-    - $S3_CP_CMD OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip $S3_DD_AGENT_OMNIBUS_JAVA_URI/OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - wget "$JDK_URL/$JDK_FILENAME" -O "$JDK_FILENAME"
+    - echo "$JDK_SHA256  $JDK_FILENAME" | sha256sum -c
+    - $S3_CP_CMD "$JDK_FILENAME" "$S3_DD_AGENT_OMNIBUS_JAVA_URI/$JDK_FILENAME" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
