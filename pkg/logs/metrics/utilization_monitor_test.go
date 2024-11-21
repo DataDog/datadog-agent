@@ -14,16 +14,14 @@ import (
 )
 
 func TestUtilizationMonitorLifecycle(t *testing.T) {
-	tickChan := make(chan time.Time, 1)
 	clock := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithTickAndClock("name", "instance", tickChan, clock)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("name", "instance", 2*time.Second, clock)
 
 	// Converge on 50% utilization
 	for i := 0; i < 100; i++ {
 		um.Start()
 		clock.Add(1 * time.Second)
 
-		tickChan <- time.Time{} // Trigger report
 		um.Stop()
 		clock.Add(1 * time.Second)
 	}
@@ -35,7 +33,6 @@ func TestUtilizationMonitorLifecycle(t *testing.T) {
 		um.Start()
 		clock.Add(1 * time.Second)
 
-		tickChan <- time.Time{} // Trigger report
 		um.Stop()
 		clock.Add(1 * time.Millisecond)
 	}
@@ -43,11 +40,10 @@ func TestUtilizationMonitorLifecycle(t *testing.T) {
 	require.InDelta(t, 0.99, um.avg, 0.01)
 
 	// Converge on 0% utilization
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 200; i++ {
 		um.Start()
 		clock.Add(1 * time.Millisecond)
 
-		tickChan <- time.Time{} // Trigger report
 		um.Stop()
 		clock.Add(1 * time.Second)
 	}

@@ -32,6 +32,8 @@ type TelemetryUtilizationMonitor struct {
 	idle       time.Duration
 	startIdle  time.Time
 	startInUse time.Time
+	lastSample time.Time
+	sampleRate time.Duration
 	avg        float64
 	name       string
 	instance   string
@@ -42,18 +44,19 @@ type TelemetryUtilizationMonitor struct {
 
 // NewTelemetryUtilizationMonitor creates a new TelemetryUtilizationMonitor.
 func NewTelemetryUtilizationMonitor(name, instance string) *TelemetryUtilizationMonitor {
-	return newTelemetryUtilizationMonitorWithTickAndClock(name, instance, time.NewTicker(1*time.Second).C, clock.New())
+	return newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance, 1*time.Second, clock.New())
 }
 
-func newTelemetryUtilizationMonitorWithTickAndClock(name, instance string, tickChan <-chan time.Time, clock clock.Clock) *TelemetryUtilizationMonitor {
+func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string, sampleRate time.Duration, clock clock.Clock) *TelemetryUtilizationMonitor {
 	return &TelemetryUtilizationMonitor{
 		name:       name,
 		instance:   instance,
 		startIdle:  clock.Now(),
 		startInUse: clock.Now(),
+		lastSample: clock.Now(),
+		sampleRate: sampleRate,
 		avg:        0,
 		started:    false,
-		tickChan:   tickChan,
 		clock:      clock,
 	}
 }
@@ -81,12 +84,11 @@ func (u *TelemetryUtilizationMonitor) Stop() {
 }
 
 func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
-	select {
-	case <-u.tickChan:
+	if u.clock.Since(u.lastSample) >= u.sampleRate {
 		u.avg = ewma(float64(u.inUse)/float64(u.idle+u.inUse), u.avg)
 		TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
 		u.idle = 0
 		u.inUse = 0
-	default:
+		u.lastSample = u.clock.Now()
 	}
 }
