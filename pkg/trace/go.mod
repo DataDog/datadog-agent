@@ -52,10 +52,9 @@ require (
 	k8s.io/apimachinery v0.25.5
 )
 
-require (
-	go.opentelemetry.io/collector/component/componenttest v0.114.0
-	go.opentelemetry.io/collector/processor v0.114.0 // indirect
-)
+require go.opentelemetry.io/collector/component/componenttest v0.114.0
+
+require go.opentelemetry.io/collector/processor v0.114.0 // indirect
 
 require (
 	github.com/DataDog/go-sqllexer v0.0.16 // indirect
