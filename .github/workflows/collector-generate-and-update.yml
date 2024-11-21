@@ -68,4 +68,4 @@ jobs:
         if: steps.check_changes.outputs.changes_detected == 'true'
         run: |
           gh auth login --with-token <<< ${{ secrets.GITHUB_TOKEN }}
-          gh pr create --title "Daily update and generate" --body "This PR contains the daily update and generate changes." --base main --head update-otel-collector-dependencies-${{ steps.date.outputs.date }} --draft
+          gh pr create --title "Update OTel collector dependencies" --body "This PR updates the OTel Collector dependencies to the latest version. Please ensure that all tests pass before marking ready for review." --base main --head update-otel-collector-dependencies-${{ steps.date.outputs.date }} --draft
