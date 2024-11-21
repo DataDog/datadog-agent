@@ -35,10 +35,10 @@ func FindProductCode(productName string) (*Product, error) {
 	for _, key := range keys {
 		product, err := processKey(rootPath, key, productName)
 		if err == nil && product != nil {
-			return product, err
+			return product, nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("product not found")
 }
 
 // IsProductInstalled returns true if the given productName is installed
