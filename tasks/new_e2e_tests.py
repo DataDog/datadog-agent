@@ -56,6 +56,7 @@ def run(
     cache=False,
     junit_tar="",
     test_run_name="",
+    from_current_to_stable="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -92,7 +93,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags} {from_current_to_stable}'
 
     args = {
         "go_mod": "mod",
@@ -116,6 +117,7 @@ def run(
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
         "extra_flags": extra_flags,
+        "from_current_to_stable": "-from-current-to-stable" if from_current_to_stable == "true" else '',
     }
 
     test_res = test_flavor(
