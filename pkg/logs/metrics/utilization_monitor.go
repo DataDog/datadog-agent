@@ -38,7 +38,6 @@ type TelemetryUtilizationMonitor struct {
 	name       string
 	instance   string
 	started    bool
-	tickChan   <-chan time.Time
 	clock      clock.Clock
 }
 
