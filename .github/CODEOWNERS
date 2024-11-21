@@ -316,7 +316,7 @@
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
-/comp/haagent @DataDog/network-device-monitoring
+/comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/compression @DataDog/agent-metrics-logs
