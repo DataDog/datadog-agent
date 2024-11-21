@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -18,49 +19,57 @@ import (
 
 // StreamConfig streams configs
 func Config(ac autodiscovery.Component, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
-	scheduleChannel, unscheduleChannel := ac.GetServerChannels()
-
-	for {
-		select {
-		case config, ok := <-scheduleChannel:
-			if !ok {
-				return nil
-			}
-
-			protobufConfig := proto.ProtobufConfigFromAutodiscoveryConfig(config)
-			protobufConfig.EventType = pb.ConfigEventType_SCHEDULE
-
-			err := grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.AutodiscoveryStreamResponse{
-					Configs: []*pb.Config{protobufConfig},
-				})
-			}, 1*time.Minute)
-
-			if err != nil {
-				log.Warnf("error sending schedule autodiscovbery event: %s", err)
-				return err
-			}
-		case config, ok := <-unscheduleChannel:
-			if !ok {
-				return nil
-			}
-
-			protobufConfig := proto.ProtobufConfigFromAutodiscoveryConfig(config)
-			protobufConfig.EventType = pb.ConfigEventType_UNSCHEDULE
-
-			err := grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.AutodiscoveryStreamResponse{
-					Configs: []*pb.Config{protobufConfig},
-				})
-			}, 1*time.Minute)
-
-			if err != nil {
-				log.Warnf("error sending unschedule autodiscovbery event: %s", err)
-				return err
-			}
-
-		case <-out.Context().Done():
-			return nil
-		}
+	s := &scheduler{
+		out:  out,
+		done: make(chan error, 1),
 	}
+
+	// TODO: add a uuid to avoid name collision when there are concurrent rpc calls ?
+	schedulerName := "remote"
+	ac.AddScheduler(schedulerName, s, true)
+	defer ac.RemoveScheduler(schedulerName)
+
+	return <-s.done
+}
+
+type scheduler struct {
+	out  pb.AgentSecure_AutodiscoveryStreamConfigServer
+	done chan error
+}
+
+func (s *scheduler) Schedule(config []integration.Config) {
+	s.handleEvent(config, pb.ConfigEventType_SCHEDULE)
+}
+
+func (s *scheduler) Unschedule(configs []integration.Config) {
+	s.handleEvent(configs, pb.ConfigEventType_UNSCHEDULE)
+}
+
+func (s *scheduler) Stop() {
+	close(s.done)
+}
+
+func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.ConfigEventType) {
+	protobufConfigs := protobufConfigFromAutodiscoveryConfigs(configs, eventType)
+
+	err := grpc.DoWithTimeout(func() error {
+		return s.out.Send(&pb.AutodiscoveryStreamResponse{
+			Configs: protobufConfigs,
+		})
+	}, 1*time.Minute)
+
+	if err != nil {
+		log.Warnf("error sending %s autodiscovery event: %s", eventType.String(), err)
+		s.done <- err
+	}
+}
+
+func protobufConfigFromAutodiscoveryConfigs(config []integration.Config, eventType pb.ConfigEventType) []*pb.Config {
+	res := make([]*pb.Config, 0, len(config))
+	for _, c := range config {
+		protobufConfig := proto.ProtobufConfigFromAutodiscoveryConfig(&c)
+		protobufConfig.EventType = eventType
+		res = append(res, protobufConfig)
+	}
+	return res
 }
