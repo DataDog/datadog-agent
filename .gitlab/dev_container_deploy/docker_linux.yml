@@ -18,6 +18,7 @@ dev_branch_multiarch-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
+    - !reference [.except_mergequeue]
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
       variables:
