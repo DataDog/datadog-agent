@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def
 
 go 1.22.0
 
-require go.opentelemetry.io/collector/extension v0.111.0
+require go.opentelemetry.io/collector/extension v0.113.0
 
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -454,7 +455,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
-		EBPFLessEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessEnabled: IsEBPFLessModeEnabled(),
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
@@ -497,6 +498,20 @@ func isRemoteConfigEnabled() bool {
 	}
 
 	return false
+}
+
+// IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
+// it's based on the configuration itself, but will default on true if
+// running on fargate
+func IsEBPFLessModeEnabled() bool {
+	const cfgKey = "runtime_security_config.ebpfless.enabled"
+	// by default on fargate, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsSet(cfgKey) && fargate.IsFargateInstance() {
+		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	return pkgconfigsetup.SystemProbe().GetBool(cfgKey)
 }
 
 // GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type

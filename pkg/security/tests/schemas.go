@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -36,13 +36,13 @@ var upstreamEventSchema = getUpstreamEventSchema()
 //nolint:deadcode,unused
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
-	return validateUrlSchema(t, ad, "file:///activity_dump_proto.schema.json")
+	return validateStringSchema(t, ad, "file:///activity_dump_proto.schema.json")
 }
 
 //nolint:deadcode,unused
 func validateMessageSchema(t *testing.T, msg string) bool {
 	t.Helper()
-	if !validateUrlSchema(t, msg, "file:///message.schema.json") {
+	if !validateStringSchema(t, msg, "file:///message.schema.json") {
 		return false
 	}
 	return validateUrlSchema(t, msg, upstreamEventSchema)
@@ -259,7 +259,7 @@ func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 		return false
 	}
 
-	return validateUrlSchema(t, string(eventJSON), "file:///ruleset_loaded.schema.json")
+	return validateStringSchema(t, string(eventJSON), "file:///ruleset_loaded.schema.json")
 }
 
 //nolint:deadcode,unused
@@ -272,7 +272,7 @@ func validateHeartbeatSchema(t *testing.T, event *events.CustomEvent) bool {
 		return false
 	}
 
-	return validateUrlSchema(t, string(eventJSON), "file:///heartbeat.schema.json")
+	return validateStringSchema(t, string(eventJSON), "file:///heartbeat.schema.json")
 }
 
 // ValidInodeFormatChecker defines the format inode checker

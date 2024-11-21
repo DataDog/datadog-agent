@@ -237,6 +237,7 @@
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
+/cmd/system-probe/api/client/client_windows.go    @DataDog/windows-kernel-integrations
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
@@ -249,6 +250,7 @@
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent-ot                    @DataDog/opentelemetry
+/Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metrics-logs
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
@@ -316,6 +318,7 @@
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
+/comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/compression @DataDog/agent-metrics-logs
@@ -442,6 +445,7 @@
 /pkg/util/clusteragent/                 @DataDog/container-platform
 /pkg/util/containerd/                   @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
+/pkg/util/crio/                         @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/funcs/                        @DataDog/ebpf-platform
@@ -484,7 +488,6 @@
 /pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/process/net/common_windows.go      @DataDog/windows-agent
 /pkg/process/net/windows_pipe.go        @DataDog/windows-kernel-integrations
-/pkg/process/net/windows_pipe_testutil.go     @DataDog/windows-kernel-integrations
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/proto/pbgo/trace                   @DataDog/agent-apm

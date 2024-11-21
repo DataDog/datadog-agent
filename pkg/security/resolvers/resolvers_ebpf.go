@@ -50,7 +50,7 @@ type EBPFResolvers struct {
 	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         tags.Resolver
+	TagsResolver         *tags.LinuxResolver
 	DentryResolver       *dentry.Resolver
 	ProcessResolver      *process.EBPFResolver
 	NamespaceResolver    *netns.Resolver
@@ -91,17 +91,12 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	var tagsResolver tags.Resolver
-	if opts.TagsResolver != nil {
-		tagsResolver = opts.TagsResolver
-	} else {
-		tagsResolver = tags.NewResolver(telemetry)
-	}
-
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+	cgroupsResolver, err := cgroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}
+
+	tagsResolver := tags.NewResolver(telemetry, opts.Tagger, cgroupsResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -112,7 +107,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}
-		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+		if err := tagsResolver.RegisterListener(tags.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
 			return nil, err
 		}
 	}

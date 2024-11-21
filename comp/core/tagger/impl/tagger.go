@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -100,7 +101,6 @@ type TaggerWrapper struct {
 	defaultTagger tagger.Component
 
 	wmeta         workloadmeta.Component
-	cfg           config.Component
 	datadogConfig datadogConfig
 
 	checksCardinality          types.TagCardinality
@@ -143,7 +143,7 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadm
 	var err error
 	telemetryStore := telemetry.NewStore(telemetryComp)
 	if params.UseFakeTagger {
-		defaultTagger = newFakeTagger(cfg, telemetryStore)
+		defaultTagger = taggermock.New().Comp
 	} else {
 		defaultTagger, err = newLocalTagger(cfg, wmeta, telemetryStore)
 	}
@@ -207,7 +207,7 @@ func (t *TaggerWrapper) Stop() error {
 
 // ReplayTagger returns the replay tagger instance
 func (t *TaggerWrapper) ReplayTagger() tagger.ReplayTagger {
-	return newReplayTagger(t.cfg, t.telemetryStore)
+	return newReplayTagger(t.telemetryStore)
 }
 
 // GetTaggerTelemetryStore returns tagger telemetry store
@@ -459,6 +459,15 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			}
 		}
 	default:
+		// Disable origin detection if cardinality is none
+		// TODO: The `none` cardinality should be directly supported by the Tagger.
+		if originInfo.Cardinality == "none" {
+			originInfo.ContainerIDFromSocket = packets.NoOrigin
+			originInfo.PodUID = ""
+			originInfo.ContainerID = ""
+			return
+		}
+
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]

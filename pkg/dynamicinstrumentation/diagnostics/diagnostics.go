@@ -78,7 +78,7 @@ func (m *DiagnosticManager) update(id probeInstanceID, d *ditypes.DiagnosticUplo
 	}
 }
 
-func StopGlobalDiagnostics() {
+func StopGlobalDiagnostics() { //nolint:revive // TODO
 	close(Diagnostics.Updates)
 }
 
