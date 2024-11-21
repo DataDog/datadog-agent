@@ -261,46 +261,7 @@ def generate(ctx):
                 print(f"Updated package name and ensured license header in: {file_path}")
 
 
-def fetch_latest_release(repo):
-    gh = GithubAPI(repo)
-    return gh.latest_release()
-
-
-def fetch_module_versions(repo, version):
-    """
-    Fetch versions.yaml from the provided URL and build a map of modules with their versions.
-    """
-    url = f"https://raw.githubusercontent.com/{repo}/{version}/versions.yaml"
-    print(f"Fetching versions from {url}")
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-    except requests.exceptions.RequestException as e:
-        raise Exit(
-            color_message(f"Failed to fetch the YAML file: {e}", Color.RED),
-            code=1,
-        ) from e
-
-    yaml_content = response.content
-
-    try:
-        data = yaml.safe_load(yaml_content)
-    except yaml.YAMLError as e:
-        raise Exit(
-            color_message(f"Failed to parse YAML content: {e}", Color.RED),
-            code=1,
-        ) from e
-
-    version_modules = {}
-    for _, details in data.get("module-sets", {}).items():
-        version = details.get("version", "unknown")
-        for module in details.get("modules", []):
-            version_modules[version] = version_modules.get(version, []) + [module]
-    return version_modules
-
-
-def update_go_mod_file(go_mod_path, collector_version_modules):
+def update_go_mod_file(go_mod_path, module_versions):
     print(f"Updating {go_mod_path}")
     # Read all lines from the go.mod file
     with open(go_mod_path) as file:
@@ -310,11 +271,7 @@ def update_go_mod_file(go_mod_path, collector_version_modules):
     file_updated = False  # To check if the file was modified
 
     # Compile a regex for each module to match the module name exactly
-    compiled_modules = {
-        module: re.compile(rf"^\s*{re.escape(module)}\s+v[\d\.]+")
-        for _, modules in collector_version_modules.items()
-        for module in modules
-    }
+    compiled_modules = {module: re.compile(rf"^\s*{re.escape(module)}\s+v[\d\.]+") for module in module_versions.keys()}
 
     # Regex to match any `require` line
     require_regex = re.compile(r"^require\s+(\S+)\s+v[\d\.]+")
@@ -326,8 +283,8 @@ def update_go_mod_file(go_mod_path, collector_version_modules):
         require_match = require_regex.match(line)
         if require_match:
             module_name = require_match.group(1)
-            for version, modules in collector_version_modules.items():
-                if module_name in modules:
+            for module, version in module_versions.items():
+                if module_name == module:
                     print(f"Updating {module_name} to version {version} in {go_mod_path}")
                     updated_line = f"require {module_name} {version}\n"
                     file_updated = True
@@ -335,15 +292,14 @@ def update_go_mod_file(go_mod_path, collector_version_modules):
 
         # General case for other module versions
         else:
-            for version, modules in collector_version_modules.items():
-                for module in modules:
-                    module_regex = compiled_modules[module]
-                    match = module_regex.match(line)
-                    if match:
-                        print(f"Updating {module} to version {version} in {go_mod_path}")
-                        updated_line = f"{match.group(0).split()[0]} {version}\n"
-                        file_updated = True
-                        break  # Stop checking other modules once we find a match
+            for module, version in module_versions.items():
+                module_regex = compiled_modules[module]
+                match = module_regex.match(line)
+                if match:
+                    print(f"Updating {module} to version {version} in {go_mod_path}")
+                    updated_line = f"{match.group(0).split()[0]} {version}\n"
+                    file_updated = True
+                    break  # Stop checking other modules once we find a match
                 if updated_line != line:
                     break  # If the line was updated, stop checking other versions
 
@@ -393,88 +349,155 @@ def update_file(filepath, old_version, new_version):
     print(f"Updated all instances of {old_version} to {new_version} in {filepath}")
 
 
-def update_core_collector():
-    print("Updating the core collector version in all go.mod files and manifest.yaml file.")
-    repo = "open-telemetry/opentelemetry-collector"
-    collector_version = fetch_latest_release(repo)
-    if collector_version:
-        print(f"Latest release for {repo}: {collector_version}")
-        version_modules = fetch_module_versions(repo, collector_version)
-        update_all_go_mod(version_modules)
-        old_version = read_old_version(MANIFEST_FILE)
-        if old_version:
-            collector_version = collector_version[1:]
-            update_file(MANIFEST_FILE, old_version, collector_version)
-            update_file(
-                "./comp/otelcol/collector/impl/collector.go",
-                old_version,
-                collector_version,
-            )
-            # update other files
-            update_file("./tasks/collector.py", old_version, collector_version)
-            for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
-                for file in files:
-                    update_file(os.path.join(root, file), old_version, collector_version)
-            update_file(
-                "./test/otel/testdata/builder-config.yaml",
-                old_version,
-                collector_version,
-            )
-            update_file("./.gitlab/integration_test/otel.yml", old_version, collector_version)
-
-    else:
-        print(f"Failed to fetch the latest release for {repo}")
-
-    print("Core collector update complete.")
+OTEL_COLLECTOR_CORE_REPO = "open-telemetry/opentelemetry-collector"
+OTEL_COLLECTOR_CONTRIB_REPO = "open-telemetry/opentelemetry-collector-contrib"
 
 
-def update_versions_in_yaml(yaml_file_path, new_version, component_prefix):
+def update_versions_in_ocb_yaml(yaml_file_path, modules_version):
     with open(yaml_file_path) as file:
         data = yaml.safe_load(file)
 
     # Function to update versions in a list of components
     def update_component_versions(components):
         for i, component in enumerate(components):
-            if "gomod" in component and component_prefix in component["gomod"]:
+            if "gomod" in component:
                 parts = component["gomod"].split(" ")
                 if len(parts) == 2:
-                    parts[1] = new_version
+                    version = modules_version.get(parts[0], parts[1])
+                    parts[1] = version
                     components[i]["gomod"] = " ".join(parts)
 
     # Update extensions, receivers, processors, and exporters
-    for key in ["extensions", "receivers", "processors", "exporters", "connectors"]:
+    for key in ["extensions", "receivers", "processors", "exporters", "connectors", "providers", "converters"]:
         if key in data:
             update_component_versions(data[key])
 
     with open(yaml_file_path, "w") as file:
         yaml.dump(data, file, default_flow_style=False)
 
-    print(
-        f"Updated YAML file at {yaml_file_path} with new version {new_version} for components matching '{component_prefix}'."
-    )
+    print(f"Updated YAML file at {yaml_file_path}")
 
 
-def update_collector_contrib():
-    print("Updating the collector-contrib version in all go.mod files.")
-    repo = "open-telemetry/opentelemetry-collector-contrib"
-    collector_version = fetch_latest_release(repo)
-    if collector_version:
-        print(f"Latest release for {repo}: {collector_version}")
-        version_modules = fetch_module_versions(repo, collector_version)
-        update_all_go_mod(version_modules)
-        update_versions_in_yaml(
+def fetch_latest_release(repo):
+    gh = GithubAPI(repo)
+    return gh.latest_release()
+
+
+class CollectorRepo:
+    def __init__(self, repo):
+        self.repo = repo
+        self.version = self.fetch_latest_release()
+        if not self.version:
+            raise Exit(
+                color_message(f"Failed to fetch the latest release for {repo}", Color.RED),
+                code=1,
+            )
+        self.version_modules = self.fetch_module_versions()
+        self.old_version = read_old_version(MANIFEST_FILE)
+        if not self.old_version:
+            raise Exit(
+                color_message(f"Failed to read the old version from {MANIFEST_FILE}", Color.RED),
+                code=1,
+            )
+        self.modules_version = {}
+        for k, v in self.version_modules.items():
+            for module in v:
+                self.modules_version[module] = k
+
+    def get_old_version(self):
+        return self.old_version
+
+    def get_version_modules(self):
+        return self.version_modules
+
+    def get_modules_version(self):
+        return self.modules_version
+
+    def get_version(self):
+        return self.version
+
+    def fetch_latest_release(self):
+        gh = GithubAPI(self.repo)
+        self.version = gh.latest_release()
+        return self.version
+
+    def fetch_module_versions(self):
+        url = f"https://raw.githubusercontent.com/{self.repo}/refs/tags/{self.version}/versions.yaml"
+        print(f"Fetching versions from {url}")
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
+        except requests.exceptions.RequestException as e:
+            raise Exit(
+                color_message(f"Failed to fetch the YAML file: {e}", Color.RED),
+                code=1,
+            ) from e
+
+        yaml_content = response.content
+
+        try:
+            data = yaml.safe_load(yaml_content)
+        except yaml.YAMLError as e:
+            raise Exit(
+                color_message(f"Failed to parse YAML content: {e}", Color.RED),
+                code=1,
+            ) from e
+
+        version_modules = {}
+
+        for _, details in data.get("module-sets", {}).items():
+            version = details.get("version", "unknown")
+            for module in details.get("modules", []):
+                version_modules[version] = version_modules.get(version, []) + [module]
+
+        return version_modules
+
+
+class CollectorVersionUpdater:
+    def __init__(self):
+        self.core_collector = CollectorRepo(OTEL_COLLECTOR_CORE_REPO)
+        self.contrib_collector = CollectorRepo(OTEL_COLLECTOR_CONTRIB_REPO)
+        self.modules_version = {}
+        self.modules_version.update(self.core_collector.get_modules_version())
+        self.modules_version.update(self.contrib_collector.get_modules_version())
+
+    def update_all_go_mod(self):
+        update_all_go_mod(self.modules_version)
+
+    def update_ocb_yaml(self):
+        update_versions_in_ocb_yaml(
+            "./test/otel/testdata/builder-config.yaml",
+            self.modules_version,
+        )
+        update_versions_in_ocb_yaml(
             MANIFEST_FILE,
-            collector_version,
-            "github.com/open-telemetry/opentelemetry-collector-contrib",
+            self.modules_version,
         )
 
-    else:
-        print(f"Failed to fetch the latest release for {repo}")
-    print("Collector-contrib update complete.")
+    def update_files(self):
+        files = [
+            MANIFEST_FILE,
+            "./comp/otelcol/collector/impl/collector.go",
+            "./tasks/collector.py",
+            "./.gitlab/integration_test/otel.yml",
+        ]
+        for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
+            for file in files:
+                files.append(os.path.join(root, file))
+        collector_version = self.core_collector.get_version()[1:]
+        for file in files:
+            update_file(file, self.core_collector.get_old_version(), collector_version)
+
+    def update(self):
+        self.update_all_go_mod()
+        self.update_ocb_yaml()
+        self.update_files()
+        print("Update complete.")
 
 
 @task(post=[tidy])
 def update(ctx):
-    update_core_collector()
-    update_collector_contrib()
+    updater = CollectorVersionUpdater()
+    updater.update()
     print("Update complete.")
