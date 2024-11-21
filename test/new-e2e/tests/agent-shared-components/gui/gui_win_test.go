@@ -65,7 +65,7 @@ GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 	}, 1*time.Minute, 10*time.Second)
 
 	v.T().Log("Testing GUI static file server")
-	checkStaticFiles(v.T(), guiClient)
+	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, "c:/Program Files/Datadog/Datadog Agent")
 
 	v.T().Log("Testing GUI ping endpoint")
 	checkPingEndpoint(v.T(), guiClient)

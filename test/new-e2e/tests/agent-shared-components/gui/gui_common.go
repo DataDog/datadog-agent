@@ -6,12 +6,12 @@
 package gui
 
 import (
-	"embed"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,9 +29,6 @@ const (
 	guiPort        = 5002
 	guiAPIEndpoint = "/agent/gui/intent"
 )
-
-//go:embed view
-var expectedAssets embed.FS
 
 // assertAgentsUseKey checks that all agents are using the given key.
 func getGUIIntentToken(t assert.TestingT, host *components.RemoteHost, authtoken string) string {
@@ -105,7 +102,7 @@ func getGUIClient(t assert.TestingT, host *components.RemoteHost, authtoken stri
 	return guiClient
 }
 
-func checkStaticFiles(t *testing.T, client *http.Client) {
+func checkStaticFiles(t *testing.T, client *http.Client, host *components.RemoteHost, installPath string) {
 
 	var links []string
 	var traverse func(*html.Node)
@@ -161,7 +158,8 @@ func checkStaticFiles(t *testing.T, client *http.Client) {
 		bodyContent := strings.Replace(string(body), "\r\n", "\n", -1)
 		assert.NoErrorf(t, err, "failed to read content of GUI asset at address %s", fullLink)
 
-		expectedBody, err := expectedAssets.ReadFile(link)
+		// retrieving the served file in the Agent insallation director, removing the "view/" prefix
+		expectedBody, err := host.ReadFile(path.Join(installPath, "bin", "agent", "dist", "views", strings.TrimLeft(link, "view/")))
 		// We replace windows line break by linux so the tests pass on every OS
 		expectedBodyContent := strings.Replace(string(expectedBody), "\r\n", "\n", -1)
 		assert.NoErrorf(t, err, "unable to retrieve file %v in the expected served files", link)
