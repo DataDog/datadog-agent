@@ -163,8 +163,8 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 	return progInsts, mErr
 }
 
-// TCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
-func TCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Filter, opts ProgOpts) ([]*ebpf.ProgramSpec, error) {
+// FiltersToProgramSpecs returns list of program spec from raw packet filters definitions
+func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Filter, opts ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	var mErr *multierror.Error
 
 	const (

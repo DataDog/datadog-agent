@@ -32,7 +32,7 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expectedRetCo
 		t.Fatal("map not found")
 	}
 
-	progSpecs, err := rawpacket.TCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
+	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

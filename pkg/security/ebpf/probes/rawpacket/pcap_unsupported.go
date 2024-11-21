@@ -33,7 +33,7 @@ func BPFFilterToInsts(_ int, _ string, _ ProgOpts) (asm.Instructions, error) {
 	return asm.Instructions{}, errors.New("not supported")
 }
 
-// TCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
-func TCFiltersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
+// FiltersToProgramSpecs returns list of program spec from raw packet filters definitions
+func FiltersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	return nil, errors.New("not supported")
 }

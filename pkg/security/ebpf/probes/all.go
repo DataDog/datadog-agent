@@ -252,14 +252,14 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps)...)
+	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
-		routes = append(routes, getTCTailCallRoutes()...)
+		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
 	}
 
 	return routes

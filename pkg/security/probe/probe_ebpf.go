@@ -200,7 +200,11 @@ func (p *EBPFProbe) selectFentryMode() {
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
-	return p.kernelVersion.IsRH7Kernel() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_15)
+	return p.kernelVersion.IsRH7Kernel()
+}
+
+func (p *EBPFProbe) isRawPacketNotSupported() bool {
+	return p.isNetworkNotSupported() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_15)
 }
 
 func (p *EBPFProbe) sanityChecks() error {
@@ -214,8 +218,13 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.NetworkEnabled && p.isNetworkNotSupported() {
-		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting event_monitoring_config.network.enabled to false")
+		seclog.Warnf("the network feature of CWS isn't supported on this kernel version")
 		p.config.Probe.NetworkEnabled = false
+	}
+
+	if p.config.Probe.NetworkRawPacketEnabled && p.isRawPacketNotSupported() {
+		seclog.Warnf("the raw packet feature of CWS isn't supported on this kernel version")
+		p.config.Probe.NetworkRawPacketEnabled = false
 	}
 
 	return nil
@@ -397,7 +406,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	// compile the filters
-	progSpecs, err := rawpacket.TCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
+	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
 	if err != nil {
 		return err
 	}
@@ -2042,15 +2051,17 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
 
-	if !config.Probe.NetworkEnabled {
-		// prevent all TC classifiers from loading
+	// prevent some TC classifiers from loading
+	if !p.config.Probe.NetworkEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
+	} else if !p.config.Probe.NetworkRawPacketEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
 	}
 
 	if p.useFentry {

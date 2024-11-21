@@ -99,8 +99,8 @@ func GetAllTCProgramFunctions() []string {
 	return output
 }
 
-func getTCTailCallRoutes() []manager.TailCallRoute {
-	return []manager.TailCallRoute{
+func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
+	tcr := []manager.TailCallRoute{
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
@@ -122,12 +122,17 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: "classifier_imds_request",
 			},
 		},
-		{
+	}
+
+	if withRawPacket {
+		tcr = append(tcr, manager.TailCallRoute{
 			ProgArrayName: "classifier_router",
 			Key:           TCRawPacketParserSenderKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "classifier_raw_packet_sender",
 			},
-		},
+		})
 	}
+
+	return tcr
 }

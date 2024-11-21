@@ -33,7 +33,7 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 			case "packet.filter":
-				if probe.isNetworkNotSupported() {
+				if probe.isRawPacketNotSupported() {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts); err != nil {
