@@ -162,7 +162,7 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 	}
 }
 
-func newTcpTestFixture(t *testing.T) *tcpTestFixture {
+func newTcpTestFixture(t *testing.T) *tcpTestFixture { //nolint:revive // TODO
 	return &tcpTestFixture{
 		t:    t,
 		tcp:  NewTCPProcessor(),
