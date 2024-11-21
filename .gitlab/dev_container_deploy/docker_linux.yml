@@ -21,10 +21,12 @@ dev_branch_multiarch-a7:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
       variables:
-        IMAGE_TAG: '${CI_COMMIT_SHORT_SHA}'
+        IMAGE_TAG: "${CI_COMMIT_SHORT_SHA}"
+      allow_failure: true
     - when: manual
       variables:
-        IMAGE_TAG: '${CI_COMMIT_REF_SLUG}'
+        IMAGE_TAG: "${CI_COMMIT_REF_SLUG}"
+      allow_failure: true
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -208,4 +210,3 @@ dev_branch-ot:
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ot-beta
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ot-beta-jmx
-
