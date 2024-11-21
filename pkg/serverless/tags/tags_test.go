@@ -6,6 +6,7 @@
 package tags
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"testing"
@@ -403,4 +404,63 @@ func TestCleanRuntimeInvalid(t *testing.T) {
 		"AWS_Lambda_nodejs14.x",
 	}
 	assert.Equal(t, "", cleanRuntimes(runtimes))
+}
+
+func TestBuildBuildFunctionTags(t *testing.T) {
+	testcases := []struct {
+		tagIn map[string]string
+		// since order cannot be guaranteed, we will check to make sure the
+		// value is one of the possible permutations
+		tagsOut []string
+	}{
+		{
+			tagIn: map[string]string{},
+			tagsOut: []string{
+				"",
+			},
+		},
+		{
+			tagIn: map[string]string{
+				"key0": "value0",
+			},
+			tagsOut: []string{
+				"key0:value0",
+			},
+		},
+		{
+			tagIn: map[string]string{
+				"key0": "value0",
+				"key1": "value1",
+			},
+			tagsOut: []string{
+				"key0:value0,key1:value1",
+				"key1:value1,key0:value0",
+			},
+		},
+		{
+			tagIn: map[string]string{
+				"key0": "value0",
+				"key1": "value1",
+				"key2": "value2",
+			},
+			tagsOut: []string{
+				"key0:value0,key1:value1,key2:value2",
+				"key0:value0,key2:value2,key1:value1",
+				"key1:value1,key0:value0,key2:value2",
+				"key1:value1,key2:value2,key0:value0",
+				"key2:value2,key0:value0,key1:value1",
+				"key2:value2,key1:value1,key0:value0",
+			},
+		},
+	}
+
+	for i, tc := range testcases {
+		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
+			tagsOut := BuildFunctionTags(tc.tagIn)
+			assert.Len(t, tagsOut, 1)
+			fnTags, ok := tagsOut["_dd.tags.function"]
+			assert.True(t, ok)
+			assert.Contains(t, tc.tagsOut, fnTags)
+		})
+	}
 }

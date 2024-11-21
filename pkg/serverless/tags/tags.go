@@ -74,6 +74,11 @@ const (
 	ArmLambdaPlatform = "arm64"
 	// AmdLambdaPlatform is for the lambda platform Amd64, which is an extendion of X86_64
 	AmdLambdaPlatform = "amd64"
+
+	// funcTagsKey is the tag key for serverless function tags. The value of
+	// this tag is a comma-separated list of key:value pairs. Intake will parse
+	// and apply them as individual tags.
+	funcTagsKey = "_dd.tags.function"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -176,6 +181,23 @@ func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 		delete(tagsMap, blackListKey)
 	}
 	return tagsMap
+}
+
+func BuildFunctionTags(tags map[string]string) map[string]string {
+	buf := strings.Builder{}
+	var comma bool
+	for k, v := range tags {
+		if comma {
+			buf.WriteString(",")
+		}
+		buf.WriteString(k)
+		buf.WriteString(":")
+		buf.WriteString(v)
+		comma = true
+	}
+	return map[string]string{
+		funcTagsKey: buf.String(),
+	}
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
