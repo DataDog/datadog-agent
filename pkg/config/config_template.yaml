@@ -1257,7 +1257,7 @@ api_key:
   #             - val1
   #    cache:
   ##        @param DD_APM_CACHE_ENABLED - boolean - optional
-  ##        Enables caching obfuscated statements. Currently supported for SQL and mongodb queries.
+  ##        Enables caching obfuscated statements. Currently supported for SQL and MongoDB queries.
   ##        Enabled by default.
   #         enabled: true
 
