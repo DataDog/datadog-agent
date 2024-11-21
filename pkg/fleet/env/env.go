@@ -7,13 +7,16 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 const (
@@ -36,6 +39,9 @@ const (
 	envAgentUserName         = "DD_AGENT_USER_NAME"
 	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
 	envAgentUserNameCompat = "DDAGENTUSER_NAME"
+	envTags                = "DD_TAGS"
+	envExtraTags           = "DD_EXTRA_TAGS"
+	envHostname            = "DD_HOSTNAME"
 )
 
 var defaultEnv = Env{
@@ -95,10 +101,16 @@ type Env struct {
 
 	CDNEnabled      bool
 	CDNLocalDirPath string
+
+	Tags     []string
+	Hostname string
 }
 
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
+	splitFunc := func(c rune) bool {
+		return c == ','
+	}
 	return &Env{
 		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
 		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
@@ -127,11 +139,23 @@ func FromEnv() *Env {
 
 		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
 		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
+
+		Tags: append(
+			strings.FieldsFunc(os.Getenv(envTags), splitFunc),
+			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
+		),
+		Hostname: os.Getenv(envHostname),
 	}
 }
 
 // FromConfig returns an Env struct with values from the configuration.
 func FromConfig(config model.Reader) *Env {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hostname, err := hostname.Get(ctx)
+	if err != nil {
+		hostname = "unknown"
+	}
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
@@ -141,6 +165,8 @@ func FromConfig(config model.Reader) *Env {
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 		RegistryUsername:     config.GetString("installer.registry.username"),
 		RegistryPassword:     config.GetString("installer.registry.password"),
+		Tags:                 utils.GetConfiguredTags(config, false),
+		Hostname:             hostname,
 	}
 }
 
@@ -182,6 +208,12 @@ func (e *Env) ToEnv() []string {
 		}
 		slices.Sort(libraries)
 		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
+	}
+	if len(e.Tags) > 0 {
+		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
+	}
+	if len(e.Hostname) > 0 {
+		env = append(env, envHostname+"="+e.Hostname)
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)

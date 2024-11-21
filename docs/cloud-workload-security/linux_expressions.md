@@ -525,11 +525,7 @@ A connect was executed
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
 | [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
-| [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`connect.server.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
-| [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
-| [`connect.server.protocol`](#connect-server-protocol-doc) | Socket server Protocol |
+| [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 
 ### Event `dns`
 
@@ -2146,8 +2142,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -2173,8 +2169,8 @@ Type: bool
 
 Definition: Whether the IP address belongs to a public network
 
-`*.is_public` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.is_public` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_thread` {#common-process-is_thread-doc}
@@ -2370,8 +2366,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2678,20 +2674,6 @@ Definition: Address family
 Type: int
 
 Definition: Socket Protocol
-
-
-
-### `connect.server.addr.family` {#connect-server-addr-family-doc}
-Type: int
-
-Definition: Server address family
-
-
-
-### `connect.server.protocol` {#connect-server-protocol-doc}
-Type: int
-
-Definition: Socket server Protocol
 
 
 

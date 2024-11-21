@@ -23,8 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -108,6 +113,10 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			autodiscoveryimpl.MockModule(),
 		),
 		settingsimpl.MockModule(),
+		config.MockModule(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		telemetryimpl.MockModule(),
 	)
 }
 

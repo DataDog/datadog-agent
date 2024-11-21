@@ -728,7 +728,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	case "gauge":
 		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
 		if gauge != nil {
-			gauge.Add(goMetricValue)
+			gauge.Set(goMetricValue)
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)

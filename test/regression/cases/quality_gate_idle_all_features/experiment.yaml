@@ -45,7 +45,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "770.0 MiB"
+      upper_bound: "738.0 MiB"
 
 report_links:
   - text: "bounds checks dashboard"
