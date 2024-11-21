@@ -6,7 +6,6 @@
 // Package tcp adds a TCP traceroute implementation to the agent
 package tcp
 
-
 import (
 	"fmt"
 	"math/rand"
@@ -31,9 +30,9 @@ func (w *winrawsocket) close() {
 
 func (t *TCPv4) sendRawPacket(w *winrawsocket, payload []byte) error {
 
-	dst :=t.Target.To4()
+	dst := t.Target.To4()
 	sa := &windows.SockaddrInet4{
-		Port: int(t.DestPort), 
+		Port: int(t.DestPort),
 		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
 	}
 	if err := windows.Sendto(w.s, payload, 0, sa); err != nil {
@@ -61,6 +60,7 @@ func createRawSocket() (*winrawsocket, error) {
 	}
 	return &winrawsocket{s: s}, nil
 }
+
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*Results, error) {
@@ -110,7 +110,6 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 
 	return nil, nil
 }
-
 
 func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
 	_, buffer, _, err := createRawTCPSynBuffer(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
