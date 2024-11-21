@@ -1622,10 +1622,8 @@ func getDefaultTestConfiguration(tls bool) *config.Config {
 	cfg := config.New()
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
-	if tls {
-		cfg.EnableGoTLSSupport = true
-		cfg.GoTLSExcludeSelf = true
-	}
+	cfg.EnableGoTLSSupport = tls
+	cfg.GoTLSExcludeSelf = tls
 	return cfg
 }
 
