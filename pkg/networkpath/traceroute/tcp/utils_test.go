@@ -10,6 +10,7 @@ package tcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"reflect"
 	"strings"
@@ -48,6 +49,20 @@ type (
 
 	mockTimeoutErr string
 )
+
+func Test_reserveLocalPort(t *testing.T) {
+	// WHEN we reserve a local port
+	port, listener, err := reserveLocalPort()
+	require.NoError(t, err)
+	require.NotNil(t, listener)
+	t.Logf("Port is: %d", port)
+
+	// THEN we should not be able to get another connection
+	// on the same port
+	conn2, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	assert.Error(t, err)
+	assert.Nil(t, conn2)
+}
 
 func Test_handlePackets(t *testing.T) {
 	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))

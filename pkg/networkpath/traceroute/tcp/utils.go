@@ -86,6 +86,22 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	return localUDPAddr, nil
 }
 
+// reserveLocalPort reserves an ephemeral TCP port
+// and returns both the listener and port because the
+// listener should be held until the port is no longer
+// in use
+func reserveLocalPort() (uint16, net.Listener, error) {
+	// Create a TCP listener with port 0 to get a random port from the OS
+	// and reserve it for the duration of the traceroute
+	tcpListener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create TCP listener: %w", err)
+	}
+	tcpAddr := tcpListener.Addr().(*net.TCPAddr)
+
+	return uint16(tcpAddr.Port), tcpListener, nil
+}
+
 // createRawTCPSyn creates a TCP packet with the specified parameters
 func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
 	ipLayer := &layers.IPv4{
