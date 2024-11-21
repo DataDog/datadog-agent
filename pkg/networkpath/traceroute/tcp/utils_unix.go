@@ -105,8 +105,11 @@ func reserveLocalPort(port int) (uint16, int, error) {
 		return 0, -1, fmt.Errorf("failed to bind socket: %w", err)
 	}
 
-	// Disable SO_REUSEADDR to prevent other sockets from reusing the port
+	// Disable SO_REUSEADDR and SO_REUSEPORT to prevent other sockets from reusing the port
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 0); err != nil {
+		return 0, -1, fmt.Errorf("failed to disable socket re-use: %w", err)
+	}
+	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEPORT, 0); err != nil {
 		return 0, -1, fmt.Errorf("failed to disable socket re-use: %w", err)
 	}
 
