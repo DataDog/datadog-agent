@@ -15,7 +15,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(converterimpl.NewConverter),
+		fxutil.ProvideComponentConstructor(converterimpl.NewConverterForAgent),
 		fxutil.ProvideOptional[converter.Component](),
 	)
 }

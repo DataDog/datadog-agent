@@ -13,7 +13,6 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
@@ -32,8 +31,10 @@ from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
+    build_libpcap,
     check_for_ninja,
     copy_ebpf_and_related_files,
+    get_libpcap_cgo_flags,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -58,18 +59,10 @@ def build(
     go_mod="mod",
     skip_assets=False,
     static=False,
-    bundle=True,
 ):
     """
     Build the security agent
     """
-    if bundle and sys.platform != "win32":
-        return agent_build(
-            ctx,
-            install_path=install_path,
-            race=race,
-            go_mod=go_mod,
-        )
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
 
@@ -231,7 +224,7 @@ def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     ctx.run(
-        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go"
+        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go",
     )
     return syscall_tester_exe_file
 
@@ -395,6 +388,16 @@ def build_functional_tests(
 
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
+
+        build_tags.append("pcap")
+        build_libpcap(ctx)
+        cgo_flags = get_libpcap_cgo_flags(ctx)
+        # append libpcap cgo-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
@@ -749,7 +752,7 @@ def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
         [generate_cws_documentation],
-        [gen_mocks],
+        # [gen_mocks], TODO: re-enable this when go is bumped to 1.23 and mocker is updated to >2.46.1
         [sync_secl_win_pkg],
     ]
     failing_tasks = []
@@ -853,10 +856,12 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
+        ("string_array_iter.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")
     ctx.run("mkdir -p pkg/security/seclwin/model")
+    ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
 
     for ffrom, fto in files_to_copy:
         if not fto:

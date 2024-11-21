@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	checksURL = "http://%s/%s/check"
+	checksURL = "http://sysprobe/%s/check"
 )
 
 // GetCheck returns the check output of the specified module
@@ -35,7 +35,7 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interfa
 		// as additional checks are added, simply add case statements for
 		// newly expected check names.
 	}
-	url := fmt.Sprintf(checksURL, r.path, module)
+	url := fmt.Sprintf(checksURL, module)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interfa
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.path, fmt.Sprintf(checksURL, r.path, module), resp.StatusCode)
+		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.path, req.URL, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)

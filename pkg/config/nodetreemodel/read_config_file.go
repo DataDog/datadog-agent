@@ -13,28 +13,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
-
-func (c *ntmConfig) mergeAllLayers() error {
-	root := newInnerNodeImpl()
-
-	treeList := []InnerNode{
-		c.defaults,
-		c.file,
-	}
-
-	// TODO: handle all configuration sources
-	for _, tree := range treeList {
-		err := root.Merge(tree)
-		if err != nil {
-			return err
-		}
-	}
-
-	c.root = root
-	return nil
-}
 
 func (c *ntmConfig) getConfigFile() string {
 	if c.configFile == "" {
@@ -45,6 +26,10 @@ func (c *ntmConfig) getConfigFile() string {
 
 // ReadInConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadInConfig() error {
+	if !c.isReady() {
+		return log.Errorf("attempt to ReadInConfig before config is constructed")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -64,6 +49,10 @@ func (c *ntmConfig) ReadInConfig() error {
 
 // ReadConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
+	if !c.isReady() {
+		return log.Errorf("attempt to ReadConfig before config is constructed")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -149,7 +138,7 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			} else {
-				dest.InsertChildNode(key, newLeafNodeImpl(value, model.SourceFile))
+				dest.InsertChildNode(key, newLeafNode(value, model.SourceFile))
 			}
 			continue
 		}
@@ -163,7 +152,7 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 		defaultNext, _ := defaultNode.(InnerNode)
 
 		if !dest.HasChild(key) {
-			destInner := newInnerNodeImpl()
+			destInner := newInnerNode(nil)
 			warnings = append(warnings, loadYamlInto(defaultNext, destInner, mapString, curPath)...)
 			dest.InsertChildNode(key, destInner)
 			continue

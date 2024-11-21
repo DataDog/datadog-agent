@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
@@ -43,7 +43,7 @@ func ecsEC2CPUStressProvisioner(runInCoreAgent bool) e2e.PulumiEnvRunFunc[ecsCPU
 
 		params := ecs.GetProvisionerParams(
 			ecs.WithAwsEnv(&awsEnv),
-			ecs.WithECSLinuxECSOptimizedNodeGroup(),
+			ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", fmt.Sprintf("%t", runInCoreAgent)),
@@ -72,8 +72,6 @@ func TestECSEC2TestSuite(t *testing.T) {
 
 func (s *ECSEC2Suite) TestProcessCheck() {
 	t := s.T()
-	// PROCS-4219
-	flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -91,8 +89,6 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 
 func (s *ECSEC2Suite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-	// PROCS-4219
-	flake.Mark(t)
 
 	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(true), nil))
 

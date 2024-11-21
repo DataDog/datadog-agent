@@ -127,6 +127,7 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 		WithGoroutineProfile: pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_goroutine_stacktraces"),
 		WithBlockProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_block_profiling"),
 		WithMutexProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_mutex_profiling"),
+		WithDeltaProfiles:    pkgconfigsetup.Datadog().GetBool("internal_profiling.delta_profiles"),
 		Tags:                 tags,
 	}
 }

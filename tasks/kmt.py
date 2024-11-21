@@ -226,7 +226,7 @@ def gen_config_from_ci_pipeline(
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
-                vm_arch = local_arch
+                vm_arch = "local"
 
             results = test_job.get_test_results()
             for test, result in results.items():
@@ -488,7 +488,7 @@ def start_compiler(ctx: Context):
 
 
 def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance], arch: Arch | None = None):
-    vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
+    vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_by_set(vms, []))
     domains: list[LibvirtDomain] = []
     for vmset in vmsets:
         if arch is not None and Arch.from_str(vmset.arch) != arch:
@@ -1063,14 +1063,20 @@ def kmt_sysprobe_prepare(
             for cbin in TEST_HELPER_CBINS:
                 source = Path(pkg) / "testdata" / f"{cbin}.c"
                 if source.is_file():
-                    binary_path = os.path.join(target_path, "testdata", cbin)
+                    testdata_folder = os.path.join(target_path, "testdata")
+                    binary_path = os.path.join(testdata_folder, cbin)
                     nw.build(
                         inputs=[os.fspath(source)],
                         outputs=[binary_path],
+                        # Ensure that the testdata folder is created before the
+                        # binary, to avoid races between this command and the
+                        # copy command
+                        implicit=[testdata_folder],
                         rule="cbin",
-                        variables={
-                            "cc": "clang",
-                        },
+                        # helper binaries need to be compiled statically to avoid problems with
+                        # libc not being found in target VMs/containers (motivating case: running
+                        # these binaries in alpine docker images, which has musl instead of lib)
+                        variables={"cc": "clang", "cflags": "-static"},
                     )
 
     info("[+] Compiling tests...")
@@ -1170,7 +1176,7 @@ def test(
     packages=None,
     run: str | None = None,
     quick=False,
-    retry=2,
+    retry=0,
     run_count=1,
     ssh_key: str | None = None,
     verbose=True,
@@ -1320,7 +1326,7 @@ def build(
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")

@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -128,8 +128,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 	}
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
+
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(
 			types.NewEntityID(types.ContainerID, ev.ContainerID),
@@ -301,12 +301,13 @@ pokemon/azurill 1 top on test-host
 		t.Run(tt.name, func(t *testing.T) {
 			var eventTransformer eventTransformer = noopEventTransformer{}
 			if tt.bundleUnspecifedEvents {
-				eventTransformer = newBundledTransformer(hostname, tt.filteredEventTypes)
+				eventTransformer = newBundledTransformer(hostname, tt.filteredEventTypes, fakeTagger)
 			}
 			transformer := newUnbundledTransformer(
 				hostname,
 				tt.collectedEventTypes,
 				eventTransformer,
+				fakeTagger,
 			)
 			evs, errs := transformer.Transform(incomingEvents)
 			require.Nil(t, errs)

@@ -19,10 +19,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.agent import BUNDLED_AGENTS
-from tasks.agent import build as agent_build
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
@@ -32,6 +29,7 @@ from tasks.libs.common.utils import (
     environ,
     get_build_flags,
     get_common_test_args,
+    get_embedded_path,
     get_gobin,
     parse_kernel_version,
 )
@@ -56,6 +54,8 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
     "./pkg/gpu/...",
+    "./cmd/system-probe/config/...",
+    "./comp/metadata/inventoryagent/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -84,6 +84,9 @@ arch_mapping = {
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
+# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
+# this version should be kept in sync with the one in the agent omnibus build
+LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
@@ -351,16 +354,17 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
-    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
-    gpu_programs_co_re_programs = ["gpu"]
+    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
+    gpu_c_dir = gpu_headers_dir / "runtime"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir}"
+    gpu_programs = ["gpu"]
 
-    for prog in gpu_programs_co_re_programs:
-        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+    for prog in gpu_programs:
+        infile = os.path.join(gpu_c_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
 
 
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -408,6 +412,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/gpu/compile.go": "gpu",
     }
 
     nw.rule(
@@ -467,7 +472,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/protocols/ebpf_types.go": [
-                "pkg/network/ebpf/c/protocols/classification/defs.h",
+                "pkg/network/ebpf/c/protocols/postgres/types.h",
             ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
@@ -606,6 +611,64 @@ def ninja_generate(
 
 
 @task
+def build_libpcap(ctx):
+    """Download and build libpcap as a static library in the agent dev directory.
+    The library is not rebuilt if it already exists.
+    """
+    embedded_path = get_embedded_path(ctx)
+    assert embedded_path, "Failed to find embedded path"
+    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
+    if os.path.exists(target_file):
+        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
+        if version == LIBPCAP_VERSION:
+            ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
+            return
+    dist_dir = os.path.join(embedded_path, "dist")
+    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
+    ctx.run(f"rm -rf {lib_dir}")
+    with ctx.cd(dist_dir):
+        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
+    with ctx.cd(lib_dir):
+        config_opts = [
+            f"--prefix={embedded_path}",
+            "--disable-shared",
+            "--disable-largefile",
+            "--disable-instrument-functions",
+            "--disable-remote",
+            "--disable-usb",
+            "--disable-netmap",
+            "--disable-bluetooth",
+            "--disable-dbus",
+            "--disable-rdma",
+        ]
+        ctx.run(f"./configure {' '.join(config_opts)}")
+        ctx.run("make install")
+    ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
+    ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
+    ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
+    ctx.run(f"rm -rf {lib_dir}")
+    ctx.run(f"strip -g {target_file}")
+
+
+def get_libpcap_cgo_flags(ctx, install_path: str = None):
+    """Return a dictionary with the CGO flags needed to link against libpcap.
+    If install_path is provided, then we expect this path to contain libpcap as a shared library.
+    """
+    if install_path is not None:
+        return {
+            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
+        }
+    else:
+        embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
+        return {
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+        }
+
+
+@task
 def build(
     ctx,
     race=False,
@@ -619,7 +682,6 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    bundle=True,
     ebpf_compiler='clang',
     static=False,
 ):
@@ -646,7 +708,6 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
-        bundle=bundle,
         arch=arch,
         static=static,
     )
@@ -674,19 +735,8 @@ def build_sysprobe_binary(
     install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
-    bundle=True,
     static=False,
 ) -> None:
-    if bundle and not is_windows:
-        return agent_build(
-            ctx,
-            race=race,
-            major_version=major_version,
-            go_mod=go_mod,
-            bundle_ebpf=bundle_ebpf,
-            bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
-        )
-
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(
@@ -706,6 +756,16 @@ def build_sysprobe_binary(
     if static:
         build_tags.extend(["osusergo", "netgo"])
         build_tags = list(set(build_tags).difference({"netcgo"}))
+
+    if not is_windows and "pcap" in build_tags:
+        build_libpcap(ctx)
+        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        # append libpcap cgo-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
 
     if os.path.exists(binary):
         os.remove(binary)
@@ -995,7 +1055,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             source = Path(pkg) / "testdata" / f"{cbin}.c"
             if not is_windows and source.is_file():
                 binary = Path(target_path) / cbin
-                ctx.run(f"clang -o {binary} {source}")
+                ctx.run(f"clang -static -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [

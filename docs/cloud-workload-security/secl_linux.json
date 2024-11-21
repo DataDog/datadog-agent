@@ -423,6 +423,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "process.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "process.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -828,6 +833,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "process.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "process.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -1183,6 +1193,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "process.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "process.parent.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -1300,6 +1315,11 @@
           "name": "bind.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "bind.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "bind.addr.port",
@@ -1789,6 +1809,60 @@
       ]
     },
     {
+      "name": "connect",
+      "definition": "A connect was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "connect.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "connect.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "connect.server.addr.family",
+          "definition": "Server address family",
+          "property_doc_link": "connect-server-addr-family-doc"
+        },
+        {
+          "name": "connect.server.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.server.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "connect.server.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
       "name": "dns",
       "definition": "A DNS request was sent",
       "type": "Network",
@@ -1836,6 +1910,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -1864,6 +1943,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -2223,6 +2307,11 @@
           "name": "exec.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "exec.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "exec.is_kworker",
@@ -2649,6 +2738,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "exit.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "exit.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -2758,6 +2852,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -2786,6 +2885,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -3630,6 +3734,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "packet.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "packet.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -3638,6 +3747,11 @@
           "name": "packet.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.filter",
+          "definition": "pcap filter expression",
+          "property_doc_link": "packet-filter-doc"
         },
         {
           "name": "packet.l3_protocol",
@@ -3658,6 +3772,11 @@
           "name": "packet.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "packet.source.port",
@@ -4032,6 +4151,11 @@
           "name": "ptrace.tracee.ancestors.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.is_kworker",
@@ -4439,6 +4563,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "ptrace.tracee.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "ptrace.tracee.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -4792,6 +4921,11 @@
           "name": "ptrace.tracee.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
@@ -5951,6 +6085,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "signal.target.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "signal.target.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -6356,6 +6495,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "signal.target.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "signal.target.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -6709,6 +6853,11 @@
           "name": "signal.target.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "signal.target.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "signal.target.parent.is_kworker",
@@ -8220,10 +8369,34 @@
       "definition": "IP address",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
         "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_exec",
+      "link": "common-process-is_exec-doc",
+      "type": "bool",
+      "definition": "Indicates whether the process entry is from a new binary execution",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
@@ -8246,6 +8419,24 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_public",
+      "link": "common-ipportcontext-is_public-doc",
+      "type": "bool",
+      "definition": "Whether the IP address belongs to a public network",
+      "prefixes": [
+        "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
+        "network.destination",
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8936,6 +9127,8 @@
       "definition": "Port number",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8978,6 +9171,7 @@
         "chdir",
         "chmod",
         "chown",
+        "connect",
         "link",
         "load_module",
         "mkdir",
@@ -9527,6 +9721,30 @@
       "definition": "UID argument of the syscall",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.family",
+      "link": "connect-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.server.addr.family",
+      "link": "connect-server-addr-family-doc",
+      "type": "int",
+      "definition": "Server address family",
+      "prefixes": [
+        "connect"
       ],
       "constants": "",
       "constants_link": "",
@@ -10151,6 +10369,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.filter",
+      "link": "packet-filter-doc",
+      "type": "string",
+      "definition": "pcap filter expression",
+      "prefixes": [
+        "packet"
       ],
       "constants": "",
       "constants_link": "",

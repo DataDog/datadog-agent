@@ -453,6 +453,10 @@ type AgentConfig struct {
 
 	// Lambda function name
 	LambdaFunctionName string
+
+	// Azure container apps tags, in the form of a comma-separated list of
+	// key-value pairs, starting with a comma
+	AzureContainerAppTags string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -542,7 +546,9 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		Features: make(map[string]struct{}),
+		Features:               make(map[string]struct{}),
+		PeerTagsAggregation:    true,
+		ComputeStatsBySpanKind: true,
 	}
 }
 
