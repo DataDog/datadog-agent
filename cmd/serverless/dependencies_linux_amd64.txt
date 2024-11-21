@@ -110,7 +110,6 @@ github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction
 github.com/DataDog/datadog-agent/comp/forwarder/eventplatform
 github.com/DataDog/datadog-agent/comp/forwarder/orchestrator
 github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface
-github.com/DataDog/datadog-agent/comp/haagent/def
 github.com/DataDog/datadog-agent/comp/logs/agent
 github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl
 github.com/DataDog/datadog-agent/comp/logs/agent/config
