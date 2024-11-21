@@ -899,6 +899,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	require.NoError(t, err)
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
 
