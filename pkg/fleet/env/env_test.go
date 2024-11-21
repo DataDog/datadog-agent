@@ -6,6 +6,7 @@ package env
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,10 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags: []string{},
+				Tags:       []string{},
+				HTTPProxy:  "",
+				HTTPSProxy: "",
+				NoProxy:    "",
 			},
 		},
 		{
@@ -68,6 +72,9 @@ func TestFromEnv(t *testing.T) {
 				envAgentUserName:                              "customuser",
 				envTags:                                       "k1:v1,k2:v2",
 				envExtraTags:                                  "k3:v3,k4:v4",
+				envHTTPProxy:                                  "http://proxy.example.com:8080",
+				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
+				strings.ToLower(envNoProxy):                   "localhost",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -111,7 +118,10 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags: []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Tags:       []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				HTTPProxy:  "http://proxy.example.com:8080",
+				HTTPSProxy: "http://proxy.example.com:8080",
+				NoProxy:    "localhost",
 			},
 		},
 		{
@@ -234,7 +244,10 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				Tags: []string{"k1:v1", "k2:v2"},
+				Tags:       []string{"k1:v1", "k2:v2"},
+				HTTPProxy:  "http://proxy.example.com:8080",
+				HTTPSProxy: "http://proxy.example.com:8080",
+				NoProxy:    "localhost",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -259,6 +272,9 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
 				"DD_TAGS=k1:v1,k2:v2",
+				"HTTP_PROXY=http://proxy.example.com:8080",
+				"HTTPS_PROXY=http://proxy.example.com:8080",
+				"NO_PROXY=localhost",
 			},
 		},
 	}

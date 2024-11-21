@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
@@ -85,6 +86,7 @@ type installerImpl struct {
 
 // NewInstaller returns a new Package Manager.
 func NewInstaller(env *env.Env) (Installer, error) {
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog()) // Load proxy settings before creating any transport
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
