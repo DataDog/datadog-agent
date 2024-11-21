@@ -44,7 +44,7 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -64,7 +64,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
 
     if (is_udp && !cst_flushable) {
         increment_telemetry_count(udp_dropped_conns);
-        return;
+        return -1;
     }
 
     if (is_tcp) {
@@ -73,7 +73,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
             conn.tcp_stats = *tst;
         } else {
             if (!cst_flushable) {
-                return;
+                return -1;
             }
         }
 
@@ -97,7 +97,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {
-        return;
+        return -1;
     }
 
     // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
@@ -105,21 +105,21 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     case 0:
         batch_ptr->c0 = conn;
         batch_ptr->len++;
-        return;
+        return 0;
     case 1:
         batch_ptr->c1 = conn;
         batch_ptr->len++;
-        return;
+        return 0;
     case 2:
         batch_ptr->c2 = conn;
         batch_ptr->len++;
-        return;
+        return 0;
     case 3:
         batch_ptr->c3 = conn;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
-        return;
+        return 0;
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
@@ -133,6 +133,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     if (is_udp) {
         increment_telemetry_count(unbatched_udp_close);
     }
+    return 0;
 }
 
 static __always_inline void flush_conn_close_if_full(void *ctx) {
