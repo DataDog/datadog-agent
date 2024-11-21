@@ -1,0 +1,67 @@
+name: Update OTel Collector Dependencies and Generate OTel Agent
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-and-generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.6'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run update task
+        run: inv -e collector.update
+
+      - name: Run generate task
+        run: inv -e collector.generate
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff-index --quiet HEAD; then
+            echo "No changes detected"
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected"
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit changes
+        if: steps.check_changes.outputs.changes_detected == 'true'
+        run: |
+          git switch -c update-otel-collector-dependencies-${{ steps.date.outputs.date }}
+          git commit -m "Update OTel Collector dependencies and generate OTel Agent"
+          git push -u origin update-otel-collector-dependencies-${{ steps.date.outputs.date }}
+
+      - name: Install GitHub CLI
+        if: steps.check_changes.outputs.changes_detected == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install gh
+
+      - name: Create draft pull request
+        if: steps.check_changes.outputs.changes_detected == 'true'
+        run: |
+          gh auth login --with-token <<< ${{ secrets.GITHUB_TOKEN }}
+          gh pr create --title "Daily update and generate" --body "This PR contains the daily update and generate changes." --base main --head update-otel-collector-dependencies-${{ steps.date.outputs.date }} --draft
