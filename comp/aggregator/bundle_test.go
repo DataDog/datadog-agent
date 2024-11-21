@@ -27,6 +27,6 @@ func TestBundleDependencies(t *testing.T) {
 		orchestratorForwarderImpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		nooptagger.Module(),
-		haagentmock.MockModule(),
+		haagentmock.Module(),
 	)
 }

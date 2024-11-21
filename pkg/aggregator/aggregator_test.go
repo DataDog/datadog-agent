@@ -597,7 +597,7 @@ func TestTags(t *testing.T) {
 
 			taggerComponent := taggerMock.SetupFakeTagger(t)
 
-			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.MockComponent)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 			mockHaAgent.SetEnabled(tt.haAgentEnabled)
 
 			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second)
@@ -743,7 +743,7 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentmock.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

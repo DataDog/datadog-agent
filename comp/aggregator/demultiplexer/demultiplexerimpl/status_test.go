@@ -62,7 +62,7 @@ func TestStatusOutPut(t *testing.T) {
 		core.MockBundle(),
 		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
-		haagentmock.MockModule(),
+		haagentmock.Module(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		fx.Provide(func() tagger.Component {

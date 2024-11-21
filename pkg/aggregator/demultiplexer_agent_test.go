@@ -114,7 +114,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentmock.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentmock.Module())
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
@@ -171,7 +171,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		core.MockBundle(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
-		haagentmock.MockModule(),
+		haagentmock.Module(),
 		compressionimpl.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)

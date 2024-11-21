@@ -44,8 +44,8 @@ func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
 }
 
-// MockComponent is the component type.
-type MockComponent interface {
+// Component is the component type.
+type Component interface {
 	haagent.Component
 
 	SetGroup(string)
@@ -60,8 +60,8 @@ func NewMockHaAgent() haagent.Component {
 	}
 }
 
-// MockModule defines the fx options for the mockHaAgent component.
-func MockModule() fxutil.Module {
+// Module defines the fx options for the mockHaAgent component.
+func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMockHaAgent),
 	)
