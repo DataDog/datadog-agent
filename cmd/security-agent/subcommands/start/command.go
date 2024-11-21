@@ -257,6 +257,7 @@ var (
 	expvarServer *http.Server
 )
 
+// ErrAllComponentsDisabled is returned when all components are disabled
 var ErrAllComponentsDisabled = errors.New("all security-agent component are disabled")
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
