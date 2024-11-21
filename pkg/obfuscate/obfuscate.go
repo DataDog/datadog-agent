@@ -103,6 +103,9 @@ type Config struct {
 	// Logger specifies the logger to use when outputting messages.
 	// If unset, no logs will be outputted.
 	Logger Logger
+
+	// Cache enables the query cache for obfuscation for .
+	Cache CacheConfig
 }
 
 // StatsClient implementations are able to emit stats.
@@ -189,9 +192,6 @@ type SQLConfig struct {
 	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
-
-	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
-	Cache bool
 }
 
 // SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only
@@ -270,6 +270,11 @@ type CreditCardsConfig struct {
 	KeepValues []string `mapstructure:"keep_values"`
 }
 
+type CacheConfig struct {
+	// Enabled specifies whether caching should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+}
+
 // NewObfuscator creates a new obfuscator
 func NewObfuscator(cfg Config) *Obfuscator {
 	if cfg.Logger == nil {
@@ -277,7 +282,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: true, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}

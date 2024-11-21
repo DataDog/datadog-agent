@@ -1148,7 +1148,7 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
-  ## Defines obfuscation rules for sensitive data. Disabled by default.
+  ## Defines obfuscation rules for sensitive data.
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
   # obfuscation:
@@ -1255,6 +1255,11 @@ api_key:
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
+  #    cache:
+  ##        @param DD_APM_CACHE_ENABLED - boolean - optional
+  ##        Enables caching obfuscated statements. Currently supported for sql queries and mongodb statements.
+  ##        Enabled by default.
+  #         enabled: true
 
   ## @param filter_tags - object - optional
   ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
