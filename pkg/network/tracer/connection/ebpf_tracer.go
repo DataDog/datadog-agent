@@ -257,6 +257,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	// Failed connections are not supported on prebuilt
 	if tracerType == TracerTypeKProbePrebuilt {
+		if config.TCPFailedConnectionsEnabled {
+			log.Warn("Failed TCP connections are not supported with the prebuilt kprobe tracer. Disabling.")
+		}
 		config.TCPFailedConnectionsEnabled = false
 	}
 
