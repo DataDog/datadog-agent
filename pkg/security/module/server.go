@@ -21,6 +21,9 @@ import (
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -32,12 +35,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -126,6 +131,7 @@ type APIServer struct {
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
 	ecsTags            map[string]string
+	tagger             *remote.Tagger
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
@@ -218,7 +224,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
-func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage) {
+func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
 	// apply ecs tag if possible
 	if a.ecsTags != nil {
 		for key, value := range a.ecsTags {
@@ -226,6 +232,18 @@ func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage) {
 				return strings.HasPrefix(tag, key+":")
 			}) {
 				msg.Tags = append(msg.Tags, key+":"+value)
+			}
+		}
+	}
+
+	// on fargate, append global tags
+	if includeGlobalTags && fargate.IsFargateInstance() {
+		for _, tag := range a.getGlobalTags() {
+			key, _, _ := strings.Cut(tag, ":")
+			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
+				return strings.HasPrefix(t, key+":")
+			}) {
+				msg.Tags = append(msg.Tags, tag)
 			}
 		}
 	}
@@ -277,7 +295,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
-				a.updateMsgTags(m)
+				a.updateMsgTags(m, false)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -403,7 +421,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
-		a.updateMsgTags(m)
+		a.updateMsgTags(m, true)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -540,9 +558,31 @@ func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
 }
 
+func (a *APIServer) getGlobalTags() []string {
+	if a.tagger == nil {
+		return nil
+	}
+
+	globalTags, err := a.tagger.GlobalTags(types.OrchestratorCardinality)
+	if err != nil {
+		seclog.Errorf("failed to get global tags: %v", err)
+		return nil
+	}
+	return globalTags
+}
+
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, telemetry telemetry.Component, selfTester *selftests.SelfTester) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
+
+	var tagger *remote.Tagger
+	if telemetry != nil {
+		rt, err := tags.CreateRemoteTagger(telemetry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to init api server remote tagger: %w", err)
+		}
+		tagger = rt
+	}
 
 	as := &APIServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
@@ -557,6 +597,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		selfTester:    selfTester,
 		stopChan:      make(chan struct{}),
 		msgSender:     msgSender,
+		tagger:        tagger,
 	}
 
 	if as.msgSender == nil {
