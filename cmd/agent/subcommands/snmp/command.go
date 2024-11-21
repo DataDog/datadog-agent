@@ -9,6 +9,10 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -22,14 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"net"
-	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -99,6 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				nooptagger.Module(),
 				compressionimpl.Module(),
 				eventplatformreceiverimpl.Module(),
+				haagentfx.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -160,6 +163,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				nooptagger.Module(),
 				compressionimpl.Module(),
 				snmpscanfx.Module(),
+				haagentfx.Module(),
 			)
 			if err != nil {
 				var ue configErr
