@@ -474,6 +474,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
+	// HA Agent
+	config.BindEnvAndSetDefault("ha_agent.enabled", false)
+	config.BindEnv("ha_agent.group")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")
