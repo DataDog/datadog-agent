@@ -114,6 +114,11 @@ func TestActiveSessionHistory(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 
+	var count uint64
+	getWrapper(&c, &count, "SELECT BANNER FROM V$VERSION WHERE BANNER LIKE '%Enterprise%Edition%'")
+	if count == 0 {
+		t.Skip("Active Session History is only available in Oracle Enterprise Edition")
+	}
 	c.dbmEnabled = true
 	c.config.QuerySamples.ActiveSessionHistory = true
 
@@ -122,7 +127,7 @@ func TestActiveSessionHistory(t *testing.T) {
 
 	err = c.SampleSession()
 	require.NoError(t, err, "activity sample failed")
-	prevSamplId := c.lastSampleId
+	prevSamplId := c.lastSampleID
 
 	conn, err := getSysConnection(t)
 	require.NoError(t, err)
@@ -146,5 +151,5 @@ END;`
 	err = c.SampleSession()
 	require.NoError(t, err, "activity sample failed")
 
-	assert.Greater(t, c.lastSampleId, prevSamplId, "sample id should have increased")
+	assert.Greater(t, c.lastSampleID, prevSamplId, "sample id should have increased")
 }
