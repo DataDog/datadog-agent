@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,8 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
@@ -73,7 +71,7 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
-	env        *env.Env
+	env        *fleetEnv.Env
 	cdn        cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
@@ -85,8 +83,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
-	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog()) // Load proxy settings before creating any transport
+func NewInstaller(env *fleetEnv.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -103,7 +100,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		env:        env,
 		cdn:        cdn,
 		db:         db,
-		downloader: oci.NewDownloader(env, http.DefaultClient),
+		downloader: oci.NewDownloader(env, fleetEnv.GetHTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 
