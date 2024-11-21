@@ -79,8 +79,7 @@ const (
 	OffsetNameDeviceStructNdNet         = "device_nd_net_net_offset"
 	OffsetNameSockCommonStructSKCNet    = "sock_common_skc_net_offset"
 	OffsetNameSocketStructSK            = "socket_sock_offset"
-	OffsetNameSKFlagsOffset             = "sk_flags_offset"         // kernels < 5.6
-	OffsetNameSocketProtocol            = "sock_sk_protocol_offset" // kernels > 5.6
+	OffsetNameSocketType                = "socket_type_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
 	OffsetNameSockCommonStructSKCFamily = "sock_common_skc_family_offset"
 	OffsetNameFlowI4StructSADDR         = "flowi4_saddr_offset"

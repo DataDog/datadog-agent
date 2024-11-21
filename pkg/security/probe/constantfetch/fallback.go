@@ -109,10 +109,6 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSockCommonSKCNetOffset(f.kernelVersion)
 	case OffsetNameSocketStructSK:
 		value = getSocketSockOffset(f.kernelVersion)
-	case OffsetNameSocketProtocol:
-		value = getSocketProtocolOffset(f.kernelVersion)
-	case OffsetNameSKFlagsOffset:
-		value = getSKFlagsOffset(f.kernelVersion)
 	case OffsetNameNFConnStructCTNet:
 		value = getNFConnCTNetOffset(f.kernelVersion)
 	case OffsetNameSockCommonStructSKCFamily:
@@ -791,69 +787,6 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 	}
 
 	return offset
-}
-
-func getSKFlagsOffset(kv *kernel.Version) uint64 {
-	switch {
-	// Amazon Linux
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
-		return 504
-
-	// CentOS
-	case kv.IsCentOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_20):
-		return 504
-	case kv.IsCentOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 504
-	case kv.IsCentOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 528
-
-	// Debian
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 504
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && strings.Contains(kv.UnameRelease, "-rt-"):
-		return 752
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
-		return 512
-
-	// Fedora
-	case kv.IsFedoraKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_19):
-		return 504
-	case kv.IsFedoraKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
-		return 528
-
-	// Ubuntu
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
-		return 496
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
-		return 512
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_5):
-		return 528
-
-	// Oracle Linux
-	case kv.IsOracleKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
-		return 504
-	case kv.IsOracleKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 560
-
-	// Default case
-	default:
-		return 0 // Return 0 for unsupported cases
-	}
-}
-
-func getSocketProtocolOffset(kv *kernel.Version) uint64 {
-	switch {
-	case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") && (strings.Contains(kv.UnameRelease, "26") || strings.Contains(kv.UnameRelease, "27") || strings.Contains(kv.UnameRelease, "28")):
-		return 788
-	case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
-		return 780
-	case kv.IsDebianKernel() && (strings.Contains(kv.UnameRelease, "26") || strings.Contains(kv.UnameRelease, "27") || strings.Contains(kv.UnameRelease, "28")):
-		return 540
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_12):
-		return 532
-	default:
-		return 548
-	}
 }
 
 func getNFConnCTNetOffset(kv *kernel.Version) uint64 {

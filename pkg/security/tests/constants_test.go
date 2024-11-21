@@ -23,7 +23,6 @@ var BTFHubVsRcPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
 	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameMountMntID,
-	constantfetch.OffsetNameSocketProtocol,
 }
 
 var RCVsFallbackPossiblyMissingConstants = []string{
@@ -32,7 +31,6 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
 	constantfetch.OffsetNameMountMntID,
-	constantfetch.OffsetNameSocketProtocol,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
