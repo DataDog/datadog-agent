@@ -8,11 +8,8 @@
 package autodiscoveryimpl
 
 import (
-	"net/http"
-
 	"go.uber.org/fx"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -29,11 +26,6 @@ type MockParams struct {
 	Scheduler *scheduler.Controller
 }
 
-// mockHandleRequest is a simple mocked http.Handler function to test the route registers with the api component correctly
-func (ac *AutoConfig) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 type mockdependencies struct {
 	fx.In
 	WMeta      optional.Option[workloadmeta.Component]
@@ -47,15 +39,13 @@ type mockdependencies struct {
 type mockprovides struct {
 	fx.Out
 
-	Comp     autodiscovery.Mock
-	Endpoint api.AgentEndpointProvider
+	Comp autodiscovery.Mock
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
 	ac := createNewAutoConfig(deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	return mockprovides{
-		Comp:     ac,
-		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
+		Comp: ac,
 	}
 }
 

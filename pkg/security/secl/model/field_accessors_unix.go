@@ -46,6 +46,14 @@ func (ev *Event) GetBindAddrPort() uint16 {
 	return ev.Bind.Addr.Port
 }
 
+// GetBindProtocol returns the value of the field, resolving if necessary
+func (ev *Event) GetBindProtocol() uint16 {
+	if ev.GetEventType().String() != "bind" {
+		return uint16(0)
+	}
+	return ev.Bind.Protocol
+}
+
 // GetBindRetval returns the value of the field, resolving if necessary
 func (ev *Event) GetBindRetval() int64 {
 	if ev.GetEventType().String() != "bind" {
@@ -938,44 +946,20 @@ func (ev *Event) GetConnectAddrPort() uint16 {
 	return ev.Connect.Addr.Port
 }
 
+// GetConnectProtocol returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectProtocol() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Protocol
+}
+
 // GetConnectRetval returns the value of the field, resolving if necessary
 func (ev *Event) GetConnectRetval() int64 {
 	if ev.GetEventType().String() != "connect" {
 		return int64(0)
 	}
 	return ev.Connect.SyscallEvent.Retval
-}
-
-// GetConnectServerAddrFamily returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrFamily() uint16 {
-	if ev.GetEventType().String() != "connect" {
-		return uint16(0)
-	}
-	return ev.Connect.AddrFamily
-}
-
-// GetConnectServerAddrIp returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrIp() net.IPNet {
-	if ev.GetEventType().String() != "connect" {
-		return net.IPNet{}
-	}
-	return ev.Connect.Addr.IPNet
-}
-
-// GetConnectServerAddrIsPublic returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrIsPublic() bool {
-	if ev.GetEventType().String() != "connect" {
-		return false
-	}
-	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
-}
-
-// GetConnectServerAddrPort returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrPort() uint16 {
-	if ev.GetEventType().String() != "connect" {
-		return uint16(0)
-	}
-	return ev.Connect.Addr.Port
 }
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
