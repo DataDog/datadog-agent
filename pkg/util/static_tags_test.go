@@ -108,10 +108,7 @@ func TestExtraGlobalEnvTags(t *testing.T) {
 	t.Run("Agent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
 		globalTags := GetGlobalEnvTags(mockConfig)
-		assert.Equal(t, map[string][]string{
-			"some":  {"tag"},
-			"extra": {"tag"},
-		}, globalTags)
+		assert.Equal(t, map[string][]string(nil), globalTags)
 	})
 
 	t.Run("ClusterAgent extraGlobalTags", func(t *testing.T) {

@@ -2405,6 +2405,48 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	assert.True(t, found, "TagInfo of deleted container not returned")
 }
 
+func TestNoGlobalTags(t *testing.T) {
+	// This test checks that the tagger doesn't set any global entity tags on node agent
+
+	mockConfig := configmock.New(t)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	fakeProcessor := &fakeProcessor{ch: collectorCh}
+
+	// Global tags that SHOULD NOT be stored in the tagger's global entity
+	mockConfig.SetWithoutSource("tags", []string{"some:tag"})
+	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag"})
+	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag"})
+	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag"})
+
+	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor)
+	wmetaCollector.collectStaticGlobalTags(context.Background(), mockConfig)
+
+	close(collectorCh)
+
+	expectedEmptyEvent := &types.TagInfo{
+		Source:               staticSource,
+		EntityID:             common.GetGlobalEntityID(),
+		HighCardTags:         []string{},
+		OrchestratorCardTags: []string{},
+		LowCardTags:          []string{},
+		StandardTags:         []string{},
+	}
+
+	var actualStaticSourceEvent *types.TagInfo
+	for evBundle := range collectorCh {
+		for _, event := range evBundle {
+			if event.Source == staticSource {
+				actualStaticSourceEvent = event
+				break
+			}
+		}
+	}
+	assert.True(t, reflect.DeepEqual(actualStaticSourceEvent, expectedEmptyEvent),
+		"Global Entity should be set with no tags:\nexpected: %v\nfound: %v ",
+		expectedEmptyEvent, actualStaticSourceEvent,
+	)
+}
+
 func TestParseJSONValue(t *testing.T) {
 	tests := []struct {
 		name    string

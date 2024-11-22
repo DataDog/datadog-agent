@@ -111,7 +111,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
 		}
 	}
-	// These are the global tags that should only be applied to the internal global entity
+	// These are the global tags that should only be applied to the internal global entity on DCA.
 	// Whereas the static tags are applied to containers and pods directly as well.
 	globalEnvTags := util.GetGlobalEnvTags(datadogConfig)
 

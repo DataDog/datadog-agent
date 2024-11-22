@@ -83,17 +83,18 @@ func GetStaticTags(ctx context.Context) map[string][]string {
 }
 
 // GetGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
-// <key>:<value> pairs for all global environment tags. This includes DD_TAGS and DD_EXTRA_TAGS always,
-// and DD_CLUSTER_CHECKS_EXTRA_TAGS and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS when on Cluster Agent
+// <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
+// DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 func GetGlobalEnvTags(config model.Reader) map[string][]string {
+	if flavor.GetFlavor() != flavor.ClusterAgent {
+		return nil
+	}
 
 	// DD_TAGS / DD_EXTRA_TAGS
 	tags := configUtils.GetConfiguredTags(config, false)
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
-	}
+	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
 
 	if tags == nil {
 		return nil
