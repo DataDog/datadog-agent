@@ -629,8 +629,6 @@ def build_rc(ctx, major_version: int = 7, patch_version=False, k8s_deployments=F
         tag_version(ctx, str(new_version), force=False)
         tag_modules(ctx, str(new_version), force=False)
 
-        exit()
-
         print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
         gitlab_tag = None
         while not gitlab_tag:
