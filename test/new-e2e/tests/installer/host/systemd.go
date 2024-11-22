@@ -106,7 +106,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 		lastSearchedEvents = searchedEvents
 		return j == len(events.Events)
-	}, 30*time.Second, 1*time.Second)
+	}, 60*time.Second, 1*time.Second)
 
 	if !success {
 		logs := h.journaldLogsSince(since)
@@ -172,6 +172,15 @@ func (s SystemdEventSequence) Timed(unit string) SystemdEventSequence {
 func (s SystemdEventSequence) Skipped(unit string) SystemdEventSequence {
 	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: ".*skipped.*"}})
 	return s
+}
+
+// SkippedIf adds a "Skipped" event to the sequence if the condition is true
+func (s SystemdEventSequence) SkippedIf(unit string, condition bool) SystemdEventSequence {
+	if !condition {
+		return s
+	}
+
+	return s.Skipped(unit)
 }
 
 // SigtermTimed adds a "SigtermTimed" event to the sequence

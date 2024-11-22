@@ -5,8 +5,7 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
-package kprobe
+package kprobe //nolint:revive // TODO
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"

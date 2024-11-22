@@ -22,13 +22,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -56,7 +57,7 @@ func initF() {
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
+	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
@@ -144,7 +145,8 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -176,7 +178,8 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -225,7 +228,9 @@ func TestDefaultData(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
+
 	start := time.Now()
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
@@ -575,9 +580,12 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+
+			taggerComponent := taggerMock.SetupFakeTagger(t)
+
+			agg := NewBufferedAggregator(nil, nil, taggerComponent, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
@@ -586,9 +594,8 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("dogstatsd_pipeline_count", 1)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("AreSeriesEnabled").Return(true)
@@ -606,14 +613,13 @@ func TestTimeSamplerFlush(t *testing.T) {
 func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
-
-	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
-	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
-	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("djm_config.enabled", true)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
-	NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",
@@ -729,4 +735,25 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		TestDeps:      deps,
 		Demultiplexer: InitAndStartAgentDemultiplexerForTest(deps, opts, ""),
 	}
+}
+
+func TestStatsCopy(t *testing.T) {
+	// Flushes    [32]int64 // circular buffer of recent flushes stat
+	// FlushIndex int       // last flush position in circular buffer
+	// LastFlush  int64     // most recent flush stat, provided for convenience
+	// Name       string
+
+	stats := &Stats{
+		Flushes:    [32]int64{1, 2, 3},
+		FlushIndex: 2,
+		LastFlush:  1,
+		Name:       "name",
+	}
+	stats.Flushes[31] = 32
+
+	statsCopy := stats.copy()
+	assert.Equal(t, stats.Flushes, statsCopy.Flushes)
+	assert.Equal(t, stats.FlushIndex, statsCopy.FlushIndex)
+	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
+	assert.Equal(t, stats.Name, statsCopy.Name)
 }

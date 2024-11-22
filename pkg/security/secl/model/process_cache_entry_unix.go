@@ -93,42 +93,56 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }
 
+// SetExecParent set the parent of the exec entry
+func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
+	pc.SetAncestor(parent)
+	pc.IsExec = true
+	pc.IsExecExec = pc.Parent != nil && pc.Parent.IsExec
+}
+
+// SetAsExec set the entry as an Exec
+func (pc *ProcessCacheEntry) SetAsExec() {
+	pc.IsExec = true
+}
+
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
-	entry.SetAncestor(pc)
+	entry.SetExecParent(pc)
 
 	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
-	entry.Process.IsExecExec = !pc.IsThread
 
 	// keep some context
 	copyProcessContext(pc, entry)
 }
 
 // GetContainerPIDs return the pids
-func (pc *ProcessCacheEntry) GetContainerPIDs() []uint32 {
-	var pids []uint32
+func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
+	var (
+		pids  []uint32
+		paths []string
+	)
 
 	for pc != nil {
 		if pc.ContainerID == "" {
 			break
 		}
 		pids = append(pids, pc.Pid)
+		paths = append(paths, pc.FileEvent.PathnameStr)
 
 		pc = pc.Ancestor
 	}
 
-	return pids
+	return pids, paths
 }
 
-// SetParentOfForkChild set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
+// SetForkParent set the parent of the fork entry
+func (pc *ProcessCacheEntry) SetForkParent(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	if parent != nil {
 		pc.ArgsEntry = parent.ArgsEntry
 		pc.EnvsEntry = parent.EnvsEntry
 	}
-	pc.IsThread = true
 }
 
 // Fork returns a copy of the current ProcessCacheEntry
@@ -144,7 +158,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.SetParentOfForkChild(pc)
+	childEntry.SetForkParent(pc)
 }
 
 // Equals returns whether process cache entries share the same values for file and args/envs

@@ -82,7 +82,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	namespace := "default"
 	containerID := "10"
 	labels := map[string]string{
-		"some_label": "some_val",
+		"some_label":                   "some_val",
+		"containerd.io/restart.status": "running",
+		"containerd.io/restart.count":  "3",
 	}
 	imgName := "datadog/agent:7"
 	envVarStrs := []string{
@@ -161,10 +163,11 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 					CreatedAt:  createdAt,
 					FinishedAt: time.Time{}, // Not available
 				},
-				NetworkIPs: make(map[string]string), // Not available
-				Hostname:   hostName,
-				PID:        12345,
-				CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+				NetworkIPs:   make(map[string]string), // Not available
+				Hostname:     hostName,
+				PID:          12345,
+				CgroupPath:   "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+				RestartCount: 3,
 			},
 		},
 		{
@@ -208,16 +211,17 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 					CreatedAt:  createdAt,
 					FinishedAt: time.Time{}, // Not available
 				},
-				NetworkIPs: make(map[string]string), // Not available
-				Hostname:   hostName,
-				PID:        0,
-				CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+				NetworkIPs:   make(map[string]string), // Not available
+				Hostname:     hostName,
+				PID:          0,
+				CgroupPath:   "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+				RestartCount: 3,
 			},
 		},
 	}
 
 	client := fake.MockedContainerdClient{
-		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(string, containerd.Container) (containers.Container, error) {
 			return containers.Container{
 				Labels:    labels,
 				CreatedAt: createdAt,
@@ -227,15 +231,15 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				},
 			}, nil
 		},
-		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
+		MockSpec: func(string, containers.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}, Linux: &specs.Linux{
 				CgroupsPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice:cri-containerd:ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602",
 			}}, nil
 		},
-		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(string, containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}
@@ -245,8 +249,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	imageMetadata := &workloadmeta.ContainerImageMetadata{
@@ -265,7 +268,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	workloadmetaStore.Set(imageMetadata)
 
 	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			result, err := buildWorkloadMetaContainer(namespace, &test.container, &client, workloadmetaStore)
 			assert.NoError(t, err)
 

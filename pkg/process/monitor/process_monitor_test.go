@@ -38,12 +38,12 @@ func getProcessMonitor(t *testing.T) *ProcessMonitor {
 
 func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 	execCounter := atomic.NewInt32(0)
-	execCallback := func(pid uint32) { execCounter.Inc() }
+	execCallback := func(_ uint32) { execCounter.Inc() }
 	registerCallback(t, pm, true, (*ProcessCallback)(&execCallback))
 
 	exitCounter := atomic.NewInt32(0)
 	// Sanity subscribing a callback.
-	exitCallback := func(pid uint32) { exitCounter.Inc() }
+	exitCallback := func(_ uint32) { exitCounter.Inc() }
 	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 
 	require.Eventually(t, func() bool {

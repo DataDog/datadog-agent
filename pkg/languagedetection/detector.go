@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -92,7 +92,7 @@ var (
 )
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []languagemodels.Process, sysprobeConfig config.Reader) []*languagemodels.Language {
+func DetectLanguage(procs []languagemodels.Process, sysprobeConfig model.Reader) []*languagemodels.Language {
 	detectLanguageStart := time.Now()
 	defer func() {
 		detectLanguageRuntimeMs.Observe(float64(time.Since(detectLanguageStart).Milliseconds()))
@@ -161,7 +161,7 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig config.Reader
 	return langs
 }
 
-func privilegedLanguageDetectionEnabled(sysProbeConfig config.Reader) bool {
+func privilegedLanguageDetectionEnabled(sysProbeConfig model.Reader) bool {
 	if sysProbeConfig == nil {
 		return false
 	}

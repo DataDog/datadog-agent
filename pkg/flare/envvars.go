@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var allowedEnvvarNames = []string{
@@ -69,7 +69,6 @@ var allowedEnvvarNames = []string{
 	"DD_APM_REPLACE_TAGS",
 	"DD_APM_PROFILING_DD_URL",
 	"DD_APM_WINDOWS_PIPE_BUFFER_SIZE",
-	"DD_APM_REMOTE_TAGGER",
 	"DD_APM_PEER_SERVICE_AGGREGATION",
 	"DD_APM_COMPUTE_STATS_BY_SPAN_KIND",
 	"DD_APM_PEER_TAGS_AGGREGATION",
@@ -88,6 +87,7 @@ var allowedEnvvarNames = []string{
 	"DD_APM_SYMDB_DD_URL",
 	"DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED",
 	"DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN",
+	"DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES",
 	"DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED",
 	"DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES",
 	"DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES",
@@ -138,7 +138,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	allowed = append(allowed, config.Datadog().GetEnvVars()...)
+	allowed = append(allowed, pkgconfigsetup.Datadog().GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

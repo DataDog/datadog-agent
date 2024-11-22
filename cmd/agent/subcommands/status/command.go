@@ -36,11 +36,12 @@ type cliParams struct {
 	// args are the positional command-line arguments
 	args []string
 
-	jsonStatus      bool
-	prettyPrintJSON bool
-	statusFilePath  string
-	verbose         bool
-	list            bool
+	jsonStatus         bool
+	prettyPrintJSON    bool
+	statusFilePath     string
+	verbose            bool
+	list               bool
+	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -52,10 +53,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "status [section]",
 		Short: "Display the current status",
 		Long: `Display the current status.
-If no section is specified, this command will display all status sections. 
+If no section is specified, this command will display all status sections.
 If a specific section is provided, such as 'collector', it will only display the status of that section.
 The --list flag can be used to list all available status sections.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 
 			// Prevent autoconfig to run when running status as it logs before logger
@@ -67,13 +68,14 @@ The --list flag can be used to list all available status sections.`,
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.ForOneShot(command.LoggerName, "off", true)}),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 			)
 		},
 	}
+	cliParams.logLevelDefaultOff.Register(cmd)
 	cmd.PersistentFlags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
 	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")

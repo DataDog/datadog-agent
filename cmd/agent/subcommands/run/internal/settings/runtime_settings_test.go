@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -38,17 +40,18 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
+	taggerComponent := mock.SetupFakeTagger(t)
+
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
-		fx.Supply(server.Params{
-			Serverless: false,
-		}),
 		demultiplexerimpl.MockModule(),
-		dogstatsd.Bundle(),
+		dogstatsd.Bundle(server.Params{Serverless: false}),
 		defaultforwarder.MockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		fx.Provide(func() tagger.Component {
+			return taggerComponent
+		}),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := DsdStatsRuntimeSetting{

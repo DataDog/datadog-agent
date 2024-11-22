@@ -13,13 +13,13 @@ import (
 	"path"
 	"testing"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 )
@@ -28,12 +28,12 @@ func startTestUnixServer(t *testing.T, handler http.Handler) string {
 	t.Helper()
 
 	socketPath := path.Join(t.TempDir(), "test.sock")
-	listener, err := net.NewListener(socketPath)
+	listener, err := server.NewListener(socketPath)
 	require.NoError(t, err)
-	t.Cleanup(listener.Stop)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	srv := httptest.NewUnstartedServer(handler)
-	srv.Listener = listener.GetListener()
+	srv.Listener = listener
 	srv.Start()
 	t.Cleanup(srv.Close)
 
@@ -41,7 +41,7 @@ func startTestUnixServer(t *testing.T, handler http.Handler) string {
 }
 
 func TestBinaryAnalysisClient(t *testing.T) {
-	socketPath := startTestUnixServer(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	socketPath := startTestUnixServer(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		b, err := proto.Marshal(&languagepb.DetectLanguageResponse{
 			Languages: []*languagepb.Language{
 				{

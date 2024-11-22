@@ -24,7 +24,7 @@ const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
-	defaultLookback    = 10 * time.Minute
+	defaultLookback    = 30 * time.Minute
 	defaultHTTPTimeout = 10
 	defaultHTTPScheme  = "https"
 )

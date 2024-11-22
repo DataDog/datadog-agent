@@ -11,10 +11,18 @@ package paths
 const (
 	// PackagesPath is the path to the packages directory.
 	PackagesPath = "/opt/datadog-packages"
-	// TmpDirPath is the path to the temporary directory used for package installation.
-	TmpDirPath = "/opt/datadog-packages"
-	// LocksPack is the path to the locks directory.
-	LocksPack = "/var/run/datadog-installer/locks"
-	// DefaultConfigsDir is the default Agent configuration directory
-	DefaultConfigsDir = "/etc"
+	// ConfigsPath is the path to the Fleet-managed configuration directory.
+	ConfigsPath = "/etc/datadog-packages"
+	// LocksPath is the path to the packages locks directory.
+	LocksPath = "/opt/datadog-packages/run/locks"
+	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
+	RootTmpDir = "/opt/datadog-installer/tmp"
+	// DefaultUserConfigsDir is the default Agent configuration directory.
+	DefaultUserConfigsDir = "/etc"
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
+	// RunPath is the default run path
+	RunPath = "/opt/datadog-packages/run"
 )

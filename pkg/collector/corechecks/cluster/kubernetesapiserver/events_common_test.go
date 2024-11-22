@@ -15,13 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -55,10 +53,13 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
-	telemetryStore := telemetry.NewStore(telemetryComponent)
-	taggerInstance := local.NewFakeTagger(telemetryStore)
-	taggerInstance.SetTags("kubernetes_metadata://namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	taggerInstance := mockTagger.New().Comp
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesPodUID, "nginx"), "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "workload-redis/my-deployment-1"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-1"}, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
+
 	tests := []struct {
 		name           string
 		involvedObject v1.ObjectReference
@@ -67,6 +68,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get pod basic tags",
 			involvedObject: v1.ObjectReference{
+				UID:       "nginx",
 				Kind:      "Pod",
 				Name:      "my-pod",
 				Namespace: "my-namespace",
@@ -79,11 +81,13 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"kube_namespace:my-namespace",
 				"namespace:my-namespace",
 				"pod_name:my-pod",
+				"additional_pod_tag:nginx",
 			},
 		},
 		{
 			name: "get pod namespace tags",
 			involvedObject: v1.ObjectReference{
+				UID:       "nginx",
 				Kind:      "Pod",
 				Name:      "my-pod",
 				Namespace: "default",
@@ -97,6 +101,63 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"namespace:default",
 				"team:container-int", // this tag is coming from the namespace
 				"pod_name:my-pod",
+				"additional_pod_tag:nginx",
+			},
+		},
+		{
+			name: "get deployment basic tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Deployment",
+				Name:      "my-deployment-1",
+				Namespace: "workload-redis",
+			},
+			tags: []string{
+				"kube_kind:Deployment",
+				"kube_name:my-deployment-1",
+				"kubernetes_kind:Deployment",
+				"name:my-deployment-1",
+				"kube_namespace:workload-redis",
+				"namespace:workload-redis",
+				"kube_deployment:my-deployment-1",
+				"deployment_tag:redis-1",
+			},
+		},
+		{
+			name: "get deployment namespace tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Deployment",
+				Name:      "my-deployment-2",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Deployment",
+				"kube_name:my-deployment-2",
+				"kubernetes_kind:Deployment",
+				"name:my-deployment-2",
+				"kube_namespace:default",
+				"namespace:default",
+				"kube_deployment:my-deployment-2",
+				"team:container-int", // this tag is coming from the namespace
+				"deployment_tag:redis-2",
+			},
+		},
+		{
+			name: "get tags for any metadata resource",
+			involvedObject: v1.ObjectReference{
+				Kind:       "ResourceType",
+				Name:       "generic-resource",
+				Namespace:  "default",
+				APIVersion: "api-group/v1",
+			},
+			tags: []string{
+				"kube_kind:ResourceType",
+				"kube_name:generic-resource",
+				"kubernetes_kind:ResourceType",
+				"name:generic-resource",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"generic_tag:generic-resource",
 			},
 		},
 	}

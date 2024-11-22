@@ -95,5 +95,5 @@ func (h *StorageClassHandlers) ResourceVersion(ctx processors.ProcessorContext, 
 //nolint:revive
 func (h *StorageClassHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*storagev1.StorageClass)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

@@ -20,6 +20,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -32,11 +33,13 @@ const (
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
-func toLibPath(data []byte) libPath {
-	return *(*libPath)(unsafe.Pointer(&data[0]))
+// ToLibPath casts the perf event data to the LibPath structure
+func ToLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func toBytes(l *libPath) []byte {
+// ToBytes converts the libpath to a byte array containing the path
+func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
@@ -56,7 +59,7 @@ type Watcher struct {
 	loadEvents     *ddebpf.PerfHandler
 	processMonitor *monitor.ProcessMonitor
 	registry       *utils.FileRegistry
-	ebpfProgram    *ebpfProgram
+	ebpfProgram    *EbpfProgram
 
 	// telemetry
 	libHits    *telemetry.Counter
@@ -68,7 +71,7 @@ var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg)
+	ebpfProgram := NewEBPFProgram(&cfg.Config)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
@@ -82,7 +85,7 @@ func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
 		loadEvents:     ebpfProgram.GetPerfHandler(),
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
-		registry:       utils.NewFileRegistry("shared_libraries"),
+		registry:       utils.NewFileRegistry(consts.USMModuleName, "shared_libraries"),
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
@@ -156,7 +159,7 @@ func (w *Watcher) AttachPID(pid uint32) error {
 		// Iterate over the rule, and look for a match.
 		for _, r := range w.rules {
 			if r.Re.MatchString(path) {
-				if err := w.registry.Register(path, pid, r.RegisterCB, r.UnregisterCB); err != nil {
+				if err := w.registry.Register(path, pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB); err != nil {
 					registerErrors = append(registerErrors, err)
 				} else {
 					successfulMatches = append(successfulMatches, path)
@@ -210,7 +213,7 @@ func (w *Watcher) Start() {
 			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
 				if r.Re.MatchString(path) {
-					_ = w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB)
+					_ = w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
 					break
 				}
 			}
@@ -255,7 +258,7 @@ func (w *Watcher) Start() {
 					return
 				}
 
-				lib := toLibPath(event.Data)
+				lib := ToLibPath(event.Data)
 				if int(lib.Pid) == thisPID {
 					// don't scan ourself
 					event.Done()
@@ -263,11 +266,11 @@ func (w *Watcher) Start() {
 				}
 
 				w.libHits.Add(1)
-				path := toBytes(&lib)
+				path := ToBytes(&lib)
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)
-						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB)
+						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
 						break
 					}
 				}
@@ -284,5 +287,5 @@ func (w *Watcher) Start() {
 		log.Errorf("error starting shared library detection eBPF program: %s", err)
 	}
 
-	utils.AddAttacher("native", w)
+	utils.AddAttacher(consts.USMModuleName, "native", w)
 }

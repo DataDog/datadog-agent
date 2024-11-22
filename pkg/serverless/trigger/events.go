@@ -76,6 +76,12 @@ const (
 
 	// LambdaFunctionURLEvent describes an event from an HTTP lambda function URL invocation
 	LambdaFunctionURLEvent
+
+	// StepFunctionEvent describes an event with a Step Function execution context
+	StepFunctionEvent
+
+	// LegacyStepFunctionEvent describes an event with a Legacy Lambda Step Function execution context
+	LegacyStepFunctionEvent
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
@@ -110,6 +116,8 @@ var (
 		{isAppSyncResolverEvent, AppSyncResolverEvent},
 		{isEventBridgeEvent, EventBridgeEvent},
 		{isLambdaFunctionURLEvent, LambdaFunctionURLEvent},
+		{isStepFunctionEvent, StepFunctionEvent},
+		{isLegacyStepFunctionEvent, LegacyStepFunctionEvent},
 		// Ultimately check this is a Kong API Gateway event as a last resort.
 		// This is because Kong API Gateway events are a subset of API Gateway events
 		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
@@ -270,6 +278,32 @@ func isLambdaFunctionURLEvent(event map[string]any) bool {
 	return strings.Contains(lambdaURL, "lambda-url")
 }
 
+func isLegacyStepFunctionEvent(event map[string]any) bool {
+	execId := json.GetNestedValue(event, "payload", "execution", "id")
+	if execId == nil {
+		return false
+	}
+	stateName := json.GetNestedValue(event, "payload", "state", "name")
+	if stateName == nil {
+		return false
+	}
+	stateEnteredTime := json.GetNestedValue(event, "payload", "state", "enteredtime")
+	return stateEnteredTime != nil
+}
+
+func isStepFunctionEvent(event map[string]any) bool {
+	execId := json.GetNestedValue(event, "execution", "id")
+	if execId == nil {
+		return false
+	}
+	stateName := json.GetNestedValue(event, "state", "name")
+	if stateName == nil {
+		return false
+	}
+	stateEnteredTime := json.GetNestedValue(event, "state", "enteredtime")
+	return stateEnteredTime != nil
+}
+
 func eventRecordsKeyExists(event map[string]any, key string) bool {
 	records, ok := json.GetNestedValue(event, "records").([]interface{})
 	if !ok {
@@ -336,6 +370,8 @@ func (et AWSEventType) String() string {
 		return "EventBridgeEvent"
 	case LambdaFunctionURLEvent:
 		return "LambdaFunctionURLEvent"
+	case StepFunctionEvent:
+		return "StepFunctionEvent"
 	default:
 		return fmt.Sprintf("EventType(%d)", et)
 	}

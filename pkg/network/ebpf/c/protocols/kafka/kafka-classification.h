@@ -283,7 +283,7 @@ static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset
 }
 
 // Getting the offset (out parameter) of the first topic name in the produce request.
-static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset) {
+static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset, s16 *out_acks) {
     const s16 api_version = kafka_header->api_version;
     u32 offset = *out_offset;
     bool flexible = api_version >= 9;
@@ -309,6 +309,9 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
         // The number of acknowledgments the producer requires the leader to have received before considering a request
         // complete. Allowed values: 0 for no acknowledgments, 1 for only the leader and -1 for the full ISR.
         return false;
+    }
+    if (out_acks != NULL) {
+        *out_acks = acks;
     }
 
     PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, timeout_ms, pkt, offset);
@@ -361,7 +364,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     bool flexible = false;
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
-        if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset)) {
+        if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
             return false;
         }
         flexible = kafka_header->api_version >= 9;

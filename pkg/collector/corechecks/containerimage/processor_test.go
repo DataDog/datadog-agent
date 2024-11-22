@@ -18,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/protobuf/proto"
 
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -26,6 +27,8 @@ import (
 )
 
 func TestProcessEvents(t *testing.T) {
+	fakeTagger := taggerMock.SetupFakeTagger(t)
+
 	tests := []struct {
 		name           string
 		inputEvents    []workloadmeta.Event
@@ -422,7 +425,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p := newProcessor(sender, 1, 50*time.Millisecond)
+			p := newProcessor(sender, 1, 50*time.Millisecond, fakeTagger)
 
 			p.processEvents(workloadmeta.EventBundle{
 				Events: test.inputEvents,

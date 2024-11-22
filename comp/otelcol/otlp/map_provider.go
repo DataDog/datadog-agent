@@ -94,31 +94,31 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	if cfg.shouldSetLoggingSection() {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
-				"logging": cfg.Debug,
+				"debug": cfg.Debug,
 			},
 		}
 		if cfg.MetricsEnabled {
 			key := buildKey("service", "pipelines", "metrics", "exporters")
 			if v, ok := retMap.Get(key).([]interface{}); ok {
-				m[key] = append(v, "logging")
+				m[key] = append(v, "debug")
 			} else {
-				m[key] = []interface{}{"logging"}
+				m[key] = []interface{}{"debug"}
 			}
 		}
 		if cfg.TracesEnabled {
 			key := buildKey("service", "pipelines", "traces", "exporters")
 			if v, ok := retMap.Get(key).([]interface{}); ok {
-				m[key] = append(v, "logging")
+				m[key] = append(v, "debug")
 			} else {
-				m[key] = []interface{}{"logging"}
+				m[key] = []interface{}{"debug"}
 			}
 		}
 		if cfg.LogsEnabled {
 			key := buildKey("service", "pipelines", "logs", "exporters")
 			if v, ok := retMap.Get(key).([]interface{}); ok {
-				m[key] = append(v, "logging")
+				m[key] = append(v, "debug")
 			} else {
-				m[key] = []interface{}{"logging"}
+				m[key] = []interface{}{"debug"}
 			}
 		}
 		errs = append(errs, retMap.Merge(confmap.NewFromStringMap(m)))

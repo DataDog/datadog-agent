@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -23,6 +23,7 @@ const (
 	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
+	podmanWrapperType wrapperType = "podman"
 	multiWrapperType  wrapperType = "multi"
 )
 
@@ -128,12 +129,6 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 	})
 }
 
-func (d *dockerCmdWrapper) RunTest(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
-	t.Run(name, func(t *testing.T) {
-		fnc(t, d.Type(), d.Command)
-	})
-}
-
 func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
@@ -151,16 +146,30 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	return err
 }
 
-func newDockerCmdWrapper(mountSrc, mountDest string, kind string) (*dockerCmdWrapper, error) {
-	executable, err := exec.LookPath("docker")
+func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+	if runtimeCommand == "" {
+		runtimeCommand = "docker"
+	}
+
+	executable, err := exec.LookPath(runtimeCommand)
 	if err != nil {
 		return nil, err
 	}
 
 	// check docker is available
 	cmd := exec.Command(executable, "version")
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.Output()
+	if err != nil {
 		return nil, err
+	}
+
+	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {
+		splited := strings.SplitN(line, ":", 2)
+		if splited[0] == "client" && len(splited) > 1 {
+			if client := strings.TrimSpace(splited[1]); client != "" && !strings.Contains(client, runtimeCommand) {
+				return nil, fmt.Errorf("client doesn't report as '%s' but as '%s'", runtimeCommand, client)
+			}
+		}
 	}
 
 	wrapper := &dockerCmdWrapper{

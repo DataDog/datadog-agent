@@ -3,14 +3,15 @@ import subprocess
 import unittest
 
 
-def run_mod_formatter(path, formatFile=False, allow_fail=False):
+def run_mod_formatter(path, formatFile=False, allow_fail=False, repo_path=None):
+    repo_path = repo_path or os.getcwd()
     if path[0] != "/":
         path = os.path.abspath(path)
     extraArgs = ""
     if formatFile:
         extraArgs = "--formatFile true"
     proc = subprocess.run(
-        f"go run ./internal/tools/modformatter/modformatter.go --path {path} {extraArgs}",
+        f"go run ./internal/tools/modformatter/modformatter.go --path {path} --repoPath {repo_path} {extraArgs}",
         shell=True,
         capture_output=True,
     )

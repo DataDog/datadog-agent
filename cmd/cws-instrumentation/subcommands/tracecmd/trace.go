@@ -89,7 +89,7 @@ func Command() []*cobra.Command {
 	traceCmd := &cobra.Command{
 		Use:   "trace",
 		Short: "trace the syscalls and signals of the given binary",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			creds := ptracer.Creds{}
 			if params.UID != -1 {
 				uid := uint32(params.UID)
@@ -204,7 +204,12 @@ func Command() []*cobra.Command {
 
 				return nil
 			}
-			return ptracer.Wrap(args, os.Environ(), params.ProbeAddr, opts)
+			exitCode, err := ptracer.Wrap(args, os.Environ(), params.ProbeAddr, opts)
+			if err != nil {
+				return err
+			}
+			os.Exit(exitCode)
+			return err // fake return
 		},
 	}
 

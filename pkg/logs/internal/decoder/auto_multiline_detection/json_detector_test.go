@@ -43,7 +43,7 @@ func TestJsonDetector(t *testing.T) {
 				rawMessage: []byte(tc.rawMessage),
 				label:      aggregate,
 			}
-			assert.Equal(t, tc.expectedResult, jsonDetector.Process(messageContext))
+			assert.Equal(t, tc.expectedResult, jsonDetector.ProcessAndContinue(messageContext))
 			assert.Equal(t, tc.expectedLabel, messageContext.label)
 		})
 	}

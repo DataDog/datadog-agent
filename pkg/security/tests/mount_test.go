@@ -503,7 +503,7 @@ func TestMountEvent(t *testing.T) {
 	})
 
 	const dockerMountDest = "/host_root"
-	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine")
+	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
 	if err != nil {
 		t.Skip("Skipping mounts in containers tests: Docker not available")
 		return
@@ -537,7 +537,7 @@ func TestMountEvent(t *testing.T) {
 	if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
 		t.Fatal(err)
 	}
-	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine")
+	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
 	if err != nil {
 		t.Fatal(err)
 	}

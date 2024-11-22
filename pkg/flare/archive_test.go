@@ -22,11 +22,9 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -34,7 +32,7 @@ import (
 func TestGoRoutines(t *testing.T) {
 	expected := "No Goroutines for you, my friend!"
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "%s", expected)
 	}))
 	defer ts.Close()
@@ -45,7 +43,7 @@ func TestGoRoutines(t *testing.T) {
 }
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	common.SetupConfigForTest("./test/datadog-agent.yaml")
+	configmock.NewFromFile(t, "./test/datadog-agent.yaml")
 	// create system-probe.yaml file because it's in .gitignore
 	_, err := os.Create("./test/system-probe.yaml")
 	require.NoError(t, err, "couldn't create system-probe.yaml")
@@ -59,7 +57,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 }
 
 func TestIncludeConfigFiles(t *testing.T) {
-	common.SetupConfigForTest("./test")
+	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
@@ -70,7 +68,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 }
 
 func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	common.SetupConfigForTest("./test")
+	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
@@ -111,7 +109,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func TestGetAgentTaggerList(t *testing.T) {
 	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_entity_name"] = types.TaggerListEntity{
+	tagMap["random_prefix://random_id"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
@@ -120,7 +118,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 		Entities: tagMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
@@ -131,7 +129,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "random_entity_name")
+	assert.Contains(t, string(content), "random_prefix://random_id")
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
@@ -149,7 +147,7 @@ func TestGetWorkloadList(t *testing.T) {
 		Entities: workloadMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
@@ -302,7 +300,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, config.GetProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock.Fb, getProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")

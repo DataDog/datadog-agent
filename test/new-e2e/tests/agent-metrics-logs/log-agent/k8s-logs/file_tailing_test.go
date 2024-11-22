@@ -7,12 +7,13 @@ package k8sfiletailing
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,8 @@ func TestK8sSuite(t *testing.T) {
 }
 
 func (v *k8sSuite) TestSingleLogAndMetadata() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(v.T(), err, "Could not reset the Fake Intake")
 	var backOffLimit int32 = 4
 	testLogMessage := "Test log message"
 
@@ -58,32 +60,41 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 		},
 	}
 
-	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not properly start job")
+	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
+	require.NoError(v.T(), err, "Could not properly start job")
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
+		if err != nil {
+			return
+		}
 
 		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
 			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
 			assert.NoError(c, err, "Error filtering logs")
-			assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
-
-			// Check container metatdata
-			assert.Equal(c, filteredLogs[0].Service, "ubuntu", "Could not find service")
-			assert.NotNil(c, filteredLogs[0].HostName, "Hostname not found")
-			assert.NotNil(c, filteredLogs[0].Tags, "Log tags not found")
+			if err != nil {
+				return
+			}
+			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
+				// Check container metatdata
+				assert.Equal(c, filteredLogs[0].Service, "ubuntu", "Could not find service")
+				assert.NotNil(c, filteredLogs[0].HostName, "Hostname not found")
+				assert.NotNil(c, filteredLogs[0].Tags, "Log tags not found")
+			}
 		}
 
 	}, 1*time.Minute, 10*time.Second)
 }
 
+//go:embed long_line_log.txt
+var longLineLog string
+
 func (v *k8sSuite) TestLongLogLine() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(v.T(), err, "Could not reset the FakeIntake")
 	var backOffLimit int32 = 4
-	file, err := os.ReadFile("long_line_log.txt")
-	assert.NoError(v.T(), err, "Could not open long line file.")
 
 	jobSpcec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -97,7 +108,7 @@ func (v *k8sSuite) TestLongLogLine() {
 						{
 							Name:    "long-line-job",
 							Image:   "ubuntu",
-							Command: []string{"echo", string(file)},
+							Command: []string{"echo", longLineLog},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -108,23 +119,32 @@ func (v *k8sSuite) TestLongLogLine() {
 	}
 
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not properly start job")
+	require.NoError(v.T(), err, "Could not properly start job")
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
+		if err != nil {
+			return
+		}
 
 		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
 			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
 			assert.NoError(c, err, "Error filtering logs")
-			assert.Equal(c, string(file), fmt.Sprintf("%s%s", filteredLogs[0].Message, "\n"), "Test log doesn't match")
+			if err != nil {
+				return
+			}
+			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+				assert.Equal(c, longLineLog, fmt.Sprintf("%s%s", filteredLogs[0].Message, "\n"), "Test log doesn't match")
+			}
 		}
 
 	}, 1*time.Minute, 10*time.Second)
 }
 
 func (v *k8sSuite) TestContainerExclude() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(v.T(), err, "Could not reset the Fake Intake")
 
 	// We're testing exclusion via namespace, so we have to create a new namespace
 	namespaceName := "exclude-namespace"
@@ -133,8 +153,8 @@ func (v *k8sSuite) TestContainerExclude() {
 			Name: namespaceName,
 		},
 	}
-	_, err := v.Env().KubernetesCluster.Client().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not create namespace")
+	_, err = v.Env().KubernetesCluster.Client().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+	require.NoError(v.T(), err, "Could not create namespace")
 
 	var backOffLimit int32 = 4
 	testLogMessage := "Test log message here"
@@ -162,11 +182,14 @@ func (v *k8sSuite) TestContainerExclude() {
 	}
 
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs(namespaceName).Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not properly start job")
+	require.NoError(v.T(), err, "Could not properly start job")
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
+		if err != nil {
+			return
+		}
 		assert.NotContains(c, logsServiceNames, "alpine", "Alpine service found after excluded")
 	}, 1*time.Minute, 10*time.Second)
 }

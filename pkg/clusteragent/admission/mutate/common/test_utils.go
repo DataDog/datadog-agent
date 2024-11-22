@@ -121,11 +121,33 @@ func FakePodWithAnnotation(k, v string) *corev1.Pod {
 	return withContainer(pod, "-container")
 }
 
-// FakePodWithParent returns a pod with the given parent kind and name
-func FakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
+// FakePodSpec describes a pod we are going to create.
+type FakePodSpec struct {
+	NS          string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
+	Envs        []corev1.EnvVar
+	ParentKind  string
+	ParentName  string
+}
+
+// Create makes a Pod from a FakePodSpec setting up sane defaults.
+func (f FakePodSpec) Create() *corev1.Pod {
+	if f.NS == "" {
+		f.NS = "ns"
+	}
+	if f.Name == "" {
+		f.Name = "pod"
+	}
+	return fakePodWithParent(f.NS, f.Name, f.Annotations, f.Labels, f.Envs, f.ParentKind, f.ParentName)
+}
+
+// fakePodWithParent returns a pod with the given parent kind and name
+func fakePodWithParent(ns, name string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "pod",
+			Name:            name,
 			Namespace:       ns,
 			Annotations:     as,
 			Labels:          ls,
@@ -217,6 +239,11 @@ func FakePod(name string) *corev1.Pod {
 	return FakePodWithContainer(name, corev1.Container{Name: name + "-container"})
 }
 
+// FakePodWithResources with resource requirements
+func FakePodWithResources(name string, reqs corev1.ResourceRequirements) *corev1.Pod {
+	return FakePodWithContainer(name, corev1.Container{Name: name + "-container", Resources: reqs})
+}
+
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod
@@ -237,9 +264,8 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloa
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		coreconfig.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	for _, d := range deployments {

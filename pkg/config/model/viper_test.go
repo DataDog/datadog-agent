@@ -6,7 +6,6 @@
 package model
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"reflect"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestConcurrencySetGet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	var wg sync.WaitGroup
 
@@ -41,7 +40,7 @@ func TestConcurrencySetGet(t *testing.T) {
 }
 
 func TestConcurrencyUnmarshalling(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.SetDefault("foo", map[string]string{})
 	config.SetDefault("BAR", "test")
@@ -62,6 +61,7 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
+			// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
 			err := config.UnmarshalKey("foo", &s)
 			if err != nil {
 				errs <- fmt.Errorf("unable to decode into struct, %w", err)
@@ -83,7 +83,7 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 }
 
 func TestGetConfigEnvVars(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("app_key")
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")
@@ -98,7 +98,7 @@ func TestGetConfigEnvVars(t *testing.T) {
 // config parameters using DD_CONFIG_OPTION, and asserting that
 // GetConfigVars only returns that env var once.
 func TestGetConfigEnvVarsDedupe(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("config_option_1", "DD_CONFIG_OPTION")
 	config.BindEnv("config_option_2", "DD_CONFIG_OPTION")
@@ -111,59 +111,8 @@ func TestGetConfigEnvVarsDedupe(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
-func TestGetFloat64SliceE(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-
-	config.BindEnv("float_list")
-	config.SetConfigType("yaml")
-	yamlExample := []byte(`---
-float_list:
-  - 1.1
-  - "2.2"
-  - 3.3
-`)
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	list, err := config.GetFloat64SliceE("float_list")
-	assert.NoError(t, err)
-	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
-
-	yamlExample = []byte(`---
-float_list:
-  - a
-  - 2.2
-  - 3.3
-`)
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	list, err = config.GetFloat64SliceE("float_list")
-	assert.NotNil(t, err)
-	assert.Equal(t, "value 'a' from 'float_list' is not a float64", err.Error())
-	assert.Nil(t, list)
-}
-
-func TestGetFloat64SliceEEnv(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-
-	config.BindEnv("float_list")
-	config.SetConfigType("yaml")
-
-	yamlExample := []byte(`
-float_list:
-- 25
-`)
-
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
-
-	list, err := config.GetFloat64SliceE("float_list")
-	assert.NoError(t, err)
-	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
-}
-
 func TestSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.Set("foo", "bar", SourceFile)
 	config.Set("foo", "baz", SourceEnvVar)
 	config.Set("foo", "qux", SourceAgentRuntime)
@@ -182,7 +131,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestGetSource(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.Set("foo", "bar", SourceFile)
 	config.Set("foo", "baz", SourceEnvVar)
 	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
@@ -221,7 +170,7 @@ func TestIsKnown(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			for _, configName := range []string{"foo", "BAR", "BaZ", "foo_BAR", "foo.BAR", "foo.BAR.baz"} {
-				config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+				config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 				if tc.setKnown {
 					config.SetKnown(configName)
@@ -240,7 +189,7 @@ func TestIsKnown(t *testing.T) {
 }
 
 func TestAllFileSettingsWithoutDefault(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.Set("foo", "bar", SourceFile)
 	config.Set("baz", "qux", SourceFile)
 	config.UnsetForSource("foo", SourceFile)
@@ -254,7 +203,7 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 }
 
 func TestSourceFileReadConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	yamlExample := []byte(`
 foo: bar
 `)
@@ -273,7 +222,7 @@ foo: bar
 }
 
 func TestNotification(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	updatedKeyCB1 := []string{}
 	updatedKeyCB2 := []string{}
@@ -292,7 +241,7 @@ func TestNotification(t *testing.T) {
 }
 
 func TestNotificationNoChange(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	updatedKeyCB1 := []string{}
 
@@ -306,7 +255,7 @@ func TestNotificationNoChange(t *testing.T) {
 }
 
 func TestCheckKnownKey(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig)
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
 
 	config.SetKnown("foo")
 	config.Get("foo")
@@ -321,14 +270,14 @@ func TestCheckKnownKey(t *testing.T) {
 }
 
 func TestCopyConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetDefault("baz", "qux")
 	config.Set("foo", "bar", SourceFile)
 	config.BindEnv("xyz", "XXYYZZ")
 	config.SetKnown("tyu")
-	config.OnUpdate(func(key string, _, _ any) {})
+	config.OnUpdate(func(_ string, _, _ any) {})
 
-	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	backup.CopyConfig(config)
 
 	assert.Equal(t, "qux", backup.Get("baz"))
@@ -341,7 +290,7 @@ func TestCopyConfig(t *testing.T) {
 }
 
 func TestExtraConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	confs := []struct {
 		name    string
@@ -402,4 +351,67 @@ proxy:
 	err = config.ReadInConfig()
 	assert.NoError(t, err)
 	assert.True(t, reflect.DeepEqual(oldConf, config.AllSettings()))
+}
+
+func TestMergeFleetPolicy(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetConfigType("yaml")
+	config.Set("foo", "bar", SourceFile)
+
+	file, err := os.CreateTemp("", "datadog.yaml")
+	assert.NoError(t, err, "failed to create temporary file: %w", err)
+	file.Write([]byte("foo: baz"))
+	err = config.MergeFleetPolicy(file.Name())
+	assert.NoError(t, err)
+
+	assert.Equal(t, "baz", config.Get("foo"))
+	assert.Equal(t, SourceFleetPolicies, config.GetSource("foo"))
+}
+
+func TestParseEnvAsStringSlice(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	config.BindEnv("slice_of_string")
+	config.ParseEnvAsStringSlice("slice_of_string", func(string) []string { return []string{"a", "b", "c"} })
+
+	t.Setenv("DD_SLICE_OF_STRING", "__some_data__")
+	assert.Equal(t, []string{"a", "b", "c"}, config.Get("slice_of_string"))
+}
+
+func TestParseEnvAsMapStringInterface(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	config.BindEnv("map_of_float")
+	config.ParseEnvAsMapStringInterface("map_of_float", func(string) map[string]interface{} { return map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0} })
+
+	t.Setenv("DD_MAP_OF_FLOAT", "__some_data__")
+	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.Get("map_of_float"))
+	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.GetStringMap("map_of_float"))
+}
+
+func TestParseEnvAsSliceMapString(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	config.BindEnv("map")
+	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
+
+	t.Setenv("DD_MAP", "__some_data__")
+	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
+}
+
+func TestListenersUnsetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	// Create a listener that will keep track of the changes
+	logLevels := []string{}
+	config.OnUpdate(func(_ string, _, next any) {
+		nextString := next.(string)
+		logLevels = append(logLevels, nextString)
+	})
+
+	config.Set("log_level", "info", SourceFile)
+	config.Set("log_level", "debug", SourceRC)
+	config.UnsetForSource("log_level", SourceRC)
+
+	assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
 }

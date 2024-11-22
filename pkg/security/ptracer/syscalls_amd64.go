@@ -74,6 +74,8 @@ const (
 	IoctlNr          = unix.SYS_IOCTL             // IoctlNr defines the syscall ID for amd64
 	MountNr          = unix.SYS_MOUNT             // MountNr defines the syscall ID for amd64
 	Umount2Nr        = unix.SYS_UMOUNT2           // Umount2Nr defines the syscall ID for amd64
+	PipeNr           = unix.SYS_PIPE              // PipeNr defines the syscall ID for arm64
+	Pipe2Nr          = unix.SYS_PIPE2             // Pipe2Nr defines the syscall ID for arm64
 )
 
 // https://github.com/torvalds/linux/blob/v5.0/arch/x86/entry/entry_64.S#L126

@@ -10,8 +10,10 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,8 +28,8 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -41,8 +43,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
@@ -67,17 +69,15 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
-		workloadmetafx.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		taggerimpl.Module(),
+		localTaggerFx.Module(tagger.Params{}),
 		healthprobeFx.Module(),
-		fx.Supply(workloadmeta.NewParams()),
-		fx.Supply(tagger.NewTaggerParams()),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
 		coreconfig.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
@@ -97,8 +97,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger)
 
 	err := modeConf.Runner(logConfig)
 
@@ -108,11 +108,11 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	pkgconfig.LoadProxyFromEnv(pkgconfig.Datadog())
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -124,7 +124,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog(), false)),
+			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -135,15 +135,15 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := pkgconfig.LoadWithoutSecret()
+	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger)
 
-	traceAgent := setupTraceAgent(tags)
+	traceAgent := setupTraceAgent(tags, tagger)
 
-	metricAgent := setupMetricAgent(tags)
+	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent)
@@ -151,8 +151,31 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
-func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfig.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+
+var azureContainerAppTags = []string{
+	"subscription_id",
+	"resource_group",
+	"resource_id",
+	"replicate_name",
+	"aca.subscription.id",
+	"aca.resource.group",
+	"aca.resource.id",
+	"aca.replica.name",
+}
+
+func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+	var azureTags strings.Builder
+	for _, azureContainerAppTag := range azureContainerAppTags {
+		if value, ok := tags[azureContainerAppTag]; ok {
+			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureContainerAppTag, value))
+		}
+	}
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		ColdStartSpanID:       random.Random.Uint64(),
+		AzureContainerAppTags: azureTags.String(),
+	})
 	traceAgent.SetTags(tags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
@@ -162,12 +185,13 @@ func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
 	return traceAgent
 }
 
-func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
-	pkgconfig.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.ServerlessMetricAgent {
+	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
+		Tagger:               tagger,
 	}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	tags = serverlessInitTag.WithoutContainerID(tags)

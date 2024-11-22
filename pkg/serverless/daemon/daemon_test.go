@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -168,7 +170,13 @@ func TestSetTraceTagOk(t *testing.T) {
 		"key0": "value0",
 	}
 	t.Setenv("DD_API_KEY", "x")
-	agent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
+	t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(testutil.FreeTCPPort(t)))
+	agent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         true,
+		LoadConfig:      &trace.LoadConfig{Path: "/does-not-exist.yml"},
+		LambdaSpanChan:  make(chan *pb.Span),
+		ColdStartSpanID: random.Random.Uint64(),
+	})
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent: agent,
@@ -177,6 +185,9 @@ func TestSetTraceTagOk(t *testing.T) {
 }
 
 func TestOutOfOrderInvocations(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestOutOfOrderInvocations is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
 	defer d.Stop()

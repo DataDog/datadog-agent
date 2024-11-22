@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
@@ -40,14 +39,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -57,8 +58,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -107,7 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.saveFlare {
 			// Windows cannot accept ":" in file names
 			filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-			cliParams.logFile = filepath.Join(path.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
+			cliParams.logFile = filepath.Join(defaultpaths.JMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
 			cliParams.jmxLogLevel = "debug"
 		}
 
@@ -116,7 +118,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.jmxLogLevel = "debug"
 		}
 		params := core.BundleParams{
-			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
@@ -133,11 +135,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return diagnoseSenderManager.LazyGetSenderManager()
 			}),
 			// workloadmeta setup
-			collectors.GetCatalog(),
-			fx.Supply(workloadmeta.Params{
-				InitHelper: common.GetWorkloadmetaInit(),
-			}),
-			workloadmetafx.Module(),
+			wmcatalog.GetCatalog(),
+			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime
@@ -157,12 +156,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
 			fx.Provide(func() status.Component { return nil }),
-
-			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-			taggerimpl.Module(),
+			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
-			agent.Bundle(),
-			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+			// we can include the tagger as part of the workloadmeta component.
+			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+				proccontainers.InitSharedContainerProvider(wmeta, tagger)
+			}),
+			fx.Provide(func() remoteagentregistry.Component { return nil }),
 		)
 	}
 
@@ -170,7 +174,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "collect",
 		Short: "Start the collection of metrics based on your current configuration and display them in the console.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "collect"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -184,7 +188,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "everything",
 		Short: "List every attributes available that has a type supported by JMXFetch.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_everything"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -195,7 +199,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "matching",
 		Short: "List attributes that match at least one of your instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_matching_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -206,7 +210,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "with-metrics",
 		Short: "List attributes and metrics data that match at least one of your instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_with_metrics"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -217,7 +221,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "with-rate-metrics",
 		Short: "List attributes and metrics data that match at least one of your instances configuration, including rates and counters.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_with_rate_metrics"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -228,7 +232,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "limited",
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_limited_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -239,7 +243,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "collected",
 		Short: "List attributes that will actually be collected by your current instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_collected_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -250,7 +254,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "not-matching",
 		Short: "List attributes that don’t match any of your instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_not_matching_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -300,11 +304,12 @@ func runJmxCommandConsole(config config.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver optional.Option[integrations.Component]) error {
+	logReceiver optional.Option[integrations.Component],
+	tagger tagger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
-	pkgconfig.Datadog().Set("language_detection.enabled", "false", model.SourceAgentRuntime)
+	config.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
 	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
 	if err != nil {
@@ -317,7 +322,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

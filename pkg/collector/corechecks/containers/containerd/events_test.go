@@ -21,9 +21,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -58,7 +59,7 @@ func TestCheckEvents(t *testing.T) {
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
 	me := &mockEvt{
-		mockSubscribe: func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+		mockSubscribe: func(_ context.Context, _ ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 			return cha, errorsCh
 		},
 	}
@@ -66,10 +67,10 @@ func TestCheckEvents(t *testing.T) {
 		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{testNamespace}, nil
 		},
-		MockContainers: func(namespace string) ([]containerd.Container, error) {
+		MockContainers: func(string) ([]containerd.Container, error) {
 			return nil, nil
 		},
 	}
@@ -155,7 +156,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
 	me := &mockEvt{
-		mockSubscribe: func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+		mockSubscribe: func(_ context.Context, _ ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 			return cha, errorsCh
 		},
 	}
@@ -166,7 +167,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{testNamespace}, nil
 		},
 		MockContainers: func(namespace string) ([]containerd.Container, error) {
@@ -246,8 +247,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			defaultExcludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
-			config.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			defaultExcludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -276,7 +277,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 
@@ -285,9 +286,11 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
 func TestComputeEvents(t *testing.T) {
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 	containerdCheck := &ContainerdCheck{
 		instance:  &ContainerdConfig{},
 		CheckBase: corechecks.NewCheckBase("containerd"),
+		tagger:    fakeTagger,
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
 	var err error
@@ -370,7 +373,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeEvents(test.events, mocked, containerdCheck.containerFilter)
+			containerdCheck.computeEvents(test.events, mocked, containerdCheck.containerFilter)
 			mocked.On("Event", mock.AnythingOfType("event.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(event.Event)

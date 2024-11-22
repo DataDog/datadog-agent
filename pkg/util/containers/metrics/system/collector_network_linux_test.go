@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -88,12 +89,17 @@ func TestCollectNetworkStats(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(tc.pid), "net", "dev"), tc.dev)
+			netDevPath := filepath.Join(strconv.Itoa(tc.pid), "net", "dev")
+			err = dummyProcDir.Add(netDevPath, tc.dev)
 			assert.NoError(t, err)
+			inodeVal, err := system.GetFileInode(filepath.Join(dummyProcDir.RootPath, netDevPath))
+			assert.NoError(t, err)
+			assert.NotZero(t, inodeVal)
 
 			stat, err := collectNetworkStats(dummyProcDir.RootPath, tc.pid)
 			stat.Timestamp = tc.stat.Timestamp
 			assert.NoError(t, err)
+			tc.stat.NetworkIsolationGroupID = &inodeVal
 			assert.Equal(t, &tc.stat, stat)
 		})
 	}

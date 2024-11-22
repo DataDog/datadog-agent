@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -26,14 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -84,8 +87,8 @@ type dependencies struct {
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
-	IntegrationsLogs   integrations.Component
 	GrpcClient         grpcClient.Component
+	Tagger             tagger.Component
 }
 
 type provides struct {
@@ -95,6 +98,7 @@ type provides struct {
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
+	LogsReciever   optional.Option[integrations.Component]
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -102,9 +106,10 @@ type provides struct {
 // a description of its operation.
 type logAgent struct {
 	log            log.Component
-	config         pkgConfig.Reader
+	config         model.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
+	tagger         tagger.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -125,8 +130,11 @@ type logAgent struct {
 	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
 	autodiscoveryStreamCancel context.CancelFunc
 
+	// make sure this is done only once, when we're ready
+	prepareSchedulers sync.Once
+
 	// started is true if the logs agent is running
-	started *atomic.Bool
+	started *atomic.Uint32
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -135,20 +143,23 @@ func newLogsAgent(deps dependencies) provides {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
+		integrationsLogs := integrationsimpl.NewLogsIntegration()
+
 		logsAgent := &logAgent{
 			log:            deps.Log,
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
 			hostname:       deps.Hostname,
-			started:        atomic.NewBool(false),
+			started:        atomic.NewUint32(status.StatusNotStarted),
 
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),
 			flarecontroller:    flareController.NewFlareController(),
 			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   deps.IntegrationsLogs,
 			grpcClient:         deps.GrpcClient,
+			integrationsLogs:   integrationsLogs,
+			tagger:             deps.Tagger,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -168,6 +179,7 @@ func newLogsAgent(deps dependencies) provides {
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
+			LogsReciever:   optional.NewOption[integrations.Component](integrationsLogs),
 		}
 	}
 
@@ -175,6 +187,7 @@ func newLogsAgent(deps dependencies) provides {
 	return provides{
 		Comp:           optional.NewNoneOption[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
+		LogsReciever:   optional.NewNoneOption[integrations.Component](),
 	}
 }
 
@@ -201,7 +214,6 @@ func (a *logAgent) start(context.Context) error {
 
 	remoteAdScheduler := remoteAdScheduler.New()
 
-	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
 	go func() {
 		for {
 			if a.autodiscoveryStream == nil {
@@ -246,14 +258,7 @@ func (a *logAgent) start(context.Context) error {
 
 	a.AddScheduler(remoteAdScheduler)
 
-	for _, scheduler := range a.schedulerProviders {
-		a.AddScheduler(scheduler)
-	}
-
 	a.startPipeline()
-
-	a.log.Info("logs-agent started")
-
 	return nil
 }
 
@@ -313,14 +318,18 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
+	if err := sds.ValidateConfigField(a.config); err != nil {
+		a.log.Error(fmt.Errorf("error while reading configuration, will block until the Agents receive an SDS configuration: %v", err))
+	}
+
 	a.SetupPipeline(processingRules, a.integrationsLogs)
+
 	return nil
 }
 
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *logAgent) startPipeline() {
-	a.started.Store(true)
 
 	// setup the status
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
@@ -331,9 +340,28 @@ func (a *logAgent) startPipeline() {
 		a.pipelineProvider,
 		a.diagnosticMessageReceiver,
 		a.launchers,
-		a.schedulers,
 	)
 	starter.Start()
+
+	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
+		a.startSchedulers()
+	} else {
+		a.log.Info("logs-agent ready, schedulers not started: waiting for an SDS configuration to start the logs collection")
+		a.started.Store(status.StatusCollectionNotStarted)
+	}
+}
+
+func (a *logAgent) startSchedulers() {
+	a.prepareSchedulers.Do(func() {
+		a.schedulers.Start()
+
+		for _, scheduler := range a.schedulerProviders {
+			a.AddScheduler(scheduler)
+		}
+
+		a.log.Info("logs-agent started")
+		a.started.Store(status.StatusRunning)
+	})
 }
 
 func (a *logAgent) stop(context.Context) error {
@@ -411,50 +439,49 @@ func (a *logAgent) GetPipelineProvider() pipeline.Provider {
 }
 
 func (a *logAgent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	var err error
-	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
-			err = multierror.Append(err, rerr)
-		}
-	}
-
-	if err != nil {
-		a.log.Errorf("Can't update SDS standard rules: %v", err)
-	}
-
-	// Apply the new status to all configs
-	for cfgPath := range updates {
-		if err == nil {
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStateCallback(cfgPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		}
-	}
-
+	a.onUpdateSDS(sds.StandardRules, updates, applyStateCallback)
 }
 
 func (a *logAgent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	a.onUpdateSDS(sds.AgentConfig, updates, applyStateCallback)
+}
+
+func (a *logAgent) onUpdateSDS(reconfigType sds.ReconfigureOrderType, updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
+	allScannersActiveWithAllUpdatesApplied := true
 
 	// We received a hit that new updates arrived, but if the list of updates
 	// is empty, it means we don't have any updates applying to this agent anymore
-	// Send a reconfiguration with an empty payload, indicating that
-	// the scanners have to be dropped.
+	// In this case, send the signal to stop the SDS processing.
 	if len(updates) == 0 {
-		err = a.pipelineProvider.ReconfigureSDSAgentConfig([]byte("{}"))
+		err = a.pipelineProvider.StopSDSProcessing()
 	} else {
 		for _, config := range updates {
-			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
+			var allScannersActive bool
+			var rerr error
+
+			if reconfigType == sds.AgentConfig {
+				allScannersActive, rerr = a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config)
+			} else if reconfigType == sds.StandardRules {
+				allScannersActive, rerr = a.pipelineProvider.ReconfigureSDSStandardRules(config.Config)
+			}
+
+			if rerr != nil {
 				err = multierror.Append(err, rerr)
+			}
+
+			if !allScannersActive {
+				allScannersActiveWithAllUpdatesApplied = false
 			}
 		}
 	}
 
 	if err != nil {
 		a.log.Errorf("Can't update SDS configurations: %v", err)
+	}
+
+	if allScannersActiveWithAllUpdatesApplied && sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
+		a.startSchedulers()
 	}
 
 	// Apply the new status to all configs

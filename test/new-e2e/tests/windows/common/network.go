@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 // BoundPort represents a port that is bound to a process
@@ -80,8 +82,27 @@ func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
 // If the URL is a local file, it will be uploaded to the VM.
 // If the URL is a remote file, it will be downloaded from the VM
 func PutOrDownloadFile(host *components.RemoteHost, url string, destination string) error {
+	// no retry
+	return PutOrDownloadFileWithRetry(host, url, destination, &backoff.StopBackOff{})
+}
+
+// PutOrDownloadFileWithRetry is similar to PutOrDownloadFile but retries on download failure,
+// local file copy is not retried.
+func PutOrDownloadFileWithRetry(host *components.RemoteHost, url string, destination string, b backoff.BackOff) error {
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-		return DownloadFile(host, url, destination)
+		err := backoff.Retry(func() error {
+			return DownloadFile(host, url, destination)
+			// TODO: it would be neat to only retry on web related errors but
+			//       we don't have a way to distinguish them since DownloadFile
+			//       throws a WebException for non web related errors such as
+			//       filename is null or Empty.
+			//       https://learn.microsoft.com/en-us/dotnet/api/system.net.webclient.downloadfile
+			//       example error: Exception calling "DownloadFile" with "2" argument(s): "The remote server returned an error: (503)
+		}, b)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if strings.HasPrefix(url, "file://") {

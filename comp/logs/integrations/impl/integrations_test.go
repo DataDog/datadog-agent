@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package integrations
+package integrationsimpl
 
 import (
 	"testing"
@@ -12,14 +12,14 @@ import (
 )
 
 func TestNewComponent(t *testing.T) {
-	comp := NewComponent()
+	comp := NewLogsIntegration()
 
 	assert.NotNil(t, comp, "Integrations component nil.")
 }
 
 // TestSendandSubscribe tests sending a log through the integrations component.
 func TestSendandSubscribe(t *testing.T) {
-	comp := NewComponent()
+	comp := NewLogsIntegration()
 
 	go func() {
 		comp.SendLog("test log", "integration1")

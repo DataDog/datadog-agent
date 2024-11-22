@@ -19,11 +19,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -40,14 +42,15 @@ type grpcServer struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	taggerServer       *taggerserver.Server
-	taggerComp         tagger.Component
-	workloadmetaServer *workloadmetaServer.Server
-	configService      optional.Option[rcservice.Component]
-	configServiceMRF   optional.Option[rcservicemrf.Component]
-	dogstatsdServer    dogstatsdServer.Component
-	capture            dsdReplay.Component
-	pidMap             pidmap.Component
+	taggerServer        *taggerserver.Server
+	taggerComp          tagger.Component
+	workloadmetaServer  *workloadmetaServer.Server
+	configService       optional.Option[rcservice.Component]
+	configServiceMRF    optional.Option[rcservicemrf.Component]
+	dogstatsdServer     dogstatsdServer.Component
+	capture             dsdReplay.Component
+	pidMap              pidmap.Component
+	remoteAgentRegistry remoteagentregistry.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -99,7 +102,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
-		tagger.ResetCaptureTagger()
+		s.taggerComp.ResetCaptureTagger()
 		s.pidMap.SetPidMap(nil)
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
@@ -109,7 +112,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	if taggerReplay == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
-	state := make([]taggerTypes.Entity, len(req.State))
+	state := make([]taggerTypes.Entity, 0, len(req.State))
 
 	// better stores these as the native type
 	for id, entity := range req.State {
@@ -120,7 +123,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		}
 
 		state = append(state, taggerTypes.Entity{
-			ID:                          entityID,
+			ID:                          *entityID,
 			HighCardinalityTags:         entity.HighCardinalityTags,
 			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 			LowCardinalityTags:          entity.LowCardinalityTags,
@@ -131,7 +134,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	taggerReplay.LoadState(state)
 
 	log.Debugf("API: setting capture state tagger")
-	tagger.SetNewCaptureTagger(taggerReplay)
+	s.taggerComp.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
@@ -181,6 +184,22 @@ func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*p
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
+}
+
+func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	registration := rarproto.ProtobufToRemoteAgentRegistration(in)
+	recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.RegisterRemoteAgentResponse{
+		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
+	}, nil
 }
 
 func init() {

@@ -699,5 +699,5 @@ func (m *mockGauge) Delete(tagsValue ...string) {
 	delete(m.values, strings.Join(tagsValue, ","))
 }
 
-func (*mockGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge  { return nil } //nolint:revive // TODO fix revive unused-parameter
-func (*mockGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil } //nolint:revive // TODO fix revive unused-parameter
+func (*mockGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge       { return nil }
+func (*mockGauge) WithTags(_ map[string]string) telemetryComponent.SimpleGauge { return nil }

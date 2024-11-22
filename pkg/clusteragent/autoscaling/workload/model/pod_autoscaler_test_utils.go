@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 )
 
 // FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
@@ -29,6 +29,7 @@ type FakePodAutoscalerInternal struct {
 	Generation                int64
 	Spec                      *datadoghq.DatadogPodAutoscalerSpec
 	SettingsTimestamp         time.Time
+	CreationTimestamp         time.Time
 	ScalingValues             ScalingValues
 	HorizontalLastActions     []datadoghq.DatadogPodAutoscalerHorizontalAction
 	HorizontalLastLimitReason string
@@ -51,6 +52,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		generation:                f.Generation,
 		spec:                      f.Spec,
 		settingsTimestamp:         f.SettingsTimestamp,
+		creationTimestamp:         f.CreationTimestamp,
 		scalingValues:             f.ScalingValues,
 		horizontalLastActions:     f.HorizontalLastActions,
 		horizontalLastLimitReason: f.HorizontalLastLimitReason,

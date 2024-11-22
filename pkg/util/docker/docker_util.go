@@ -25,7 +25,7 @@ import (
 	"github.com/docker/docker/client"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -53,7 +53,7 @@ type DockerUtil struct {
 // init makes an empty DockerUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (d *DockerUtil) init() error {
-	d.queryTimeout = config.Datadog().GetDuration("docker_query_timeout") * time.Second
+	d.queryTimeout = pkgconfigsetup.Datadog().GetDuration("docker_query_timeout") * time.Second
 
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
@@ -105,7 +105,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
+	images, err := d.cli.ImageList(ctx, image.ListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -379,14 +379,14 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 }
 
 // GetContainerStats returns docker container stats
-func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
+func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*container.StatsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
-	containerStats := &types.StatsJSON{}
+	containerStats := &container.StatsResponse{}
 	err = json.NewDecoder(stats.Body).Decode(&containerStats)
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)

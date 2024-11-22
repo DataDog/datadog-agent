@@ -23,14 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,6 +55,9 @@ type cliParams struct {
 	// run diagnose in the context of CLI process instead of running in the context of agent service irunni, value of the --local flag
 	runLocal bool
 
+	// JSONOutput will output the diagnosis in JSON format, value of the --json flag
+	JSONOutput bool
+
 	// run diagnose on other processes, value of --list flag
 	listSuites bool
 
@@ -63,6 +66,8 @@ type cliParams struct {
 
 	// diagnose suites not to run as a list of regular expressions
 	exclude []string
+
+	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // payloadName is the name of the payload to display
@@ -82,33 +87,30 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "diagnose",
 		Short: "Validate Agent installation, configuration and environment",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot("CORE", "off", true),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot("CORE", cliParams.logLevelDefaultOff.Value(), true),
 				}),
 				core.Bundle(),
 				// workloadmeta setup
-				collectors.GetCatalog(),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.runLocal,
-					}
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmetafx.Module(),
-				taggerimpl.Module(),
-				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
+				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
 	}
+
+	cliParams.logLevelDefaultOff.Register(diagnoseCommand)
 
 	// Normally a successful diagnosis is printed as a single dot character. If verbose option is specified
 	// successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
@@ -117,6 +119,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// List names of all registered diagnose suites. Output also will be filtered if include and or exclude
 	// options are specified
 	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.listSuites, "list", "t", false, "list diagnose suites")
+
+	// Output the diagnose in JSON format
+	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.JSONOutput, "json", "j", false, "output the diagnose in JSON format")
 
 	// Normally internal diagnose functions will run in the context of agent and other services. It can be
 	// overridden via --local options and if specified diagnose functions will be executed in context
@@ -131,7 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "show-metadata",
 		Short: "Print metadata payloads sent by the agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cmd.Help() //nolint:errcheck
 			os.Exit(0)
 			return nil
@@ -143,7 +148,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "[internal] Print the metadata payload for the agent.",
 		Long: `
 This command print the V5 metadata payload for the Agent. This payload is used to populate the infra list and host map in Datadog. It's called 'V5' because it's the same payload sent since Agent V5. This payload is mandatory in order to create a new host in Datadog.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("v5")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -157,7 +162,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 		Short: "[internal] Print the gohai payload for the agent.",
 		Long: `
 This command prints the gohai data sent by the Agent, including current processes running on the machine.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("gohai")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -171,7 +176,7 @@ This command prints the gohai data sent by the Agent, including current processe
 		Short: "[internal] Print the Inventory agent metadata payload.",
 		Long: `
 This command print the inventory-agent metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -185,7 +190,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 		Short: "[internal] Print the Inventory host metadata payload.",
 		Long: `
 This command print the inventory-host metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-host")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -199,7 +204,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
 This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -213,7 +218,7 @@ This command print the inventory-otel metadata payload. This payload is used by 
 		Short: "[internal] Print the Inventory checks metadata payload.",
 		Long: `
 This command print the inventory-checks metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-checks")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -227,7 +232,7 @@ This command print the inventory-checks metadata payload. This payload is used b
 		Short: "[internal] Print the Inventory package signing payload.",
 		Long: `
 This command print the package-signing metadata payload. This payload is used by the 'fleet automation' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("package-signing")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -241,7 +246,7 @@ This command print the package-signing metadata payload. This payload is used by
 		Short: "[internal] Print the inventory systemprobe metadata payload.",
 		Long: `
 This command print the system-probe metadata payload. This payload is used by the 'fleet automation' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("system-probe")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -255,7 +260,7 @@ This command print the system-probe metadata payload. This payload is used by th
 		Short: "[internal] Print the security-agent process metadata payload.",
 		Long: `
 This command print the security-agent metadata payload. This payload is used by the 'fleet automation' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("security-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -284,23 +289,41 @@ func cmdDiagnose(cliParams *cliParams,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	_ log.Component,
+	tagger tagger.Component,
 ) error {
 	diagCfg := diagnosis.Config{
-		Verbose:  cliParams.verbose,
-		RunLocal: cliParams.runLocal,
-		Include:  cliParams.include,
-		Exclude:  cliParams.exclude,
+		Verbose:    cliParams.verbose,
+		RunLocal:   cliParams.runLocal,
+		JSONOutput: cliParams.JSONOutput,
+		Include:    cliParams.include,
+		Exclude:    cliParams.exclude,
 	}
+	w := color.Output
 
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(color.Output, diagCfg)
+		diagnose.ListStdOut(w, diagCfg)
 		return nil
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
+	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac, tagger)
 	// Run command
-	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
+
+	// Get the diagnose result
+	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+	if err != nil && !diagCfg.RunLocal {
+		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+		diagCfg.RunLocal = true
+		diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		if err != nil {
+			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+			return err
+		}
+	}
+
+	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
@@ -311,7 +334,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 	}
 
 	c := util.GetClient(false)
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

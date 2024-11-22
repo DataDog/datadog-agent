@@ -8,6 +8,7 @@ package start
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -33,18 +34,17 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
@@ -112,21 +112,12 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		noopTelemetry.Module(),
 		collectorimpl.Module(),
 		// Sending metrics to the backend
-		fx.Provide(defaultforwarder.NewParams),
-		defaultforwarder.Module(),
 		compressionimpl.Module(),
-		// Since we do not use the build tag orchestrator, we use the comp/forwarder/orchestrator/orchestratorimpl/forwarder_no_orchestrator.go
-		orchestratorimpl.Module(),
-		fx.Supply(orchestratorimpl.NewDisabledParams()),
-		eventplatformimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDisabledParams()),
-		eventplatformreceiver.NoneModule(),
-		demultiplexerimpl.Module(),
-		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.ContinueOnMissingHostname = true
-			return params
-		}),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
+		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+		eventplatformreceiverimpl.Module(),
+		defaultforwarder.Module(defaultforwarder.NewParams()),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -137,15 +128,17 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
 		hostnameimpl.Module(),
-
-		fx.Provide(tagger.NewTaggerParams),
-		// TODO: Explor having a fully remote tagger
-		// It would remove the need as well of having the workloadmeta component
-		taggerimpl.Module(),
-		// workloadmeta setup
-		collectors.GetCatalog(),
-		fx.Provide(workloadmeta.NewParams),
-		workloadmetafx.Module(),
+		remoteTagger.Module(tagger.RemoteParams{
+			RemoteTarget: func(c config.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+		}),
 
 		// grpc Client
 		grpcClientfx.Module(),
@@ -160,7 +153,7 @@ func start(
 	collector collector.Component,
 	demultiplexer demultiplexer.Component,
 	grpcClient grpcClient.Component,
-	_ tagger.Component,
+	tagger tagger.Component,
 ) error {
 
 	// Main context passed to components
@@ -171,7 +164,7 @@ func start(
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
 	registerCoreChecks()
-	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component]())
+	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component](), tagger)
 
 	// Start the scheduler
 	go startScheduler(grpcClient, scheduler, log)

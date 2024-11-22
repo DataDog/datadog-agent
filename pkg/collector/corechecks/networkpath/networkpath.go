@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -50,11 +51,11 @@ func (c *Check) Run() error {
 	}
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
-	cfg := traceroute.Config{
+	cfg := config.Config{
 		DestHostname: c.config.DestHostname,
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
-		TimeoutMs:    c.config.TimeoutMs,
+		Timeout:      c.config.Timeout,
 		Protocol:     c.config.Protocol,
 	}
 
@@ -67,12 +68,18 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
 	path.Namespace = c.config.Namespace
+	path.Origin = payload.PathOriginNetworkPathIntegration
 
 	// Add tags to path
-	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = commonTags
+	path.Tags = c.config.Tags
+
+	// Perform reverse DNS lookup
+	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
+	for i := range path.Hops {
+		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
+	}
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
@@ -80,7 +87,8 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	c.submitTelemetry(metricSender, path, commonTags, startTime)
+	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
 	return nil
@@ -105,7 +113,7 @@ func (c *Check) submitTelemetry(metricSender metricsender.MetricSender, path pay
 	c.lastCheckTime = startTime
 	checkDuration := time.Since(startTime)
 
-	telemetry.SubmitNetworkPathTelemetry(metricSender, path, telemetry.CollectorTypeNetworkPathIntegration, checkDuration, checkInterval, metricTags)
+	telemetry.SubmitNetworkPathTelemetry(metricSender, path, checkDuration, checkInterval, metricTags)
 }
 
 // Interval returns the scheduling time for the check

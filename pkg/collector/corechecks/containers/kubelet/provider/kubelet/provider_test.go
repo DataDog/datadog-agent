@@ -19,7 +19,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -121,6 +124,7 @@ type ProviderTestSuite struct {
 	provider   *Provider
 	mockSender *mocksender.MockSender
 	store      workloadmeta.Component
+	tagger     tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -128,21 +132,23 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
-	for entity, tags := range commontesting.CommonTags {
-		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
-	}
+	fakeTagger := mock.SetupFakeTagger(suite.T())
 
-	podUtils := common.NewPodUtils()
+	for entity, tags := range commontesting.CommonTags {
+		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
+		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
+	}
+	suite.tagger = fakeTagger
+
+	podUtils := common.NewPodUtils(fakeTagger)
 
 	podsFile := "../../testdata/pods.json"
 	err = commontesting.StorePopulatedFromFile(store, podsFile, podUtils)
@@ -169,6 +175,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		config,
 		store,
 		podUtils,
+		fakeTagger,
 	)
 	assert.NoError(suite.T(), err)
 	suite.provider = p
@@ -285,6 +292,16 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 	if err != nil {
 		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
 	}
+
+	// namespace not filtered still shows up
+	podWithPVCNotFilteredTags := append(commontesting.InstanceTags, "persistentvolumeclaim:ddagent-pvc-ddagent-test-2", "namespace:unit-test")
+
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.capacity_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.used_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.available_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_used", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_free", podWithPVCNotFilteredTags)
 
 	// pvc tags show up
 	podWithPVCTags := append(commontesting.InstanceTags, "persistentvolumeclaim:www-web-2", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")

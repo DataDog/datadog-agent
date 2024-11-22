@@ -50,7 +50,7 @@ func TestPullWithV1Parser(t *testing.T) {
 			}
 
 			c.metaV1 = &fakev1EcsClient{
-				mockGetTasks: func(ctx context.Context) ([]v1.Task, error) {
+				mockGetTasks: func(_ context.Context) ([]v1.Task, error) {
 					return []v1.Task{
 						{
 							Arn: entityID,
@@ -62,7 +62,7 @@ func TestPullWithV1Parser(t *testing.T) {
 				},
 			}
 			c.store = &fakeWorkloadmetaStore{}
-			c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
+			c.metaV3or4 = func(_, _ string) v3or4.Client {
 				return &fakev3or4EcsClient{
 					mockGetTaskWithTags: func(context.Context) (*v3or4.Task, error) {
 						return &v3or4.Task{

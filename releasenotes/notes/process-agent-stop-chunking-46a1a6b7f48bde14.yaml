@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Stop chunking outputs in manual checks for container, process, and process_discovery checks to allow JSON unmarshaler to parse output.
+

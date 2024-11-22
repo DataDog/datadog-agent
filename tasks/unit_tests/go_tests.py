@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock, patch
 
 from tasks.gotest import find_impacted_packages, should_run_all_tests
 
@@ -46,26 +47,30 @@ class TestUtils(unittest.TestCase):
         expected_impacted_packages = {"pkg3"}
         self.assertEqual(find_impacted_packages(dependencies, changed_files), expected_impacted_packages)
 
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock())
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/foo.go", "pkg/bar.go"]))
     def test_should_run_all_tests_1(self):
-        modified_files = ["pkg/foo.go", "pkg/bar.go"]
         trigger_files = ["pkg/foo.go"]
 
-        self.assertTrue(should_run_all_tests(modified_files, trigger_files))
+        self.assertTrue(should_run_all_tests(None, trigger_files))
 
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock())
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/toto/bar.go"]))
     def test_should_run_all_tests_2(self):
-        modified_files = ["pkg/toto/bar.go"]
         trigger_files = ["pkg/*"]
 
-        self.assertTrue(should_run_all_tests(modified_files, trigger_files))
+        self.assertTrue(should_run_all_tests(None, trigger_files))
 
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock())
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/foo.go", "pkg/bar.go"]))
     def test_should_run_all_tests_3(self):
-        modified_files = ["pkg/foo.go", "pkg/bar.go"]
         trigger_files = ["pkg/toto/bar.go"]
 
-        self.assertFalse(should_run_all_tests(modified_files, trigger_files))
+        self.assertFalse(should_run_all_tests(None, trigger_files))
 
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock())
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/foo.go", "pkg/bar.go"]))
     def test_should_run_all_tests_4(self):
-        modified_files = ["pkg/foo.go", "pkg/bar.go"]
         trigger_files = ["pkgs/*"]
 
-        self.assertFalse(should_run_all_tests(modified_files, trigger_files))
+        self.assertFalse(should_run_all_tests(None, trigger_files))

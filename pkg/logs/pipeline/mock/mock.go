@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -31,20 +32,29 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
-func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) error {
-	return nil
+func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) (bool, error) {
+	return false, nil
 }
 
-func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) error {
+func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
+	return false, nil
+}
+
+func (p *mockProvider) StopSDSProcessing() error {
 	return nil
 }
 
 // Flush does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *mockProvider) Flush(ctx context.Context) {}
+func (p *mockProvider) Flush(_ context.Context) {}
 
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan
+}
+
+// NextPipelineChanWithInstance returns the next pipeline
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("")
 }

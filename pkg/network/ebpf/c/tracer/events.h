@@ -44,7 +44,7 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, __u16 tcp_failure_reason) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -64,12 +64,16 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.tup.pid = 0;
         retrans = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
         if (retrans) {
-            conn.tcp_retransmits = *retrans;
+            conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
         conn.tup.pid = tup->pid;
 
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
+        conn.tcp_stats.failure_reason = tcp_failure_reason;
+        if (tcp_failure_reason) {
+            increment_telemetry_count(tcp_failed_connect);
+        }
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
@@ -134,22 +138,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
     if (is_udp) {
         increment_telemetry_count(unbatched_udp_close);
-    }
-}
-
-// This function is used to flush the conn_failed_t to the perf or ring buffer.
-static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int failure_reason) {
-    conn_failed_t failure = {};
-    failure.tup = *tup;
-    failure.failure_reason = failure_reason;
-
-    __u64 ringbuffers_enabled = 0;
-    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
-    if (ringbuffers_enabled > 0) {
-        bpf_ringbuf_output(&conn_fail_event, &failure, sizeof(conn_failed_t), 0);
-    } else {
-        u32 cpu = bpf_get_smp_processor_id();
-        bpf_perf_event_output(ctx, &conn_fail_event, cpu, &failure, sizeof(conn_failed_t));
     }
 }
 

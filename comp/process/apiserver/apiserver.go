@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var _ Component = (*apiserver)(nil)
@@ -40,12 +40,12 @@ func newApiServer(deps dependencies) Component {
 	r := mux.NewRouter()
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
-	addr, err := ddconfig.GetProcessAPIAddressPort()
+	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 	deps.Log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(ddconfig.Datadog().GetInt("server_timeout")) * time.Second
+	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("server_timeout")) * time.Second
 
 	apiserver := &apiserver{
 		server: &http.Server{
@@ -58,7 +58,7 @@ func newApiServer(deps dependencies) Component {
 	}
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			go func() {
 				err := apiserver.server.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {

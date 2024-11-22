@@ -21,7 +21,7 @@ func NewRouteStatsCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "route-stats",
 		Short: "Get route stats",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(*cobra.Command, []string) {
 			stats, err := (*cl).RouteStats()
 			if err != nil {
 				log.Fatalln(err)

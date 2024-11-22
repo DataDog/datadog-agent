@@ -19,8 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -33,7 +33,7 @@ func TestGetGRPCStreamPort(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "lorem ipsum")
 
-		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
+		assert.Equal(t, pkgconfigsetup.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
 	})
 
 	t.Run("valid port", func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		cfg := configmock.New(t)
-		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
+		assert.Equal(t, pkgconfigsetup.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
 	})
 }
 

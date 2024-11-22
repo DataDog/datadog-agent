@@ -13,7 +13,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // jsoniterConfig mirrors jsoniter.ConfigFastest
@@ -34,7 +34,7 @@ type podUnmarshaller struct {
 
 func newPodUnmarshaller() *podUnmarshaller {
 	pu := &podUnmarshaller{
-		podExpirationDuration: config.Datadog().GetDuration("kubernetes_pod_expiration_duration") * time.Second,
+		podExpirationDuration: pkgconfigsetup.Datadog().GetDuration("kubernetes_pod_expiration_duration") * time.Second,
 		timeNowFunction:       time.Now,
 	}
 

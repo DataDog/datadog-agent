@@ -9,11 +9,13 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,6 +25,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -36,7 +39,9 @@ type activityDumpCliParams struct {
 	containerID              string
 	file                     string
 	file2                    string
+	timeout                  string
 	format                   string
+	differentiateArgs        bool
 	localStorageDirectory    string
 	localStorageFormats      []string
 	localStorageCompression  bool
@@ -55,6 +60,8 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
+	activityDumpCmd.AddCommand(activityDumpToWorkloadPolicyCommands(globalParams)...)
+	activityDumpCmd.AddCommand(activityDumpToSeccompProfileCommands(globalParams)...)
 	return []*cobra.Command{activityDumpCmd}
 }
 
@@ -62,10 +69,10 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -84,11 +91,11 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpStopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "stops the first activity dump that matches the provided selector",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -118,9 +125,82 @@ func generateCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "generate command for activity dumps",
 	}
 
+	activityDumpGenerateCmd.AddCommand(generateDumpCommands(globalParams)...)
 	activityDumpGenerateCmd.AddCommand(generateEncodingCommands(globalParams)...)
 
 	return []*cobra.Command{activityDumpGenerateCmd}
+}
+
+func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpCliParams{
+		GlobalParams: globalParams,
+	}
+
+	activityDumpGenerateDumpCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "generate an activity dump",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(generateActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.containerID,
+		"container-id",
+		"",
+		"a container identifier can be used to filter the activity dump from a specific container.",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.timeout,
+		"timeout",
+		"1m",
+		"timeout for the activity dump",
+	)
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
+		&cliParams.differentiateArgs,
+		"differentiate-args",
+		true,
+		"add the arguments in the process node merge algorithm",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.localStorageDirectory,
+		"output",
+		"/tmp/activity_dumps/",
+		"local storage output directory",
+	)
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
+		&cliParams.localStorageCompression,
+		"compression",
+		false,
+		"defines if the local storage output should be compressed before persisting the data to disk",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
+		&cliParams.localStorageFormats,
+		"format",
+		[]string{},
+		fmt.Sprintf("local storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
+	)
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
+		&cliParams.remoteStorageCompression,
+		"remote-compression",
+		true,
+		"defines if the remote storage output should be compressed before sending the data",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
+		&cliParams.remoteStorageFormats,
+		"remote-format",
+		[]string{},
+		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
+	)
+
+	return []*cobra.Command{activityDumpGenerateDumpCmd}
 }
 
 func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -131,11 +211,11 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	activityDumpGenerateEncodingCmd := &cobra.Command{
 		Use:   "encoding",
 		Short: "encode an activity dump to the requested formats",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -198,11 +278,11 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpDiffCmd := &cobra.Command{
 		Use:   "diff",
 		Short: "compute the diff between two activity dumps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -367,6 +447,35 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
+func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	storage, err := parseStorageRequest(activityDumpArgs)
+	if err != nil {
+		return err
+	}
+
+	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
+		ContainerID:       activityDumpArgs.containerID,
+		Timeout:           activityDumpArgs.timeout,
+		DifferentiateArgs: activityDumpArgs.differentiateArgs,
+		Storage:           storage,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
+	}
+
+	printSecurityActivityDumpMessage("", output)
+	return nil
+}
+
 func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
@@ -509,5 +618,248 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 
 	fmt.Println("done!")
+	return nil
+}
+
+type activityDumpToWorkloadPolicyCliParams struct {
+	*command.GlobalParams
+
+	input     string
+	output    string
+	kill      bool
+	allowlist bool
+	lineage   bool
+	service   string
+	imageName string
+	imageTag  string
+	fim       bool
+}
+
+func activityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpToWorkloadPolicyCliParams{
+		GlobalParams: globalParams,
+	}
+
+	ActivityDumpWorkloadPolicyCmd := &cobra.Command{
+		Use:    "workload-policy",
+		Hidden: true,
+		Short:  "convert an activity dump to a workload policy",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(activityDumpToWorkloadPolicy,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.input,
+		"input",
+		"",
+		"path to the activity-dump file",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.output,
+		"output",
+		"",
+		"path to the generated workload policy file",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.kill,
+		"kill",
+		false,
+		"generate kill action with the workload policy",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.fim,
+		"fim",
+		false,
+		"generate fim rules with the workload policy",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.allowlist,
+		"allowlist",
+		false,
+		"generate allow list rules",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.lineage,
+		"lineage",
+		false,
+		"generate lineage rules",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.service,
+		"service",
+		"",
+		"apply on specified service",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.imageTag,
+		"image-tag",
+		"",
+		"apply on specified image tag",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.imageName,
+		"image-name",
+		"",
+		"apply on specified image name",
+	)
+
+	return []*cobra.Command{ActivityDumpWorkloadPolicyCmd}
+}
+
+func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpToWorkloadPolicyCliParams) error {
+
+	opts := dump.SECLRuleOpts{
+		EnableKill: args.kill,
+		AllowList:  args.allowlist,
+		Lineage:    args.lineage,
+		Service:    args.service,
+		ImageName:  args.imageName,
+		ImageTag:   args.imageTag,
+		FIM:        args.fim,
+	}
+
+	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
+	if err != nil {
+		return err
+	}
+
+	generatedRules := dump.GenerateRules(ads, opts)
+	generatedRules = utils.BuildPatterns(generatedRules)
+
+	policyDef := rules.PolicyDef{
+		Rules: generatedRules,
+	}
+
+	// Verify policy syntax
+	var policyName string
+	if len(args.imageName) > 0 {
+		policyName = fmt.Sprintf("%s_policy", args.imageName)
+	} else {
+		policyName = "workload_policy"
+	}
+	policy, err := rules.LoadPolicyFromDefinition(policyName, "workload", &policyDef, nil, nil)
+
+	if err != nil {
+		return fmt.Errorf("error in generated ruleset's syntax: '%s'", err)
+	}
+
+	b, err := yaml.Marshal(policy)
+	if err != nil {
+		return err
+	}
+
+	output := os.Stdout
+	if args.output != "" && args.output != "-" {
+		output, err = os.Create(args.output)
+		if err != nil {
+			return err
+		}
+		defer output.Close()
+	}
+
+	fmt.Fprint(output, string(b))
+
+	return nil
+}
+
+type activityDumpToSeccompProfileCliParams struct {
+	*command.GlobalParams
+
+	input  string
+	output string
+	format string
+}
+
+func activityDumpToSeccompProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpToSeccompProfileCliParams{
+		GlobalParams: globalParams,
+	}
+
+	ActivityDumpToSeccompProfileCmd := &cobra.Command{
+		Use:    "workload-seccomp",
+		Hidden: true,
+		Short:  "convert an activity dump to a seccomp profile",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(activityDumpToSeccompProfile,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.input,
+		"input",
+		"",
+		"path to the activity-dump file",
+	)
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.output,
+		"output",
+		"",
+		"path to the generated seccomp profile file",
+	)
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.format,
+		"format",
+		"json",
+		"format of the generated seccomp profile file",
+	)
+
+	return []*cobra.Command{ActivityDumpToSeccompProfileCmd}
+}
+func activityDumpToSeccompProfile(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpToSeccompProfileCliParams) error {
+
+	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
+	if err != nil {
+		return err
+	}
+
+	seccompProfile := dump.GenerateSeccompProfile(ads)
+
+	var b []byte
+	if args.format == "yaml" {
+		b, err = yaml.Marshal(seccompProfile)
+	} else {
+		b, err = json.Marshal(seccompProfile)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	output := os.Stdout
+	if args.output != "" && args.output != "-" {
+		output, err = os.Create(args.output)
+		if err != nil {
+			return err
+		}
+		defer output.Close()
+	}
+
+	fmt.Fprint(output, string(b))
+
 	return nil
 }

@@ -45,6 +45,7 @@ type SelfTester struct {
 	lastTimestamp   time.Time
 	selfTests       []SelfTest
 	tmpDir          string
+	isClosed        bool
 	done            chan bool
 	selfTestRunning chan time.Duration
 }
@@ -152,6 +153,10 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 
 // Close removes temp directories and files used by the self tester
 func (t *SelfTester) Close() error {
+	t.Lock()
+	defer t.Unlock()
+
+	t.isClosed = true
 	close(t.selfTestRunning)
 	close(t.done)
 
@@ -167,21 +172,31 @@ func (t *SelfTester) Close() error {
 func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	t.Lock()
 	defer t.Unlock()
-	p := &rules.Policy{
-		Name:       policyName,
-		Source:     policySource,
-		Version:    policyVersion,
-		IsInternal: true,
+
+	policyDef := &rules.PolicyDef{
+		Version: policyVersion,
+		Rules:   make([]*rules.RuleDefinition, len(t.selfTests)),
 	}
 
-	for _, selftest := range t.selfTests {
-		p.AddRule(selftest.GetRuleDefinition())
+	for i, selfTest := range t.selfTests {
+		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	return []*rules.Policy{p}, nil
+	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, policyDef, nil, nil)
+	if err != nil {
+		return nil, multierror.Append(nil, err)
+	}
+	policy.IsInternal = true
+
+	return []*rules.Policy{policy}, nil
 }
 
 func (t *SelfTester) beginSelfTests(timeout time.Duration) {
+	// t.Lock is held here
+	if t.isClosed {
+		return
+	}
+
 	t.waitingForEvent.Store(true)
 	t.selfTestRunning <- timeout
 }
@@ -198,7 +213,7 @@ type selfTestEvent struct {
 
 // IsExpectedEvent sends an event to the tester
 func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *probe.Probe) bool {
-	if t.waitingForEvent.Load() && rule.Definition.Policy.Source == policySource {
+	if t.waitingForEvent.Load() && rule.Policy.Source == policySource {
 		ev, ok := event.(*model.Event)
 		if !ok {
 			return true

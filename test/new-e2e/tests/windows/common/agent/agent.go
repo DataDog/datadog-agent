@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -20,6 +21,7 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	infraCommon "github.com/DataDog/test-infra-definitions/common"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,9 +37,9 @@ const (
 	DefaultAgentUserName = `ddagentuser`
 )
 
-// getCodeSignatureThumbprints returns the allowed code detached thumbprint used for
+// GetCodeSignatureThumbprints returns the allowed code detached thumbprint used for
 // Windows signing
-func getCodeSignatureThumbprints() map[string]struct{} {
+func GetCodeSignatureThumbprints() map[string]struct{} {
 	return map[string]struct{}{
 		// Non-EV Valid From: May 2023; To: May 2025
 		"B03F29CC07566505A718583E9270A6EE17678742": {},
@@ -72,13 +74,23 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 		p.LocalInstallLogFile = filepath.Join(os.TempDir(), "install.log")
 	}
 
+	downloadBackOff := p.DownloadMSIBackOff
+	if downloadBackOff == nil {
+		// 5s, 7s, 11s, 17s, 25s, 38s, 60s, 60s...for up to 5 minutes
+		downloadBackOff = backoff.NewExponentialBackOff(
+			backoff.WithInitialInterval(5*time.Second),
+			backoff.WithMaxInterval(60*time.Second),
+			backoff.WithMaxElapsedTime(5*time.Minute),
+		)
+	}
+
 	args := p.toArgs()
 
 	remoteMSIPath, err := windowsCommon.GetTemporaryFile(host)
 	if err != nil {
 		return "", err
 	}
-	err = windowsCommon.PutOrDownloadFile(host, p.Package.URL, remoteMSIPath)
+	err = windowsCommon.PutOrDownloadFileWithRetry(host, p.Package.URL, remoteMSIPath, downloadBackOff)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +113,7 @@ func UninstallAgent(host *components.RemoteHost, logPath string) error {
 	if err != nil {
 		return err
 	}
-	return windowsCommon.UninstallMSI(host, product, logPath)
+	return windowsCommon.UninstallMSI(host, product, "", logPath)
 }
 
 // HasValidDatadogCodeSignature an error if the file at the given path is not validy signed by the Datadog Code Signing certificate
@@ -114,7 +126,7 @@ func HasValidDatadogCodeSignature(host *components.RemoteHost, path string) erro
 		return fmt.Errorf("signature status is not valid: %s", sig.StatusMessage)
 	}
 
-	if _, ok := getCodeSignatureThumbprints()[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
+	if _, ok := GetCodeSignatureThumbprints()[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
 		return fmt.Errorf("signature thumbprint is not valid: %s", sig.SignerCertificate.Thumbprint)
 	}
 	return nil

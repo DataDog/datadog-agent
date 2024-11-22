@@ -161,17 +161,52 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	f.flows[aggHash] = aggFlow
 }
 
+func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
+	if hostname == "" {
+		return
+	}
+
+	if acquireLock {
+		f.flowsMutex.Lock()
+		defer f.flowsMutex.Unlock()
+	}
+
+	aggFlow, ok := f.flows[aggHash]
+	if ok && aggFlow.flow != nil {
+		aggFlow.flow.SrcReverseDNSHostname = hostname
+	}
+}
+
+func (f *flowAccumulator) setDstReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
+	if hostname == "" {
+		return
+	}
+
+	if acquireLock {
+		f.flowsMutex.Lock()
+		defer f.flowsMutex.Unlock()
+	}
+
+	aggFlow, ok := f.flows[aggHash]
+	if ok && aggFlow.flow != nil {
+		aggFlow.flow.DstReverseDNSHostname = hostname
+	}
+}
+
 func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
 	err := f.rdnsQuerier.GetHostnameAsync(
 		srcAddr,
+		// Sync callback, lock is already held
 		func(hostname string) {
-			f.flowsMutex.Lock()
-			defer f.flowsMutex.Unlock()
-
-			aggFlow, ok := f.flows[aggHash]
-			if ok && aggFlow.flow != nil {
-				aggFlow.flow.SrcReverseDNSHostname = hostname
+			f.setSrcReverseDNSHostname(aggHash, hostname, false)
+		},
+		// Async callback will reacquire the lock
+		func(hostname string, err error) {
+			if err != nil {
+				f.logger.Debugf("Error resolving reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
+				return
 			}
+			f.setSrcReverseDNSHostname(aggHash, hostname, true)
 		},
 	)
 	if err != nil {
@@ -180,14 +215,17 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 
 	err = f.rdnsQuerier.GetHostnameAsync(
 		dstAddr,
+		// Sync callback, lock is held
 		func(hostname string) {
-			f.flowsMutex.Lock()
-			defer f.flowsMutex.Unlock()
-
-			aggFlow, ok := f.flows[aggHash]
-			if ok && aggFlow.flow != nil {
-				aggFlow.flow.DstReverseDNSHostname = hostname
+			f.setDstReverseDNSHostname(aggHash, hostname, false)
+		},
+		// Async callback will reacquire the lock
+		func(hostname string, err error) {
+			if err != nil {
+				f.logger.Debugf("Error resolving reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
+				return
 			}
+			f.setDstReverseDNSHostname(aggHash, hostname, true)
 		},
 	)
 	if err != nil {

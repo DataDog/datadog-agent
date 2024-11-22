@@ -43,7 +43,7 @@ def setup(
         return
 
     build_include = (
-        get_default_build_tags(build=target, flavor=flavor)
+        get_default_build_tags(build=target, flavor=flavor, platform='linux')
         if build_include is None
         else filter_incompatible_tags(build_include.split(","))
     )
@@ -92,12 +92,10 @@ def setup(
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
                 "go.lintTool": "golangci-lint",
-                "go.lintOnSave": "file",
+                "go.lintOnSave": "package",
                 "go.lintFlags": [
                     "--build-tags",
                     local_build_tags,
-                    "--config",
-                    f"{AGENT_REPOSITORY_PATH}/.golangci.yml",
                 ],
                 "[go]": {
                     "editor.formatOnSave": True,
@@ -108,7 +106,7 @@ def setup(
         }
     }
     devcontainer["postStartCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke install-tools && invoke deps"
+        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke -e install-tools && invoke -e deps"
     )
 
     devcontainer["remoteEnv"] = {"GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"}

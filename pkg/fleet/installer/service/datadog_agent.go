@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,6 +23,7 @@ import (
 )
 
 const (
+	agentPackage      = "datadog-agent"
 	pathOldAgent      = "/opt/datadog-agent"
 	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
@@ -52,12 +55,22 @@ var (
 	}
 )
 
+var (
+	// matches omnibus/package-scripts/agent-deb/postinst
+	rootOwnedAgentPaths = []string{
+		"embedded/bin/system-probe",
+		"embedded/bin/security-agent",
+		"embedded/share/system-probe/ebpf",
+		"embedded/share/system-probe/java",
+	}
+)
+
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
+			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
 		span.Finish(tracer.WithError(err))
@@ -87,6 +100,9 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 
 	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
 		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
+	}
+	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
+		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/stable/: %v", err)
 	}
 
 	if err = systemdReload(ctx); err != nil {
@@ -174,11 +190,6 @@ func stopOldAgentUnits(ctx context.Context) error {
 	defer span.Finish()
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			exitError, ok := err.(*exec.ExitError)
-			if ok && exitError.ExitCode() == 5 {
-				// exit code 5 means the unit is not loaded, we can continue
-				continue
-			}
 			return fmt.Errorf("failed to stop %s: %v", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
@@ -188,8 +199,33 @@ func stopOldAgentUnits(ctx context.Context) error {
 	return nil
 }
 
+func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
+	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(path, p)
+		if err != nil {
+			return err
+		}
+		for _, ignore := range ignorePaths {
+			if relPath == ignore || strings.HasPrefix(relPath, ignore+string(os.PathSeparator)) {
+				return nil
+			}
+		}
+		return os.Chown(p, uid, gid)
+	})
+}
+
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+	if err = chownRecursive("/opt/datadog-packages/datadog-agent/experiment/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
+		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/experiment/: %v", err)
+	}
 	return startUnit(ctx, agentExp, "--no-block")
 }
 

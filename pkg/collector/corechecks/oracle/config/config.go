@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -20,7 +21,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultLoader = "core"
+const (
+	defaultLoader       = "core"
+	defaultQueryTimeout = 20000
+)
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
@@ -33,9 +37,10 @@ type InitConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
-	Enabled            bool `yaml:"enabled"`
-	IncludeAllSessions bool `yaml:"include_all_sessions"`
-	ForceDirectQuery   bool `yaml:"force_direct_query"`
+	Enabled              bool `yaml:"enabled"`
+	IncludeAllSessions   bool `yaml:"include_all_sessions"`
+	ForceDirectQuery     bool `yaml:"force_direct_query"`
+	ActiveSessionHistory bool `yaml:"active_session_history"`
 }
 
 type queryMetricsTrackerConfig struct {
@@ -59,7 +64,8 @@ type SysMetricsConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type TablespacesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -124,16 +130,25 @@ type locksConfig struct {
 
 // ConnectionConfig store the database connection information
 type ConnectionConfig struct {
-	Server       string `yaml:"server"`
-	Port         int    `yaml:"port"`
-	ServiceName  string `yaml:"service_name"`
-	Username     string `yaml:"username"`
-	Password     string `yaml:"password"`
-	TnsAlias     string `yaml:"tns_alias"`
-	TnsAdmin     string `yaml:"tns_admin"`
-	Protocol     string `yaml:"protocol"`
-	Wallet       string `yaml:"wallet"`
-	OracleClient bool   `yaml:"oracle_client"`
+	Server             string `yaml:"server"`
+	Port               int    `yaml:"port"`
+	ServiceName        string `yaml:"service_name"`
+	Username           string `yaml:"username"`
+	Password           string `yaml:"password"`
+	TnsAlias           string `yaml:"tns_alias"`
+	TnsAdmin           string `yaml:"tns_admin"`
+	Protocol           string `yaml:"protocol"`
+	Wallet             string `yaml:"wallet"`
+	OracleClient       bool   `yaml:"oracle_client"`
+	OracleClientLibDir string `yaml:"oracle_client_lib_dir"`
+	QueryTimeout       int    `yaml:"query_timeout"`
+}
+
+func (c ConnectionConfig) QueryTimeoutString() string {
+	if c.QueryTimeout <= 0 {
+		return strconv.Itoa(defaultQueryTimeout)
+	}
+	return strconv.Itoa(c.QueryTimeout)
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -166,6 +181,21 @@ type InstanceConfig struct {
 	OnlyCustomQueries                  bool                   `yaml:"only_custom_queries"`
 	Service                            string                 `yaml:"service"`
 	Loader                             string                 `yaml:"loader"`
+}
+
+// QueryTimeoutDuration returns query_timeout as time.Duration.
+// If it is less than or equal to 0, it returns the default query timeout.
+func (c *InstanceConfig) QueryTimeoutDuration() time.Duration {
+	if c.QueryTimeout <= 0 {
+		return defaultQueryTimeout * time.Second
+	}
+	return time.Duration(c.QueryTimeout) * time.Second
+}
+
+// QueryTimeoutDuration returns query_timeout as string.
+// If it is less than or equal to 0, it returns the default query timeout.
+func (c *InstanceConfig) QueryTimeoutString() string {
+	return c.ConnectionConfig.QueryTimeoutString()
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -214,6 +244,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
 	instance.QueryMetrics.MaxRunTime = 20
+	instance.QueryTimeout = defaultQueryTimeout
 
 	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15
@@ -231,6 +262,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalCustomQueries = "true"
 
 	instance.DatabaseInstanceCollectionInterval = 300
+
+	instance.Tablespaces.CollectionInterval = 600
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader

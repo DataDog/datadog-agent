@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	"github.com/cenkalti/backoff"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -258,7 +258,7 @@ func TestWPAController(t *testing.T) {
 	}
 
 	datadogClientComp := datadogclientmock.New(t).Comp
-	datadogClientComp.SetQueryMetricsFunc(func(from, to int64, query string) ([]datadog.Series, error) {
+	datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
 		return ddSeries, nil
 	})
 

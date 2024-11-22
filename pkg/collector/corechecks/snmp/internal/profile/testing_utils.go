@@ -13,7 +13,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
@@ -33,7 +33,7 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
-	config.Datadog().SetWithoutSource("confd_path", file)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", file)
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile
@@ -67,7 +67,7 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{
@@ -183,7 +183,7 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 		},
 		"another_profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
 				},

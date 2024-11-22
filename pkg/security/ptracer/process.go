@@ -9,7 +9,12 @@
 package ptracer
 
 import (
+	"errors"
+	"fmt"
+	"maps"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"golang.org/x/sys/unix"
@@ -30,9 +35,22 @@ type FdResources struct {
 	FileHandleCache map[fileHandleKey]*fileHandleVal
 }
 
+func (f *FdResources) clone() *FdResources {
+	return &FdResources{
+		Fd:              maps.Clone(f.Fd),
+		FileHandleCache: maps.Clone(f.FileHandleCache),
+	}
+}
+
 // FSResources defines shared process resources
 type FSResources struct {
 	Cwd string
+}
+
+func (f *FSResources) clone() *FSResources {
+	return &FSResources{
+		Cwd: f.Cwd,
+	}
 }
 
 // Process represents a process context
@@ -56,6 +74,45 @@ func NewProcess(pid int) *Process {
 		},
 		FsRes: &FSResources{},
 	}
+}
+
+var errPipeFd = errors.New("pipe fd")
+var errNegativeFd = errors.New("negative fd")
+
+// GetFilenameFromFd returns the filename for the given fd
+func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	if fd < 0 {
+		return "", errNegativeFd
+	}
+
+	raw, err := p.getFilenameFromFdRaw(fd)
+	if err != nil {
+		return "", err
+	}
+
+	if strings.HasPrefix(raw, "pipe:") {
+		return "", errPipeFd
+	}
+
+	return raw, nil
+}
+
+func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
+	filename, ok := p.FdRes.Fd[fd]
+	if ok {
+		return filename, nil
+	}
+
+	procPath := fmt.Sprintf("/proc/%d/fd/%d", p.Pid, fd)
+	filename, err := os.Readlink(procPath)
+	if err != nil {
+		return "", err
+	}
+
+	// fill the cache for next time
+	p.FdRes.Fd[fd] = filename
+
+	return filename, nil
 }
 
 // ProcessCache defines a thread cache
@@ -94,11 +151,16 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	if cloneFlags&unix.CLONE_THREAD != 0 {
 		process.Tgid = parent.Tgid
 	}
+
 	if cloneFlags&unix.CLONE_FILES != 0 {
 		process.FdRes = parent.FdRes
+	} else {
+		process.FdRes = parent.FdRes.clone()
 	}
 	if cloneFlags&unix.CLONE_FS != 0 {
 		process.FsRes = parent.FsRes
+	} else {
+		process.FsRes = parent.FsRes.clone()
 	}
 
 	// re-add to update the caches

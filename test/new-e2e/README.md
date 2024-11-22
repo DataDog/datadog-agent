@@ -17,7 +17,7 @@ go work use . ./test/new-e2e
 
 ## Use VsCode tasks to wrap aws-vault
 
-The `agent-sandbox: test current file` can be used to launch test on a file withtout having to launch the whole VsCode wrapped by aws-vault exec. To use it copy the `.template` files in `.vscode` and remove the `.template` extension.
+The `agent-sandbox: test current file` can be used to launch test on a file without having to launch the whole VsCode wrapped by aws-vault exec. To use it copy the `.template` files in `.vscode` and remove the `.template` extension.
 You need to open the `new-e2e` folder
 
 > **Note** > `go.work` file is currently ignored in `datadog-agent`
@@ -38,6 +38,6 @@ The following are considered as installer tests:
 
 All these tests can be executed locally with the following command:
 
-`aws-vault exec sso-agent-sandbox-account-admin -- inv new-e2e-tests.run --targets <test folder path> --osversion '<comma separated os version list>' --platform '<debian/centos/suse/ubuntu>' --arch <x86_64/arm64>`
+`inv new-e2e-tests.run --targets <test folder path> --osversion '<comma separated os version list>' --platform '<debian/centos/suse/ubuntu>' --arch <x86_64/arm64>`
 
 The available os versions can be found in the file `./tests/agent-platform/platforms/platforms.json`

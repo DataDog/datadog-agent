@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestNewHTTPTransaction(t *testing.T) {
@@ -38,7 +39,7 @@ func TestGetCreatedAt(t *testing.T) {
 }
 
 func TestProcess(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
@@ -51,7 +52,7 @@ func TestProcess(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
@@ -66,7 +67,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
@@ -81,7 +82,7 @@ func TestProcessNetworkError(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
@@ -90,7 +91,7 @@ func TestProcessNetworkError(t *testing.T) {
 func TestProcessHTTPError(t *testing.T) {
 	errorCode := http.StatusServiceUnavailable
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(errorCode)
 	}))
 	defer ts.Close()
@@ -103,7 +104,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
@@ -135,7 +136,7 @@ func TestProcessCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(ctx, mockConfig, log, client)
 	assert.NoError(t, err)

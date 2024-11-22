@@ -11,7 +11,7 @@ files we will need three different grpc-related packages:
 
 From the repository root run the following:
 ```
-inv install-tools
+inv setup
 ```
 This should drop all required binaries in your `$GOPATH/bin`
 

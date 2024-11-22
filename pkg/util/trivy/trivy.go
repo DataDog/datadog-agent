@@ -26,8 +26,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -46,8 +48,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/leases"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases
@@ -105,7 +107,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
 		WalkOption: artifact.WalkOption{
-			ErrorCallback: func(pathname string, err error) error {
+			ErrorCallback: func(_ string, err error) error {
 				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
 					return nil
 				}
@@ -117,7 +119,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{
 			"/etc/*",
-			"/lib/apk/*",
+			"/lib/apk/db/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
@@ -276,6 +278,13 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
 		}
+
+		if env.IsContainerized() {
+			for i, layer := range layers {
+				layers[i] = containersimage.SanitizeHostPath(layer)
+			}
+		}
+
 		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
 	}
 
@@ -297,8 +306,9 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 	overlayFsReader := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, overlayFsReader, ".", imgMeta, scanOptions)
+	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -318,9 +328,10 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
+
 	layers := extractLayersFromOverlayFSMounts(mounts)
 	if len(layers) == 0 {
-		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts for image %s", imgMeta.ID)
+		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
 	}
 
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)

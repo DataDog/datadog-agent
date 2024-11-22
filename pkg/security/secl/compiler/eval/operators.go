@@ -43,12 +43,12 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 
 		if state.field != "" {
 			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-				ea = func(ctx *Context) bool {
+				ea = func(*Context) bool {
 					return true
 				}
 			}
 			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-				eb = func(ctx *Context) bool {
+				eb = func(*Context) bool {
 					return true
 				}
 			}
@@ -94,7 +94,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 
 		if state.field != "" {
 			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-				ea = func(ctx *Context) bool {
+				ea = func(*Context) bool {
 					return true
 				}
 			}
@@ -128,7 +128,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 			ea = true
 		}
 		if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-			eb = func(ctx *Context) bool {
+			eb = func(*Context) bool {
 				return true
 			}
 		}
@@ -156,12 +156,12 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 
 		if state.field != "" {
 			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-				ea = func(ctx *Context) bool {
+				ea = func(*Context) bool {
 					return true
 				}
 			}
 			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-				eb = func(ctx *Context) bool {
+				eb = func(*Context) bool {
 					return true
 				}
 			}
@@ -207,7 +207,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 
 		if state.field != "" {
 			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-				ea = func(ctx *Context) bool {
+				ea = func(*Context) bool {
 					return true
 				}
 			}
@@ -241,7 +241,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 			ea = true
 		}
 		if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-			eb = func(ctx *Context) bool {
+			eb = func(_ *Context) bool {
 				return true
 			}
 		}
@@ -316,7 +316,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 		}
 
 		if matcher != nil {
-			op = func(as string, bs string) bool {
+			op = func(as string, _ string) bool {
 				return matcher.Matches(as)
 			}
 		}
@@ -327,7 +327,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 		}
 
 		if matcher != nil {
-			op = func(as string, bs string) bool {
+			op = func(_ string, bs string) bool {
 				return matcher.Matches(bs)
 			}
 		}
@@ -394,7 +394,7 @@ func Not(a *BoolEvaluator, state *State) *BoolEvaluator {
 		}
 
 		if state.field != "" && !a.IsDeterministicFor(state.field) {
-			ea = func(ctx *Context) bool {
+			ea = func(_ *Context) bool {
 				return true
 			}
 		}
@@ -482,7 +482,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		}
 
 		if matcher != nil {
-			cmp = func(a, b string) bool {
+			cmp = func(_, b string) bool {
 				return matcher.Matches(b)
 			}
 		}

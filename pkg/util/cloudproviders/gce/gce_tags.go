@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,7 +52,7 @@ func getCachedTags(err error) ([]string, error) {
 // GetTags gets the tags from the GCE api
 func GetTags(ctx context.Context) ([]string, error) {
 
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
@@ -85,7 +85,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 	}
 	if metadata.Project.ProjectID != "" {
 		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
-		if config.Datadog().GetBool("gce_send_project_id_tag") {
+		if pkgconfigsetup.Datadog().GetBool("gce_send_project_id_tag") {
 			tags = append(tags, fmt.Sprintf("project_id:%s", metadata.Project.ProjectID))
 		}
 	}
@@ -110,7 +110,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 // isAttributeExcluded returns whether the attribute key should be excluded from the tags
 func isAttributeExcluded(attr string) bool {
 
-	excludedAttributes := config.Datadog().GetStringSlice("exclude_gce_tags")
+	excludedAttributes := pkgconfigsetup.Datadog().GetStringSlice("exclude_gce_tags")
 	for _, excluded := range excludedAttributes {
 		if attr == excluded {
 			return true

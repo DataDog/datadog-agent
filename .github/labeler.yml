@@ -4,6 +4,7 @@ component/system-probe:
 - changed-files:
   - any-glob-to-any-file:
     - pkg/collector/corechecks/ebpf/** #ebpf-platform (oomkill and tcp_queue_length)
+    - pkg/collector/corechecks/servicediscovery/module/** # usm
     - pkg/ebpf/** # ebpf-platform (ebpf_manager)
     - pkg/eventmonitor/** # cws (new event monitor component)
     - pkg/network/** # npm and usm

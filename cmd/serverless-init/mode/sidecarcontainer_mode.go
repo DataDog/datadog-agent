@@ -18,7 +18,7 @@ import (
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
-func RunSidecar(logConfig *serverlessLog.Config) error {
+func RunSidecar(_ *serverlessLog.Config) error {
 	stopCh := make(chan struct{})
 	go handleTerminationSignals(stopCh, signal.Notify)
 	<-stopCh

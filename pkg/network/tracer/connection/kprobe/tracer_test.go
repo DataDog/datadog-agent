@@ -169,8 +169,8 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
-func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
-	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		return nil, closeFn, err
 	}
 }
@@ -202,7 +202,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 	}
 
 	offsetGuessingRun := 0
-	tracerOffsetGuesserRunner = func(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	tracerOffsetGuesserRunner = func(*config.Config) ([]manager.ConstantEditor, error) {
 		offsetGuessingRun++
 		return nil, nil
 	}
@@ -213,7 +213,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRCFallback
 			cfg.EnableRuntimeCompiler = te.enableRC
-			cfg.AllowPrecompiledFallback = te.allowPrebuiltFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			prevOffsetGuessingRun := offsetGuessingRun
 			_, closeFn, tracerType, err := LoadTracer(cfg, manager.Options{}, nil, nil)
@@ -251,12 +251,12 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler, failedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	coreTracerLoader = func(*config.Config, manager.Options, ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		coreCalled = true
 		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	prebuiltTracerLoader = func(*config.Config, manager.Options, ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
 		return nil, nil, nil
 	}
@@ -296,7 +296,7 @@ func TestCORETracerSupported(t *testing.T) {
 
 func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	prevLoader := tracerLoaderFromAsset
-	tracerLoaderFromAsset = func(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	tracerLoaderFromAsset = func(_ bytecode.AssetReader, _, _ bool, _ *config.Config, mgrOpts manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		assert.Equal(t, mgrOpts.DefaultKProbeMaxActive, 128)
 		return nil, nil, nil
 	}

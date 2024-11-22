@@ -14,7 +14,12 @@ import (
 
 	"go.uber.org/atomic"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -22,6 +27,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -42,22 +48,33 @@ func nextGroupID() int32 {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostName  string
-	clusterID string
-	sender    sender.Sender
-	processor *processors.Processor
-	config    *oconfig.OrchestratorConfig
+	hostName   string
+	clusterID  string
+	sender     sender.Sender
+	processor  *processors.Processor
+	config     *oconfig.OrchestratorConfig
+	systemInfo *model.SystemInfo
+	store      workloadmeta.Component
+	cfg        config.Component
+	tagger     tagger.Component
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(
+		func() check.Check {
+			return newCheck(store, cfg, tagger)
+		},
+	)
 }
 
-func newCheck() check.Check {
+func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(),
+		store:     store,
+		cfg:       cfg,
+		tagger:    tagger,
 	}
 }
 
@@ -90,7 +107,7 @@ func (c *Check) Configure(
 	}
 
 	if c.processor == nil {
-		c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
+		c.processor = processors.NewProcessor(k8sProcessors.NewPodHandlers(c.cfg, c.store, c.tagger))
 	}
 
 	if c.sender == nil {
@@ -104,6 +121,11 @@ func (c *Check) Configure(
 	if c.hostName == "" {
 		hname, _ := hostname.Get(context.TODO())
 		c.hostName = hname
+	}
+
+	c.systemInfo, err = checks.CollectSystemInfo()
+	if err != nil {
+		log.Warnf("Failed to collect system info: %s", err)
 	}
 
 	return nil
@@ -140,6 +162,7 @@ func (c *Check) Run() error {
 		},
 		HostName:           c.hostName,
 		ApiGroupVersionTag: "kube_api_version:v1",
+		SystemInfo:         c.systemInfo,
 	}
 
 	processResult, processed := c.processor.Process(ctx, podList)

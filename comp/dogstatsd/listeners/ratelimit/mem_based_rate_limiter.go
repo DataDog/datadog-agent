@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +46,7 @@ var ballast []byte //nolint:unused
 var ballastOnce sync.Once
 
 // BuildMemBasedRateLimiter builds a new instance of *MemBasedRateLimiter
-func BuildMemBasedRateLimiter(cfg config.Reader, telemetry telemetry.Component) (*MemBasedRateLimiter, error) {
+func BuildMemBasedRateLimiter(cfg model.Reader, telemetry telemetry.Component) (*MemBasedRateLimiter, error) {
 	var memoryUsage memoryUsage
 	var err error
 	if memoryUsage, err = newCgroupMemoryUsage(); err == nil {
@@ -91,7 +91,7 @@ func BuildMemBasedRateLimiter(cfg config.Reader, telemetry telemetry.Component) 
 	)
 }
 
-func getConfigFloat(cfg config.Reader, subkey string) float64 {
+func getConfigFloat(cfg model.Reader, subkey string) float64 {
 	return cfg.GetFloat64("dogstatsd_mem_based_rate_limiter." + subkey)
 }
 

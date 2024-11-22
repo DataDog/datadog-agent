@@ -12,6 +12,7 @@ import (
 	"context"
 
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
@@ -59,14 +60,17 @@ type Launcher struct {
 	tailers map[*sourcesPkg.LogSource]tailerfactory.Tailer
 
 	grpcClient grpcClient.Component
+
+	tagger tagger.Component
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, grpcClient grpcClient.Component) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, grpcClient grpcClient.Component, tagger tagger.Component) *Launcher {
 	launcher := &Launcher{
 		sources:    sources,
 		tailers:    make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
 		grpcClient: grpcClient,
+		tagger:     tagger,
 	}
 	return launcher
 }
@@ -80,7 +84,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 
-	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.grpcClient)
+	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.grpcClient, l.tagger)
 	go l.run(ctx, sourceProvider)
 }
 

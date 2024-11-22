@@ -294,7 +294,7 @@ func TestFilter_MatchEntity(t *testing.T) {
 		},
 		{
 			name: "unmatched entity due to entity filter func returning false",
-			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: func(entity Entity) bool {
+			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: func(_ Entity) bool {
 				return false
 			}}},
 			entity: &Container{

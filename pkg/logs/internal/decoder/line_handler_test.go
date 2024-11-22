@@ -96,7 +96,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false, status.NewInfoRegistry(), "")
 
 	var output *message.Message
 
@@ -128,6 +128,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("3. stringssssssize20"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
@@ -135,6 +136,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...con", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, 4, output.RawDataLen)
 
 	// second line + TRUNCATED too long
@@ -143,10 +145,12 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("4. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, 9, output.RawDataLen)
 
 	// continuous too long lines
@@ -159,14 +163,17 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("5. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continu             ...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len(longLineTracingSpaces), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...end", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("end\n"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
@@ -180,7 +187,7 @@ func TestMultiLineHandler(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
 
 	var output *message.Message
 
@@ -209,7 +216,7 @@ func TestTrimMultiLine(t *testing.T) {
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
 
 	h.process(getDummyMessage(""))
 
@@ -238,7 +245,7 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
 
 	h.process(getDummyMessage("1.third line"))
 	h.process(getDummyMessage("fourth line"))

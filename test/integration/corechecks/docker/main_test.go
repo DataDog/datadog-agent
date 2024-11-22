@@ -21,17 +21,19 @@ import (
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -69,14 +71,15 @@ var (
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 
 	retryTicker := time.NewTicker(time.Duration(*retryDelay) * time.Second)
@@ -84,7 +87,7 @@ func TestMain(m *testing.M) {
 	var lastRunResult int
 	var retryCount int
 
-	store, err := setup()
+	store, taggerComp, err := setup()
 	if err != nil {
 		log.Infof("Test setup failed: %v", err)
 		tearOffAndExit(1)
@@ -95,7 +98,7 @@ func TestMain(m *testing.M) {
 		case <-retryTicker.C:
 			retryCount++
 			log.Infof("Starting run %d", retryCount)
-			lastRunResult = doRun(m, store)
+			lastRunResult = doRun(m, store, taggerComp)
 			if lastRunResult == 0 {
 				tearOffAndExit(0)
 			}
@@ -113,14 +116,14 @@ type testDeps struct {
 }
 
 // Called before for first test run: compose up
-func setup() (workloadmeta.Component, error) {
+func setup() (workloadmeta.Component, tagger.Component, error) {
 	// Setup global conf
-	config.Datadog().SetConfigType("yaml")
-	err := config.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
+	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	config.SetFeaturesNoCleanup(config.Docker)
+	env.SetFeaturesNoCleanup(env.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
 	var deps testDeps
@@ -131,11 +134,9 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(logdef.ForOneShot("TEST", "info", false)),
 		logfx.Module(),
-		fx.Supply(workloadmeta.NewParams()),
-		collectors.GetCatalog(),
-		workloadmetafx.Module(),
-		taggerimpl.Module(),
-		fx.Supply(tagger.NewTaggerParams()),
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		taggerfx.Module(tagger.Params{}),
 		telemetryimpl.Module(),
 	))
 	store := deps.Store
@@ -149,15 +150,15 @@ func setup() (workloadmeta.Component, error) {
 		output, err := compose.Start()
 		if err != nil {
 			log.Errorf("Compose didn't start properly: %s", string(output))
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return store, nil
+	return store, deps.TaggerComp, nil
 }
 
 // Reset the state and trigger a new run
-func doRun(m *testing.M, store workloadmeta.Component) int {
-	factory := docker.Factory(store)
+func doRun(m *testing.M, store workloadmeta.Component, tagger tagger.Component) int {
+	factory := docker.Factory(store, tagger)
 	checkFactory, _ := factory.Get()
 	dockerCheck = checkFactory()
 

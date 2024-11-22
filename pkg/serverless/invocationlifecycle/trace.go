@@ -12,11 +12,12 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	json "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
@@ -34,12 +35,13 @@ var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.
 
 // ExecutionStartInfo is saved information from when an execution span was started
 type ExecutionStartInfo struct {
-	startTime        time.Time
-	TraceID          uint64
-	SpanID           uint64
-	parentID         uint64
-	requestPayload   []byte
-	SamplingPriority sampler.SamplingPriority
+	startTime         time.Time
+	TraceID           uint64
+	TraceIDUpper64Hex string
+	SpanID            uint64
+	parentID          uint64
+	requestPayload    []byte
+	SamplingPriority  sampler.SamplingPriority
 }
 
 // startExecutionSpan records information from the start of the invocation.
@@ -62,6 +64,12 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 		if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
 			inferredSpan.Span.TraceID = traceContext.TraceID
 			inferredSpan.Span.ParentID = traceContext.ParentID
+		}
+		if traceContext.TraceIDUpper64Hex != "" {
+			executionContext.TraceIDUpper64Hex = traceContext.TraceIDUpper64Hex
+			lp.requestHandler.SetMetaTag(Upper64BitsTag, traceContext.TraceIDUpper64Hex)
+		} else {
+			delete(lp.requestHandler.triggerTags, Upper64BitsTag)
 		}
 	} else {
 		executionContext.TraceID = 0
@@ -103,6 +111,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
+	if executionContext.TraceIDUpper64Hex != "" {
+		executionSpan.Meta[Upper64BitsTag] = executionContext.TraceIDUpper64Hex
+	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
 	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
 	if endDetails.ProactiveInit {
@@ -112,9 +123,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	if len(langMatches) >= 2 {
 		executionSpan.Meta["language"] = langMatches[1]
 	}
-	captureLambdaPayloadEnabled := config.Datadog().GetBool("capture_lambda_payload")
+	captureLambdaPayloadEnabled := pkgconfigsetup.Datadog().GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		capturePayloadMaxDepth := config.Datadog().GetInt("capture_lambda_payload_max_depth")
+		capturePayloadMaxDepth := pkgconfigsetup.Datadog().GetInt("capture_lambda_payload_max_depth")
 		requestPayloadJSON := make(map[string]interface{})
 		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
 			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
@@ -171,6 +182,9 @@ func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.In
 	}
 
 	inferredSpan.Span.TraceID = lp.GetExecutionInfo().TraceID
+	if lp.GetExecutionInfo().TraceIDUpper64Hex != "" {
+		inferredSpan.Span.Meta[Upper64BitsTag] = lp.GetExecutionInfo().TraceIDUpper64Hex
+	}
 
 	return inferredSpan.Span
 }
@@ -226,6 +240,30 @@ func InjectContext(executionContext *ExecutionStartInfo, headers http.Header) {
 		log.Debugf("injecting samplingPriority = %v", value)
 		executionContext.SamplingPriority = sampler.SamplingPriority(value)
 	}
+
+	upper64hex := getUpper64Hex(headers.Get(TraceTagsHeader))
+	if upper64hex != "" {
+		executionContext.TraceIDUpper64Hex = upper64hex
+	}
+}
+
+// searches traceTags for "_dd.p.tid=[upper 64 bits hex]" and returns that value if found
+func getUpper64Hex(traceTags string) string {
+	if !strings.Contains(traceTags, Upper64BitsTag) {
+		return ""
+	}
+	kvpairs := strings.Split(traceTags, ",")
+	for _, pair := range kvpairs {
+		if !strings.Contains(pair, Upper64BitsTag) {
+			continue
+		}
+		kv := strings.Split(pair, "=")
+		if len(kv) != 2 {
+			return ""
+		}
+		return kv[1]
+	}
+	return ""
 }
 
 // InjectSpanID injects the spanId

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/google/go-containerregistry/pkg/name"
 
@@ -23,7 +24,8 @@ type remoteConfigClient interface {
 	Start()
 	Close()
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+	GetInstallerState() *pbgo.ClientUpdater
+	SetInstallerState(state *pbgo.ClientUpdater)
 }
 
 type remoteConfig struct {
@@ -34,7 +36,7 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	client, err := client.NewClient(
 		rcFetcher,
 		client.WithUpdater(),
-		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterTask),
+		client.WithProducts(state.ProductUpdaterCatalogDD),
 		client.WithoutTufVerification(),
 	)
 	if err != nil {
@@ -48,8 +50,12 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 	if rc.client == nil {
 		return
 	}
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
-	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+	subscribeToTask := func() {
+		// only subscribe to tasks once the first catalog has been applied
+		// subscribe in a goroutine to avoid deadlocking the client
+		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+	}
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
 
@@ -58,9 +64,14 @@ func (rc *remoteConfig) Close() {
 	rc.client.Close()
 }
 
-// SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
-	rc.client.SetUpdaterPackagesState(packages)
+// GetState gets the state of the remote config client.
+func (rc *remoteConfig) GetState() *pbgo.ClientUpdater {
+	return rc.client.GetInstallerState()
+}
+
+// SetState sets the state of the remote config client.
+func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
+	rc.client.SetInstallerState(state)
 }
 
 // Package represents a downloadable package.
@@ -89,7 +100,8 @@ func (c *catalog) getPackage(pkg string, version string, arch string, platform s
 
 type handleCatalogUpdate func(catalog catalog) error
 
-func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
+func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied func()) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+	var catalogOnce sync.Once
 	return func(catalogConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		var mergedCatalog catalog
 		for configPath, config := range catalogConfigs {
@@ -118,6 +130,7 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 			}
 			return
 		}
+		catalogOnce.Do(firstCatalogApplied)
 		for configPath := range catalogConfigs {
 			applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
@@ -154,6 +167,10 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+
+	methodStartConfigExperiment   = "start_experiment_config"
+	methodStopConfigExperiment    = "stop_experiment_config"
+	methodPromoteConfigExperiment = "promote_experiment_config"
 )
 
 type remoteAPIRequest struct {
@@ -170,6 +187,8 @@ type expectedState struct {
 	InstallerVersion string `json:"installer_version"`
 	Stable           string `json:"stable"`
 	Experiment       string `json:"experiment"`
+	StableConfig     string `json:"stable_config"`
+	ExperimentConfig string `json:"experiment_config"`
 }
 
 type taskWithVersionParams struct {
@@ -179,7 +198,7 @@ type taskWithVersionParams struct {
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
-func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) client.Handler {
+func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		requests := map[string]remoteAPIRequest{}

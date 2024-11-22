@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
@@ -13,9 +15,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 // TestResolveAppServerFromCmdLine tests that vendor can be determined from the process cmdline
@@ -110,7 +112,7 @@ com.ibm.wsspi.bootstrap.WSPreLauncher -nosplash -application com.ibm.ws.bootstra
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := strings.Split(strings.ReplaceAll(tt.rawCmd, "\n", " "), " ")
-			vendor, home := jeeExtractor{NewDetectionContext(zap.NewNop(), cmd, nil, fstest.MapFS{})}.resolveAppServer()
+			vendor, home := jeeExtractor{NewDetectionContext(cmd, envs.NewVariables(nil), fstest.MapFS{})}.resolveAppServer()
 			require.Equal(t, tt.expectedVendor, vendor)
 			// the base dir is making sense only when the vendor has been properly understood
 			if tt.expectedVendor != unknown {
@@ -228,10 +230,10 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 	require.NoError(t, writeFile(writer, weblogicXMLFile, weblogicXML))
 	require.NoError(t, writer.Close())
 	memfs := &fstest.MapFS{
-		"wls/domain/config/config.xml":        &fstest.MapFile{Data: []byte(wlsConfig)},
-		"apps/app1.ear/" + applicationXMLPath: &fstest.MapFile{Data: []byte(appXML)},
-		"apps/app2.war":                       &fstest.MapFile{Data: buf.Bytes()},
-		"apps/app3.war":                       &fstest.MapFile{Mode: fs.ModeDir},
+		"wls/domain/config/config.xml":                   &fstest.MapFile{Data: []byte(wlsConfig)},
+		"wls/domain/apps/app1.ear/" + applicationXMLPath: &fstest.MapFile{Data: []byte(appXML)},
+		"wls/domain/apps/app2.war":                       &fstest.MapFile{Data: buf.Bytes()},
+		"wls/domain/apps/app3.war":                       &fstest.MapFile{Mode: fs.ModeDir},
 	}
 
 	// simulate weblogic command line args
@@ -240,8 +242,10 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 		wlsHomeSysProp + "/wls",
 		wlsServerMainClass,
 	}
-	envs := []string{"PWD=wls/domain"}
-	extractor := jeeExtractor{ctx: NewDetectionContext(zap.NewNop(), cmd, envs, memfs)}
+	envsMap := map[string]string{
+		"PWD": "wls/domain",
+	}
+	extractor := jeeExtractor{ctx: NewDetectionContext(cmd, envs.NewVariables(envsMap), memfs)}
 	extractedContextRoots := extractor.extractServiceNamesForJEEServer()
 	require.Equal(t, []string{
 		"app1_context", // taken from ear application.xml

@@ -26,17 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -46,7 +46,7 @@ type MockProvider struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *MockProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (p *MockProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
 }
@@ -56,7 +56,7 @@ func (p *MockProvider) String() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *MockProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (p *MockProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return true, nil
 }
 
@@ -74,7 +74,7 @@ type MockListener struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
+func (l *MockListener) Listen(_, _ chan<- listeners.Service) {
 	l.ListenCount++
 }
 
@@ -82,11 +82,11 @@ func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
 
-func (l *MockListener) fakeFactory(listeners.Config, *acTelemetry.Store) (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners.ServiceListernerDeps) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
-var mockListenenerConfig = config.Listeners{
+var mockListenenerConfig = pkgconfigsetup.Listeners{
 	Name: "mock",
 }
 
@@ -98,7 +98,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make(listeners.Config, *acTelemetry.Store) (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.ServiceListernerDeps) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {
@@ -173,14 +173,15 @@ type AutoConfigTestSuite struct {
 
 // SetupSuite saves the original listener registry
 func (suite *AutoConfigTestSuite) SetupSuite() {
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 }
 
@@ -218,7 +219,7 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
-	ac.AddListeners([]config.Listeners{mockListenenerConfig})
+	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
 	ac.m.Lock()
 	require.Len(suite.T(), ac.listeners, 1)
@@ -255,7 +256,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
-	ac.AddListeners([]config.Listeners{mockListenenerConfig})
+	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
 	ac.Stop()
 
@@ -300,7 +301,7 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}
 	listeners.Register("retry", retryFactory.make, ac.serviceListenerFactories)
 
-	configs := []config.Listeners{
+	configs := []pkgconfigsetup.Listeners{
 		{Name: "noerr"},
 		{Name: "fail"},
 		{Name: "retry"},
@@ -599,5 +600,5 @@ type Deps struct {
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), taggerfx.Module(tagger.Params{UseFakeTagger: true}))
 }

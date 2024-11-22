@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fxlog defines the fx options for this component.
-package fxlog
+// Package fx defines the fx options for this component.
+package fx
 
 import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl-systemprobe"

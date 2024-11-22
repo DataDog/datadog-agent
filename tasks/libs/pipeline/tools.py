@@ -120,6 +120,7 @@ def trigger_agent_pipeline(
     release_version_7="nightly-a7",
     branch="nightly",
     deploy=False,
+    deploy_installer=False,
     all_builds=False,
     e2e_tests=False,
     kmt_tests=False,
@@ -137,6 +138,8 @@ def trigger_agent_pipeline(
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
+    if deploy_installer:
+        args["DEPLOY_INSTALLER"] = "true"
 
     # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
     # disabled on pipelines where they're activated by default (default branch & deploy pipelines)

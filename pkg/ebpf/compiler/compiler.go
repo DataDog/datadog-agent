@@ -66,10 +66,6 @@ func kernelHeaderPaths(headerDirs []string) []string {
 
 // CompileToObjectFile compiles an eBPF program
 func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs []string) error {
-	if len(headerDirs) == 0 {
-		return fmt.Errorf("unable to find kernel headers")
-	}
-
 	tmpIncludeDir, err := writeStdarg()
 	if err != nil {
 		return err

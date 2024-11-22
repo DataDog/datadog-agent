@@ -30,12 +30,12 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	packages := DefaultPackages(env)
 
 	assert.Equal(t, []string{
-		"oci://gcr.io/datadoghq/apm-inject-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-java-package:1",
-		"oci://gcr.io/datadoghq/apm-library-ruby-package:2",
-		"oci://gcr.io/datadoghq/apm-library-js-package:5",
-		"oci://gcr.io/datadoghq/apm-library-dotnet-package:2",
-		"oci://gcr.io/datadoghq/apm-library-python-package:2",
+		"oci://install.datadoghq.com/apm-inject-package:latest",
+		"oci://install.datadoghq.com/apm-library-java-package:1",
+		"oci://install.datadoghq.com/apm-library-ruby-package:2",
+		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
+		"oci://install.datadoghq.com/apm-library-python-package:2",
 	}, packages)
 }
 
@@ -49,7 +49,7 @@ func TestDefaultPackagesAgentVersion(t *testing.T) {
 	}
 	packages := DefaultPackages(env)
 
-	assert.Equal(t, []string{"oci://gcr.io/datadoghq/agent-package:7.42.0-1"}, packages)
+	assert.Equal(t, []string{"oci://install.datadoghq.com/agent-package:7.42.0-1"}, packages)
 }
 
 func TestDefaultPackagesAgentMinorVersion(t *testing.T) {
@@ -61,7 +61,7 @@ func TestDefaultPackagesAgentMinorVersion(t *testing.T) {
 	}
 	packages := DefaultPackages(env)
 
-	assert.Equal(t, []string{"oci://gcr.io/datadoghq/agent-package:7.42.0-1"}, packages)
+	assert.Equal(t, []string{"oci://install.datadoghq.com/agent-package:7.42.0-1"}, packages)
 }
 
 func TestDefaultPackages(t *testing.T) {
@@ -199,6 +199,7 @@ func TestDefaultPackages(t *testing.T) {
 				DefaultPackagesInstallOverride: map[string]bool{
 					"datadog-apm-library-java": true,
 					"datadog-apm-library-ruby": true,
+					"datadog-apm-library-php":  true,
 				},
 			},
 			expected: []pkg{
@@ -251,15 +252,18 @@ func TestDefaultPackages(t *testing.T) {
 			packages: []Package{
 				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
 					"java": "1.2.3",
+					"php":  "1",
 				},
 				InstallScript: env.InstallScriptEnv{},
 			},
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+				{n: "datadog-apm-library-php", v: "1"},
 			},
 		},
 	}
@@ -272,6 +276,67 @@ func TestDefaultPackages(t *testing.T) {
 				expected = append(expected, oci.PackageURL(tt.env, p.n, p.v))
 			}
 			assert.Equal(t, expected, packages)
+		})
+	}
+}
+
+func TestAgentVersion(t *testing.T) {
+	type testCase struct {
+		name           string
+		majorVersion   string
+		minorVersions  string
+		expectedResult string
+	}
+
+	tests := []testCase{
+		{
+			name:           "No version",
+			majorVersion:   "",
+			minorVersions:  "",
+			expectedResult: "latest",
+		},
+		{
+			name:           "Major version only",
+			majorVersion:   "7",
+			minorVersions:  "",
+			expectedResult: "latest",
+		},
+		{
+			name:           "Major, minor+patch version",
+			majorVersion:   "7",
+			minorVersions:  "42.0",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "Major, minor version",
+			majorVersion:   "7",
+			minorVersions:  "42",
+			expectedResult: "7.42",
+		},
+		{
+			name:           "minor+patch",
+			minorVersions:  "42.0",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "minor+patch-1",
+			minorVersions:  "42.0-1",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "minor only",
+			minorVersions:  "42",
+			expectedResult: "7.42",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &env.Env{
+				AgentMajorVersion: tt.majorVersion,
+				AgentMinorVersion: tt.minorVersions,
+			}
+			res := agentVersion(Package{}, e)
+			assert.Equal(t, tt.expectedResult, res)
 		})
 	}
 }

@@ -166,11 +166,18 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string) {
 		auth = append(auth, ssh.PublicKeys(signer))
 	}
 
-	sshClient, err := ssh.Dial("tcp", *instanceIP+":22", &ssh.ClientConfig{
-		User:            "ec2-user",
-		Auth:            auth,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	})
+	var sshClient *ssh.Client
+	err = nil
+	for _, user := range []string{"ec2-user", "ubuntu"} {
+		sshClient, err = ssh.Dial("tcp", *instanceIP+":22", &ssh.ClientConfig{
+			User:            user,
+			Auth:            auth,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		fmt.Fprintf(&out, "Failed to dial SSH server %s: %v\n", *instanceIP, err)
 		return
@@ -315,7 +322,7 @@ func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 				logs, err := k8sClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 					Container: containerStatus.Name,
 					Previous:  true,
-					TailLines: pointer.Ptr(int64(100)),
+					// TailLines: pointer.Ptr(int64(100)),
 				}).Stream(ctx)
 				if err != nil {
 					fmt.Fprintf(out, "Failed to get logs: %v\n", err)

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -77,7 +77,7 @@ func TestGetStatus(t *testing.T) {
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
 	// when the datadog.yaml file is loaded
 	cfg := configmock.New(t)
-	ddconfig.SetFeatures(t)
+	env.SetFeatures(t)
 	cfg.SetWithoutSource("hostname", "test") // Prevents panic since feature detection has not run
 	cfg.SetWithoutSource("language_detection.enabled", true)
 

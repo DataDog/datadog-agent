@@ -12,8 +12,9 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,12 +27,12 @@ const (
 // running traceroute from an agent running
 // on Windows
 type WindowsTraceroute struct {
-	cfg Config
+	cfg config.Config
 }
 
 // New creates a new instance of WindowsTraceroute
 // based on an input configuration
-func New(cfg Config, _ telemetry.Component) (*WindowsTraceroute, error) {
+func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
 	return &WindowsTraceroute{
 		cfg: cfg,
@@ -41,12 +42,12 @@ func New(cfg Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 // Run executes a traceroute
 func (w *WindowsTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return payload.NetworkPath{}, err
 	}
-	resp, err := tu.GetTraceroute(clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.MaxTTL, w.cfg.TimeoutMs)
+	resp, err := tu.GetTraceroute(clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.MaxTTL, w.cfg.Timeout)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

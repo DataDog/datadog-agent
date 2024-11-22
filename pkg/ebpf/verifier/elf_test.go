@@ -21,6 +21,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,8 +41,13 @@ func TestGetSourceMap(t *testing.T) {
 			return nil
 		}
 
-		if _, ok := objectFiles[d.Name()]; !ok {
-			objectFiles[d.Name()] = path
+		objName := d.Name()
+		if strings.Contains(path, "/co-re/") {
+			objName = "co-re/" + objName
+		}
+
+		if _, ok := objectFiles[objName]; !ok {
+			objectFiles[objName] = path
 		}
 		return nil
 	})
@@ -52,6 +58,7 @@ func TestGetSourceMap(t *testing.T) {
 
 	for name, path := range objectFiles {
 		t.Run(name, func(tt *testing.T) {
+			log.Debugf("Processing %s", path)
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(tt, err)
 			sourceMap, funcsPerSection, err := getSourceMap(path, spec)
@@ -110,6 +117,14 @@ func TestGetSourceMap(t *testing.T) {
 					require.GreaterOrEqual(tt, line, 0, "invalid line %d, ins %d", line, ins)
 					require.LessOrEqual(tt, line, len(fileCache[sourceFile]), "line %d not found in %s, ins %d", line, sourceFile, ins)
 					expectedLine := fileCache[sourceFile][line-1]
+
+					if expectedLine == "{" && expectedLine != sl.Line && line > 1 {
+						// We have problems with the initial instructions sometimes, as one
+						// source can assign them to the opening brace and another to the function declaration
+						// if they're in different lines. Try with the previous line in that case.
+						expectedLine = fileCache[sourceFile][line-2]
+					}
+
 					require.Equal(tt, expectedLine, sl.Line, "mismatch at instruction %d, lineinfo=%s, prog %s", ins, sl.LineInfo, prog)
 				}
 

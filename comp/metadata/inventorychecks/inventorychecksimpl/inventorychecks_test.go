@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
@@ -134,8 +136,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
-			workloadmetafxmock.MockModule(),
-			fx.Supply(workloadmeta.NewParams()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
 		// Setup log sources
@@ -151,8 +152,17 @@ func TestGetPayload(t *testing.T) {
 		// Register an error
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
+		fakeTagger := mock.SetupFakeTagger(t)
+
 		mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
-			t, logsBundle.MockBundle(), core.MockBundle(), inventoryagentimpl.MockModule(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()),
+			t,
+			logsBundle.MockBundle(),
+			core.MockBundle(),
+			inventoryagentimpl.MockModule(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			fx.Provide(func() tagger.Component {
+				return fakeTagger
+			}),
 		)
 		logsAgent, _ := mockLogAgent.Get()
 		logsAgent.SetSources(logSources)
@@ -176,7 +186,7 @@ func TestGetPayload(t *testing.T) {
 			ic.Set("check1_instance1", "check_provided_key2", "Hi")
 			ic.Set("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
 
-			p := ic.getPayload().(*Payload)
+			p := ic.getPayloadWithConfigs().(*Payload)
 
 			assert.Equal(t, "test-hostname", p.Hostname)
 

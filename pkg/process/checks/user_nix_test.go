@@ -90,7 +90,7 @@ func TestLookupUserWithId(t *testing.T) {
 
 func TestLookupIdConfigSetting(t *testing.T) {
 	//nolint:revive // TODO(PROC) Fix revive linter
-	testLookupIdFunc := func(uid string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
+	testLookupIdFunc := func(_ string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := configmock.New(t)

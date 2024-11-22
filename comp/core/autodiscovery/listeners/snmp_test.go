@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -36,14 +35,14 @@ func TestSNMPListener(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{}, nil)
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -84,7 +83,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
@@ -94,7 +93,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	snmpListenerConfig, err := snmp.NewListenerConfig()
 	assert.Equal(t, nil, err)
 
-	services := map[string]Service{}
+	services := map[string]*SNMPService{}
 	l := &SNMPListener{
 		services: services,
 		stop:     make(chan bool),
@@ -135,14 +134,14 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{}, nil)
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 

@@ -7,6 +7,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -14,12 +15,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,7 +143,7 @@ func (h *Host) DeletePath(path string) {
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 
@@ -148,7 +151,8 @@ func (h *Host) WaitForUnitActive(units ...string) {
 func (h *Host) WaitForUnitActivating(units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+
 	}
 }
 
@@ -173,8 +177,8 @@ func (h *Host) WaitForTraceAgentSocketReady() {
 	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
-// BootstraperVersion returns the version of the bootstraper on the host.
-func (h *Host) BootstraperVersion() string {
+// BootstrapperVersion returns the version of the bootstrapper on the host.
+func (h *Host) BootstrapperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
 }
 
@@ -183,10 +187,24 @@ func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
 }
 
+// AgentStableVersion returns the stable version of the agent on the host.
+func (h *Host) AgentStableVersion() string {
+	path := strings.TrimSpace(h.remote.MustExecute(`readlink /opt/datadog-packages/datadog-agent/stable`))
+	return filepath.Base(path)
+}
+
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
-		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
+		_, err := h.remote.Execute("sudo datadog-installer is-installed " + pkg)
+		require.NoErrorf(
+			h.t,
+			err,
+			"package %s not installed by the installer. install logs: \n%s\n%s",
+			pkg,
+			h.remote.MustExecute("cat /tmp/datadog-installer-stdout.log"),
+			h.remote.MustExecute("cat /tmp/datadog-installer-stderr.log"),
+		)
 	}
 }
 
@@ -592,6 +610,15 @@ func (s *State) AssertPathDoesNotExist(path string) {
 	assert.False(s.t, ok, "something exists at path", path)
 }
 
+// AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.
+func (s *State) AssertFileExistsAnyUser(path string, perms fs.FileMode) {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	assert.True(s.t, ok, "file %v does not exist", path)
+	assert.False(s.t, fileInfo.IsDir, "%v is not a file", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
+}
+
 // AssertFileExists asserts that a file exists on the host with the given perms, user, and group.
 func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, group string) {
 	path = evalSymlinkPath(path, s.FS)
@@ -606,7 +633,7 @@ func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, gr
 // AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
 func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
 	fileInfo, ok := s.FS[path]
-	assert.True(s.t, ok, "syminlk %v does not exist", path)
+	assert.True(s.t, ok, "symlink %v does not exist", path)
 	assert.True(s.t, fileInfo.IsSymlink, "%v is not a symlink", path)
 	assert.Equal(s.t, target, fileInfo.Link, "%v has unexpected target", path)
 	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
@@ -664,4 +691,139 @@ func (s *State) AssertUnitsDead(names ...string) {
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
 	}
+}
+
+// LocalCDN is a local CDN for testing.
+type LocalCDN struct {
+	host *Host
+	// DirPath is the path to the local CDN directory.
+	DirPath string
+	lock    sync.Mutex
+}
+
+type orderConfig struct {
+	Order            []string          `json:"order"`
+	ScopeExpressions []scopeExpression `json:"scope_expressions"`
+}
+type scopeExpression struct {
+	Expression string `json:"expression"`
+	PolicyID   string `json:"config_id"`
+}
+
+// NewLocalCDN creates a new local CDN.
+func NewLocalCDN(host *Host) *LocalCDN {
+	localCDNPath := fmt.Sprintf("/tmp/local_cdn/%s", uuid.New().String())
+	host.remote.MustExecute(fmt.Sprintf("mkdir -p %s", localCDNPath))
+
+	// Create order file
+	orderPath := filepath.Join(localCDNPath, "configuration_order")
+	orderContent := orderConfig{
+		Order:            []string{},
+		ScopeExpressions: []scopeExpression{},
+	}
+	orderBytes, err := json.Marshal(orderContent)
+	require.NoError(host.t, err)
+
+	_, err = host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(host.t, err)
+
+	return &LocalCDN{
+		host:    host,
+		DirPath: localCDNPath,
+		lock:    sync.Mutex{},
+	}
+}
+
+// AddLayer adds a layer to the local CDN. It'll be last in order.
+func (c *LocalCDN) AddLayer(name string, content string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+
+	jsonContent := fmt.Sprintf(`{"name": "%s", %s}`, name, content)
+
+	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
+	require.NoError(c.host.t, err)
+
+	// Add at the end of the order file
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{}
+	orderBytes, err := c.host.remote.ReadFile(orderPath)
+	require.NoError(c.host.t, err)
+	err = json.Unmarshal(orderBytes, &orderContent)
+	require.NoError(c.host.t, err)
+	orderContent.Order = append(orderContent.Order, name)
+	orderContent.ScopeExpressions = append(orderContent.ScopeExpressions, scopeExpression{
+		Expression: "true",
+		PolicyID:   name,
+	})
+	orderBytes, err = json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+
+	return nil
+}
+
+// UpdateLayer updates a layer in the local CDN.
+func (c *LocalCDN) UpdateLayer(name string, content string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+
+	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
+
+	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
+	require.NoError(c.host.t, err)
+
+	return nil
+}
+
+// RemoveLayer removes a layer from the local CDN.
+func (c *LocalCDN) RemoveLayer(name string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+	err := c.host.remote.Remove(layerPath)
+	require.NoError(c.host.t, err)
+
+	// Remove from order file
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{}
+	orderBytes, err := c.host.remote.ReadFile(orderPath)
+	require.NoError(c.host.t, err)
+	err = json.Unmarshal(orderBytes, &orderContent)
+	require.NoError(c.host.t, err)
+	newOrder := []string{}
+	for _, layer := range orderContent.Order {
+		if layer != name {
+			newOrder = append(newOrder, layer)
+		}
+	}
+	orderContent.Order = newOrder
+	orderBytes, err = json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+	return nil
+}
+
+// Reorder reorders the layers in the local CDN.
+func (c *LocalCDN) Reorder(orderedLayerNames []string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{
+		Order: orderedLayerNames,
+	}
+	orderBytes, err := json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+
+	return nil
 }

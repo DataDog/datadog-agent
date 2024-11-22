@@ -19,15 +19,15 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
-from tasks.modules import DEFAULT_MODULES, generate_dummy_package
+from tasks.modules import generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -100,9 +100,12 @@ def internal_deps_checker(ctx, formatFile=False):
     """
     Check that every required internal dependencies are correctly replaced
     """
+    repo_path = os.getcwd()
     extra_params = "--formatFile true" if formatFile else ""
-    for mod in DEFAULT_MODULES.values():
-        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
+    for mod in get_default_modules().values():
+        ctx.run(
+            f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} --repoPath={repo_path} {extra_params}"
+        )
 
 
 @task
@@ -110,7 +113,7 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-    paths = [mod.full_path() for mod in DEFAULT_MODULES.values()]
+    paths = [mod.full_path() for mod in get_default_modules().values()]
     download_go_dependencies(ctx, paths, verbose=verbose)
 
 
@@ -212,6 +215,7 @@ def generate_protobuf(ctx):
         'workloadmeta': (False, False),
         'autodiscovery': (False, False),
         'languagedetection': (False, False),
+        'remoteagent': (False, False),
     }
 
     # maybe put this in a separate function
@@ -313,13 +317,14 @@ def generate_protobuf(ctx):
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
         # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
@@ -355,34 +360,56 @@ def reset(ctx):
 
 
 @task
-def check_go_mod_replaces(_):
+def check_go_mod_replaces(ctx, fix=False):
     errors_found = set()
-    for mod in DEFAULT_MODULES.values():
-        go_sum = os.path.join(mod.full_path(), "go.sum")
-        if not os.path.exists(go_sum):
-            continue
-        with open(go_sum) as f:
-            for line in f:
-                if "github.com/datadog/datadog-agent" in line.lower():
-                    err_mod = line.split()[0]
-
-                    if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
-                        errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+    for mod in get_default_modules().values():
+        with ctx.cd(mod.path):
+            go_sum = os.path.join(mod.full_path(), "go.sum")
+            if not os.path.exists(go_sum):
+                continue
+            with open(go_sum) as f:
+                for line in f:
+                    if "github.com/datadog/datadog-agent" in line.lower():
+                        err_mod = line.split()[0]
+                        if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                            if fix:
+                                relative_path = os.path.relpath(err_mod, mod.import_path)
+                                ctx.run(f"go mod edit -replace {err_mod}={relative_path}")
+                            else:
+                                errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
         message = "\nErrors found:\n"
         message += "\n".join("  - " + error for error in sorted(errors_found))
-        message += (
-            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy` before re-running this task."
-        )
+        message += "\n\n Run `inv check-go-mod-replaces --fix` to fix the errors.\n"
+        message += "This task operates on go.sum files, so make sure to run `inv -e tidy` after fixing the errors."
         raise Exit(message=message)
+
+
+def raise_if_errors(errors_found, suggestion_msg=None):
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+        if suggestion_msg:
+            message += f"\n\n{suggestion_msg}"
+        raise Exit(message=message)
+
+
+def check_valid_mods(ctx):
+    errors_found = []
+    for mod in get_default_modules().values():
+        pattern = os.path.join(mod.full_path(), '*.go')
+        if not glob.glob(pattern):
+            errors_found.append(f"module {mod.import_path} does not contain *.go source files, so it is not a package")
+    raise_if_errors(errors_found)
+    return bool(errors_found)
 
 
 @task
 def check_mod_tidy(ctx, test_folder="testmodule"):
+    check_valid_mods(ctx)
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
 
@@ -395,7 +422,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             # Ensure that none of these modules import the datadog-agent main module.
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
@@ -408,10 +435,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             if os.path.isfile(os.path.join(ctx.cwd, "main")):
                 os.remove(os.path.join(ctx.cwd, "main"))
 
-        if errors_found:
-            message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
-            message += "\n\nRun 'inv tidy' to fix 'out of sync' errors."
-            raise Exit(message=message)
+        raise_if_errors(errors_found, "Run 'inv tidy' to fix 'out of sync' errors.")
 
 
 @task
@@ -423,6 +447,8 @@ def tidy_all(ctx):
 
 @task
 def tidy(ctx):
+    check_valid_mods(ctx)
+
     if os.name != 'nt':  # not windows
         import resource
 
@@ -435,7 +461,7 @@ def tidy(ctx):
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
     promises = []
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
             promises.append(ctx.run("go mod tidy", asynchronous=True))
@@ -447,7 +473,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.5 linux/amd64"
+    # result is like "go version go1.22.8 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -466,7 +492,7 @@ def go_fix(ctx, fix=None):
         fixarg = f" -fix {fix}"
     oslist = ["linux", "windows", "darwin"]
 
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
@@ -503,44 +529,6 @@ def add_replaces(ctx, path, replaces: Iterable[str]):
                 ctx.run(f"go mod edit -replace={online_path}={module_local_path}")
 
 
-def add_go_module(path):
-    """
-    Add go module to modules.py
-    """
-    print(color_message("Updating DEFAULT_MODULES within modules.py", "blue"))
-    modules_path = tasks.modules.__file__
-    with open(modules_path) as f:
-        modulespy = f.read()
-
-    modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
-
-    all_modules_match = modulespy_regex.search(modulespy)
-    assert all_modules_match, "Could not find DEFAULT_MODULES in modules.py"
-    all_modules = all_modules_match.group(1)
-    all_modules = all_modules.split('\n')
-    indent = ' ' * 4
-
-    new_module = f'{indent}"{path}": GoModule("{path}", independent=True),'
-
-    # Insert in order
-    insert_line = 0
-    for i, line in enumerate(all_modules):
-        # This line is the start of a module (not a comment / middle of a module declaration)
-        if line.startswith(f'{indent}"'):
-            results = re.search(rf'{indent}"([^"]*)"', line)
-            assert results, f"Could not find module name in line '{line}'"
-            module = results.group(1)
-            if module < path:
-                insert_line = i
-            else:
-                assert module != path, f"Module {path} already exists within {modules_path}"
-
-    all_modules.insert(insert_line, new_module)
-    all_modules = '\n'.join(all_modules)
-    with open(modules_path, 'w') as f:
-        f.write(modulespy.replace(all_modules_match.group(1), all_modules))
-
-
 @task
 def create_module(ctx, path: str, no_verify: bool = False):
     """
@@ -572,6 +560,9 @@ def create_module(ctx, path: str, no_verify: bool = False):
     """.replace('    ', '')
 
     try:
+        modules = Configuration.from_file()
+        assert path not in modules.modules, f'Module {path} already exists'
+
         # Create package
         print(color_message(f"Creating package {path}", "blue"))
 
@@ -615,8 +606,12 @@ def create_module(ctx, path: str, no_verify: bool = False):
             for mod in dependent_modules:
                 add_replaces(ctx, mod, [path])
 
-        # Update modules.py
-        add_go_module(path)
+        # Add this module as independent in the module configuration
+        modules.modules[path] = GoModule(path, independent=True)
+        modules.to_file()
+        print(
+            f'{color_message("NOTE", "blue")}: The modules.yml file has been updated to mark the module as independent, you can modify this file to change the module configuration.'
+        )
 
         if not is_empty:
             # Tidy all
@@ -667,7 +662,7 @@ def mod_diffs(_, targets):
     """
     # Find all go.mod files in the repo
     all_go_mod_files = []
-    for module in DEFAULT_MODULES:
+    for module in get_default_modules():
         all_go_mod_files.append(os.path.join(module, 'go.mod'))
 
     # Validate the provided targets

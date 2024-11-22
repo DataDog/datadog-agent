@@ -234,7 +234,9 @@ def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     return summary
 
 
-def send_summary_slack_notification(channel: str, stats: list[dict], allow_failure: bool = False):
+def send_summary_slack_notification(
+    channel: str, stats: list[dict], allow_failure: bool = False, dry_run: bool = False
+):
     """
     Send the summary to channel with these job stats
     - stats: Item of the dict returned by SummaryStats.make_stats
@@ -258,15 +260,20 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     )
     expected_to_fail = 'They are allowed to fail' if allow_failure else 'They are not expected to fail'
 
+    timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
+    timestamp_end = int(datetime.now().timestamp() * 1000)
+
     message = []
     for stat in stats:
         name = stat['name']
         fail = stat['failures']
-        link = get_ci_visibility_job_url(name, prefix=False, extra_flags=['status:error', '-@error.domain:provider'])
+        link = get_ci_visibility_job_url(
+            name,
+            prefix=False,
+            extra_flags=['status:error', '-@error.domain:provider'],
+            extra_args={'start': timestamp_start, 'end': timestamp_end, 'paused': 'true'},
+        )
         message.append(f"- <{link}|{name}>: *{fail} failures*")
-
-    timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
-    timestamp_end = int(datetime.now().timestamp() * 1000)
 
     header = f'{period} Job Failure Report'
     if allow_failure:
@@ -292,12 +299,21 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     ]
 
     # Send message
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel=channel, blocks=blocks, text=alt_message)
+    if dry_run:
+        print(f'Would send to {channel}:')
+        print(blocks)
+    else:
+        client = WebClient(os.environ["SLACK_API_TOKEN"])
+        client.chat_postMessage(channel=channel, blocks=blocks, text=alt_message)
 
 
 def send_summary_messages(
-    ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'
+    ctx: Context,
+    allow_failure: bool,
+    max_length: int,
+    period: timedelta,
+    jobowners: str = '.gitlab/JOBOWNERS',
+    dry_run: bool = False,
 ):
     """
     Fetches the summaries for the period and sends messages to all teams having these jobs
@@ -313,7 +329,7 @@ def send_summary_messages(
     error = False
     for channel, stat in team_stats.items():
         try:
-            send_summary_slack_notification(channel=channel, stats=stat, allow_failure=allow_failure)
+            send_summary_slack_notification(channel=channel, stats=stat, allow_failure=allow_failure, dry_run=dry_run)
             print('Notification sent to', channel)
         except Exception:
             print(f"Error sending message to {channel}", file=sys.stderr)

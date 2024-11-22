@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -58,7 +58,7 @@ func createDeps(t *testing.T) deps {
 func Test_Run_simpleCase(t *testing.T) {
 	// We cache the run_path directory because the chk.Run() method will write in cache
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -339,7 +339,7 @@ tags:
 
 func Test_Run_customIfSpeed(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
@@ -485,7 +485,7 @@ metrics:
 
 func TestSupportedMetricTypes(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -560,7 +560,7 @@ metrics:
 
 func TestProfile(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
@@ -958,7 +958,7 @@ profiles:
 
 func TestServiceCheckFailures(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1041,7 +1041,7 @@ namespace: nsSubnet
 
 func TestCheck_Run(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	sysObjectIDPacketInvalidSysObjectIDMock := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -1259,7 +1259,7 @@ namespace: '%s'
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1305,7 +1305,7 @@ metrics:
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 
 	timeNow = common.MockTimeNow
 
@@ -1618,7 +1618,7 @@ tags:
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
 	senderManager := deps.Demultiplexer
@@ -1732,7 +1732,7 @@ tags:
 
 func TestDiscovery(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
 	profile.SetConfdPathAndCleanProfiles()
@@ -2078,7 +2078,7 @@ metric_tags:
 
 func TestDiscovery_CheckError(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 
@@ -2156,7 +2156,7 @@ metric_tags:
 
 func TestDeviceIDAsHostname(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
@@ -2166,8 +2166,8 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	coreconfig.Datadog().SetWithoutSource("hostname", "test-hostname")
-	coreconfig.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
+	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -2349,7 +2349,7 @@ use_device_id_as_hostname: true
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	testDir := t.TempDir()
-	coreconfig.Datadog().SetWithoutSource("run_path", testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
@@ -2360,7 +2360,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	coreconfig.Datadog().SetWithoutSource("hostname", "my-hostname")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
 
 	// language=yaml

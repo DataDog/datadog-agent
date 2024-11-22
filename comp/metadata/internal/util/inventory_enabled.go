@@ -6,13 +6,13 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // InventoryEnabled returs true if 'enable_metadata_collection' and 'inventories_enabled' are set to true in the
 // configuration.
-func InventoryEnabled(conf config.Reader) bool {
+func InventoryEnabled(conf model.Reader) bool {
 	if !conf.GetBool("enable_metadata_collection") {
 		log.Debug("Metadata collection disabled: inventories payload will not be collected nor sent")
 		return false

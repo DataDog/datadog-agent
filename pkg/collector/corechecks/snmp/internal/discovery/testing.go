@@ -10,11 +10,11 @@ package discovery
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // SetTestRunPath sets run_path for testing
 func SetTestRunPath() {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path"))
-	config.Datadog().SetWithoutSource("run_path", path)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", path)
 }

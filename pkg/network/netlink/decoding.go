@@ -201,12 +201,12 @@ func ipv4(b []byte) (netip.Addr, error) {
 	if len(b) != 4 {
 		return netip.Addr{}, fmt.Errorf("invalid IPv4 size")
 	}
-	return netip.AddrFrom4(*(*[4]byte)(b)), nil
+	return netip.AddrFrom4([4]byte(b)), nil
 }
 
 func ipv6(b []byte) (netip.Addr, error) {
 	if len(b) != 16 {
 		return netip.Addr{}, fmt.Errorf("invalid IPv6 size")
 	}
-	return netip.AddrFrom16(*(*[16]byte)(b)), nil
+	return netip.AddrFrom16([16]byte(b)), nil
 }

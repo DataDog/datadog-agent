@@ -10,6 +10,7 @@ package container
 
 import (
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -23,7 +24,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, grpcClient grpcClient.Component) *Launcher {
+func NewLauncher(_ *sourcesPkg.LogSources, _ grpcClient.Component, _ tagger.Component) *Launcher {
 	return &Launcher{}
 }
 

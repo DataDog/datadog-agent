@@ -23,18 +23,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/process"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -128,14 +130,23 @@ type Agent struct {
 }
 
 func xccdfEnabled() bool {
-	return config.Datadog().GetBool("compliance_config.xccdf.enabled") || config.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
+	return pkgconfigsetup.Datadog().GetBool("compliance_config.xccdf.enabled") || pkgconfigsetup.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
+
+var defaultSECLRuleFilter = sync.OnceValues(func() (*secl.SECLRuleFilter, error) {
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(nil, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
+	}
+	filter := secl.NewSECLRuleFilter(ruleFilterModel)
+	return filter, nil
+})
 
 // DefaultRuleFilter implements the default filtering of benchmarks' rules. It
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
 func DefaultRuleFilter(r *Rule) bool {
-	if config.IsKubernetes() {
+	if env.IsKubernetes() {
 		if r.SkipOnK8s {
 			return false
 		}
@@ -148,12 +159,12 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel("")
+		seclRuleFilter, err := defaultSECLRuleFilter()
 		if err != nil {
-			log.Errorf("failed to apply rule filters: %v", err)
+			log.Errorf("failed to apply rule filters: %s", err)
 			return false
 		}
-		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
+
 		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
 		})
@@ -390,7 +401,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 }
 
 func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
-	if !config.IsKubernetes() {
+	if !env.IsKubernetes() {
 		return
 	}
 
@@ -411,7 +422,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel("")
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(nil, "")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return

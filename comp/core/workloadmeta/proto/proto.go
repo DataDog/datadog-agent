@@ -391,6 +391,7 @@ func ProtoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		Ip:                         kubernetesPod.IP,
 		PriorityClass:              kubernetesPod.PriorityClass,
 		QosClass:                   kubernetesPod.QOSClass,
+		RuntimeClass:               kubernetesPod.RuntimeClass,
 		KubeServices:               kubernetesPod.KubeServices,
 		NamespaceLabels:            kubernetesPod.NamespaceLabels,
 	}, nil
@@ -523,6 +524,7 @@ func protoECSTaskFromWorkloadmetaECSTask(ecsTask *workloadmeta.ECSTask) (*pb.ECS
 		ContainerInstanceTags: ecsTask.ContainerInstanceTags,
 		ClusterName:           ecsTask.ClusterName,
 		Region:                ecsTask.Region,
+		AwsAccountID:          int64(ecsTask.AWSAccountID),
 		AvailabilityZone:      ecsTask.AvailabilityZone,
 		Family:                ecsTask.Family,
 		Version:               ecsTask.Version,
@@ -878,6 +880,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		IP:                         protoKubernetesPod.Ip,
 		PriorityClass:              protoKubernetesPod.PriorityClass,
 		QOSClass:                   protoKubernetesPod.QosClass,
+		RuntimeClass:               protoKubernetesPod.RuntimeClass,
 		KubeServices:               protoKubernetesPod.KubeServices,
 		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
 	}, nil
@@ -922,6 +925,7 @@ func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, err
 		ContainerInstanceTags: protoECSTask.ContainerInstanceTags,
 		ClusterName:           protoECSTask.ClusterName,
 		Region:                protoECSTask.Region,
+		AWSAccountID:          int(protoECSTask.AwsAccountID),
 		AvailabilityZone:      protoECSTask.AvailabilityZone,
 		Family:                protoECSTask.Family,
 		Version:               protoECSTask.Version,

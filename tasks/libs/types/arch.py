@@ -136,7 +136,7 @@ ARCH_AMD64 = Arch(
     kmt_arch="x86_64",
     windows_arch="x64",
     ci_arch="x64",
-    spellings={"amd64", "x86_64", "x64", "x86-64"},
+    spellings={"amd64", "x86_64", "x64", "x86-64", "x86"},
 )
 
 ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64]

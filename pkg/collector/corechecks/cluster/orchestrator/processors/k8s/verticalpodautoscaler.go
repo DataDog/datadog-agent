@@ -95,5 +95,5 @@ func (h *VerticalPodAutoscalerHandlers) ResourceVersion(ctx processors.Processor
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *VerticalPodAutoscalerHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*v1.VerticalPodAutoscaler)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

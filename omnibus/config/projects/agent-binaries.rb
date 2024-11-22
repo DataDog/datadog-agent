@@ -20,7 +20,7 @@ if ohai['platform'] == "windows"
   install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent'
+  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 

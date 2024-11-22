@@ -14,6 +14,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
@@ -45,10 +46,17 @@ type endpoint struct {
 
 // NewComponent creates a new datadogclient component
 func NewComponent(reqs Requires) (Provides, error) {
-	provides := Provides{}
+	defaultNoneComp := NewNone()
+	provides := Provides{Comp: defaultNoneComp,
+		StatusProvider: status.NewInformationProvider(statusProvider{dc: defaultNoneComp}),
+	}
+	if !reqs.Config.GetBool("external_metrics_provider.enabled") {
+		return provides, nil
+	}
 	client, err := createDatadogClient(reqs.Config, reqs.Log)
 	if err != nil {
-		return provides, err
+		reqs.Log.Errorf("fail to create datadog client for metrics provider, error: %v", err)
+		return provides, nil
 	}
 	dc := &datadogClientWrapper{
 		datadogConfig:     reqs.Config,
@@ -113,7 +121,7 @@ func (d *datadogClientWrapper) refreshClient() {
 func createDatadogClient(cfg configComponent.Component, logger logComp.Component) (datadogclient.Component, error) {
 	if cfg.IsSet(metricsRedundantEndpointConfig) {
 		var endpoints []endpoint
-		if err := cfg.UnmarshalKey(metricsRedundantEndpointConfig, &endpoints); err != nil {
+		if err := structure.UnmarshalKey(cfg, metricsRedundantEndpointConfig, &endpoints); err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", metricsRedundantEndpointConfig, err)
 		}
 

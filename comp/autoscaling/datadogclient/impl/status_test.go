@@ -26,8 +26,9 @@ func TestStatusProvider(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"api_key": "apikey123",
-			"app_key": "appkey456",
+			"api_key":                           "apikey123",
+			"app_key":                           "appkey456",
+			"external_metrics_provider.enabled": true,
 			metricsRedundantEndpointConfig: []endpoint{
 				{
 					"api.datadoghq.eu",
@@ -58,7 +59,7 @@ func TestStatusProvider(t *testing.T) {
 		}},
 		{"NAME", func(t *testing.T) {
 			name := provider.Name()
-			assert.Equal(t, name, "External Metrcis Endpoints")
+			assert.Equal(t, name, "External Metrics Endpoints")
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)

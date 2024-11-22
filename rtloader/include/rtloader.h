@@ -308,6 +308,15 @@ public:
     */
     virtual void setGetHostnameCb(cb_get_hostname_t) = 0;
 
+    //! setGetHostTagsCb member.
+    /*!
+      \param A cb_get_host_tags_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will provide the host tags from
+      the agent.
+    */
+    virtual void setGetHostTagsCb(cb_get_host_tags_t) = 0;
+
     //! setGetTracemallocEnabledCb member.
     /*!
       \param A cb_tracemalloc_enabled_t function pointer to the CGO callback.
@@ -335,6 +344,15 @@ public:
       providing a single logging subsystem.
     */
     virtual void setLogCb(cb_log_t) = 0;
+
+    //! sendLogCb member.
+    /*!
+      \param A cb_send_log_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow for sending a log for
+      eventual submission for a specific check instance.
+    */
+    virtual void setSendLogCb(cb_send_log_t) = 0;
 
     //! setCheckMetadataCb member.
     /*!
@@ -477,6 +495,15 @@ public:
       specific check instances.
     */
     virtual void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t) = 0;
+
+    //! setEmitAgentTelemetryCb member.
+    /*!
+      \param A cb_emit_agent_telemetry_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow emitting a metric for
+      specific check instances.
+    */
+    virtual void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t) = 0;
 
 protected:
     //! _allocateInternalErrorDiagnoses member.

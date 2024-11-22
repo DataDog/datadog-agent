@@ -98,6 +98,7 @@ type HTTPReceiver struct {
 	containerIDProvider IDProvider
 
 	telemetryCollector telemetry.TelemetryCollector
+	telemetryForwarder *TelemetryForwarder
 
 	rateLimiterResponse int // HTTP status code when refusing
 
@@ -140,6 +141,8 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
+	containerIDProvider := NewIDProvider(conf.ContainerProcRoot)
+	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
 
@@ -147,9 +150,10 @@ func NewHTTPReceiver(
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+		containerIDProvider: containerIDProvider,
 
 		telemetryCollector: telemetryCollector,
+		telemetryForwarder: telemetryForwarder,
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -275,17 +279,18 @@ func (r *HTTPReceiver) Start() {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			ln, err := r.listenUnix(path)
 			if err != nil {
+				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				killProcess("Error creating UDS listener: %v", err)
+			} else {
+				go func() {
+					defer watchdog.LogOnPanic(r.statsd)
+					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+						log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+						r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+					}
+				}()
+				log.Infof("Listening for traces at unix://%s", path)
 			}
-			go func() {
-				defer watchdog.LogOnPanic(r.statsd)
-				if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-					log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
-					r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				}
-			}()
-			log.Infof("Listening for traces at unix://%s", path)
 		} else {
 			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
 		}
@@ -371,7 +376,18 @@ func (r *HTTPReceiver) Stop() error {
 	}
 	r.wg.Wait()
 	close(r.out)
+	r.telemetryForwarder.Stop()
 	return nil
+}
+
+// UpdateAPIKey rebuilds the server handler to update API Keys in all endpoints
+func (r *HTTPReceiver) UpdateAPIKey() {
+	if r.server == nil {
+		return
+	}
+	log.Debug("API Key updated. Rebuilding API handler.")
+	handler := r.buildMux()
+	r.server.Handler = handler
 }
 
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
@@ -506,7 +522,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
-	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string)
+	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string)
 }
 
 // handleStats handles incoming stats payloads.
@@ -534,7 +550,11 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	r.statsProcessor.ProcessStats(in, req.Header.Get(header.Lang), req.Header.Get(header.TracerVersion))
+	// Resolve ContainerID baased on HTTP headers
+	lang := req.Header.Get(header.Lang)
+	tracerVersion := req.Header.Get(header.TracerVersion)
+	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID)
 }
 
 // handleTraces knows how to handle a bunch of traces
@@ -847,4 +867,13 @@ func getMediaType(req *http.Request) string {
 		return "application/json"
 	}
 	return mt
+}
+
+// normalizeHTTPHeader takes a raw string and normalizes the value to be compatible
+// with an HTTP header value.
+func normalizeHTTPHeader(val string) string {
+	val = strings.ReplaceAll(val, "\r\n", "_")
+	val = strings.ReplaceAll(val, "\r", "_")
+	val = strings.ReplaceAll(val, "\n", "_")
+	return val
 }

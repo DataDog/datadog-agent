@@ -5,7 +5,7 @@
 
 //go:build test
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"reflect"
@@ -16,10 +16,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,19 +31,28 @@ const (
 	barSource       = "bar"
 )
 
-func newWorkloadmetaObject(deps dependencies) *workloadmeta {
+type testDependencies struct {
+	fx.In
+	Config config.Component
+}
+
+func newWorkloadmetaObject(t *testing.T) *workloadmeta {
+	testDeps := fxutil.Test[testDependencies](t, fx.Options(
+		config.MockModule(),
+	))
+
+	deps := Dependencies{
+		Lc:     compdef.NewTestLifecycle(t),
+		Log:    logmock.New(t),
+		Config: testDeps.Config,
+		Params: wmdef.NewParams(),
+	}
+
 	return NewWorkloadMeta(deps).Comp.(*workloadmeta)
 }
 
 func TestHandleEvents(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	container := &wmdef.Container{
 		EntityID: wmdef.EntityID{
@@ -660,13 +669,7 @@ func TestSubscribe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(tt.preEvents)
 
@@ -701,13 +704,7 @@ func TestSubscribe(t *testing.T) {
 }
 
 func TestGetKubernetesDeployment(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	deployment := &wmdef.KubernetesDeployment{
 		EntityID: wmdef.EntityID{
@@ -744,13 +741,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 }
 
 func TestGetProcess(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	process := &wmdef.Process{
 		EntityID: wmdef.EntityID{
@@ -823,13 +814,7 @@ func TestListContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
@@ -861,13 +846,7 @@ func TestListContainersWithFilter(t *testing.T) {
 		},
 	}
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	s.handleEvents([]wmdef.CollectorEvent{
 		{
@@ -920,13 +899,7 @@ func TestListProcesses(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
@@ -958,13 +931,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		},
 	}
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	s.handleEvents([]wmdef.CollectorEvent{
 		{
@@ -1075,13 +1042,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			for _, pod := range []*wmdef.KubernetesPod{pod1, pod2, pod3} {
 				s.handleEvents([]wmdef.CollectorEvent{
@@ -1136,13 +1097,7 @@ func TestListImages(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
@@ -1188,13 +1143,7 @@ func TestGetImage(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 			s.handleEvents(test.preEvents)
 
 			actualImage, err := s.GetImage(test.imageID)
@@ -1266,13 +1215,7 @@ func TestListECSTasks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
@@ -1357,13 +1300,7 @@ func TestResetProcesses(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 			s.handleEvents(test.preEvents)
 
 			ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
@@ -1403,13 +1340,7 @@ func TestResetProcesses(t *testing.T) {
 }
 
 func TestGetKubernetesMetadata(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	kubemetadata := &wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
@@ -1446,13 +1377,7 @@ func TestGetKubernetesMetadata(t *testing.T) {
 }
 
 func TestListKubernetesMetadata(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	wmeta := newWorkloadmetaObject(deps)
+	wmeta := newWorkloadmetaObject(t)
 
 	nodeMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
@@ -1657,13 +1582,7 @@ func TestReset(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
@@ -1704,13 +1623,7 @@ func TestReset(t *testing.T) {
 func TestNoDataRace(t *testing.T) {
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	container := &wmdef.Container{
 		EntityID: wmdef.EntityID{
@@ -1733,14 +1646,7 @@ func TestNoDataRace(t *testing.T) {
 }
 
 func TestPushEvents(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	wlm := newWorkloadmetaObject(deps)
+	wlm := newWorkloadmetaObject(t)
 
 	mockSource := wmdef.Source("mockSource")
 

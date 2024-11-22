@@ -9,12 +9,20 @@ package protocols
 
 // #cgo CFLAGS: -I ../../ebpf/c  -I ../ebpf/c
 // #include "../ebpf/c/protocols/classification/defs.h"
+// #include "../ebpf/c/protocols/postgres/types.h"
 import "C"
 
 const (
 	layerAPIBit         = C.LAYER_API_BIT
 	layerApplicationBit = C.LAYER_APPLICATION_BIT
 	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
+)
+
+const (
+	// PostgresMaxMessagesPerTailCall is the maximum number of messages that can be processed in a single tail call in our Postgres decoding solution
+	PostgresMaxMessagesPerTailCall = C.POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
+	// PostgresMaxTailCalls is the maximum number of tail calls that can be made in our Postgres decoding solution
+	PostgresMaxTailCalls = C.POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES
 )
 
 // DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.
@@ -47,18 +55,24 @@ const (
 	ProgramHTTP2Termination ProgramType = C.PROG_HTTP2_TERMINATION
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
-	// ProgramKafkaResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
-	ProgramKafkaResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0
-	// ProgramKafkaResponsePartitionParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
-	ProgramKafkaResponsePartitionParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12
-	// ProgramKafkaResponseRecordBatchParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
-	ProgramKafkaResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
-	// ProgramKafkaResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
-	ProgramKafkaResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
+	// ProgramKafkaFetchResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0 enum
+	ProgramKafkaFetchResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0
+	// ProgramKafkaFetchResponsePartitionParserV12 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12 enum
+	ProgramKafkaFetchResponsePartitionParserV12 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12
+	// ProgramKafkaFetchResponseRecordBatchParserV0 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0 enum
+	ProgramKafkaFetchResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0
+	// ProgramKafkaFetchResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12 enum
+	ProgramKafkaFetchResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12
+	// ProgramKafkaProduceResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0 enum
+	ProgramKafkaProduceResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0
+	// ProgramKafkaProduceResponsePartitionParserV9 is the Golang representation of the C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9 enum
+	ProgramKafkaProduceResponsePartitionParserV9 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9
 	// ProgramKafkaTermination is tail call to process Kafka termination.
 	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
+	// ProgramPostgresHandleResponse is the Golang representation of the C.PROG_POSTGRES_HANDLE_RESPONSE enum
+	ProgramPostgresHandleResponse ProgramType = C.PROG_POSTGRES_HANDLE_RESPONSE
 	// ProgramPostgresParseMessage is the Golang representation of the C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE enum
 	ProgramPostgresParseMessage ProgramType = C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE
 	// ProgramPostgresTermination is tail call to process Postgres termination.

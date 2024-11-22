@@ -11,6 +11,7 @@ package tailerfactory
 
 import (
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -47,18 +48,21 @@ type factory struct {
 
 	// dockerutil memoizes a DockerUtil instance; fetch this with getDockerUtil().
 	dockerutil *dockerutilPkg.DockerUtil
+
+	tagger tagger.Component
 }
 
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, grpcClient grpcClient.Component) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, grpcClient grpcClient.Component, tagger tagger.Component) Factory {
 	return &factory{
 		sources:          sources,
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
 		grpcClient:       grpcClient,
 		cop:              containersorpods.NewChooser(),
+		tagger:           tagger,
 	}
 }
 

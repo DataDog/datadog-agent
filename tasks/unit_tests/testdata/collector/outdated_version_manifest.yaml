@@ -1,0 +1,12 @@
+---
+dist:
+  description: Manifest that has outdated otelcol version (should fail collector_tests.py)
+  otelcol_version: 0.99.0
+
+extensions:
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.99.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.99.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.99.0
+
+receivers:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.99.0

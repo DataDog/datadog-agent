@@ -17,7 +17,7 @@ func Command() []*cobra.Command {
 	healthCmd := &cobra.Command{
 		Use:   "health",
 		Short: "Prints OK to stdout",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Print(HealthCommandOutput)
 			return nil
 		},

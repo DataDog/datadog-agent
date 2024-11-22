@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -129,6 +130,9 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
+	if prebuilt.IsDeprecated() {
+		t.Skip("skipping because prebuilt is deprecated on this platform")
+	}
 	ebpftest.LogLevel(t, "trace")
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
@@ -172,7 +176,7 @@ func testOffsetGuess(t *testing.T) {
 	require.NoError(t, mgr.Start())
 	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
 
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {})
+	server := tracertestutil.NewTCPServer(func(_ net.Conn) {})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() { server.Shutdown() })
 
@@ -307,8 +311,7 @@ func testOffsetGuess(t *testing.T) {
 			}
 
 			var offset uint64
-			//nolint:revive // TODO(NET) Fix revive linter
-			var name offsetT = o
+			var name offsetT = o //nolint:revive // TODO
 			require.NoError(t, mp.Lookup(&name, &offset))
 			assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 			t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])
@@ -327,6 +330,10 @@ func testOffsetGuess(t *testing.T) {
 }
 
 func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
+	if prebuilt.IsDeprecated() {
+		t.Skip("skipping because prebuilt is deprecated on this platform")
+	}
+
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
 		addrs, err := offsetguess.GetIPv6LinkLocalAddress()
 		require.NoError(t, err)

@@ -1,7 +1,6 @@
+using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
-using System.Windows;
-using NineDigit.WixSharpExtensions;
 using WixSetup.Datadog_Agent;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -54,6 +53,16 @@ namespace WixSetup.Datadog_Installer
                     Value = @"C:\ProgramData\Datadog",
                     AttributesDefinition = "Secure=yes",
                 },
+                // User provided password property
+                new Property("DDAGENTUSER_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes"
+                },
+                // ProcessDDAgentUserCredentials CustomAction processed password property
+                new Property("DDAGENTUSER_PROCESSED_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes"
+                },
                 new Dir(@"%ProgramFiles%\Datadog\Datadog Installer",
                     new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                         new ServiceInstaller
@@ -75,14 +84,8 @@ namespace WixSetup.Datadog_Installer
                             Account = "LocalSystem",
                             Vital = true
                         })
-                ),
-                // This is where the installer will store its data
-                new Dir(new Id("DatadogInstallerData"), @"%CommonAppDataFolder%\Datadog Installer",
-                    new Dir("packages"),
-                    new Dir("temp"),
-                    new Dir("locks")
-                    )
-                );
+                )
+            );
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version

@@ -7,17 +7,20 @@
 package mock
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	isConfigMocked = false
-	m              = sync.Mutex{}
+	isConfigMocked            = false
+	isSystemProbeConfigMocked = false
+	m                         = sync.Mutex{}
 )
 
 // mockConfig should only be used in tests
@@ -25,48 +28,77 @@ type mockConfig struct {
 	model.Config
 }
 
-// Set is used for setting configuration in tests
-func (c *mockConfig) Set(key string, value interface{}, source model.Source) {
-	c.Config.Set(key, value, source)
-}
-
-// SetWithoutSource is used for setting configuration in tests
-func (c *mockConfig) SetWithoutSource(key string, value interface{}) {
-	c.Config.SetWithoutSource(key, value)
-}
-
-// SetKnown is used for setting configuration in tests
-func (c *mockConfig) SetKnown(key string) {
-	c.Config.SetKnown(key)
-}
-
-// New is creating and returning a mock config
+// New creates a mock for the config
 func New(t testing.TB) model.Config {
-	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to
-	// Mock to reset the config to a blank state. This way we have only one mock per test and test helpers can call
-	// Mock.
+	m.Lock()
+	defer m.Unlock()
+	if isConfigMocked {
+		// The configuration is already mocked.
+		return &mockConfig{setup.Datadog()}
+	}
+
+	isConfigMocked = true
+	originalDatadogConfig := setup.Datadog()
+	t.Cleanup(func() {
+		m.Lock()
+		defer m.Unlock()
+		isConfigMocked = false
+		setup.SetDatadog(originalDatadogConfig) // nolint: forbidigo // legitimate use of SetDatadog
+	})
+
+	// Configure Datadog global configuration
+	newCfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
+	// Configuration defaults
+	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
+	setup.InitConfig(newCfg)
+	return &mockConfig{newCfg}
+}
+
+// NewFromYAML creates a mock for the config and load the give YAML
+func NewFromYAML(t testing.TB, yamlData string) model.Config {
+	conf := New(t)
+	conf.SetConfigType("yaml")
+	err := conf.ReadConfig(bytes.NewBuffer([]byte(yamlData)))
+	require.NoError(t, err)
+	return conf
+}
+
+// NewFromFile creates a mock for the config and load the give YAML
+func NewFromFile(t testing.TB, yamlFilePath string) model.Config {
+	conf := New(t)
+	conf.SetConfigType("yaml")
+	conf.SetConfigFile(yamlFilePath)
+	err := conf.ReadInConfig()
+	require.NoErrorf(t, err, "error loading yaml config file '%s'", yamlFilePath)
+	return conf
+}
+
+// NewSystemProbe creates a mock for the system-probe config
+func NewSystemProbe(t testing.TB) model.Config {
+	// We only check isSystemProbeConfigMocked when registering a cleanup function. 'isSystemProbeConfigMocked'
+	// avoids nested calls to Mock to reset the config to a blank state. This way we have only one mock per test and
+	// test helpers can call Mock.
 	if t != nil {
 		m.Lock()
 		defer m.Unlock()
-		if isConfigMocked {
+		if isSystemProbeConfigMocked {
 			// The configuration is already mocked.
-			return &mockConfig{setup.Datadog()}
+			return &mockConfig{setup.SystemProbe()}
 		}
 
-		isConfigMocked = true
-		originalDatadogConfig := setup.Datadog()
+		isSystemProbeConfigMocked = true
+		originalConfig := setup.SystemProbe()
 		t.Cleanup(func() {
 			m.Lock()
 			defer m.Unlock()
-			isConfigMocked = false
-			setup.SetDatadog(originalDatadogConfig)
+			isSystemProbeConfigMocked = false
+			setup.SetSystemProbe(originalConfig) // nolint forbidigo legitimate use of SetSystemProbe
 		})
 	}
 
 	// Configure Datadog global configuration
-	newCfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	setup.SetSystemProbe(model.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))) // nolint forbidigo legitimate use of NewConfig and SetSystemProbe
 	// Configuration defaults
-	setup.SetDatadog(newCfg)
-	setup.InitConfig(newCfg)
-	return &mockConfig{newCfg}
+	setup.InitSystemProbeConfig(setup.SystemProbe())
+	return &mockConfig{setup.SystemProbe()}
 }

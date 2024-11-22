@@ -18,8 +18,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -33,7 +33,7 @@ import (
 
 const testHostName = "test-host"
 
-func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+func setProcessEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
@@ -46,7 +46,7 @@ func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) 
 	config.SetWithoutSource("process_config.additional_endpoints", additionalEps)
 }
 
-func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+func setProcessEventsEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
@@ -71,7 +71,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
@@ -111,7 +111,7 @@ func TestSendContainerMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
@@ -149,7 +149,7 @@ func TestSendProcMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -190,7 +190,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
@@ -240,7 +240,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
@@ -285,7 +285,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -324,7 +324,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -432,11 +432,11 @@ func TestMultipleAPIKeys(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr := ep.start()
 	defer ep.stop()

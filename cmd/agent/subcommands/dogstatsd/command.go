@@ -25,14 +25,15 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type topFlags struct {
-	path     string
-	nmetrics int
-	ntags    int
+	path               string
+	nmetrics           int
+	ntags              int
+	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // Commands initializes dogstatsd sub-command tree.
@@ -47,16 +48,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	topCmd := &cobra.Command{
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 			)
 		},
 	}
+	topFlags.logLevelDefaultOff.Register(topCmd)
 	topCmd.Flags().StringVarP(&topFlags.path, "path", "p", "", "use specified file for input instead of getting contexts from the agent")
 	topCmd.Flags().IntVarP(&topFlags.nmetrics, "num-metrics", "m", 10, "number of metrics to show")
 	topCmd.Flags().IntVarP(&topFlags.ntags, "mum-tags", "t", 5, "number of tags to show per metric")
@@ -66,11 +68,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	c.AddCommand(&cobra.Command{
 		Use:   "dump-contexts",
 		Short: "Write currently tracked contexts as JSON",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpContexts,
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 			)
 		},
@@ -81,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func triggerDump(config cconfig.Component) (string, error) {
 	c := util.GetClient(false)
-	addr, err := pkgconfig.GetIPCAddress()
+	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}

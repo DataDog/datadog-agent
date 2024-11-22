@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gopacket"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +44,7 @@ var _ ReverseDNS = &socketFilterSnooper{}
 
 // socketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type socketFilterSnooper struct {
-	source          packetSource
+	source          filter.PacketSource
 	parser          *dnsParser
 	cache           *reverseDNSCache
 	statKeeper      *dnsStatKeeper
@@ -62,24 +61,8 @@ func (s *socketFilterSnooper) WaitForDomain(domain string) error {
 	return s.statKeeper.WaitForDomain(domain)
 }
 
-// packetSource reads raw packet data
-type packetSource interface {
-	// VisitPackets reads all new raw packets that are available, invoking the given callback for each packet.
-	// If no packet is available, VisitPacket returns immediately.
-	// The format of the packet is dependent on the implementation of packetSource -- i.e. it may be an ethernet frame, or a IP frame.
-	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
-	// If the cancel channel is closed, VisitPackets will stop reading.
-	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, timestamp time.Time) error) error
-
-	// PacketType returns the type of packet this source reads
-	PacketType() gopacket.LayerType
-
-	// Close closes the packet source
-	Close()
-}
-
 // newSocketFilterSnooper returns a new socketFilterSnooper
-func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFilterSnooper, error) {
+func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource) (*socketFilterSnooper, error) {
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
@@ -93,7 +76,7 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 	}
 	snooper := &socketFilterSnooper{
 		source:          source,
-		parser:          newDNSParser(source.PacketType(), cfg),
+		parser:          newDNSParser(source.LayerType(), cfg),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
@@ -154,7 +137,7 @@ func (s *socketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
+func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts time.Time) error {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 

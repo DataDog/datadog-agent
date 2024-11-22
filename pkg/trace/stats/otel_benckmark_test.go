@@ -61,12 +61,70 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys)
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil)
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)
 		stats := concentrator.Flush(true)
 		assert.Len(b, stats.Stats, 1)
 		assert.Equal(b, stats.Stats[0].Tags, expected)
+	}
+}
+
+func BenchmarkOTelPeerTags(b *testing.B) {
+	benchmarkOTelPeerTags(b, true)
+}
+
+// This simulates the benchmark of OTLPTracesToConcentratorInputs before https://github.com/DataDog/datadog-agent/pull/28908
+func BenchmarkOTelPeerTags_IncludeConfiguredPeerTags(b *testing.B) {
+	benchmarkOTelPeerTags(b, false)
+}
+
+func benchmarkOTelPeerTags(b *testing.B, initOnce bool) {
+	start := time.Now().Add(-1 * time.Second)
+	end := time.Now()
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(b, err)
+
+	traces := ptrace.NewTraces()
+	rspan := traces.ResourceSpans().AppendEmpty()
+	sspan := rspan.ScopeSpans().AppendEmpty()
+	span := sspan.Spans().AppendEmpty()
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(testSpanID1)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+	span.SetName("span_name")
+	span.SetKind(ptrace.SpanKindClient)
+	span.Attributes().PutStr("peer.service", "my_peer_svc")
+	span.Attributes().PutStr("rpc.service", "my_rpc_svc")
+	span.Attributes().PutStr("net.peer.name", "my_net_peer")
+
+	conf := config.New()
+	conf.Hostname = "agent_host"
+	conf.DefaultEnv = "agent_env"
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	conf.PeerTagsAggregation = true
+	var peerTagKeys []string
+	if initOnce {
+		peerTagKeys = conf.ConfiguredPeerTags()
+	}
+
+	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		if !initOnce {
+			peerTagKeys = conf.ConfiguredPeerTags()
+		}
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys)
+		assert.Len(b, inputs, 1)
+		input := inputs[0]
+		concentrator.Add(input)
+		stats := concentrator.Flush(true)
+		assert.Len(b, stats.Stats, 1)
 	}
 }

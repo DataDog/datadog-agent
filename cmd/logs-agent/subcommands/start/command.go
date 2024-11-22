@@ -30,7 +30,6 @@ import (
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsAgentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-	integrationsfx "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,7 +94,6 @@ func RunLogsAgent(cliParams *CLIParams, defaultConfPath string, fct interface{})
 		fetchonlyimpl.Module(),
 
 		logsAgentimpl.Module(),
-		integrationsfx.Module(),
 
 		// Healthprobe
 		fx.Provide(func(config config.Component) healthprobe.Options {

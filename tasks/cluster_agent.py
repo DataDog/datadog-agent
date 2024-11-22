@@ -15,7 +15,6 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.go import deps
 from tasks.libs.releasing.version import load_release_versions
 
 # constants
@@ -88,15 +87,12 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     """
     Run integration tests for cluster-agent
     """
     if sys.platform == 'win32':
         raise Exit(message='cluster-agent integration tests are not supported on Windows', code=0)
-
-    if install_deps:
-        deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
     tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
@@ -104,6 +100,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     go_build_tags = " ".join(get_build_tags(tags, []))
     race_opt = "-race" if race else ""
     exec_opts = ""
+    timeout_opt = f"-timeout {timeout}" if timeout else ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
@@ -112,7 +109,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if remote_docker:
         exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
+    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
@@ -267,21 +264,3 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     version_common(ctx, url_safe, git_sha_length)
-
-
-@task
-def update_generated_code(ctx):
-    """
-    Re-generate 'pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi/zz_generated.openapi.go'.
-    """
-    ctx.run("go install -mod=readonly k8s.io/kube-openapi/cmd/openapi-gen")
-    ctx.run(
-        "$GOPATH/bin/openapi-gen \
---logtostderr \
--i k8s.io/metrics/pkg/apis/custom_metrics,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,k8s.io/metrics/pkg/apis/external_metrics,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,k8s.io/metrics/pkg/apis/metrics,k8s.io/metrics/pkg/apis/metrics/v1beta1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1 \
--h ./tools/boilerplate.go.txt \
--p ./pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi \
--O zz_generated.openapi \
--o ./ \
--r /dev/null"
-    )

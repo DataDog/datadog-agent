@@ -12,6 +12,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -67,11 +69,14 @@ func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.Ex
 }
 
 func TestProxyResponseValid(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestProxyResponseValid is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	// fake the runtime API running on 5001
 	l, err := net.Listen("tcp", "127.0.0.1:5001")
 	assert.Nil(t, err)
 
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "ok")
 	}))
 	ts.Listener.Close()
@@ -98,7 +103,7 @@ func TestProxyResponseError(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:6001")
 	assert.Nil(t, err)
 
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "ok")
 	}))
 	ts.Listener.Close()

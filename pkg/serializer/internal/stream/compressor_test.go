@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -40,7 +40,7 @@ func TestCompressorSimple(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			maxPayloadSize := mockConfig.GetInt("serializer_max_payload_size")
 			maxUncompressedSize := mockConfig.GetInt("serializer_max_uncompressed_payload_size")
@@ -74,7 +74,7 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			checkAddItemErrCode := func(maxPayloadSize, maxUncompressedSize, dataLen int) {
 				c, err := NewCompressor(
@@ -94,11 +94,11 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 
 			// While some of these values may look like they should fit, they currently don't due to a combination
 			// of due to overhead in the payload (header and footer) and the CompressBound calculation
-			t.Run("Edge Case from real world", func(t *testing.T) {
+			t.Run("Edge Case from real world", func(_ *testing.T) {
 				checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896)
 			})
 
-			t.Run("Other values from iterative testing", func(t *testing.T) {
+			t.Run("Other values from iterative testing", func(_ *testing.T) {
 				checkAddItemErrCode(17, 32, 1)
 				checkAddItemErrCode(19, 35, 4)
 				checkAddItemErrCode(23, 43, 12)
@@ -125,7 +125,7 @@ func TestOnePayloadSimple(t *testing.T) {
 				Footer: "]}",
 			}
 
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
@@ -152,7 +152,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 
@@ -176,7 +176,7 @@ func TestZstdCompressionLevel(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
 			mockConfig.SetDefault("serializer_zstd_compressor_level", level)
 
@@ -205,7 +205,7 @@ func TestTwoPayload(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
@@ -234,7 +234,7 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			builderLocked := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
@@ -259,7 +259,7 @@ func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedPayloadSize)
 			marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}

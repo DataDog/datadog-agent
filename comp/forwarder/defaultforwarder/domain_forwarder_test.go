@@ -8,7 +8,6 @@
 package defaultforwarder
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -20,11 +19,11 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestNewDomainForwarder(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 120*time.Second, false)
 
@@ -43,7 +42,7 @@ func TestNewDomainForwarder(t *testing.T) {
 }
 
 func TestDomainForwarderStart(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	err := forwarder.Start()
@@ -64,7 +63,7 @@ func TestDomainForwarderStart(t *testing.T) {
 }
 
 func TestDomainForwarderInit(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
@@ -73,7 +72,7 @@ func TestDomainForwarderInit(t *testing.T) {
 }
 
 func TestDomainForwarderStop(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.Stop(false) // this should be a noop
@@ -86,7 +85,7 @@ func TestDomainForwarderStop(t *testing.T) {
 }
 
 func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 120*time.Second, false)
 	forwarder.Stop(false) // this should be a noop
@@ -99,7 +98,7 @@ func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
 }
 
 func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	tr := newTestTransactionDomainForwarder()
@@ -121,15 +120,12 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 }
 
 func TestDomainForwarderHAPreFailover(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("multi_region_failover.enabled", "true")
+	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", "false")
+	mockConfig.SetWithoutSource("multi_region_failover.apikey", "foo")
+	mockConfig.SetWithoutSource("multi_region_failover.site", "bar.ddhq.com")
 
-	datadogYaml := `
-multi_region_failover:
-  enabled: true
-  failover_metrics: false
-  apikey: foo
-  site: bar.ddhq.com
-`
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
 	log := logmock.New(t)
 	// HA forwarder
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, true)
@@ -169,15 +165,12 @@ multi_region_failover:
 }
 
 func TestDomainForwarderHAFailover(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("multi_region_failover.enabled", "true")
+	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", "true")
+	mockConfig.SetWithoutSource("multi_region_failover.apikey", "foo")
+	mockConfig.SetWithoutSource("multi_region_failover.site", "bar.ddhq.com")
 
-	datadogYaml := `
-multi_region_failover:
-  enabled: true
-  failover_metrics: true
-  apikey: foo
-  site: bar.ddhq.com
-`
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
 	log := logmock.New(t)
 	// HA forwarder
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, true)
@@ -218,7 +211,7 @@ multi_region_failover:
 }
 
 func TestRequeueTransaction(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	tr := transaction.NewHTTPTransaction()
@@ -228,7 +221,7 @@ func TestRequeueTransaction(t *testing.T) {
 }
 
 func TestRetryTransactions(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
@@ -263,7 +256,7 @@ func TestRetryTransactions(t *testing.T) {
 }
 
 func TestForwarderRetry(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.Start()
@@ -299,7 +292,7 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
@@ -330,7 +323,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 }
 
 func TestForwarderRetryLimitQueue(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
@@ -376,9 +369,9 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		0,
 		telemetry,
 		retry.NewPointCountTelemetryMock())
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := newDomainForwarder(mockConfig, log, "test", false, transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain"))
+	forwarder := newDomainForwarder(mockConfig, log, "test", false, false, transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain"))
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -404,7 +397,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 
 func TestDomainForwarderInitConfigs(t *testing.T) {
 	// Test default values
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
@@ -418,9 +411,7 @@ forwarder_high_prio_buffer_size: 1100
 forwarder_low_prio_buffer_size: 1200
 forwarder_requeue_buffer_size: 1300
 `
-	mockConfig.SetConfigType("yaml")
-	err := mockConfig.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
-	assert.NoError(t, err)
+	mockConfig = mock.NewFromYAML(t, datadogYaml)
 
 	forwarder = newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
@@ -440,7 +431,7 @@ func newDomainForwarderForTest(config config.Component, log log.Component, conne
 		telemetry,
 		retry.NewPointCountTelemetryMock())
 
-	return newDomainForwarder(config, log, "test", ha, transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain"))
+	return newDomainForwarder(config, log, "test", ha, false, transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain"))
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {

@@ -237,18 +237,11 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// lock selectors and profiles mapping
 	dp.Lock()
-	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
-	copy(selectors, dp.selectors)
-	profileMapping := maps.Clone(dp.profileMapping)
-	propagateCb := dp.onNewProfileCallback
-	dp.Unlock()
 
 	// prioritize a persited profile over activity dumps
-	if existingProfile, ok := profileMapping[profileManagerSelector]; ok {
-		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
-			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
-			return nil
-		}
+	if _, ok := dp.profileMapping[profileManagerSelector]; ok {
+		dp.Unlock()
+		return fmt.Errorf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
 	}
 
 	// update profile mapping
@@ -256,6 +249,13 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 		path:     profilePath,
 		selector: workloadSelector,
 	}
+
+	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	copy(selectors, dp.selectors)
+	propagateCb := dp.onNewProfileCallback
+
+	// Unlock before calling the callback to avoid deadlocks
+	dp.Unlock()
 
 	seclog.Debugf("security profile %s loaded from file system", workloadSelector)
 
@@ -338,6 +338,7 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 	dp.newFilesLock.Lock()
 	defer dp.newFilesLock.Unlock()
 
+	var filesToCleanup []string
 	for file := range dp.newFiles {
 		if err := dp.loadProfile(file); err != nil {
 			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
@@ -346,8 +347,12 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 				seclog.Warnf("couldn't load new profile %s: %v", file, err)
 			}
 
-			continue
+			filesToCleanup = append(filesToCleanup, file)
 		}
+	}
+
+	if len(filesToCleanup) != 0 {
+		dp.OnLocalStorageCleanup(filesToCleanup)
 	}
 
 	dp.newFiles = make(map[string]bool)

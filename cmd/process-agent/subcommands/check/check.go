@@ -26,9 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -39,7 +40,10 @@ import (
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -87,6 +91,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfFilePath:         globalParams.ConfFilePath,
 			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 		}
 	}, "check", checkAllowlist)}
 }
@@ -101,7 +106,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
 
 			if !slices.Contains(allowlist, cliParams.checkName) {
@@ -119,15 +124,19 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
-				workloadmetafx.Module(),
+
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDefaultParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+				// Provide rdnsquerier module
+				rdnsquerierfx.Module(),
+
+				// Provide npcollector module
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
-				collectors.GetCatalog(),
-				fx.Provide(func(config config.Component) workloadmeta.Params {
+				wmcatalog.GetCatalog(),
+				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 					var catalog workloadmeta.AgentType
 					if config.GetBool("process_config.remote_workloadmeta") {
@@ -139,16 +148,30 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 					return workloadmeta.Params{AgentType: catalog}
 				}),
 
-				// Provide tagger module
-				taggerimpl.Module(),
 				// Tagger must be initialized after agent config has been setup
-				fx.Provide(func(c config.Component) tagger.Params {
-					if c.GetBool("process_config.remote_tagger") {
-						return tagger.NewNodeRemoteTaggerParams()
-					}
-					return tagger.NewTaggerParams()
+				dualTaggerfx.Module(tagger.DualParams{
+					UseRemote: func(c config.Component) bool {
+						return c.GetBool("process_config.remote_tagger")
+					},
+				}, tagger.Params{}, tagger.RemoteParams{
+					RemoteTarget: func(c config.Component) (string, error) {
+						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+					},
+					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+						return func() (string, error) {
+							return security.FetchAuthToken(c)
+						}
+					},
+					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				processComponent.Bundle(),
+				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+				// we can include the tagger as part of the workloadmeta component.
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
 			)
 		},
 		SilenceUsage: true,
@@ -182,10 +205,12 @@ func RunCheckCmd(deps Dependencies) error {
 		names = append(names, ch.Name())
 
 		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+		_, networkTracerModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.NetworkTracerModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
-			ProcessModuleEnabled: processModuleEnabled,
+			MaxConnsPerMessage:         deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:         deps.Syscfg.SysProbeObject().SocketAddress,
+			ProcessModuleEnabled:       processModuleEnabled,
+			NetworkTracerModuleEnabled: networkTracerModuleEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
@@ -217,6 +242,8 @@ func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 
 	options := &checks.RunOptions{
 		RunStandard: true,
+		// disable chunking for all manual checks
+		NoChunking: true,
 	}
 
 	if cliParams.checkName == checks.RTName(ch.Name()) {

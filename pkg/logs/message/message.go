@@ -19,6 +19,12 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
+// TruncatedTag is added to truncated log messages (if enabled).
+const TruncatedTag = "truncated"
+
+// AutoMultiLineTag is added to multiline log messages (if enabled).
+const AutoMultiLineTag = "auto_multiline"
+
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
 // New line character needs to be escaped because they are used
@@ -37,6 +43,20 @@ type Payload struct {
 	UnencodedSize int
 }
 
+// Count returns the number of messages
+func (m *Payload) Count() int64 {
+	return int64(len(m.Messages))
+}
+
+// Size returns the size of the message.
+func (m *Payload) Size() int64 {
+	var size int64 = 0
+	for _, m := range m.Messages {
+		size += m.Size()
+	}
+	return size
+}
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	MessageContent
@@ -45,9 +65,10 @@ type Message struct {
 	Status             string
 	IngestionTimestamp int64
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
-	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`.
-	RawDataLen  int
-	IsMultiLine bool
+	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
+	// This is also used to track the original content size before the message is processed and encoded later
+	// in the pipeline.
+	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
 	// Extra information from the parsers
@@ -166,8 +187,11 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp string
-	IsPartial bool
+	Timestamp   string
+	IsPartial   bool
+	IsTruncated bool
+	IsMultiLine bool
+	Tags        []string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
@@ -202,6 +226,7 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 		},
 		Origin:             origin,
 		Status:             status,
+		RawDataLen:         len(content),
 		IngestionTimestamp: ingestionTimestamp,
 	}
 }
@@ -217,26 +242,9 @@ func NewRawMessage(content []byte, status string, rawDataLen int, readTimestamp 
 		RawDataLen:         rawDataLen,
 		IngestionTimestamp: time.Now().UnixNano(),
 		ParsingExtra: ParsingExtra{
-			Timestamp: readTimestamp,
+			Timestamp:   readTimestamp,
+			IsMultiLine: false,
 		},
-		IsMultiLine: false,
-	}
-}
-
-// NewRawMultiLineMessage returns a new encoded message.
-func NewRawMultiLineMessage(content []byte, status string, rawDataLen int, readTimestamp string) *Message {
-	return &Message{
-		MessageContent: MessageContent{
-			content: content,
-			State:   StateUnstructured,
-		},
-		Status:             status,
-		RawDataLen:         rawDataLen,
-		IngestionTimestamp: time.Now().UnixNano(),
-		ParsingExtra: ParsingExtra{
-			Timestamp: readTimestamp,
-		},
-		IsMultiLine: true,
 	}
 }
 
@@ -362,4 +370,24 @@ func (m *Message) Tags() []string {
 // Message returns all tags that this message is attached with, as a string.
 func (m *Message) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
+}
+
+// Count returns the number of messages
+func (m *Message) Count() int64 {
+	return 1
+}
+
+// Size returns the size of the message.
+func (m *Message) Size() int64 {
+	return int64(m.RawDataLen)
+}
+
+// TruncatedReasonTag returns a tag with the reason for truncation.
+func TruncatedReasonTag(reason string) string {
+	return fmt.Sprintf("truncated:%s", reason)
+}
+
+// MultiLineSourceTag returns a tag for multiline logs.
+func MultiLineSourceTag(source string) string {
+	return fmt.Sprintf("multiline:%s", source)
 }

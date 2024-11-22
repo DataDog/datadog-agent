@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestIsAffirmative(t *testing.T) {
@@ -200,15 +200,15 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 }
 
 func TestDefaultValues(t *testing.T) {
-	configConverter := config.NewConfigConverter()
+	configConverter := NewConfigConverter()
 	agentConfig := make(Config)
 	FromAgentConfig(agentConfig, configConverter)
-	assert.Equal(t, true, config.Datadog().GetBool("hostname_fqdn"))
+	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("hostname_fqdn"))
 }
 
 func TestTraceIgnoreResources(t *testing.T) {
 	require := require.New(t)
-	configConverter := config.NewConfigConverter()
+	configConverter := NewConfigConverter()
 
 	cases := []struct {
 		config   string
@@ -225,19 +225,19 @@ func TestTraceIgnoreResources(t *testing.T) {
 		cfg["trace.ignore.resource"] = c.config
 		err := FromAgentConfig(cfg, configConverter)
 		require.NoError(err)
-		require.Equal(c.expected, config.Datadog().GetStringSlice("apm_config.ignore_resources"))
+		require.Equal(c.expected, pkgconfigsetup.Datadog().GetStringSlice("apm_config.ignore_resources"))
 
 	}
 }
 
 func TestConverter(t *testing.T) {
 	require := require.New(t)
-	configConverter := config.NewConfigConverter()
+	configConverter := NewConfigConverter()
 	cfg, err := GetAgentConfig("./tests/datadog.conf")
 	require.NoError(err)
 	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)
-	c := config.Datadog()
+	c := pkgconfigsetup.Datadog()
 	require.Equal([]string{
 		"GET|POST /healthcheck",
 		"GET /V1",
@@ -317,7 +317,7 @@ func TestConverter(t *testing.T) {
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {
-	configConverter := config.NewConfigConverter()
+	configConverter := NewConfigConverter()
 	defer func() {
 		configConverter.Set("dd_url", "")
 		configConverter.Set("api_key", "")
@@ -330,28 +330,28 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.NoError(t, err)
-	assert.Equal(t, "", config.Datadog().GetString("dd_url"))
-	assert.Equal(t, "", config.Datadog().GetString("api_key"))
-	assert.Empty(t, config.Datadog().GetStringMapStringSlice("additional_endpoints"))
+	assert.Equal(t, "", pkgconfigsetup.Datadog().GetString("dd_url"))
+	assert.Equal(t, "", pkgconfigsetup.Datadog().GetString("api_key"))
+	assert.Empty(t, pkgconfigsetup.Datadog().GetStringMapStringSlice("additional_endpoints"))
 
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NoError(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog().GetString("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog().GetString("api_key"))
-	assert.Empty(t, config.Datadog().GetStringMapStringSlice("additional_endpoints"))
+	assert.Equal(t, "https://datadoghq.com", pkgconfigsetup.Datadog().GetString("dd_url"))
+	assert.Equal(t, "123456789", pkgconfigsetup.Datadog().GetString("api_key"))
+	assert.Empty(t, pkgconfigsetup.Datadog().GetStringMapStringSlice("additional_endpoints"))
 
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NoError(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog().GetString("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog().GetString("api_key"))
+	assert.Equal(t, "https://datadoghq.com", pkgconfigsetup.Datadog().GetString("dd_url"))
+	assert.Equal(t, "123456789", pkgconfigsetup.Datadog().GetString("api_key"))
 
-	endpoints := config.Datadog().GetStringMapStringSlice("additional_endpoints")
+	endpoints := pkgconfigsetup.Datadog().GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, 2, len(endpoints))
 	assert.Equal(t, []string{"abcdef", "secret_key"}, endpoints["https://datadoghq.com"])
 	assert.Equal(t, []string{"secret_key2"}, endpoints["https://staging.com"])

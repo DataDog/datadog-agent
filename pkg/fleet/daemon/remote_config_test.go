@@ -82,9 +82,14 @@ func (c *callbackMock) applyStateCallback(id string, status state.ApplyStatus) {
 	c.Called(id, status)
 }
 
+func (c *callbackMock) firstCatalogApplied() {
+	c.Called()
+}
+
 func TestCatalogUpdate(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate, callback.firstCatalogApplied)
+	callback.On("firstCatalogApplied").Return()
 	callback.On("handleCatalogUpdate", mock.MatchedBy(func(catalog catalog) bool {
 		return assert.ElementsMatch(t, testCatalog.Packages, catalog.Packages)
 	})).Return(nil)
@@ -103,7 +108,7 @@ func TestCatalogUpdate(t *testing.T) {
 
 func TestCatalogUpdateBadConfig(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate, callback.firstCatalogApplied)
 	callback.On("applyStateCallback", "test", mock.MatchedBy(func(s state.ApplyStatus) bool {
 		return s.State == state.ApplyStateError
 	})).Return()
@@ -117,7 +122,7 @@ func TestCatalogUpdateBadConfig(t *testing.T) {
 
 func TestCatalogUpdateError(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate, callback.firstCatalogApplied)
 	err := errors.New("test error")
 	callback.On("handleCatalogUpdate", mock.Anything).Return(err)
 	callback.
@@ -135,13 +140,30 @@ func TestCatalogUpdateError(t *testing.T) {
 
 func TestCatalogUpdateBadPackageWithOCITag(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate, callback.firstCatalogApplied)
 	callback.On("applyStateCallback", "agent", mock.MatchedBy(func(s state.ApplyStatus) bool {
 		return s.State == state.ApplyStateError
 	})).Return()
 
 	handler(map[string]state.RawConfig{
 		"agent": {Config: testAgentCatalogBadOCIWithTagJSON},
+	}, callback.applyStateCallback)
+
+	callback.AssertExpectations(t)
+}
+
+func TestCatalogUpdateFirstCatalogAppliedCallback(t *testing.T) {
+	callback := &callbackMock{}
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate, callback.firstCatalogApplied)
+	callback.On("firstCatalogApplied").Return().Once()
+	callback.On("handleCatalogUpdate", mock.Anything).Return(nil).Times(2)
+	callback.On("applyStateCallback", "agent", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return().Times(2)
+
+	handler(map[string]state.RawConfig{
+		"agent": {Config: testAgentCatalogJSON},
+	}, callback.applyStateCallback)
+	handler(map[string]state.RawConfig{
+		"agent": {Config: testAgentCatalogJSON},
 	}, callback.applyStateCallback)
 
 	callback.AssertExpectations(t)

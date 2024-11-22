@@ -163,7 +163,9 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 	}()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
-		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
+		if err = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager); err != nil {
+			seclog.Errorf("error setting up new tc classifier on queued device: %v", err)
+		}
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -210,7 +212,7 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 	}
 
-	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
+	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
 		nr.flushNetworkNamespace(value)
 		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
@@ -346,6 +348,8 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
 				attachedDeviceCountNoLazyDeletion++
 			}
+		} else {
+			seclog.Errorf("error setting up new tc classifier on snapshot: %v", err)
 		}
 	}
 
@@ -657,7 +661,7 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	dumpFile, err := newTmpFile("network-namespace-dump-*.json")
 	if err != nil {
 		resp.Error = fmt.Sprintf("couldn't create temporary file: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 	defer dumpFile.Close()
@@ -667,13 +671,13 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	encoder := json.NewEncoder(dumpFile)
 	if err = encoder.Encode(dump); err != nil {
 		resp.Error = fmt.Sprintf("couldn't encode list of network namespace: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 
 	if err = dumpFile.Close(); err != nil {
 		resp.Error = fmt.Sprintf("could not close file [%s]: %s", dumpFile.Name(), err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 
@@ -681,7 +685,7 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	graphFile, err := newTmpFile("network-namespace-graph-*.dot")
 	if err != nil {
 		resp.Error = fmt.Sprintf("couldn't create temporary file: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 	defer graphFile.Close()
@@ -690,13 +694,13 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	// generate dot graph
 	if err = nr.generateGraph(dump, graphFile); err != nil {
 		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 
 	if err = graphFile.Close(); err != nil {
 		resp.Error = fmt.Sprintf("could not close file [%s]: %s", graphFile.Name(), err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 

@@ -3,7 +3,5 @@
 # Contains jobs which run kitchen tests on the Agent packages.
 
 include:
-  - .gitlab/kitchen_testing/new-e2e_testing.yml
-  - .gitlab/kitchen_testing/new-e2e_testing/include.yml
-  - .gitlab/kitchen_testing/testing.yml
+  - .gitlab/kitchen_testing/common.yml
   - .gitlab/kitchen_testing/windows.yml

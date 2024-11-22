@@ -7,32 +7,82 @@
 
 package service
 
-import "context"
+import (
+	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
 
-// SetupInstaller noop
-func SetupInstaller(_ context.Context) error {
-	return nil
+const (
+	datadogInstaller = "datadog-installer"
+)
+
+// SetupInstaller installs and starts the installer
+func SetupInstaller(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "setup_installer")
+	defer func() {
+		if err != nil {
+			log.Errorf("Failed to setup installer: %s", err)
+		}
+		span.Finish(tracer.WithError(err))
+	}()
+	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
+	if err == nil {
+		// This is the first time that we are installing the installer,
+		// so we can run it synchronously.
+		err = cmd.Run()
+	}
+	return err
 }
 
-// PreSetupInstaller noop
-func PreSetupInstaller() error {
-	return nil
+// RemoveInstaller removes the installer
+func RemoveInstaller(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_installer")
+	defer func() {
+		if err != nil {
+			log.Errorf("Failed to remove installer: %s", err)
+		}
+		span.Finish(tracer.WithError(err))
+	}()
+	err = removeProduct("Datadog Installer")
+	return err
 }
 
-// RemoveInstaller noop
-func RemoveInstaller(_ context.Context) error { return nil }
-
-// StartInstallerExperiment noop
-func StartInstallerExperiment(_ context.Context) error {
-	return nil
+// StartInstallerExperiment starts the installer experiment
+func StartInstallerExperiment(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "start_installer_experiment")
+	defer func() {
+		if err != nil {
+			log.Errorf("Failed to start installer experiment: %s", err)
+		}
+		span.Finish(tracer.WithError(err))
+	}()
+	cmd, err := msiexec("experiment", datadogInstaller, "/i", nil)
+	if err == nil {
+		// Launch the msiexec process asynchronously.
+		err = cmd.Start()
+	}
+	return err
 }
 
-// StopInstallerExperiment noop
-func StopInstallerExperiment(_ context.Context) error {
-	return nil
+// StopInstallerExperiment stops the installer experiment
+func StopInstallerExperiment(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "stop_installer_experiment")
+	defer func() {
+		if err != nil {
+			log.Errorf("Failed to stop installer experiment: %s", err)
+		}
+		span.Finish(tracer.WithError(err))
+	}()
+	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
+	if err == nil {
+		// Launch the msiexec process asynchronously.
+		err = cmd.Start()
+	}
+	return err
 }
 
-// StartInstallerStable noop
-func StartInstallerStable(_ context.Context) error {
+// PromoteInstallerExperiment promotes the installer experiment
+func PromoteInstallerExperiment(_ context.Context) error {
 	return nil
 }

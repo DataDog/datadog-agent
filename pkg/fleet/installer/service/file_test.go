@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	transformFunc = func(ctx context.Context, existing []byte) ([]byte, error) {
+	transformFunc = func(_ context.Context, _ []byte) ([]byte, error) {
 		return []byte(transformedContent), nil
 	}
 	failFunc = func() error { return errors.New("fail") }
@@ -58,7 +58,7 @@ func TestNoChangesNeeded(t *testing.T) {
 	mode := os.FileMode(0740)
 	require.Nil(t, os.WriteFile(originalPath, []byte(originalContent), mode))
 
-	mutator := newFileMutator(originalPath, func(ctx context.Context, existing []byte) ([]byte, error) {
+	mutator := newFileMutator(originalPath, func(_ context.Context, _ []byte) ([]byte, error) {
 		return []byte(originalContent), nil
 	}, nil, nil)
 

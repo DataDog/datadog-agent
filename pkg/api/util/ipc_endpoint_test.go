@@ -14,15 +14,16 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func createConfig(t *testing.T, ts *httptest.Server) pkgconfigmodel.Config {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := configmock.New(t)
 
 	// create a fake auth token
 	authTokenFile, err := os.CreateTemp("", "")
@@ -43,7 +44,7 @@ func createConfig(t *testing.T, ts *httptest.Server) pkgconfigmodel.Config {
 }
 
 func TestNewIPCEndpoint(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := configmock.New(t)
 
 	// create a fake auth token
 	authTokenFile, err := os.CreateTemp("", "")
@@ -63,7 +64,7 @@ func TestNewIPCEndpoint(t *testing.T) {
 }
 
 func TestNewIPCEndpointWithCloseConnection(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := configmock.New(t)
 
 	// create a fake auth token
 	authTokenFile, err := os.CreateTemp("", "")
@@ -196,7 +197,7 @@ func TestIPCEndpointDeprecatedIPCAddress(t *testing.T) {
 }
 
 func TestIPCEndpointErrorText(t *testing.T) {
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(400)
 		w.Write([]byte("bad request"))
 	}))
@@ -212,7 +213,7 @@ func TestIPCEndpointErrorText(t *testing.T) {
 }
 
 func TestIPCEndpointErrorMap(t *testing.T) {
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(400)
 		data, _ := json.Marshal(map[string]string{
 			"error": "something went wrong",

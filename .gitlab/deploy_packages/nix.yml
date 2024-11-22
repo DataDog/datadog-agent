@@ -1,45 +1,5 @@
 ---
 #
-# Agent v6
-#
-deploy_packages_deb-x64-6:
-  extends: .deploy_packages_deb-6
-  needs: [ agent_deb-x64-a6 ]
-  variables:
-    PACKAGE_ARCH: amd64
-
-deploy_packages_deb-arm64-6:
-  extends: .deploy_packages_deb-6
-  needs: [ agent_deb-arm64-a6 ]
-  variables:
-    PACKAGE_ARCH: arm64
-
-deploy_packages_heroku_deb-x64-6:
-  extends: .deploy_packages_deb-6
-  needs: [ agent_heroku_deb-x64-a6 ]
-  variables:
-    PACKAGE_ARCH: amd64
-
-deploy_packages_rpm-x64-6:
-  extends: .deploy_packages_rpm-6
-  needs: [ agent_rpm-x64-a6 ]
-  variables:
-    PACKAGE_ARCH: x86_64
-
-deploy_packages_rpm-arm64-6:
-  extends: .deploy_packages_rpm-6
-  needs: [ agent_rpm-arm64-a6 ]
-  variables:
-    PACKAGE_ARCH: aarch64
-
-# NOTE: no SuSE ARM builds currently.
-deploy_packages_suse_rpm-x64-6:
-  extends: .deploy_packages_suse_rpm-6
-  needs: [ agent_suse-x64-a6 ]
-  variables:
-    PACKAGE_ARCH: x86_64
-
-#
 # Agent v7
 #
 deploy_packages_deb-x64-7:
@@ -154,7 +114,7 @@ deploy_packages_dmg-x64-a7:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["agent_dmg-x64-a7"]
   before_script:
@@ -167,12 +127,12 @@ deploy_staging_dsd:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["build_dogstatsd-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy iot-agent x64 binary to staging bucket
@@ -180,12 +140,12 @@ deploy_staging_iot_agent:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["build_iot_agent-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # Datadog Installer

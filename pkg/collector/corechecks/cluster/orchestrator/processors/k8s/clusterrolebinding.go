@@ -96,5 +96,5 @@ func (h *ClusterRoleBindingHandlers) ResourceVersion(ctx processors.ProcessorCon
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleBindingHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*rbacv1.ClusterRoleBinding)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

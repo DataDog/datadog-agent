@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fxzstd provides fx options for the compression component.
-package fxzstd
+// Package fx provides fx options for the compression component.
+package fx
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

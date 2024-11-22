@@ -113,12 +113,16 @@ message ClientAgent {
 message ClientUpdater {
   repeated string tags = 1;
   repeated PackageState packages = 2;
+  uint64 available_disk_space = 3;
 }
 
 message PackageState {
   string package = 1;
   string stable_version = 2;
   string experiment_version = 3;
+  string stable_config_version = 5;
+  string experiment_config_version = 6;
+  string remote_config_version = 7;
   PackageStateTask task = 4;
 }
 

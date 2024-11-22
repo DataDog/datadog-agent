@@ -179,7 +179,7 @@ func (pb *payloadsBuilder) startPayload() error {
 	{
 		buf := bytes.NewBuffer([]byte{})
 		ps := molecule.NewProtoStream(buf)
-		_ = ps.Embedded(payloadMetadata, func(ps *molecule.ProtoStream) error {
+		_ = ps.Embedded(payloadMetadata, func(_ *molecule.ProtoStream) error {
 			return nil
 		})
 		footer = buf.Bytes()

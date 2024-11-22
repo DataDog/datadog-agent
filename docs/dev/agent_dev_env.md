@@ -12,26 +12,26 @@ development files to be available in the dev env. The Agent can embed Python2
 and/or Python3, you will need development files for all versions you want to
 support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.11 with [Homebrew](https://brew.sh)
+If you're on OSX/macOS, installing Python 2.7 and/or 3.12 with [Homebrew](https://brew.sh)
 brings along all the development files needed:
 
 **Please note that not using Python versions explicitly supported, you may have
 problems running the built Agent's Python checks, especially if using a virtualenv.
-At this time, only Python 3.11 is confirmed to work as expected in the development
+At this time, only Python 3.12 is confirmed to work as expected in the development
 environment.**
 ```
 brew install python@2
-brew install python@3.11
+brew install python@3.12
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
-sudo apt-get install python3.11-dev
+sudo apt-get install python3.12-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.11 via the [official installer](https://www.python.org/downloads/).
+On Windows, install Python 2.7 and/or 3.12 via the [official installer](https://www.python.org/downloads/).
 
 #### Python Dependencies
 
@@ -52,10 +52,10 @@ To install `deva`, you'll need to:
 The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
 
 ```shell
-$ cd datadog-agent
-$ curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
-$ chmod +x deva
-$ ./deva linter.go
+cd datadog-agent
+curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
+chmod +x deva
+./deva linter.go
 ```
 
 Below a live demo of how the tool works:
@@ -118,7 +118,7 @@ sure to work is `virtualenv`.**
 If using virtual environments when running the built Agent, you may need to override the built Agent's search path for Python check packages using the `PYTHONPATH` variable (your target path must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/) though).
 
 ```sh
-PYTHONPATH="./venv/lib/python3.11/site-packages:$PYTHONPATH" ./agent run ...
+PYTHONPATH="./venv/lib/python3.12/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
 See also some notes in [./checks](https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks) about running custom python checks.
@@ -138,7 +138,7 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.22.5` or
+You must [install Golang](https://golang.org/doc/install) version `1.22.8` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
@@ -287,5 +287,3 @@ To configure the vscode editor to use a container as remote development environm
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
 
 Building on Windows requires multiple 3rd-party software to be installed. To avoid the complexity, Datadog recommends to make the code change in VS Code, and then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)
-
-

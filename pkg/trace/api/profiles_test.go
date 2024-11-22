@@ -151,7 +151,7 @@ func TestProfilingEndpoints(t *testing.T) {
 func TestProfileProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			tags := strings.Split(v, ",")
 			m := make(map[string]string)
@@ -185,7 +185,7 @@ func TestProfileProxyHandler(t *testing.T) {
 	})
 
 	t.Run("proxy_code", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
 		}))
 		conf := newTestReceiverConfig()
@@ -201,7 +201,7 @@ func TestProfileProxyHandler(t *testing.T) {
 
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			if !strings.Contains(v, "orchestrator:fargate_orchestrator") {
 				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
@@ -249,7 +249,7 @@ func TestProfileProxyHandler(t *testing.T) {
 
 	t.Run("multiple_targets", func(t *testing.T) {
 		called := make(map[string]bool)
-		handler := func(w http.ResponseWriter, req *http.Request) {
+		handler := func(_ http.ResponseWriter, req *http.Request) {
 			called[fmt.Sprintf("http://%s|%s", req.Host, req.Header.Get("DD-API-KEY"))] = true
 		}
 		srv1 := httptest.NewServer(http.HandlerFunc(handler))
@@ -283,7 +283,7 @@ func TestProfileProxyHandler(t *testing.T) {
 
 	t.Run("lambda_function", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			if !strings.Contains(v, "functionname:my-function-name") || !strings.Contains(v, "_dd.origin:lambda") {
 				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
@@ -293,6 +293,37 @@ func TestProfileProxyHandler(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
 		conf.LambdaFunctionName = "my-function-name"
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		if !called {
+			t.Fatal("request not proxied")
+		}
+	})
+
+	t.Run("azure_container_app", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			tags := strings.Split(v, ",")
+			m := make(map[string]string)
+			for _, tag := range tags {
+				kv := strings.Split(tag, ":")
+				m[kv[0]] = kv[1]
+			}
+			for _, tag := range []string{"subscription_id", "resource_group", "resource_id", "aca.subscription.id", "aca.resource.group", "aca.resource.id", "aca.replica.name"} {
+				if _, ok := m[tag]; !ok {
+					t.Fatalf("invalid X-Datadog-Additional-Tags header, should contain '%s': %q", tag, v)
+				}
+			}
+			called = true
+		}))
+		conf := newTestReceiverConfig()
+		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
+		conf.AzureContainerAppTags = ",subscription_id:123,resource_group:test-rg,resource_id:456,aca.subscription.id:123,aca.resource.group:test-rg,aca.resource.id:456,aca.replica.name:test-replica"
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)

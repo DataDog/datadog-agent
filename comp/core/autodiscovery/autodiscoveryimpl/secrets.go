@@ -10,12 +10,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func decryptConfig(conf integration.Config, secretResolver secrets.Component) (integration.Config, error) {
-	if config.Datadog().GetBool("secret_backend_skip_checks") {
+	if pkgconfigsetup.Datadog().GetBool("secret_backend_skip_checks") {
 		log.Tracef("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
 		return conf, nil
 	}

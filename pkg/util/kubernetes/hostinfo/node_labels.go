@@ -10,7 +10,7 @@ package hostinfo
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -49,7 +49,7 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 		return nil, err
 	}
 
-	if config.Datadog().GetBool("cluster_agent.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") {
 		cl, err := n.getClusterAgentFunc()
 		if err != nil {
 			return nil, err

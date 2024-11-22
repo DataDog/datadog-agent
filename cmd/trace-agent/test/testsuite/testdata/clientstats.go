@@ -6,12 +6,18 @@
 package testdata
 
 import (
+	"time"
+
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/golang/protobuf/proto"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+)
+
+const (
+	clientBucketDuration = 10 * time.Second
 )
 
 func getEmptyDDSketch() []byte {
@@ -28,16 +34,15 @@ var ClientStatsTests = []struct {
 }{
 	{
 		In: &pb.ClientStatsPayload{
-			Hostname:  "testhost",
-			Env:       "testing",
-			Version:   "0.1-alpha",
-			RuntimeID: "1",
-			Sequence:  2,
-			Service:   "test-service",
+			Hostname:     "testhost",
+			Env:          "testing",
+			Version:      "0.1-alpha",
+			ImageTag:     "image-tag",
+			GitCommitSha: "sha-1",
 			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
-					Duration: 2,
+					Duration: uint64(clientBucketDuration.Nanoseconds()),
 					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:        "",
@@ -62,18 +67,15 @@ var ClientStatsTests = []struct {
 			AgentVersion:   "6.0.0",
 			ClientComputed: true,
 			Stats: []*pb.ClientStatsPayload{{
-				Hostname:      "testhost",
-				Env:           "testing",
-				Version:       "0.1-alpha",
-				Lang:          "go",
-				TracerVersion: "0.2.0",
-				RuntimeID:     "1",
-				Sequence:      2,
-				Service:       "test-service",
+				Hostname:     "testhost",
+				Env:          "testing",
+				Version:      "0.1-alpha",
+				ImageTag:     "image-tag",
+				GitCommitSha: "sha-1",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    0,
-						Duration: 2,
+						Duration: uint64(clientBucketDuration.Nanoseconds()),
 						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "unnamed-go-service",
@@ -98,16 +100,15 @@ var ClientStatsTests = []struct {
 	},
 	{
 		In: &pb.ClientStatsPayload{
-			Hostname:  "testhost",
-			Env:       "testing",
-			Version:   "0.1-alpha",
-			RuntimeID: "1",
-			Sequence:  2,
-			Service:   "test-service",
+			Hostname:     "testhost",
+			Env:          "testing",
+			Version:      "0.1-alpha",
+			ImageTag:     "image-tag",
+			GitCommitSha: "sha-1",
 			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
-					Duration: 2,
+					Duration: uint64(clientBucketDuration.Nanoseconds()),
 					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:        "svc",
@@ -136,7 +137,7 @@ var ClientStatsTests = []struct {
 				},
 				{
 					Start:    3,
-					Duration: 4,
+					Duration: uint64(clientBucketDuration.Nanoseconds()),
 					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:      "profiles-db",
@@ -161,19 +162,15 @@ var ClientStatsTests = []struct {
 				ClientComputed: true,
 				Stats: []*pb.ClientStatsPayload{
 					{
-						Hostname:         "testhost",
-						Env:              "testing",
-						Version:          "0.1-alpha",
-						Lang:             "go",
-						TracerVersion:    "0.2.0",
-						RuntimeID:        "1",
-						Sequence:         2,
-						AgentAggregation: "distributions",
-						Service:          "test-service",
+						Hostname:     "testhost",
+						Env:          "testing",
+						Version:      "0.1-alpha",
+						ImageTag:     "image-tag",
+						GitCommitSha: "sha-1",
 						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
-								Duration: 2,
+								Duration: uint64(clientBucketDuration.Nanoseconds()),
 								Stats: []*pb.ClientGroupedStats{
 									{
 										Service:        "svc",
@@ -181,9 +178,9 @@ var ClientStatsTests = []struct {
 										Resource:       "/rsc/path",
 										HTTPStatusCode: 200,
 										Type:           "web",
-										Hits:           0,
-										Errors:         0,
-										Duration:       0,
+										Hits:           22,
+										Errors:         33,
+										Duration:       44,
 										OkSummary:      getEmptyDDSketch(),
 										ErrorSummary:   getEmptyDDSketch(),
 									},
@@ -192,39 +189,20 @@ var ClientStatsTests = []struct {
 										Name:         "sql.query",
 										Resource:     "SELECT * FROM users WHERE id = ? AND name = ?",
 										Type:         "sql",
-										Hits:         0,
-										Errors:       0,
-										Duration:     0,
+										Hits:         5,
+										Errors:       7,
+										Duration:     8,
 										OkSummary:    getEmptyDDSketch(),
 										ErrorSummary: getEmptyDDSketch(),
 									},
-								},
-							},
-						},
-					},
-					{
-						Hostname:         "testhost",
-						Env:              "testing",
-						Version:          "0.1-alpha",
-						Lang:             "go",
-						TracerVersion:    "0.2.0",
-						RuntimeID:        "1",
-						Sequence:         2,
-						AgentAggregation: "distributions",
-						Service:          "test-service",
-						Stats: []*pb.ClientStatsBucket{
-							{
-								Start:    0,
-								Duration: 4,
-								Stats: []*pb.ClientGroupedStats{
 									{
 										Service:      "profiles-db",
 										Name:         "sql.query",
 										Resource:     "SELECT * FROM profiles WHERE name = ?",
 										Type:         "sql",
-										Hits:         0,
-										Errors:       0,
-										Duration:     0,
+										Hits:         11,
+										Errors:       12,
+										Duration:     13,
 										OkSummary:    getEmptyDDSketch(),
 										ErrorSummary: getEmptyDDSketch(),
 									},

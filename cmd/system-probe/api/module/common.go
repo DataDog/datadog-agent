@@ -8,6 +8,10 @@ package module
 
 import (
 	"errors"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"go.uber.org/fx"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -19,4 +23,12 @@ type Module interface {
 	GetStats() map[string]interface{}
 	Register(*Router) error
 	Close()
+}
+
+// FactoryDependencies defines the fx dependencies for a module factory
+type FactoryDependencies struct {
+	fx.In
+
+	WMeta     workloadmeta.Component
+	Telemetry telemetry.Component
 }

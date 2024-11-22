@@ -32,12 +32,26 @@ import (
 
 // Comparison test to ensure APM stats generated from 2 different OTel ingestion paths are consistent.
 func TestOTelAPMStatsMatch(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTelAPMStatsMatch(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTelAPMStatsMatch(true, t)
+	})
+}
+
+func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
 	tcfg := getTraceAgentCfg(attributesTranslator)
+	peerTagKeys := tcfg.ConfiguredPeerTags()
+	if enableReceiveResourceSpansV2 {
+		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 
 	metricsClient := &statsd.NoOpClient{}
 	timingReporter := timing.New(metricsClient)
@@ -57,7 +71,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 	fakeAgent1.Ingest(ctx, traces)
 
 	// fakeAgent2 calls the new API in Concentrator that directly calculates APM stats for OTLP traces
-	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName})
+	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys)
 	for _, input := range inputs {
 		fakeAgent2.Concentrator.Add(input)
 	}

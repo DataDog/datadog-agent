@@ -34,7 +34,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Use:   "set-catalog catalog",
 		Short: "Sets the catalog to use",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(catalog, &cliParams{
 				GlobalParams: *global,
 				catalog:      args[0],
@@ -46,7 +46,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"install"},
 		Short:   "Installs a package to the expected version",
 		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(install, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -59,7 +59,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"start"},
 		Short:   "Starts an experiment",
 		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(start, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -72,7 +72,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"stop"},
 		Short:   "Stops an experiment",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(stop, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -84,14 +84,51 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"promote"},
 		Short:   "Promotes an experiment",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(promote, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
 			})
 		},
 	}
-	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
+	startConfigExperimentCmd := &cobra.Command{
+		Use:     "start-config-experiment package version",
+		Aliases: []string{"start-config"},
+		Short:   "Starts an experiment",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(startConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
+	stopConfigExperimentCmd := &cobra.Command{
+		Use:     "stop-config-experiment package",
+		Aliases: []string{"stop-config"},
+		Short:   "Stops an experiment",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(stopConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	promoteConfigExperimentCmd := &cobra.Command{
+		Use:     "promote-config-experiment package",
+		Aliases: []string{"promote-config"},
+		Short:   "Promotes an experiment",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(promoteConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd, startConfigExperimentCmd, stopConfigExperimentCmd, promoteConfigExperimentCmd}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
@@ -139,6 +176,33 @@ func promote(params *cliParams, client localapiclient.Component) error {
 	err := client.PromoteExperiment(params.pkg)
 	if err != nil {
 		fmt.Println("Error promoting experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func startConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.StartConfigExperiment(params.pkg, params.version)
+	if err != nil {
+		fmt.Println("Error starting config experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func stopConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.StopConfigExperiment(params.pkg)
+	if err != nil {
+		fmt.Println("Error stopping config experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func promoteConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.PromoteConfigExperiment(params.pkg)
+	if err != nil {
+		fmt.Println("Error promoting config experiment:", err)
 		return err
 	}
 	return nil

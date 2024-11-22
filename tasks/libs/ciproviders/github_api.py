@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import platform
+import re
 import subprocess
 from collections.abc import Iterable
 from functools import lru_cache
@@ -14,6 +15,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 try:
+    import semver
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
@@ -23,6 +25,8 @@ except ImportError:
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
+
+RELEASE_BRANCH_PATTERN = re.compile(r"\d+\.\d+\.x")
 
 
 class GithubAPI:
@@ -198,6 +202,25 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def latest_unreleased_release_branches(self):
+        """
+        Get all the release branches that are newer than the latest release.
+        """
+        release = self._repository.get_latest_release()
+        released_version = semver.VersionInfo.parse(release.title)
+
+        for branch in self.release_branches():
+            if semver.VersionInfo.parse(branch.name.replace("x", "0")) > released_version:
+                yield branch
+
+    def release_branches(self):
+        """
+        Yield all the branches that match the release branch pattern (A.B.x).
+        """
+        for branch in self._repository.get_branches():
+            if RELEASE_BRANCH_PATTERN.match(branch.name):
+                yield branch
+
     def get_rate_limit_info(self):
         """
         Gets the current rate limit info.
@@ -247,6 +270,22 @@ class GithubAPI:
         pr = self.get_pr(pr_id)
 
         return [label.name for label in pr.get_labels()]
+
+    def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
+        """
+        Updates the review complexity label of a pull request
+        """
+        pr = self.get_pr(pr_id)
+        already_there = False
+        for label in pr.get_labels():
+            if label.name.endswith(" review"):
+                if label.name == new_label:
+                    already_there = True
+                else:
+                    pr.remove_from_labels(label.name)
+
+        if not already_there:
+            pr.add_to_labels(new_label)
 
     def get_pr_files(self, pr_id: int) -> list[str]:
         """
@@ -341,6 +380,47 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
+    def create_label(self, name, color, description=""):
+        """
+        Creates a label in the given GitHub repository.
+        """
+        return self._repository.create_label(name, color, description)
+
+    def create_release(self, tag, message, draft=True):
+        return self._repository.create_git_release(
+            tag=tag,
+            name=tag,
+            message=message,
+            draft=draft,
+        )
+
+    def get_codereview_complexity(self, pr_id: int) -> str:
+        """
+        Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
+        """
+        pr = self._repository.get_pull(pr_id)
+        # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
+        # - easy PRs are merged in less than 1 day
+        # - hard PRs are merged in more than 1 week
+        # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
+        criteria = {
+            'easy': {'files': 4, 'lines': 150, 'comments': 1},
+            'hard': {'files': 12, 'lines': 650, 'comments': 9},
+        }
+        if (
+            pr.changed_files < criteria['easy']['files']
+            and pr.additions + pr.deletions < criteria['easy']['lines']
+            and pr.review_comments < criteria['easy']['comments']
+        ):
+            return 'short review'
+        elif (
+            pr.changed_files > criteria['hard']['files']
+            or pr.additions + pr.deletions > criteria['hard']['lines']
+            or pr.review_comments > criteria['hard']['comments']
+        ):
+            return 'long review'
+        return 'medium review'
+
 
 def get_github_teams(users):
     for user in users:
@@ -371,13 +451,13 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(version)
+    milestone_name = milestone or str(version)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -411,7 +491,6 @@ Make sure that milestone is open before trying again.""",
         "qa/no-code-change",
         "team/agent-delivery",
         "team/agent-release-management",
-        "category/release_operations",
     ]
 
     if changelog_pr:

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package replay
+package replayimpl
 
 import (
 	"io"
@@ -20,6 +20,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -36,9 +37,11 @@ func writerTest(t *testing.T, z bool) {
 	file, path, err := OpenFile(fs, "foo/bar", "")
 	require.NoError(t, err)
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 
-	writer := NewTrafficCaptureWriter(1)
+	taggerComponent := mock.SetupFakeTagger(t)
+
+	writer := NewTrafficCaptureWriter(1, taggerComponent)
 
 	// initialize telemeytry store
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())

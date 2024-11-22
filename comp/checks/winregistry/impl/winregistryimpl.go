@@ -358,7 +358,7 @@ func (c *WindowsRegistryCheck) Run() error {
 
 func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
 	deps.Lifecycle.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(checkName, optional.NewOption(func() check.Check {
 				integrationLogs, _ := deps.LogsComponent.Get()
 				return &WindowsRegistryCheck{

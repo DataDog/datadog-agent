@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    The `enable_receive_resource_spans_v2` flag now defaults to true in Converged Agent. This enables the refactored
+    version of the OTLP span receiver in trace agent, improves performance by 10%, and deprecates the following functionality:
+    - No longer checks for information about the resource in HTTP headers (ContainerID, Lang, LangVersion, Interpreter, LangVendor).
+    - No longer checks for resource-related values (container, env, hostname) in span attributes. This previous behavior did not follow the OTel spec.

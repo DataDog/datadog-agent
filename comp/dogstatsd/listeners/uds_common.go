@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -24,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -56,7 +57,7 @@ type UDSListener struct {
 	trafficCapture          replay.Component
 	pidMap                  pidmap.Component
 	OriginDetection         bool
-	config                  config.Reader
+	config                  model.Reader
 
 	wmeta optional.Option[workloadmeta.Component]
 
@@ -76,10 +77,26 @@ type UDSListener struct {
 	packetsTelemetryStore *packets.TelemetryStore
 }
 
-// CloseFunction is a function that closes a connection
-type CloseFunction func(unixConn *net.UnixConn) error
+// Wrapper for net.UnixConn
+type netUnixConn interface {
+	Close() error
+	LocalAddr() net.Addr
+	Read(b []byte) (int, error)
+	ReadFromUnix(b []byte) (int, *net.UnixAddr, error)
+	ReadMsgUnix(b []byte, oob []byte) (n int, oobn int, flags int, addr *net.UnixAddr, err error)
+	SyscallConn() (syscall.RawConn, error)
+	SetReadBuffer(bytes int) error
+	RemoteAddr() net.Addr
+	SetDeadline(t time.Time) error
+	SetReadDeadline(t time.Time) error
+	SetWriteDeadline(t time.Time) error
+	Write(b []byte) (n int, err error)
+}
 
-func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.Reader) (bool, error) {
+// CloseFunction is a function that closes a connection
+type CloseFunction func(unixConn netUnixConn) error
+
+func setupUnixConn(conn netUnixConn, originDetection bool, config model.Reader) (bool, error) {
 	if originDetection {
 		err := enableUDSPassCred(conn)
 		if err != nil {
@@ -133,7 +150,7 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -168,7 +185,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine
-func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
+func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
 	telemetryWithFullListenerID := l.telemetryWithListenerID
@@ -360,7 +377,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 	}
 }
 
-func (l *UDSListener) getConnID(conn *net.UnixConn) string {
+func (l *UDSListener) getConnID(conn netUnixConn) string {
 	// We use the file descriptor as a unique identifier for the connection. This might
 	// increase the cardinality in the backend, but this option is not designed to be enabled
 	// all the time. Plus is it useful to debug issues with the UDS listener since we will be
@@ -374,7 +391,7 @@ func (l *UDSListener) getConnID(conn *net.UnixConn) string {
 	}
 	return strconv.Itoa(int(fdConn))
 }
-func (l *UDSListener) getListenerID(conn *net.UnixConn) string {
+func (l *UDSListener) getListenerID(conn netUnixConn) string {
 	listenerID := "uds-" + conn.LocalAddr().Network()
 	connID := l.getConnID(conn)
 	if connID != "" {

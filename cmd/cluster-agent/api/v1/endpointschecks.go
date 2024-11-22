@@ -51,7 +51,7 @@ func getAllEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.Resp
 		return clusterChecksDisabledHandler
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		response, err := sc.ClusterCheckHandler.GetAllEndpointsCheckConfigs()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

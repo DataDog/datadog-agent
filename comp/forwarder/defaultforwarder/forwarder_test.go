@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -48,7 +48,7 @@ var (
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 
@@ -60,6 +60,22 @@ func TestNewDefaultForwarder(t *testing.T) {
 
 	assert.Equal(t, forwarder.internalState.Load(), Stopped)
 	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
+
+	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
+	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
+	localDomain := "https://localhost"
+	localAuth := "tokenABCD12345678910109876543210"
+	mockConfig.SetWithoutSource("cluster_agent.url", localDomain)
+	mockConfig.SetWithoutSource("cluster_agent.auth_token", localAuth)
+	forwarder2 := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	assert.NotNil(t, forwarder2)
+	assert.Equal(t, 1, forwarder2.NumberOfWorkers)
+	require.Len(t, forwarder2.domainForwarders, 2) // 1 remote domain, 1 dca domain
+	domainResolver := resolver.NewSingleDomainResolvers(validKeysPerDomain)
+	domainResolver[localDomain] = resolver.NewLocalDomainResolver(localDomain, localAuth)
+	assert.Equal(t, domainResolver, forwarder2.domainResolvers)
+	assert.Equal(t, forwarder2.internalState.Load(), Stopped)
+	assert.Equal(t, forwarder2.State(), forwarder2.internalState.Load())
 }
 
 func TestFeature(t *testing.T) {
@@ -80,7 +96,7 @@ func TestFeature(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
 	err := forwarder.Start()
@@ -94,14 +110,14 @@ func TestStart(t *testing.T) {
 }
 
 func TestStopWithoutPurgingTransaction(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_stop_timeout", 0)
 
 	testStop(t, mockConfig)
 }
 
 func TestStopWithPurgingTransaction(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_stop_timeout", 1)
 
 	testStop(t, mockConfig)
@@ -124,7 +140,7 @@ func testStop(t *testing.T, mockConfig pkgconfigmodel.Config) {
 }
 
 func TestSubmitIfStopped(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
 
@@ -140,7 +156,7 @@ func TestSubmitIfStopped(t *testing.T) {
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
@@ -173,7 +189,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysWithMultipleDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
@@ -214,7 +230,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	additionalResolver := resolver.NewMultiDomainResolver("datadog.vector", []string{"api-key-4"})
 	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
 	resolvers["datadog.vector"] = additionalResolver
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
@@ -258,7 +274,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	r := resolver.NewMultiDomainResolver(testDomain, []string{"api-key-1"})
 	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))
 
@@ -283,7 +299,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("allow_arbitrary_tags", true)
 
 	log := logmock.New(t)
@@ -298,7 +314,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
@@ -318,7 +334,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 }
 
 func TestSubmitV1Intake(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
 	forwarder.Start()
@@ -359,7 +375,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
@@ -410,12 +426,12 @@ func TestForwarderEndtoEnd(t *testing.T) {
 
 func TestTransactionEventHandlers(t *testing.T) {
 	requests := atomic.NewInt64(0)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
@@ -436,11 +452,11 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, _ error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+	transactions[0].AttemptHandler = func(_ *transaction.HTTPTransaction) {
 		attempts.Inc()
 	}
 
@@ -456,10 +472,10 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		if v := requests.Inc(); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -470,7 +486,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
@@ -491,11 +507,11 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, _ error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+	transactions[0].AttemptHandler = func(_ *transaction.HTTPTransaction) {
 		attempts.Inc()
 	}
 
@@ -511,17 +527,17 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		requests.Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
@@ -542,11 +558,11 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, _ error) {
 		assert.Equal(t, http.StatusInternalServerError, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+	transactions[0].AttemptHandler = func(_ *transaction.HTTPTransaction) {
 		attempts.Inc()
 	}
 
@@ -563,12 +579,12 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	requests := atomic.NewInt64(0)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	responseTimeout := defaultResponseTimeout
 
 	defaultResponseTimeout = 5 * time.Second
@@ -622,7 +638,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 		}
 	}))
 
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
 
 	oldFlushInterval := flushInterval
@@ -659,22 +675,22 @@ func TestCustomCompletionHandler(t *testing.T) {
 	highPriorityQueueFull.Set(0)
 
 	// Setup a test HTTP server
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
 	// Point agent configuration to it
-	cfg := pkgconfigsetup.Conf()
+	cfg := mock.New(t)
 	cfg.SetWithoutSource("dd_url", srv.URL)
 
 	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
 	done := make(chan struct{})
 	defer close(done)
-	var handler transaction.HTTPCompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	var handler transaction.HTTPCompletionHandler = func(_ *transaction.HTTPTransaction, _ int, _ []byte, _ error) {
 		done <- struct{}{}
 	}
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{
 		srv.URL: {"api_key1"},

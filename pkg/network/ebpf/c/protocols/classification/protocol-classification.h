@@ -60,12 +60,6 @@
 // file.  If, for example, application-layer is known, calling this helper multiple
 // times will result in traversing only the api and encryption-layer programs
 
-static __always_inline bool is_protocol_classification_supported() {
-    __u64 val = 0;
-    LOAD_CONSTANT("protocol_classification_enabled", val);
-    return val > 0;
-}
-
 // updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
@@ -166,16 +160,17 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     init_routing_cache(usm_ctx, protocol_stack);
 
     const char *buffer = &(usm_ctx->buffer.data[0]);
-    // TLS classification
-    if (is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
+
+    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
+
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
+        // TLS classification
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
         // The connection is TLS encrypted, thus we cannot classify the protocol
         // using the socket filter and therefore we can bail out;
         return;
     }
 
-    // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
-    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
     if (app_layer_proto != PROTOCOL_UNKNOWN && app_layer_proto != PROTOCOL_HTTP2) {
         goto next_program;
     }

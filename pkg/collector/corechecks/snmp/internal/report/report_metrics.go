@@ -49,7 +49,7 @@ func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []s
 }
 
 // ReportMetrics reports metrics using Sender
-func (ms *MetricSender) ReportMetrics(metrics []profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) ReportMetrics(metrics []profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string, deviceID string) {
 	scalarSamples := make(map[string]MetricSample)
 	columnSamples := make(map[string]map[string]MetricSample)
 
@@ -64,7 +64,7 @@ func (ms *MetricSender) ReportMetrics(metrics []profiledefinition.MetricsConfig,
 			}
 			scalarSamples[sample.symbol.Name] = sample
 		} else if metric.IsColumn() {
-			samples := ms.reportColumnMetrics(metric, values, tags)
+			samples := ms.reportColumnMetrics(metric, values, tags, deviceID)
 
 			for name, sampleRows := range samples {
 				if _, ok := EvaluatedSampleDependencies[name]; !ok {
@@ -125,9 +125,10 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 	return sample, nil
 }
 
-func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string) map[string]map[string]MetricSample {
+func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string, deviceID string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
 	samples := map[string]map[string]MetricSample{}
+
 	for _, symbol := range metricConfig.Symbols {
 		var metricValues map[string]valuestore.ResultValue
 
@@ -153,6 +154,8 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 						log.Tracef("unable to tag snmp.%s metric with interface_config data: %s", symbol.Name, err.Error())
 					}
 					tmpTags = append(tmpTags, interfaceCfg.Tags...)
+
+					tmpTags = addInternalResourceTag(tmpTags, fmt.Sprintf("ndm_interface_user_tags:%s:%s", deviceID, fullIndex))
 				}
 				rowTagsCache[fullIndex] = tmpTags
 			}

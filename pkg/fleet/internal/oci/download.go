@@ -8,12 +8,17 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -24,6 +29,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+	"go.uber.org/multierr"
+	"golang.org/x/net/http2"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -38,6 +45,8 @@ const (
 	RegistryAuthGCR string = "gcr"
 	// RegistryAuthECR is the Amazon Elastic Container Registry authentication method.
 	RegistryAuthECR string = "ecr"
+	// RegistryAuthPassword is the password registry authentication method.
+	RegistryAuthPassword string = "password"
 )
 
 const (
@@ -55,7 +64,19 @@ const (
 )
 
 const (
-	layerMaxSize = 3 << 30 // 3GiB
+	layerMaxSize        = 3 << 30 // 3GiB
+	extractLayerRetries = 3
+)
+
+var (
+	defaultRegistriesStaging = []string{
+		"install.datad0g.com",
+		"docker.io/datadog",
+	}
+	defaultRegistriesProd = []string{
+		"install.datadoghq.com",
+		"gcr.io/datadoghq",
+	}
 )
 
 // DownloadedPackage is the downloaded package.
@@ -97,7 +118,7 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 		return nil, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("could not download package from %s: %w", packageURL, err)
+		return nil, fmt.Errorf("could not download package: %w", err)
 	}
 	manifest, err := image.Manifest()
 	if err != nil {
@@ -128,12 +149,17 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}, nil
 }
 
-func getKeychain(auth string) authn.Keychain {
+func getKeychain(auth string, username string, password string) authn.Keychain {
 	switch auth {
 	case RegistryAuthGCR:
 		return google.Keychain
 	case RegistryAuthECR:
 		return authn.NewKeychainFromHelper(ecr.NewECRHelper())
+	case RegistryAuthPassword:
+		return usernamePasswordKeychain{
+			username: username,
+			password: password,
+		}
 	case RegistryAuthDefault, "":
 		return authn.DefaultKeychain
 	default:
@@ -145,6 +171,37 @@ func getKeychain(auth string) authn.Keychain {
 type urlWithKeychain struct {
 	ref      string
 	keychain authn.Keychain
+}
+
+// getRefAndKeychains returns the references and their keychains to try in order to download an OCI at the given URL
+func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
+	mainRefAndKeyChain := getRefAndKeychain(mainEnv, url)
+	refAndKeychains := []urlWithKeychain{mainRefAndKeyChain}
+	if mainRefAndKeyChain.ref != url || mainRefAndKeyChain.keychain != authn.DefaultKeychain {
+		// Override: we don't need to try the default registries
+		return refAndKeychains
+	}
+
+	defaultRegistries := defaultRegistriesProd
+	if mainEnv.Site == "datad0g.com" {
+		defaultRegistries = defaultRegistriesStaging
+	}
+	for _, additionalDefaultRegistry := range defaultRegistries {
+		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
+		// Deduplicate
+		found := false
+		for _, rk := range refAndKeychains {
+			if rk.ref == refAndKeychain.ref && rk.keychain == refAndKeychain.keychain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			refAndKeychains = append(refAndKeychains, refAndKeychain)
+		}
+	}
+
+	return refAndKeychains
 }
 
 // getRefAndKeychain returns the reference and keychain for the given URL.
@@ -159,16 +216,17 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 	}
 	ref := url
-	if registryOverride != "" {
+	// public.ecr.aws/datadog is ignored for now as there are issues with it
+	if registryOverride != "" && registryOverride != "public.ecr.aws/datadog" {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
 		ref = registryOverride + imageWithIdentifier
 	}
-	keychain := getKeychain(env.RegistryAuthOverride)
+	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
 	for image, override := range env.RegistryAuthOverrideByImage {
 		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
-			keychain = getKeychain(override)
+			keychain = getKeychain(override, env.RegistryUsername, env.RegistryPassword)
 			break
 		}
 	}
@@ -178,17 +236,33 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 	}
 }
 
+// downloadRegistry downloads the image from a remote registry.
+// If they are specified, the registry and authentication overrides are applied first.
+// Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	refAndKeychain := getRefAndKeychain(d.env, url)
-	ref, err := name.ParseReference(refAndKeychain.ref)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse reference: %w", err)
+	var multiErr error
+	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
+		log.Debugf("Downloading index from %s", refAndKeychain.ref)
+		ref, err := name.ParseReference(refAndKeychain.ref)
+		if err != nil {
+			multiErr = multierr.Append(multiErr, fmt.Errorf("could not parse reference: %w", err))
+			log.Warnf("could not parse reference: %s", err.Error())
+			continue
+		}
+		index, err := remote.Index(
+			ref,
+			remote.WithContext(ctx),
+			remote.WithAuthFromKeychain(refAndKeychain.keychain),
+			remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)),
+		)
+		if err != nil {
+			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
+			log.Warnf("could not download image using %s: %s", url, err.Error())
+			continue
+		}
+		return d.downloadIndex(index)
 	}
-	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(refAndKeychain.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
-	if err != nil {
-		return nil, fmt.Errorf("could not download image: %w", err)
-	}
-	return d.downloadIndex(index)
+	return nil, fmt.Errorf("could not download image from any registry: %w", multiErr)
 }
 
 func (d *Downloader) downloadFile(path string) (oci.Image, error) {
@@ -237,14 +311,30 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 			return fmt.Errorf("could not get layer media type: %w", err)
 		}
 		if layerMediaType == mediaType {
-			uncompressedLayer, err := layer.Uncompressed()
-			if err != nil {
-				return fmt.Errorf("could not uncompress layer: %w", err)
-			}
-			defer uncompressedLayer.Close()
-			err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-			if err != nil {
-				return fmt.Errorf("could not extract layer: %w", err)
+			// Retry stream reset errors
+			for i := 0; i < extractLayerRetries; i++ {
+				if i > 0 {
+					time.Sleep(time.Second)
+				}
+				uncompressedLayer, err := layer.Uncompressed()
+				if err != nil {
+					return fmt.Errorf("could not uncompress layer: %w", err)
+				}
+				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+				uncompressedLayer.Close()
+				if err != nil {
+					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
+						return fmt.Errorf("could not extract layer: %w", err)
+					}
+					log.Warnf("network error while extracting layer, retrying")
+					// Clean up the directory before retrying to avoid partial extraction
+					err = tar.Clean(dir)
+					if err != nil {
+						return fmt.Errorf("could not clean directory: %w", err)
+					}
+				} else {
+					break
+				}
 			}
 		}
 	}
@@ -268,8 +358,52 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) error {
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":
-		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datad0g.com/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
-		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datadoghq.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
+}
+
+// isStreamResetError returns true if the given error is a stream reset error.
+// Sometimes, in GCR, the tar extract fails with "stream error: stream ID x; INTERNAL_ERROR; received from peer".
+// This happens because the uncompressed layer reader is a http/2 response body under the hood. That body is
+// streamed and receives a "reset stream frame", with the code 0x2 (INTERNAL_ERROR). This is an error from the server
+// that we need to retry.
+func isStreamResetError(err error) bool {
+	if err == nil {
+		return false
+	}
+	serr := http2.StreamError{}
+	if errors.As(err, &serr) {
+		return serr.Code == http2.ErrCodeInternal
+	}
+	serrp := &http2.StreamError{}
+	if errors.As(err, &serrp) {
+		return serrp.Code == http2.ErrCodeInternal
+	}
+	return false
+}
+
+// isConnectionResetByPeer returns true if the error is a connection reset by peer error
+func isConnectionResetByPeerError(err error) bool {
+	if netErr, ok := err.(*net.OpError); ok {
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				return errno == syscall.ECONNRESET
+			}
+		}
+	}
+	return false
+}
+
+type usernamePasswordKeychain struct {
+	username string
+	password string
+}
+
+func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator, error) {
+	return authn.FromConfig(authn.AuthConfig{
+		Username: k.username,
+		Password: k.password,
+	}), nil
 }

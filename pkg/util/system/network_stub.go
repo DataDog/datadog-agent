@@ -13,7 +13,7 @@ import "net"
 // defined (like MacOS). This allows code that refers to this (like the docker
 // check) to at least compile in those platforms, and that's useful for things
 // like running unit tests.
-func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) { //nolint:revive // TODO fix revive unused-parameter
+func ParseProcessRoutes(_ string, _ int) ([]NetworkRoute, error) {
 	panic("ParseProcessRoutes is not implemented in this environment")
 }
 
@@ -21,6 +21,6 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) { //no
 // defined (like MacOS). This allows code that refers to this (like the cluster
 // agent) to at least compile in those platforms, and that's useful for things
 // like running unit tests.
-func GetDefaultGateway(procPath string) (net.IP, error) { //nolint:revive // TODO fix revive unused-parameter
+func GetDefaultGateway(_ string) (net.IP, error) {
 	panic("GetDefaultGateway is not implemented in this environment")
 }

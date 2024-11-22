@@ -194,14 +194,16 @@ func testServer(t *testing.T, opts ...Option) {
 		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{
 				{
-					Timestamp: clock.Now().UTC(),
-					Encoding:  "text/plain",
-					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
+					Timestamp:   clock.Now().UTC(),
+					Encoding:    "text/plain",
+					Data:        []byte("totoro|7|tag:valid,owner:pducolin"),
+					ContentType: "text/plain",
 				},
 				{
-					Timestamp: clock.Now().UTC(),
-					Encoding:  "text/plain",
-					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
+					Timestamp:   clock.Now().UTC(),
+					Encoding:    "text/plain",
+					Data:        []byte("totoro|5|tag:valid,owner:kiki"),
+					ContentType: "text/plain",
 				},
 			},
 		}
@@ -626,6 +628,31 @@ func testServer(t *testing.T, opts ...Option) {
 		t.Logf("Response: %v", res)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "unexpected code")
 
+	})
+	t.Run("should forward logs to dddev using logforwardendpoint", func(t *testing.T) {
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("Received request in test %+v", r)
+			responseBody, err := io.ReadAll(r.Body)
+			require.NoError(t, err, "Error reading request body")
+			assert.Equal(t, "totoro|5|tag:log,owner:toto", string(responseBody))
+			assert.Equal(t, r.Header.Get("DD-API-KEY"), "thisisatestapikey")
+			w.WriteHeader(http.StatusAccepted)
+		}))
+
+		defer testServer.Close()
+		testOpts := append(opts, withLogForwardEndpoint(testServer.URL), withDDDevAPIKey("thisisatestapikey"), WithDDDevForward())
+		fi, _ := InitialiseForTests(t, testOpts...)
+		defer fi.Stop()
+		res, err := http.Post(fi.URL()+"/api/v2/logs", "text/plain", strings.NewReader("totoro|5|tag:log,owner:toto"))
+		require.NoError(t, err, "Error on POST request")
+		defer res.Body.Close()
+		t.Logf("Response: %v", res)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "unexpected code")
+		res, err = http.Post(fi.URL()+"/api/v2/series", "text/plain", strings.NewReader("totoro|5|tag:series,owner:toto"))
+		require.NoError(t, err, "Error on POST request")
+		defer res.Body.Close()
+		t.Logf("Response: %v", res)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "unexpected code")
 	})
 }
 

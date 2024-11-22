@@ -39,6 +39,12 @@ var (
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
+	// Rule action metrics
+
+	// MetricRuleActionPerformed is the name of the metric used to count actions performed after a rule was matched
+	// Tags: rule_id, action_name
+	MetricRuleActionPerformed = newRuntimeMetric(".rules.action_performed")
+
 	// Syscall monitoring metrics
 
 	// MetricSyscalls is the name of the metric used to count each syscall executed on the host
@@ -330,6 +336,18 @@ var (
 	// MetricRulesStatus is the name of the metric used to report the rule status
 	// Tags: -
 	MetricRulesStatus = newRuntimeMetric(".rules_status")
+
+	// Enforcement metrics
+
+	// MetricEnforcementProcessKilled is the name of the metric used to report the number of processes killed
+	// Tags: rule_id
+	MetricEnforcementProcessKilled = newRuntimeMetric(".enforcement.process_killed")
+	// MetricEnforcementRuleDisarmed is the name of the metric used to report that a rule was disarmed
+	// Tags: rule_id, disarmer_type ('executable', 'container')
+	MetricEnforcementRuleDisarmed = newRuntimeMetric(".enforcement.rule_disarmed")
+	// MetricEnforcementRuleRearmed is the name of the metric used to report that a rule was rearmed
+	// Tags: rule_id
+	MetricEnforcementRuleRearmed = newRuntimeMetric(".enforcement.rule_rearmed")
 
 	// Others
 

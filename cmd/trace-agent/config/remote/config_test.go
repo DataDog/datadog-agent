@@ -94,7 +94,7 @@ func TestUpstreamRequest(t *testing.T) {
 			name:      "both tracer and container tags",
 			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg: &config.AgentConfig{
-				ContainerTags: func(cid string) ([]string, error) {
+				ContainerTags: func(_ string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
@@ -110,7 +110,7 @@ func TestUpstreamRequest(t *testing.T) {
 			name:      "container tags only",
 			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test"}}}`,
 			cfg: &config.AgentConfig{
-				ContainerTags: func(cid string) ([]string, error) {
+				ContainerTags: func(_ string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},

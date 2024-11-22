@@ -7,9 +7,10 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.go import tidy
+from tasks.libs.ciproviders.circleci import update_circleci_config
+from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
-from tasks.modules import DEFAULT_MODULES
-from tasks.pipeline import update_circleci_config, update_gitlab_config
+from tasks.libs.common.gomodules import get_default_modules
 
 GO_VERSION_FILE = "./.go-version"
 
@@ -30,6 +31,8 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
+    ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
+    ("./docs/public/setup.md", "version `", "` or higher", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -46,7 +49,7 @@ def go_version(_):
     help={
         "version": "The version of Go to use",
         "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
-        "test_version": "Whether the image is a test image or not",
+        "test": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
         "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
         "include_otel_modules": "Whether to update the version in go.mod files used by otel.",
@@ -55,8 +58,8 @@ def go_version(_):
 def update_go(
     ctx: Context,
     version: str,
-    image_tag: str,
-    test_version: bool = True,
+    image_tag: str | None = None,
+    test: bool = True,
     warn: bool = False,
     release_note: bool = True,
     include_otel_modules: bool = False,
@@ -77,21 +80,22 @@ def update_go(
     if is_minor_update:
         print(color_message("WARNING: this is a change of minor version\n", "orange"))
 
-    try:
-        update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
+    if image_tag:
+        try:
+            update_gitlab_config(".gitlab-ci.yml", image_tag, test=test)
+        except RuntimeError as e:
+            if warn:
+                print(color_message(f"WARNING: {str(e)}", "orange"))
+            else:
+                raise
 
-    try:
-        update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
+        try:
+            update_circleci_config(".circleci/config.yml", image_tag, test=test)
+        except RuntimeError as e:
+            if warn:
+                print(color_message(f"WARNING: {str(e)}", "orange"))
+            else:
+                raise
 
     _update_references(warn, version)
     _update_go_mods(warn, version, include_otel_modules)
@@ -187,7 +191,7 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
 
 
 def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):
-    for path, module in DEFAULT_MODULES.items():
+    for path, module in get_default_modules().items():
         if not include_otel_modules and module.used_by_otel:
             # only update the go directives in go.mod files not used by otel
             # to allow them to keep using the modules

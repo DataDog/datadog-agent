@@ -13,7 +13,8 @@ import (
 	"reflect"
 	"runtime"
 	"time"
-	"unsafe"
+
+	"modernc.org/mathutil"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -71,11 +72,12 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved    bool                       `field:"-"`
-	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
+	ContainerID  containerutils.ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt    uint64                     `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags         []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	TagsResolved bool                       `field:"-"`
+	Resolved     bool                       `field:"-"`
+	Runtime      string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // SecurityProfileContext holds the security context of the profile
@@ -89,8 +91,10 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet net.IPNet `field:"ip"`   // SECLDoc[ip] Definition:`IP address`
-	Port  uint16    `field:"port"` // SECLDoc[port] Definition:`Port number`
+	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IsPublicResolved bool      `field:"-"`
 }
 
 // NetworkContext represents the network context of the event
@@ -104,10 +108,15 @@ type NetworkContext struct {
 	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
+// IsZero returns if there is a network context
+func (nc *NetworkContext) IsZero() bool {
+	return nc.Size == 0
+}
+
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64 `field:"_"`
-	TraceID uint64 `field:"_"`
+	SpanID  uint64          `field:"-"`
+	TraceID mathutil.Int128 `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel
@@ -119,10 +128,10 @@ type BaseEvent struct {
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService"`   // SECLDoc[event.service] Definition:`Service associated with the event`
-	Hostname      string         `field:"event.hostname,handler:ResolveHostname"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	Os            string         `field:"event.os"`                                          // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin"`                                      // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`            // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -222,6 +231,13 @@ func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
 }
 
+// ResetAnomalyDetectionEvent removes the anomaly detection event flag
+func (e *Event) ResetAnomalyDetectionEvent() {
+	if e.IsAnomalyDetectionEvent() {
+		e.RemoveFromFlags(EventFlagsAnomalyDetectionEvent)
+	}
+}
+
 // RemoveFromFlags remove a flag to the event
 func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
@@ -274,8 +290,8 @@ func (e *Event) Release() {
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return e.FieldHandlers.ResolveProcessCacheEntry(e)
+func (e *Event) ResolveProcessCacheEntry(newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e, newEntryCb)
 }
 
 // ResolveEventTime uses the field handler
@@ -312,8 +328,9 @@ type MatchedRule struct {
 
 // ActionReport defines an action report
 type ActionReport interface {
-	ToJSON() ([]byte, bool, error)
+	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
+	IsResolved() bool
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -421,8 +438,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                       `field:"-"`
-	onRelease []func(_ *ProcessCacheEntry) `field:"-"`
+	refCount    uint64                     `field:"-"`
+	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
+	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -434,6 +452,9 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
+	// `coreRelease` function should not be cleared on reset
+	// it's used for pool and cache size management
+	pc.onRelease = nil
 }
 
 // Retain increment ref counter
@@ -444,15 +465,16 @@ func (pc *ProcessCacheEntry) Retain() {
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
-			callback()
-		})
+		pc.onRelease = append(pc.onRelease, callback)
 	}
 }
 
 func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 	for _, cb := range pc.onRelease {
-		cb(pc)
+		cb()
+	}
+	if pc.coreRelease != nil {
+		pc.coreRelease(pc)
 	}
 }
 
@@ -467,12 +489,8 @@ func (pc *ProcessCacheEntry) Release() {
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	var cbs []func(_ *ProcessCacheEntry)
-	if onRelease != nil {
-		cbs = append(cbs, onRelease)
-	}
-	return &ProcessCacheEntry{onRelease: cbs}
+func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{coreRelease: coreRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -481,23 +499,60 @@ type ProcessAncestorsIterator struct {
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
 	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
-		return unsafe.Pointer(front)
+		return front
 	}
 
 	return nil
 }
 
 // Next returns the next element
-func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
-		return unsafe.Pointer(next)
+		return next
 	}
 
 	return nil
+}
+
+// At returns the element at the given position
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*ProcessCacheEntry)
+	}
+
+	var i int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		if i == pos {
+			ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+				Pos:   pos,
+				Value: ancestor,
+			}
+			return ancestor
+		}
+		ancestor = ancestor.Ancestor
+		i++
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
+	var size int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		size++
+		ancestor = ancestor.Ancestor
+	}
+
+	return size
 }
 
 // HasParent returns whether the process has a parent
@@ -567,16 +622,21 @@ type AWSSecurityCredentials struct {
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
-	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
 // ResolveContainerContext stub implementation
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
+}
+
+// TLSContext represents a tls context
+type TLSContext struct {
+	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
 }

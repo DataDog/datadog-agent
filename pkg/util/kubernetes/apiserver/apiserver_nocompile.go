@@ -39,7 +39,7 @@ func GetAPIClient() (*APIClient, error) {
 // WaitForAPIClient returns the shared ApiClient instance.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
+func WaitForAPIClient(_ context.Context) (*APIClient, error) {
 	log.Errorf("WaitForAPIClient not implemented %s", ErrNotCompiled.Error())
 	return &APIClient{}, nil
 }
@@ -47,7 +47,7 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 // GetMetadataMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error) {
+func GetMetadataMapBundleOnNode(_ string) (*apiv1.MetadataResponse, error) {
 	log.Errorf("GetMetadataMapBundleOnNode not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
@@ -61,7 +61,7 @@ func GetMetadataMapBundleOnAllNodes(_ *APIClient) (*apiv1.MetadataResponse, erro
 // GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func GetNodeLabels(_ *APIClient, nodeName string) (map[string]string, error) {
+func GetNodeLabels(_ *APIClient, _ string) (map[string]string, error) {
 	log.Errorf("GetNodeLabels not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
@@ -69,6 +69,6 @@ func GetNodeLabels(_ *APIClient, nodeName string) (map[string]string, error) {
 // GetKubeClient returns a Kubernetes client.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func GetKubeClient(_ time.Duration) (kubernetes.Interface, error) {
 	return nil, ErrNotCompiled
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -30,10 +29,7 @@ func TestMkURL(t *testing.T) {
 func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
-	cfg := fxutil.Test[config.Component](
-		t,
-		config.MockModule(),
-	)
+	cfg := config.NewMock(t)
 
 	testCases := []struct {
 		name        string
@@ -75,7 +71,7 @@ func TestFlareHasRightForm(t *testing.T) {
 		},
 		{
 			name: "service unavailable",
-			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(503)
 				io.WriteString(w, "path not recognized by httptest server")
 			}),
@@ -131,6 +127,19 @@ func TestAnalyzeResponse(t *testing.T) {
 	})
 
 	t.Run("error-from-server", func(t *testing.T) {
+		r := &http.Response{
+			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
+			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\", \"request_uuid\": \"1dd9a912-843f-4987-9007-b915edb3d047\"}"))),
+		}
+		resstr, reserr := analyzeResponse(r, "abcdef")
+		require.Equal(t, errors.New("uhoh"), reserr)
+		require.Equal(t,
+			"An error occurred while uploading the flare: uhoh. Please contact support by email and facilitate the request uuid: `1dd9a912-843f-4987-9007-b915edb3d047`.",
+			resstr)
+	})
+
+	t.Run("error-from-server-with-no-request_uuid", func(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},

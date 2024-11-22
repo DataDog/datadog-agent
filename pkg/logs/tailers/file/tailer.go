@@ -19,14 +19,15 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -115,19 +116,22 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info      *status.InfoRegistry
-	bytesRead *status.CountInfo
-	movingSum *util.MovingSum
+	info            *status.InfoRegistry
+	bytesRead       *status.CountInfo
+	movingSum       *util.MovingSum
+	PipelineMonitor metrics.PipelineMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan    chan *message.Message // Required
-	File          *File                 // Required
-	SleepDuration time.Duration         // Required
-	Decoder       *decoder.Decoder      // Required
-	Info          *status.InfoRegistry  // Required
-	Rotated       bool                  // Optional
+	OutputChan      chan *message.Message   // Required
+	File            *File                   // Required
+	SleepDuration   time.Duration           // Required
+	Decoder         *decoder.Decoder        // Required
+	Info            *status.InfoRegistry    // Required
+	Rotated         bool                    // Optional
+	TagAdder        tag.EntityTagAdder      // Required
+	PipelineMonitor metrics.PipelineMonitor // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -142,14 +146,14 @@ type TailerOptions struct {
 func NewTailer(opts *TailerOptions) *Tailer {
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier))
+		tagProvider = tag.NewProvider(types.NewEntityID(types.ContainerID, opts.File.Source.Config().Identifier), opts.TagAdder)
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
-	closeTimeout := coreConfig.Datadog().GetDuration("logs_config.close_timeout") * time.Second
-	windowsOpenFileTimeout := coreConfig.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
+	closeTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
 	fileRotated := opts.Rotated
@@ -180,6 +184,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
+		PipelineMonitor:        opts.PipelineMonitor,
 	}
 
 	if fileRotated {
@@ -197,15 +202,17 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
-// messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
+// messages to a new channel and using an updated file and decoder.
+func (t *Tailer) NewRotatedTailer(file *File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
 	options := &TailerOptions{
-		OutputChan:    t.outputChan,
-		File:          file,
-		SleepDuration: t.sleepDuration,
-		Decoder:       decoder,
-		Info:          info,
-		Rotated:       true,
+		OutputChan:      outputChan,
+		File:            file,
+		SleepDuration:   t.sleepDuration,
+		Decoder:         decoder,
+		Info:            info,
+		Rotated:         true,
+		TagAdder:        tagAdder,
+		PipelineMonitor: pipelineMonitor,
 	}
 
 	return NewTailer(options)
@@ -268,6 +275,8 @@ func (t *Tailer) StopAfterFileRotation() {
 			if err != nil {
 				log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
 			} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
+				metrics.BytesMissed.Add(remainingBytes)
+				metrics.TlmBytesMissed.Add(float64(remainingBytes))
 				log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 			}
 		}
@@ -344,18 +353,25 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
+
+		tags := make([]string, len(t.tags))
+		copy(tags, t.tags)
+		tags = append(tags, t.tagProvider.GetTags()...)
+		tags = append(tags, output.ParsingExtra.Tags...)
+		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue
 		}
+
+		msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		// XXX(remy): is it ok recreating a message like this here?
-		case t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp):
+		case t.outputChan <- msg:
+			t.PipelineMonitor.ReportComponentIngress(msg, "processor")
 		case <-t.forwardContext.Done():
 		}
 	}

@@ -22,7 +22,7 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -95,7 +95,7 @@ func BenchmarkConnectionsGet(b *testing.B) {
 			ns.GetDelta(DEBUGCLIENT, latestTime.Load(), nil, nil, nil)
 
 			for _, c := range closed[:bench.closedCount] {
-				ns.StoreClosedConnections([]ConnectionStats{c})
+				ns.StoreClosedConnection(&c)
 			}
 
 			b.ResetTimer()
@@ -109,7 +109,7 @@ func BenchmarkConnectionsGet(b *testing.B) {
 }
 
 func TestRemoveConnections(t *testing.T) {
-	conn := ConnectionStats{
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   UDP,
 		Family: AFINET,
@@ -117,6 +117,7 @@ func TestRemoveConnections(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  31890,
 		DPort:  80,
+	},
 		Monotonic: StatCounters{
 			SentBytes:   12345,
 			RecvBytes:   6789,
@@ -148,7 +149,7 @@ func TestRemoveConnections(t *testing.T) {
 }
 
 func TestRetrieveClosedConnection(t *testing.T) {
-	conn := ConnectionStats{
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -156,6 +157,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  31890,
 		DPort:  80,
+	},
 		Monotonic: StatCounters{
 			SentBytes:   12345,
 			RecvBytes:   6789,
@@ -174,7 +176,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 
 	t.Run("without prior registration", func(t *testing.T) {
 		state := newDefaultState()
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 		conns := state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
 
 		assert.Equal(t, 0, len(conns))
@@ -185,7 +187,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 
 		state.RegisterClient(clientID)
 
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		conns := state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
 		assert.Equal(t, 1, len(conns))
@@ -202,7 +204,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 }
 
 func TestDropActiveConnections(t *testing.T) {
-	conn := ConnectionStats{
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -210,6 +212,7 @@ func TestDropActiveConnections(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  31890,
 		DPort:  80,
+	},
 		Monotonic: StatCounters{
 			SentBytes:   12345,
 			RecvBytes:   6789,
@@ -245,7 +248,7 @@ func TestDropActiveConnections(t *testing.T) {
 }
 
 func TestDropEmptyConnections(t *testing.T) {
-	conn := ConnectionStats{
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -253,6 +256,7 @@ func TestDropEmptyConnections(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  31890,
 		DPort:  80,
+	},
 		Monotonic: StatCounters{
 			SentBytes:   12345,
 			RecvBytes:   6789,
@@ -275,9 +279,9 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 1
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnection(&ConnectionStats{})
 
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&conn)
 
 		conns := state.clients[clientID].closed.conns
 		_, ok := state.clients[clientID].closed.byCookie[0]
@@ -293,9 +297,9 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 1
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&conn)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnection(&ConnectionStats{})
 
 		conns := state.clients[clientID].closed.conns
 		_, ok := state.clients[clientID].closed.byCookie[0]
@@ -311,11 +315,11 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 1
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&conn)
 
 		conn2 := conn
 		conn2.Cookie = 2
-		state.storeClosedConnections([]ConnectionStats{conn2})
+		state.storeClosedConnection(&conn2)
 
 		conns := state.clients[clientID].closed.conns
 		_, ok := state.clients[clientID].closed.byCookie[2]
@@ -330,12 +334,12 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&ConnectionStats{})
+		state.storeClosedConnection(&conn)
 
 		emptyconn := ConnectionStats{}
 		emptyconn.Cookie = 2
-		state.storeClosedConnections([]ConnectionStats{emptyconn})
+		state.storeClosedConnection(&emptyconn)
 
 		conns := state.clients[clientID].closed.conns
 
@@ -346,7 +350,7 @@ func TestDropEmptyConnections(t *testing.T) {
 		conn2 := conn
 		conn2.Cookie = 2
 		conn2.LastUpdateEpoch = 100
-		state.storeClosedConnections([]ConnectionStats{conn2})
+		state.storeClosedConnection(&conn2)
 
 		// Check that the index changed
 		conns = state.clients[clientID].closed.conns
@@ -358,13 +362,13 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&ConnectionStats{})
+		state.storeClosedConnection(&conn)
 
 		// Send non-empty connection
 		conn2 := conn
 		conn2.Cookie = 2
-		state.storeClosedConnections([]ConnectionStats{conn2})
+		state.storeClosedConnection(&conn2)
 
 		conns := state.clients[clientID].closed.conns
 
@@ -375,7 +379,7 @@ func TestDropEmptyConnections(t *testing.T) {
 		emptyconn := ConnectionStats{}
 		emptyconn.Cookie = 2
 		emptyconn.LastUpdateEpoch = 100
-		state.storeClosedConnections([]ConnectionStats{emptyconn})
+		state.storeClosedConnection(&conn2)
 
 		// Check that the index stayed the same
 		conns = state.clients[clientID].closed.conns
@@ -387,14 +391,14 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&ConnectionStats{})
+		state.storeClosedConnection(&conn)
 
 		// Send non-empty connection
 		conn2 := conn
 		conn2.Cookie = 2
 		conn2.LastUpdateEpoch = 100
-		state.storeClosedConnections([]ConnectionStats{conn2})
+		state.storeClosedConnection(&conn2)
 
 		conns := state.clients[clientID].closed.conns
 
@@ -404,7 +408,7 @@ func TestDropEmptyConnections(t *testing.T) {
 		// Send empty connection with same cookie
 		emptyconn := ConnectionStats{}
 		emptyconn.Cookie = 2
-		state.storeClosedConnections([]ConnectionStats{emptyconn})
+		state.storeClosedConnection(&conn2)
 
 		// Check that the index stayed the same
 		conns = state.clients[clientID].closed.conns
@@ -416,13 +420,13 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&ConnectionStats{})
+		state.storeClosedConnection(&conn)
 
 		// Send non-empty connection
 		conn2 := conn
 		conn2.Cookie = 2
-		state.storeClosedConnections([]ConnectionStats{conn2})
+		state.storeClosedConnection(&conn2)
 
 		conns := state.clients[clientID].closed.conns
 
@@ -439,7 +443,7 @@ func TestDropEmptyConnections(t *testing.T) {
 			RecvBytes:   3333,
 			Retransmits: 4,
 		}
-		state.storeClosedConnections([]ConnectionStats{conn3})
+		state.storeClosedConnection(&conn3)
 
 		// Check that the index stayed the same
 		conns = state.clients[clientID].closed.conns
@@ -451,8 +455,8 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{conn})
-		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnection(&conn)
+		state.storeClosedConnection(&ConnectionStats{})
 
 		conns := state.clients[clientID].closed.conns
 		emptyConnStart := state.clients[clientID].closed.emptyStart
@@ -466,8 +470,8 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{{}})
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&ConnectionStats{})
+		state.storeClosedConnection(&conn)
 
 		conns := state.clients[clientID].closed.conns
 		emptyConnStart := state.clients[clientID].closed.emptyStart
@@ -481,11 +485,11 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.maxClosedConns = 5
 		state.RegisterClient(clientID)
 
-		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnection(&conn)
 
 		conn2 := conn
 		conn2.Cookie = 2
-		state.storeClosedConnections([]ConnectionStats{conn2})
+		state.storeClosedConnection(&conn2)
 
 		conns := state.clients[clientID].closed.conns
 		emptyConnStart := state.clients[clientID].closed.emptyStart
@@ -565,7 +569,7 @@ func TestTelemetryDiffing(t *testing.T) {
 func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 	clientID := "1"
 	state := newDefaultState()
-	conn := ConnectionStats{
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -573,6 +577,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  9000,
 		DPort:  1234,
+	},
 		Monotonic: StatCounters{
 			SentBytes: 1,
 		},
@@ -622,14 +627,15 @@ func TestLastStats(t *testing.T) {
 		Retransmits: 2,
 	}
 
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
-		SPort:     31890,
-		DPort:     80,
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  31890,
+		DPort:  80,
+	},
 		Monotonic: m,
 	}
 
@@ -710,14 +716,15 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 		Retransmits: 1,
 	}
 
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
-		SPort:     31890,
-		DPort:     80,
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  31890,
+		DPort:  80,
+	},
 		Monotonic: m,
 	}
 
@@ -742,7 +749,7 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	assert.Equal(t, conn.Monotonic.RecvBytes, conns[0].Monotonic.RecvBytes)
 	assert.Equal(t, conn.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 
-	state.StoreClosedConnections([]ConnectionStats{conn2})
+	state.StoreClosedConnection(&conn2)
 
 	// We should have one connection with last stats
 	conns = state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
@@ -756,14 +763,14 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	assert.Equal(t, conn2.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 }
 
-func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func TestRaceConditions(_ *testing.T) {
 	nClients := 10
 
 	// Generate random conns
 	genConns := func(n uint32) []ConnectionStats {
 		conns := make([]ConnectionStats, 0, n)
 		for i := uint32(0); i < n; i++ {
-			conns = append(conns, ConnectionStats{
+			conns = append(conns, ConnectionStats{ConnectionTuple: ConnectionTuple{
 				Pid:    1 + i,
 				Type:   TCP,
 				Family: AFINET,
@@ -771,6 +778,7 @@ func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unuse
 				Dest:   util.AddressFromString("127.0.0.1"),
 				SPort:  uint16(rand.Int()),
 				DPort:  uint16(rand.Int()),
+			},
 				Monotonic: StatCounters{
 					SentBytes:   uint64(rand.Int()),
 					RecvBytes:   uint64(rand.Int()),
@@ -813,12 +821,13 @@ func TestSameKeyEdgeCases(t *testing.T) {
 	// Each horizontal bar represents a connection lifespan (from start to end with the number of sent bytes written on top of the line)
 
 	client := "c"
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+	},
 		Monotonic: StatCounters{SentBytes: 3},
 		Cookie:    1,
 	}
@@ -845,7 +854,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 0, len(conns))
 
 		// Store the connection as closed
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		// Second get, we should have monotonic and last stats = 3
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
@@ -880,14 +889,14 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 0, len(conns))
 
 		// Store the connection as closed
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		conn2 := conn
 		conn2.Cookie = 2
 		conn2.Monotonic = StatCounters{SentBytes: 5}
 		conn2.LastUpdateEpoch++
 		// Store the connection another time
-		state.StoreClosedConnections([]ConnectionStats{conn2})
+		state.StoreClosedConnection(&conn2)
 
 		// Second get, we should have monotonic and last stats = 8
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
@@ -923,14 +932,15 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conns := state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
 		assert.Len(t, conns, 0)
 
-		conn := ConnectionStats{
-			Pid:       123,
-			Type:      TCP,
-			Family:    AFINET,
-			Source:    util.AddressFromString("127.0.0.1"),
-			Dest:      util.AddressFromString("127.0.0.1"),
-			SPort:     9000,
-			DPort:     1234,
+		conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+			Pid:    123,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  9000,
+			DPort:  1234,
+		},
 			Monotonic: StatCounters{SentBytes: 1},
 			Cookie:    1,
 		}
@@ -947,7 +957,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn.Monotonic.SentBytes++
 		conn.LastUpdateEpoch = latestEpochTime()
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		conn2 := conn
 		conn2.Monotonic.SentBytes = 1
@@ -965,7 +975,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn2.Monotonic.SentBytes++
 		conn.LastUpdateEpoch = latestEpochTime()
 		// Store the connection as closed
-		state.StoreClosedConnections([]ConnectionStats{conn2})
+		state.StoreClosedConnection(&conn2)
 
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
 		require.Len(t, conns, 1)
@@ -1000,7 +1010,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 0, len(conns))
 
 		// Store the connection as closed
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		conn2 := conn
 		conn2.Cookie = 2
@@ -1021,7 +1031,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn2.Monotonic.SentBytes += 3
 		conn2.LastUpdateEpoch++
-		state.StoreClosedConnections([]ConnectionStats{conn2})
+		state.StoreClosedConnection(&conn2)
 
 		// Store the connection again
 		conn3 := conn2
@@ -1041,7 +1051,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Store the connection as closed
 		conn3.Monotonic.SentBytes += 2
-		state.StoreClosedConnections([]ConnectionStats{conn3})
+		state.StoreClosedConnection(&conn3)
 
 		// 4th get, we should have monotonic = 3 and last stats = 2
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
@@ -1088,7 +1098,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn2 := conn
 		conn2.Monotonic = StatCounters{SentBytes: 8}
-		state.StoreClosedConnections([]ConnectionStats{conn2})
+		state.StoreClosedConnection(&conn2)
 
 		// Second get, we should have monotonic = 8 and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
@@ -1143,7 +1153,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 0, len(conns))
 
 		// Store the connection as closed
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		// Second get for client d we should have monotonic and last stats = 3
 		conns = state.GetDelta(clientD, latestEpochTime(), nil, nil, nil).Conns
@@ -1183,7 +1193,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn2.Monotonic.SentBytes += 2
 		conn2.LastUpdateEpoch++
-		state.StoreClosedConnections([]ConnectionStats{conn2})
+		state.StoreClosedConnection(&conn2)
 
 		// Store the connection again
 		conn3 := conn2
@@ -1216,7 +1226,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn3.Monotonic.SentBytes++
 		conn3.LastUpdateEpoch++
-		state.StoreClosedConnections([]ConnectionStats{conn3})
+		state.StoreClosedConnection(&conn3)
 
 		// 4th get, for client c we should have monotonic = 3 and last stats = 2
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
@@ -1307,7 +1317,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn.Monotonic.SentBytes++
 		conn.LastUpdateEpoch++
-		state.StoreClosedConnections([]ConnectionStats{conn})
+		state.StoreClosedConnection(&conn)
 
 		// Second get for client d we should have monotonic and last stats = 3
 		conns = state.GetDelta(clientD, latestEpochTime(), nil, nil, nil).Conns
@@ -1354,7 +1364,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		conn2.Monotonic.SentBytes += 2
 		conn2.LastUpdateEpoch++
-		state.StoreClosedConnections([]ConnectionStats{conn2})
+		state.StoreClosedConnection(&conn2)
 
 		// 4th get, for client e we should have monotonic = 5 and last stats = 5
 		conns = state.GetDelta(clientE, latestEpochTime(), nil, nil, nil).Conns
@@ -1444,12 +1454,13 @@ func TestSameKeyEdgeCases(t *testing.T) {
 }
 
 func TestStatsResetOnUnderflow(t *testing.T) {
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+	},
 		Monotonic: StatCounters{SentBytes: 3},
 		IntraHost: true,
 	}
@@ -1477,12 +1488,13 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 }
 
 func TestDoubleCloseOnTwoClients(t *testing.T) {
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+	},
 		Monotonic: StatCounters{SentBytes: 3},
 		Last:      StatCounters{SentBytes: 3},
 		IntraHost: true,
@@ -1498,9 +1510,9 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 	state.RegisterClient(client2)
 
 	// Store the closed connection twice
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 	conn.LastUpdateEpoch++
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 
 	// Get the connections for client1 we should have only one with stats counted only once
 	conns := state.GetDelta(client1, latestEpochTime(), nil, nil, nil).Conns
@@ -1515,12 +1527,13 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 
 func TestUnorderedCloseEvent(t *testing.T) {
 	stateTelemetry.statsUnderflows.Delete()
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+	},
 		Monotonic: StatCounters{SentBytes: 3},
 	}
 
@@ -1535,7 +1548,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	conn.LastUpdateEpoch = latestEpochTime() + 1
 	conn.Monotonic.SentBytes++
 	conn.Monotonic.RecvBytes = 1
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 
 	conn.LastUpdateEpoch--
 	conn.Monotonic.SentBytes--
@@ -1553,7 +1566,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	// Simulate having the connection getting active again
 	conn.LastUpdateEpoch = latestEpochTime()
 	conn.Monotonic.SentBytes--
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 
 	conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
 	require.Len(t, conns, 1)
@@ -1567,12 +1580,13 @@ func TestUnorderedCloseEvent(t *testing.T) {
 }
 
 func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+	},
 		Monotonic: StatCounters{SentBytes: 3},
 	}
 
@@ -1583,13 +1597,13 @@ func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
 	state.RegisterClient(client)
 
 	conn.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 
 	conn.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 
 	conn.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{conn})
+	state.StoreClosedConnection(&conn)
 
 	// Make sure the connections we get has the latest timestamp
 	delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
@@ -1597,7 +1611,7 @@ func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
 }
 
 func TestDNSStatsWithMultipleClients(t *testing.T) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -1605,7 +1619,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  1000,
 		DPort:  53,
-	}
+	}}
 
 	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: getIPProtocol(c.Type)}
 
@@ -1673,26 +1687,17 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 }
 
 func TestHTTPStats(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStats(t, false)
-	})
-}
-
-func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
 		SPort:  1000,
 		DPort:  80,
-	}
+	}}
 
 	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte("/testpath"), true, http.MethodGet)
 
 	httpStats := make(map[http.Key]*http.RequestStats)
-	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
+	httpStats[key] = http.NewRequestStats()
 
 	usmStats := make(map[protocols.ProtocolType]interface{})
 	usmStats[protocols.HTTP] = httpStats
@@ -1710,27 +1715,18 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTP2Stats(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2Stats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2Stats(t, false)
-	})
-}
-
-func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
 		SPort:  1000,
 		DPort:  80,
-	}
+	}}
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 
 		http2Stats := make(map[http.Key]*http.RequestStats)
-		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
+		http2Stats[key] = http.NewRequestStats()
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.HTTP2] = http2Stats
@@ -1751,26 +1747,17 @@ func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTPStatsWithMultipleClients(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStatsWithMultipleClients(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStatsWithMultipleClients(t, false)
-	})
-}
-
-func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
 		SPort:  1000,
 		DPort:  80,
-	}
+	}}
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
+		httpStats[key] = http.NewRequestStats()
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.HTTP] = httpStats
@@ -1793,7 +1780,7 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 
 	// Store the connection to both clients & pass HTTP stats to the first client
 	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{c})
+	state.StoreClosedConnection(&c)
 
 	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath"))
 	assert.Len(t, delta.HTTP, 1)
@@ -1807,7 +1794,7 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 	assert.Len(t, delta.HTTP, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{c})
+	state.StoreClosedConnection(&c)
 
 	// Pass in new HTTP stats to the first client
 	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath2"))
@@ -1823,26 +1810,17 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 }
 
 func TestHTTP2StatsWithMultipleClients(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2StatsWithMultipleClients(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2StatsWithMultipleClients(t, false)
-	})
-}
-
-func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
 		SPort:  1000,
 		DPort:  80,
-	}
+	}}
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		http2Stats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
+		http2Stats[key] = http.NewRequestStats()
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.HTTP2] = http2Stats
@@ -1865,7 +1843,7 @@ func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool)
 
 	// Store the connection to both clients & pass HTTP2 stats to the first client
 	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{c})
+	state.StoreClosedConnection(&c)
 
 	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath"))
 	assert.Len(t, delta.HTTP2, 1)
@@ -1879,7 +1857,7 @@ func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool)
 	assert.Len(t, delta.HTTP2, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{c})
+	state.StoreClosedConnection(&c)
 
 	// Pass in new HTTP2 stats to the first client
 	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath2"))
@@ -1902,31 +1880,32 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 	}{
 		{
 			name: "equal source/dest",
-			conn: ConnectionStats{
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
 				Source: util.AddressFromString("1.1.1.1"),
 				Dest:   util.AddressFromString("1.1.1.1"),
 				SPort:  123,
 				DPort:  456,
-			},
+			}},
 			intraHost: true,
 		},
 		{
 			name: "source/dest loopback",
-			conn: ConnectionStats{
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
 				Source: util.AddressFromString("127.0.0.1"),
 				Dest:   util.AddressFromString("127.0.0.1"),
 				SPort:  123,
 				DPort:  456,
-			},
+			}},
 			intraHost: true,
 		},
 		{
 			name: "dest nat'ed to loopback",
-			conn: ConnectionStats{
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
 				Source: util.AddressFromString("1.1.1.1"),
 				Dest:   util.AddressFromString("2.2.2.2"),
 				SPort:  123,
 				DPort:  456,
+			},
 				IPTranslation: &IPTranslation{
 					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
 					ReplDstIP:   util.AddressFromString("1.1.1.1"),
@@ -1938,13 +1917,14 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		},
 		{
 			name: "local connection with nat on both sides (outgoing)",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("169.254.169.254"),
-				SPort:     12345,
-				DPort:     80,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("169.254.169.254"),
+				SPort:  12345,
+				DPort:  80,
+				NetNS:  1212,
+			},
 				Direction: OUTGOING,
-				NetNS:     1212,
 				IPTranslation: &IPTranslation{
 					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
 					ReplDstIP:   util.AddressFromString("1.1.1.1"),
@@ -1956,13 +1936,14 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		},
 		{
 			name: "local connection with nat on both sides (incoming)",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("127.0.0.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     8181,
-				DPort:     12345,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  8181,
+				DPort:  12345,
+				NetNS:  1233,
+			},
 				Direction: INCOMING,
-				NetNS:     1233,
 				IPTranslation: &IPTranslation{
 					ReplSrcIP:   util.AddressFromString("1.1.1.1"),
 					ReplDstIP:   util.AddressFromString("169.254.169.254"),
@@ -1974,13 +1955,14 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		},
 		{
 			name: "remote connection with source translation (redirect)",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("4.4.4.4"),
-				Dest:      util.AddressFromString("2.2.2.2"),
-				SPort:     12345,
-				DPort:     80,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("4.4.4.4"),
+				Dest:   util.AddressFromString("2.2.2.2"),
+				SPort:  12345,
+				DPort:  80,
+				NetNS:  2,
+			},
 				Direction: INCOMING,
-				NetNS:     2,
 				IPTranslation: &IPTranslation{
 					ReplSrcIP:   util.AddressFromString("2.2.2.2"),
 					ReplDstIP:   util.AddressFromString("127.0.0.1"),
@@ -1992,61 +1974,66 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		},
 		{
 			name: "local connection, same network ns",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("2.2.2.2"),
-				SPort:     12345,
-				DPort:     80,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("2.2.2.2"),
+				SPort:  12345,
+				DPort:  80,
+				NetNS:  1,
+			},
 				Direction: OUTGOING,
-				NetNS:     1,
 			},
 			intraHost: true,
 		},
 		{
 			name: "local connection, same network ns",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("2.2.2.2"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     80,
-				DPort:     12345,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("2.2.2.2"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  80,
+				DPort:  12345,
+				NetNS:  1,
+			},
 				Direction: INCOMING,
-				NetNS:     1,
 			},
 			intraHost: true,
 		},
 		{
 			name: "local connection, different network ns",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("2.2.2.2"),
-				SPort:     12345,
-				DPort:     80,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("2.2.2.2"),
+				SPort:  12345,
+				DPort:  80,
+				NetNS:  1,
+			},
 				Direction: OUTGOING,
-				NetNS:     1,
 			},
 			intraHost: true,
 		},
 		{
 			name: "local connection, different network ns",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("2.2.2.2"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     80,
-				DPort:     12345,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("2.2.2.2"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  80,
+				DPort:  12345,
+				NetNS:  2,
+			},
 				Direction: INCOMING,
-				NetNS:     2,
 			},
 			intraHost: true,
 		},
 		{
 			name: "remote connection",
-			conn: ConnectionStats{
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("3.3.3.3"),
-				SPort:     12345,
-				DPort:     80,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("3.3.3.3"),
+				SPort:  12345,
+				DPort:  80,
+				NetNS:  1,
+			},
 				Direction: OUTGOING,
-				NetNS:     1,
 			},
 			intraHost: false,
 		},
@@ -2083,75 +2070,81 @@ func TestIntraHostFixDirection(t *testing.T) {
 	}{
 		{
 			name: "outgoing both non-ephemeral",
-			conn: ConnectionStats{
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  123,
+				DPort:  456,
+			},
 				IntraHost: true,
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     123,
-				DPort:     456,
 				Direction: OUTGOING,
 			},
 			direction: OUTGOING,
 		},
 		{
 			name: "outgoing non ephemeral to ephemeral",
-			conn: ConnectionStats{
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  123,
+				DPort:  49612,
+			},
 				IntraHost: true,
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     123,
-				DPort:     49612,
 				Direction: OUTGOING,
 			},
 			direction: INCOMING,
 		},
 		{
 			name: "outgoing ephemeral to non ephemeral",
-			conn: ConnectionStats{
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  49612,
+				DPort:  123,
+			},
 				IntraHost: true,
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     49612,
-				DPort:     123,
 				Direction: OUTGOING,
 			},
 			direction: OUTGOING,
 		},
 		{
 			name: "incoming udp non ephemeral to ephemeral",
-			conn: ConnectionStats{
-				Type:      UDP,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Type:   UDP,
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  49612,
+				DPort:  123,
+			},
 				IntraHost: true,
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     49612,
-				DPort:     123,
 				Direction: INCOMING,
 			},
 			direction: OUTGOING,
 		},
 		{
 			name: "incoming udp ephemeral to non ephemeral",
-			conn: ConnectionStats{
-				Type:      UDP,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Type:   UDP,
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  123,
+				DPort:  49612,
+			},
 				IntraHost: true,
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     123,
-				DPort:     49612,
 				Direction: INCOMING,
 			},
 			direction: INCOMING,
 		},
 		{
 			name: "incoming tcp non ephemeral to ephemeral",
-			conn: ConnectionStats{
-				Type:      TCP,
+			conn: ConnectionStats{ConnectionTuple: ConnectionTuple{
+				Type:   TCP,
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  49612,
+				DPort:  123,
+			},
 				IntraHost: true,
-				Source:    util.AddressFromString("1.1.1.1"),
-				Dest:      util.AddressFromString("1.1.1.1"),
-				SPort:     49612,
-				DPort:     123,
 				Direction: INCOMING,
 			},
 			direction: INCOMING,
@@ -2173,7 +2166,7 @@ func TestIntraHostFixDirection(t *testing.T) {
 func TestClosedMergingWithAddressCollision(t *testing.T) {
 	const client = "foo"
 
-	c1 := ConnectionStats{
+	c1 := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -2181,6 +2174,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  1000,
 		DPort:  8080,
+	},
 		Monotonic: StatCounters{
 			SentBytes: 100,
 		},
@@ -2192,7 +2186,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 			ReplDstPort: 456,
 		},
 	}
-	c2 := ConnectionStats{
+	c2 := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    123,
 		Type:   TCP,
 		Family: AFINET,
@@ -2200,6 +2194,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		Dest:   util.AddressFromString("127.0.0.1"),
 		SPort:  1000,
 		DPort:  8080,
+	},
 		Monotonic: StatCounters{
 			SentBytes: 150,
 		},
@@ -2224,10 +2219,10 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		state := newDefaultState()
 		state.RegisterClient(client)
 
-		state.StoreClosedConnections([]ConnectionStats{c1})
-		state.StoreClosedConnections([]ConnectionStats{c2})
+		state.StoreClosedConnection(&c1)
+		state.StoreClosedConnection(&c2)
 
-		active := ConnectionStats{
+		active := ConnectionStats{ConnectionTuple: ConnectionTuple{
 			Pid:    123,
 			Type:   TCP,
 			Family: AFINET,
@@ -2235,6 +2230,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000,
 			DPort:  8080,
+		},
 			Monotonic: StatCounters{
 				SentBytes: 150,
 			},
@@ -2288,7 +2284,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		// time a connection is seen
 		_ = state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil)
 		c2.Cookie = c1.Cookie
-		state.StoreClosedConnections([]ConnectionStats{c2})
+		state.StoreClosedConnection(&c2)
 
 		// assert that the value returned by the second call to `GetDelta` represents c2 - c1
 		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
@@ -2299,12 +2295,12 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 }
 
 func TestKafkaStats(t *testing.T) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
 		SPort:  1000,
 		DPort:  80,
-	}
+	}}
 
 	key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "my-topic", kafka.ProduceAPIKey, 1)
 
@@ -2330,12 +2326,12 @@ func TestKafkaStats(t *testing.T) {
 }
 
 func TestKafkaStatsWithMultipleClients(t *testing.T) {
-	c := ConnectionStats{
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
 		SPort:  1000,
 		DPort:  80,
-	}
+	}}
 
 	getStats := func(topicName string) map[protocols.ProtocolType]interface{} {
 		kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
@@ -2367,7 +2363,7 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 
 	// Store the connection to both clients & pass HTTP stats to the first client
 	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{c})
+	state.StoreClosedConnection(&c)
 
 	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("my-topic"))
 	assert.Len(t, delta.Kafka, 1)
@@ -2381,7 +2377,7 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.Kafka, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnections([]ConnectionStats{c})
+	state.StoreClosedConnection(&c)
 
 	// Pass in new Kafka stats to the first client
 	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("my-topic"))
@@ -2398,10 +2394,18 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 
 func TestConnectionRollup(t *testing.T) {
 	conns := []ConnectionStats{
-		{
+		{ConnectionTuple: ConnectionTuple{
+			Source: util.AddressFromString("172.29.141.26"),
+			SPort:  50010,
+			Family: AFINET,
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+		},
 			// should be rolled up with next connection
 			Direction: OUTGOING,
-			Family:    AFINET,
 			IntraHost: false,
 			IPTranslation: &IPTranslation{
 				ReplDstIP:   util.AddressFromString("172.29.141.26"),
@@ -2410,8 +2414,6 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			Source:           util.AddressFromString("172.29.141.26"),
-			SPort:            50010,
 			ContainerID:      struct{ Source, Dest *intern.Value }{intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
 			Monotonic: StatCounters{
 				RecvBytes:      342,
@@ -2422,19 +2424,22 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:    4026532341,
-			Pid:      28385,
-			Dest:     util.AddressFromString("10.100.0.10"),
-			DPort:    53,
-			Type:     UDP,
 			Cookie:   1,
 			Duration: time.Second,
 			IsClosed: true,
 		},
-		{
+		{ConnectionTuple: ConnectionTuple{
+			Source: util.AddressFromString("172.29.141.26"),
+			SPort:  49155,
+			Family: AFINET,
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+		},
 			// should be rolled up with previous connection
 			Direction: OUTGOING,
-			Family:    AFINET,
 			IntraHost: false,
 			IPTranslation: &IPTranslation{
 				ReplDstIP:   util.AddressFromString("172.29.141.26"),
@@ -2443,8 +2448,6 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			Source:           util.AddressFromString("172.29.141.26"),
-			SPort:            49155,
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      314,
@@ -2455,19 +2458,22 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:    4026532341,
-			Pid:      28385,
-			Dest:     util.AddressFromString("10.100.0.10"),
-			DPort:    53,
-			Type:     UDP,
 			Cookie:   2,
 			Duration: time.Second,
 			IsClosed: true,
 		},
-		{
+		{ConnectionTuple: ConnectionTuple{
+			Family: AFINET,
+			Source: util.AddressFromString("172.29.141.26"),
+			SPort:  52907,
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+		},
 			// should be rolled up with next connection
 			Direction: OUTGOING,
-			Family:    AFINET,
 			IntraHost: false,
 			IPTranslation: &IPTranslation{
 				ReplDstIP:   util.AddressFromString("172.29.141.26"),
@@ -2476,8 +2482,6 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			Source:           util.AddressFromString("172.29.141.26"),
-			SPort:            52907,
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      306,
@@ -2488,19 +2492,22 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:    4026532341,
-			Pid:      28385,
-			Dest:     util.AddressFromString("10.100.0.10"),
-			DPort:    53,
-			Type:     UDP,
 			Cookie:   3,
 			Duration: time.Second,
 			IsClosed: true,
 		},
-		{
+		{ConnectionTuple: ConnectionTuple{
+			Family: AFINET,
+			Source: util.AddressFromString("172.29.141.26"),
+			SPort:  52904,
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+		},
 			// should be rolled up with previous connection
 			Direction: OUTGOING,
-			Family:    AFINET,
 			IntraHost: false,
 			IPTranslation: &IPTranslation{
 				ReplDstIP:   util.AddressFromString("172.29.141.26"),
@@ -2509,8 +2516,6 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			Source:           util.AddressFromString("172.29.141.26"),
-			SPort:            52904,
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      288,
@@ -2521,19 +2526,22 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:    4026532341,
-			Pid:      28385,
-			Dest:     util.AddressFromString("10.100.0.10"),
-			DPort:    53,
-			Type:     UDP,
 			Cookie:   4,
 			Duration: time.Second,
 			IsClosed: true,
 		},
-		{
+		{ConnectionTuple: ConnectionTuple{
+			Family: AFINET,
+			Source: util.AddressFromString("172.29.141.26"),
+			SPort:  37240,
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+		},
 			// this should not be rolled up as the duration is > 2 mins
 			Direction: OUTGOING,
-			Family:    AFINET,
 			IntraHost: false,
 			IPTranslation: &IPTranslation{
 				ReplDstIP:   util.AddressFromString("172.29.141.26"),
@@ -2542,8 +2550,6 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			Source:           util.AddressFromString("172.29.141.26"),
-			SPort:            37240,
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      594,
@@ -2554,24 +2560,21 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:    4026532341,
-			Pid:      28385,
-			Dest:     util.AddressFromString("10.100.0.10"),
-			DPort:    53,
-			Type:     UDP,
 			Cookie:   5,
 			Duration: 3 * time.Minute,
 			IsClosed: true,
 		},
-		{
-			Pid:              5652,
-			Source:           util.AddressFromString("172.29.160.125"),
-			SPort:            8443,
+		{ConnectionTuple: ConnectionTuple{
+			Pid:    5652,
+			Source: util.AddressFromString("172.29.160.125"),
+			SPort:  8443,
+			Dest:   util.AddressFromString("172.29.166.243"),
+			DPort:  38633,
+			Family: AFINET,
+			Type:   TCP,
+			NetNS:  4026531992,
+		},
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
-			Dest:             util.AddressFromString("172.29.166.243"),
-			DPort:            38633,
-			Family:           AFINET,
-			Type:             TCP,
 			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      0,
@@ -2582,7 +2585,6 @@ func TestConnectionRollup(t *testing.T) {
 				TCPEstablished: 1,
 			},
 			Direction: INCOMING,
-			NetNS:     4026531992,
 			RTT:       262,
 			RTTVar:    131,
 			IntraHost: false,
@@ -2590,15 +2592,17 @@ func TestConnectionRollup(t *testing.T) {
 			Duration:  time.Second,
 			IsClosed:  true,
 		},
-		{
-			Pid:              5652,
-			Source:           util.AddressFromString("172.29.160.125"),
-			SPort:            8443,
+		{ConnectionTuple: ConnectionTuple{
+			Pid:    5652,
+			Source: util.AddressFromString("172.29.160.125"),
+			SPort:  8443,
+			Dest:   util.AddressFromString("172.29.154.189"),
+			DPort:  60509,
+			Family: AFINET,
+			Type:   TCP,
+			NetNS:  4026531992,
+		},
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
-			Dest:             util.AddressFromString("172.29.154.189"),
-			DPort:            60509,
-			Family:           AFINET,
-			Type:             TCP,
 			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      0,
@@ -2609,7 +2613,6 @@ func TestConnectionRollup(t *testing.T) {
 				TCPEstablished: 1,
 			},
 			Direction: INCOMING,
-			NetNS:     4026531992,
 			RTT:       254,
 			RTTVar:    127,
 			IntraHost: false,
@@ -2617,15 +2620,17 @@ func TestConnectionRollup(t *testing.T) {
 			Duration:  time.Second,
 			IsClosed:  true,
 		},
-		{
-			Pid:              5652,
-			Source:           util.AddressFromString("172.29.160.125"),
-			SPort:            8443,
+		{ConnectionTuple: ConnectionTuple{
+			Pid:    5652,
+			Source: util.AddressFromString("172.29.160.125"),
+			SPort:  8443,
+			Dest:   util.AddressFromString("172.29.166.243"),
+			DPort:  34715,
+			Family: AFINET,
+			Type:   TCP,
+			NetNS:  4026531992,
+		},
 			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
-			Dest:             util.AddressFromString("172.29.166.243"),
-			DPort:            34715,
-			Family:           AFINET,
-			Type:             TCP,
 			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      2392,
@@ -2636,7 +2641,6 @@ func TestConnectionRollup(t *testing.T) {
 				TCPEstablished: 1,
 			},
 			Direction: INCOMING,
-			NetNS:     4026531992,
 			RTT:       250,
 			RTTVar:    66,
 			IntraHost: false,
@@ -2811,28 +2815,30 @@ func TestFilterConnections(t *testing.T) {
 
 func TestDNSPIDCollision(t *testing.T) {
 	conns := []ConnectionStats{
-		{
-			Source:    util.AddressFromString("10.1.1.1"),
-			Dest:      util.AddressFromString("8.8.8.8"),
-			Pid:       1,
-			SPort:     1000,
-			DPort:     53,
-			Type:      UDP,
-			Family:    AFINET,
+		{ConnectionTuple: ConnectionTuple{
+			Source: util.AddressFromString("10.1.1.1"),
+			Dest:   util.AddressFromString("8.8.8.8"),
+			Pid:    1,
+			SPort:  1000,
+			DPort:  53,
+			Type:   UDP,
+			Family: AFINET,
+		},
 			Direction: LOCAL,
 			Cookie:    1,
 			Monotonic: StatCounters{
 				RecvBytes: 2,
 			},
 		},
-		{
-			Source:    util.AddressFromString("10.1.1.1"),
-			Dest:      util.AddressFromString("8.8.8.8"),
-			Pid:       2,
-			SPort:     1000,
-			DPort:     53,
-			Type:      UDP,
-			Family:    AFINET,
+		{ConnectionTuple: ConnectionTuple{
+			Source: util.AddressFromString("10.1.1.1"),
+			Dest:   util.AddressFromString("8.8.8.8"),
+			Pid:    2,
+			SPort:  1000,
+			DPort:  53,
+			Type:   UDP,
+			Family: AFINET,
+		},
 			Direction: LOCAL,
 			Cookie:    2,
 			Monotonic: StatCounters{
@@ -2859,8 +2865,8 @@ func TestDNSPIDCollision(t *testing.T) {
 		},
 	}
 
-	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
-	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+	pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	pkgconfigsetup.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
 	state := newDefaultState()
 	state.RegisterClient("foo")
@@ -2874,7 +2880,7 @@ func TestDNSPIDCollision(t *testing.T) {
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
-		cs = append(cs, ConnectionStats{
+		cs = append(cs, ConnectionStats{ConnectionTuple: ConnectionTuple{
 			Pid:    123,
 			Type:   TCP,
 			Family: AFINET,
@@ -2882,6 +2888,7 @@ func generateRandConnections(n int) []ConnectionStats {
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  uint16(rand.Intn(math.MaxUint16)),
 			DPort:  uint16(rand.Intn(math.MaxUint16)),
+		},
 			Monotonic: StatCounters{
 				RecvBytes:   rand.Uint64(),
 				SentBytes:   rand.Uint64(),

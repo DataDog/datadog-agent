@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/benbjohnson/clock"
 )
@@ -38,12 +38,12 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 		expectedTags: t,
 	}
 
-	if config.IsExpectedTagsSet(coreConfig.Datadog()) {
-		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, coreConfig.Datadog()).System...)
+	if config.IsExpectedTagsSet(pkgconfigsetup.Datadog()) {
+		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.
-		expectedTagsDeadline := coreConfig.StartTime.Add(coreConfig.Datadog().GetDuration("logs_config.expected_tags_duration"))
+		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(pkgconfigsetup.Datadog().GetDuration("logs_config.expected_tags_duration"))
 
 		// reset submitExpectedTags after deadline elapsed
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -21,8 +22,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +50,8 @@ const (
 	SourceLocalConfigProcess Source = "local-config-process"
 	// SourceRC are the values loaded from remote-config (aka Datadog backend)
 	SourceRC Source = "remote-config"
+	// SourceFleetPolicies are the values loaded from remote-config file
+	SourceFleetPolicies Source = "fleet-policies"
 	// SourceCLI are the values set by the user at runtime through the CLI.
 	SourceCLI Source = "cli"
 	// SourceProvided are all values set by any source but default.
@@ -63,16 +64,36 @@ var sources = []Source{
 	SourceUnknown,
 	SourceFile,
 	SourceEnvVar,
+	SourceFleetPolicies,
 	SourceAgentRuntime,
 	SourceLocalConfigProcess,
 	SourceRC,
 	SourceCLI,
 }
 
+// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
+// configuration tree (a higher priority overwrites a lower one).
+var sourcesPriority = map[Source]int{
+	SourceDefault:            0,
+	SourceUnknown:            1,
+	SourceFile:               2,
+	SourceEnvVar:             3,
+	SourceFleetPolicies:      4,
+	SourceAgentRuntime:       5,
+	SourceLocalConfigProcess: 6,
+	SourceRC:                 7,
+	SourceCLI:                8,
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
 	Value  interface{}
+}
+
+// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterOrEqualThan(x Source) bool {
+	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
 // String casts Source into a string
@@ -158,12 +179,25 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
-// UnsetForSource wraps Viper for concurrent access
+// UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source Source) {
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+	if previousValue != nil {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
+	}
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
@@ -233,19 +267,39 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
-// SetEnvKeyTransformer allows defining a transformer function which decides
-// how an environment variables value gets assigned to key.
-func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, fn)
+// BuildSchema is a no-op for the viper based config
+func (c *safeConfig) BuildSchema() {
+	// pass
 }
 
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
+// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
+func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetFs(fs)
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsMapStringInterface registers a transformer function to parse an an environment variables as a
+// map[string]interface{}.
+func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
+func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
+// []interface{}.
+func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // IsSet wraps Viper for concurrent access
@@ -360,18 +414,6 @@ func (c *safeConfig) GetFloat64(key string) float64 {
 	return val
 }
 
-// GetTime wraps Viper for concurrent access
-func (c *safeConfig) GetTime(key string) time.Time {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetTimeE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
 // GetDuration wraps Viper for concurrent access
 func (c *safeConfig) GetDuration(key string) time.Duration {
 	c.RLock()
@@ -397,7 +439,7 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 }
 
 // GetFloat64SliceE loads a key as a []float64
-func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
+func (c *safeConfig) GetFloat64Slice(key string) []float64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -405,18 +447,20 @@ func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	// We're using GetStringSlice because viper can only parse list of string from env variables
 	list, err := c.Viper.GetStringSliceE(key)
 	if err != nil {
-		return nil, fmt.Errorf("'%v' is not a list", key)
+		log.Warnf("'%v' is not a list", key)
+		return nil
 	}
 
 	res := []float64{}
 	for _, item := range list {
 		nb, err := strconv.ParseFloat(item, 64)
 		if err != nil {
-			return nil, fmt.Errorf("value '%v' from '%v' is not a float64", item, key)
+			log.Warnf("value '%v' from '%v' is not a float64", item, key)
+			return nil
 		}
 		res = append(res, nb)
 	}
-	return res, nil
+	return res
 }
 
 // GetStringMap wraps Viper for concurrent access
@@ -498,17 +542,17 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) {
+func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
 
 	// If one input is given, viper derives an env key from it; otherwise, all inputs after
 	// the first are literal env vars.
-	if len(input) == 1 {
-		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	if len(envvars) == 0 {
+		envKeys = []string{c.mergeWithEnvPrefix(key)}
 	} else {
-		envKeys = input[1:]
+		envKeys = envvars
 	}
 
 	for _, key := range envKeys {
@@ -519,8 +563,9 @@ func (c *safeConfig) BindEnv(input ...string) {
 		c.configEnvVars[key] = struct{}{}
 	}
 
-	_ = c.configSources[SourceEnvVar].BindEnv(input...)
-	_ = c.Viper.BindEnv(input...)
+	newKeys := append([]string{key}, envvars...)
+	_ = c.configSources[SourceEnvVar].BindEnv(newKeys...)
+	_ = c.Viper.BindEnv(newKeys...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -533,25 +578,12 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
+// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
-}
-
-// Unmarshal wraps Viper for concurrent access
-func (c *safeConfig) Unmarshal(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.UnmarshalExact(rawVal)
 }
 
 // ReadInConfig wraps Viper for concurrent access
@@ -612,18 +644,44 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 	return c.Viper.MergeConfig(in)
 }
 
-// MergeConfigMap merges the configuration from the map given with an existing config.
-// Note that the map given may be modified.
-func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
+// MergeFleetPolicy merges the configuration from the reader given with an existing config
+// it overrides the existing values with the new ones in the FleetPolicies source, and updates the main config
+// according to sources priority order.
+//
+// Note: this should only be called at startup, as notifiers won't receive a notification when this loads
+func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.MergeConfigMap(cfg)
+
+	// Check file existence & open it
+	_, err := os.Stat(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("unable to open config file %s: %w", configPath, err)
+	} else if err != nil && os.IsNotExist(err) {
+		return nil
+	}
+	in, err := os.Open(configPath)
+	if err != nil {
+		return fmt.Errorf("unable to open config file %s: %w", configPath, err)
+	}
+	defer in.Close()
+
+	c.configSources[SourceFleetPolicies].SetConfigType("yaml")
+	err = c.configSources[SourceFleetPolicies].MergeConfigOverride(in)
+	if err != nil {
+		return err
+	}
+	for _, key := range c.configSources[SourceFleetPolicies].AllKeys() {
+		c.mergeViperInstances(key)
+	}
+	log.Infof("Fleet policies configuration %s successfully merged", path.Base(configPath))
+	return nil
 }
 
 // AllSettings wraps Viper for concurrent access
 func (c *safeConfig) AllSettings() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettings returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -632,8 +690,8 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -642,19 +700,9 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
-	sources := []Source{
-		SourceDefault,
-		SourceUnknown,
-		SourceFile,
-		SourceEnvVar,
-		SourceAgentRuntime,
-		SourceRC,
-		SourceCLI,
-		SourceLocalConfigProcess,
-	}
 	res := map[Source]interface{}{}
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
@@ -740,13 +788,6 @@ func (c *safeConfig) SetTypeByDefaultValue(in bool) {
 	c.Viper.SetTypeByDefaultValue(in)
 }
 
-// BindPFlag wraps Viper for concurrent access
-func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.BindPFlag(key, flag)
-}
-
 // GetEnvVars implements the Config interface
 func (c *safeConfig) GetEnvVars() []string {
 	c.RLock()
@@ -759,9 +800,9 @@ func (c *safeConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
+func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *Warnings {

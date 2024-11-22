@@ -16,7 +16,7 @@ func NewFlushServerAndResetAggregatorsCommand(cl **client.Client) (cmd *cobra.Co
 	cmd = &cobra.Command{
 		Use:   "flush",
 		Short: "Flush the server and reset aggregators",
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(*cobra.Command, []string) (err error) {
 			return (*cl).FlushServerAndResetAggregators()
 		},
 	}

@@ -21,9 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 type securityProfileCliParams struct {
@@ -56,7 +56,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 	securityProfileShowCmd := &cobra.Command{
 		Use:   "show",
 		Short: "dump the content of a security-profile file",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -102,7 +102,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 	securityProfileListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of active security profiles",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -161,7 +161,7 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
-	timeResolver, err := timeResolver.NewResolver()
+	timeResolver, err := ktime.NewResolver()
 	if err != nil {
 		fmt.Printf("can't get new time resolver: %v\n", err)
 		return
@@ -209,7 +209,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 	securityProfileSaveCmd := &cobra.Command{
 		Use:   "save",
 		Short: "saves the requested security profile to disk",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{

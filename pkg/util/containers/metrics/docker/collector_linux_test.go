@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -24,18 +24,18 @@ import (
 func Test_convertCPUStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.CPUStats
+		input          container.CPUStats
 		expectedOutput provider.ContainerCPUStats
 	}{
 		{
 			name: "basic",
-			input: types.CPUStats{
-				CPUUsage: types.CPUUsage{
+			input: container.CPUStats{
+				CPUUsage: container.CPUUsage{
 					TotalUsage:        42,
 					UsageInKernelmode: 43,
 					UsageInUsermode:   44,
 				},
-				ThrottlingData: types.ThrottlingData{
+				ThrottlingData: container.ThrottlingData{
 					ThrottledPeriods: 45,
 					ThrottledTime:    46,
 				},
@@ -60,12 +60,12 @@ func Test_convertCPUStats(t *testing.T) {
 func Test_convertMemoryStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.MemoryStats
+		input          container.MemoryStats
 		expectedOutput provider.ContainerMemStats
 	}{
 		{
 			name: "basic",
-			input: types.MemoryStats{
+			input: container.MemoryStats{
 				Usage:   42,
 				Limit:   43,
 				Failcnt: 44,
@@ -97,13 +97,13 @@ func Test_convertMemoryStats(t *testing.T) {
 func Test_convertIOStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.BlkioStats
+		input          container.BlkioStats
 		expectedOutput provider.ContainerIOStats
 	}{
 		{
 			name: "basic",
-			input: types.BlkioStats{
-				IoServiceBytesRecursive: []types.BlkioStatEntry{
+			input: container.BlkioStats{
+				IoServiceBytesRecursive: []container.BlkioStatEntry{
 					{
 						Major: 1,
 						Minor: 2,
@@ -129,7 +129,7 @@ func Test_convertIOStats(t *testing.T) {
 						Value: 45,
 					},
 				},
-				IoServicedRecursive: []types.BlkioStatEntry{
+				IoServicedRecursive: []container.BlkioStatEntry{
 					{
 						Major: 1,
 						Minor: 2,
@@ -190,7 +190,7 @@ func Test_convertIOStats(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 
-	config.Datadog().SetWithoutSource("container_proc_root", dir)
+	pkgconfigsetup.Datadog().SetWithoutSource("container_proc_root", dir)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -202,12 +202,12 @@ func Test_convertIOStats(t *testing.T) {
 func Test_convetrPIDStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.PidsStats
+		input          container.PidsStats
 		expectedOutput provider.ContainerPIDStats
 	}{
 		{
 			name: "basic",
-			input: types.PidsStats{
+			input: container.PidsStats{
 				Current: 42,
 				Limit:   43,
 			},

@@ -44,7 +44,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				cliParams.caseID = args[0]
 			}

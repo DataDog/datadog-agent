@@ -10,6 +10,7 @@ package kafka
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
@@ -45,6 +46,14 @@ func (tx *EbpfTx) ErrorCode() int8 {
 	return tx.Transaction.Error_code
 }
 
+// RequestLatency returns the latency of the request in nanoseconds
+func (tx *EbpfTx) RequestLatency() float64 {
+	if uint64(tx.Transaction.Request_started) == 0 || uint64(tx.Transaction.Response_last_seen) == 0 {
+		return 0
+	}
+	return protocols.NSTimestampToFloat(tx.Transaction.Response_last_seen - tx.Transaction.Request_started)
+}
+
 // String returns a string representation of the kafka eBPF telemetry.
 func (t *RawKernelTelemetry) String() string {
 	return fmt.Sprintf(`
@@ -61,7 +70,8 @@ RawKernelTelemetry{
 		"in range [81, 90]": %d,
 		"in range [91, 255]": %d,
 	}
-}`, t.Name_size_buckets[0], t.Name_size_buckets[1], t.Name_size_buckets[2], t.Name_size_buckets[3],
-		t.Name_size_buckets[4], t.Name_size_buckets[5], t.Name_size_buckets[6], t.Name_size_buckets[7],
-		t.Name_size_buckets[8], t.Name_size_buckets[9])
+	"produce no required acks": %d,
+}`, t.Topic_name_size_buckets[0], t.Topic_name_size_buckets[1], t.Topic_name_size_buckets[2], t.Topic_name_size_buckets[3],
+		t.Topic_name_size_buckets[4], t.Topic_name_size_buckets[5], t.Topic_name_size_buckets[6], t.Topic_name_size_buckets[7],
+		t.Topic_name_size_buckets[8], t.Topic_name_size_buckets[9], t.Produce_no_required_acks)
 }

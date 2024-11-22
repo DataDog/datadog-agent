@@ -182,21 +182,26 @@ func TestRmdirInvalidate(t *testing.T) {
 	}
 	defer test.Close()
 
-	for i := 0; i != 5; i++ {
-		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
-		if err != nil {
-			t.Fatal(err)
-		}
+	ifSyscallSupported("SYS_RMDIR", func(t *testing.T, syscallNB uintptr) {
+		for i := 0; i != 5; i++ {
+			testFile, testFilePtr, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if err := syscall.Mkdir(testFile, 0777); err != nil {
-			t.Fatal(err)
-		}
+			if err := syscall.Mkdir(testFile, 0777); err != nil {
+				t.Fatal(err)
+			}
 
-		test.WaitSignal(t, func() error {
-			return syscall.Rmdir(testFile)
-		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assertFieldEqual(t, event, "rmdir.file.path", testFile)
-		})
-	}
+			test.WaitSignal(t, func() error {
+				if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); errno != 0 {
+					return error(errno)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
+				assertFieldEqual(t, event, "rmdir.file.path", testFile)
+			})
+		}
+	})
 }

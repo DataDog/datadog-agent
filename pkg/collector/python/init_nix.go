@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 /*
@@ -26,10 +26,10 @@ import "C"
 // Any platform-specific initialization belongs here.
 func initializePlatform() error {
 	// Setup crash handling specifics - *NIX-only
-	if config.Datadog().GetBool("c_stacktrace_collection") {
+	if pkgconfigsetup.Datadog().GetBool("c_stacktrace_collection") {
 		var cCoreDump int
 
-		if config.Datadog().GetBool("c_core_dump") {
+		if pkgconfigsetup.Datadog().GetBool("c_core_dump") {
 			cCoreDump = 1
 		}
 

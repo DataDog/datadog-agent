@@ -16,8 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
@@ -39,7 +39,6 @@ type Builder struct {
 
 	customResourceClients map[string]interface{}
 	kubeClient            clientset.Interface
-	vpaClient             vpaclientset.Interface
 	namespaces            options.NamespaceList
 	fieldSelectorFilter   string
 	ctx                   context.Context
@@ -47,6 +46,10 @@ type Builder struct {
 	metrics               *watch.ListWatchMetrics
 
 	resync time.Duration
+
+	collectPodsFromKubelet    bool
+	collectOnlyUnassignedPods bool
+	KubeletReflector          *kubeletReflector
 }
 
 // New returns new Builder instance
@@ -85,12 +88,6 @@ func (b *Builder) WithKubeClient(c clientset.Interface) {
 func (b *Builder) WithCustomResourceClients(clients map[string]interface{}) {
 	b.customResourceClients = clients
 	b.ksmBuilder.WithCustomResourceClients(clients)
-}
-
-// WithVPAClient sets the vpaClient property of a Builder so that the verticalpodautoscaler collector can query VPA objects.
-func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
-	b.vpaClient = c
-	b.ksmBuilder.WithVPAClient(c)
 }
 
 // WithMetrics sets the metrics property of a Builder.
@@ -132,7 +129,21 @@ func (b *Builder) WithAllowLabels(l map[string][]string) error {
 
 // WithAllowAnnotations configures which annotations can be returned for metrics
 func (b *Builder) WithAllowAnnotations(l map[string][]string) {
-	b.ksmBuilder.WithAllowAnnotations(l)
+	_ = b.ksmBuilder.WithAllowAnnotations(l)
+}
+
+// WithPodCollectionFromKubelet configures the builder to collect pods from the
+// Kubelet instead of the API server. This has no effect if pod collection is
+// disabled.
+func (b *Builder) WithPodCollectionFromKubelet() {
+	b.collectPodsFromKubelet = true
+}
+
+// WithUnassignedPodsCollection configures the builder to only collect pods that
+// are not assigned to any node. This has no effect if pod collection is
+// disabled.
+func (b *Builder) WithUnassignedPodsCollection() {
+	b.collectOnlyUnassignedPods = true
 }
 
 // Build initializes and registers all enabled stores.
@@ -144,7 +155,17 @@ func (b *Builder) Build() metricsstore.MetricsWriterList {
 // BuildStores initializes and registers all enabled stores.
 // It returns metric cache stores.
 func (b *Builder) BuildStores() [][]cache.Store {
-	return b.ksmBuilder.BuildStores()
+	stores := b.ksmBuilder.BuildStores()
+
+	if b.KubeletReflector != nil {
+		// Starting the reflector here allows us to start just one for all stores.
+		err := b.KubeletReflector.start(b.ctx)
+		if err != nil {
+			log.Errorf("Failed to start the kubelet reflector: %s", err)
+		}
+	}
+
+	return stores
 }
 
 // WithResync is used if a resync period is configured
@@ -170,10 +191,24 @@ func GenerateStores[T any](
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
 
+	isPod := false
+	if _, ok := expectedType.(*corev1.Pod); ok {
+		isPod = true
+	} else if u, ok := expectedType.(*unstructured.Unstructured); ok {
+		isPod = u.GetAPIVersion() == "v1" && u.GetKind() == "Pod"
+	}
+
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
-		b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
+			handlePodCollection(b, store, client, listWatchFunc, corev1.NamespaceAll, useAPIServerCache)
+		} else {
+			listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
+			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+		}
 		return []cache.Store{store}
 
 	}
@@ -181,8 +216,14 @@ func GenerateStores[T any](
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
-		b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
+			handlePodCollection(b, store, client, listWatchFunc, ns, useAPIServerCache)
+		} else {
+			listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
+			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+		}
 		stores = append(stores, store)
 	}
 
@@ -266,4 +307,36 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 	}
 
 	return res, err
+}
+
+func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
+	if b.collectPodsFromKubelet {
+		if b.KubeletReflector == nil {
+			kr, err := newKubeletReflector(b.namespaces)
+			if err != nil {
+				log.Errorf("Failed to create kubeletReflector: %s", err)
+				return
+			}
+			b.KubeletReflector = &kr
+		}
+
+		err := b.KubeletReflector.addStore(store)
+		if err != nil {
+			log.Errorf("Failed to add store to kubeletReflector: %s", err)
+			return
+		}
+
+		// The kubelet reflector will be started when all stores are added.
+		return
+	}
+
+	fieldSelector := b.fieldSelectorFilter
+	if b.collectOnlyUnassignedPods {
+		// spec.nodeName is set to empty for unassigned pods. This ignores
+		// b.fieldSelectorFilter, but I think it's not used.
+		fieldSelector = "spec.nodeName="
+	}
+
+	listWatcher := listWatchFunc(client, namespace, fieldSelector)
+	b.startReflector(&corev1.Pod{}, store, listWatcher, useAPIServerCache)
 }

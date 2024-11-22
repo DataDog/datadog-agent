@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // GetClusterAgentConfigCheck gets config check from the server for cluster agent
@@ -24,14 +24,14 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken(config.Datadog())
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
 	targetURL := url.URL{
 		Scheme: "https",
-		Host:   fmt.Sprintf("localhost:%v", config.Datadog().GetInt("cluster_agent.cmd_port")),
+		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
 		Path:   "config-check",
 	}
 

@@ -35,7 +35,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "secret",
 		Short: "Display information about secrets in configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(showSecretInfo,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
@@ -46,7 +46,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "refresh",
 		Short: "Refresh secrets in configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(secretRefresh,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),

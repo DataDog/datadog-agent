@@ -32,7 +32,7 @@ struct syscall_table_key_t {
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
-    u8 discarded;
+    enum SYSCALL_STATE state;
     u8 async;
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
@@ -207,6 +207,12 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
         } bind;
+
+         struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+        } connect;
 
         struct {
             struct dentry *dentry;

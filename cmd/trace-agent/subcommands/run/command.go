@@ -9,11 +9,11 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
@@ -25,20 +25,17 @@ import (
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
+	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -80,7 +77,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
+		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsimpl.Module(),
 		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](comp)
@@ -92,22 +89,19 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
 		logtracefx.Module(),
-		// setup workloadmeta
-		collectors.GetCatalog(),
-		fx.Supply(workloadmeta.Params{
-			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
-		}),
-		workloadmetafx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
-		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
-			if coreConfig.GetBool("apm_config.remote_tagger") {
-				return tagger.NewNodeRemoteTaggerParamsWithFallback()
-			}
-			return tagger.NewTaggerParams()
+		remoteTaggerfx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c coreconfig.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
-		taggerimpl.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
@@ -116,12 +110,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
-		fx.Provide(func(cfg config.Component) compression.Component {
-			if cfg.Object().HasFeature("zstd-encoding") {
-				return zstd.NewComponent()
-			}
-			return gzip.NewComponent()
-		}),
+		zstdfx.Module(),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),

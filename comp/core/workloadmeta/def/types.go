@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -47,7 +47,6 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
-	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
@@ -61,8 +60,8 @@ const (
 
 	// SourceRuntime represents entities detected by the container runtime
 	// running on the node, collecting lower level information about
-	// containers. `docker`, `containerd`, `podman` and `ecs_fargate` use
-	// this source.
+	// containers. `docker`, `containerd`, 'crio', `podman` and `ecs_fargate`
+	// use this source.
 	SourceRuntime Source = "runtime"
 
 	// SourceNodeOrchestrator represents entities detected by the node
@@ -88,6 +87,10 @@ const (
 
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
+
+	// SourceLocalProcessCollector reprents processes entities detected
+	// by the LocalProcessCollector.
+	SourceLocalProcessCollector Source = "local_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -273,7 +276,7 @@ func NewContainerImage(imageID string, imageName string) (ContainerImage, error)
 		Name:    imageName,
 	}
 
-	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
@@ -416,6 +419,9 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
+	GPURequest    *uint64 // Number of GPUs
+	GPULimit      *uint64
+	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -436,6 +442,9 @@ func (cr ContainerResources) String(bool) string {
 	}
 	if cr.MemoryLimit != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetMemoryLimit:", *cr.MemoryLimit)
+	}
+	if cr.GPUVendorList != nil {
+		_, _ = fmt.Fprintln(&sb, "GPUVendor:", cr.GPUVendorList)
 	}
 	return sb.String()
 }
@@ -526,7 +535,8 @@ type Container struct {
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath string
+	CgroupPath   string
+	RestartCount int
 }
 
 // GetID implements Entity#GetID.
@@ -668,6 +678,8 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	GPUVendorList              []string
+	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string
@@ -734,6 +746,8 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "GPU Vendor:", p.GPUVendorList)
+		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))

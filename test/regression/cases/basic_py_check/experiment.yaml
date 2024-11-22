@@ -6,10 +6,8 @@ target:
   command: /bin/entrypoint.sh
 
   environment:
-    DD_TELEMETRY_ENABLED: true
     DD_API_KEY: 000001
     DD_HOSTNAME: smp-regression
-    DD_DD_URL: http://127.0.0.1:9092
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000

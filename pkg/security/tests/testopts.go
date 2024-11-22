@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -21,6 +21,7 @@ import (
 type testOpts struct {
 	disableFilters                             bool
 	disableApprovers                           bool
+	disableEnvVarsResolution                   bool
 	enableActivityDump                         bool
 	activityDumpRateLimiter                    int
 	activityDumpTagRules                       bool
@@ -56,13 +57,23 @@ type testOpts struct {
 	enableSBOM                                 bool
 	enableHostSBOM                             bool
 	preStartCallback                           func(test *testModule)
-	tagsResolver                               tags.Resolver
+	tagger                                     tags.Tagger
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
+	networkRawPacketEnabled                    bool
 	disableOnDemandRateLimiter                 bool
 	ebpfLessEnabled                            bool
 	dontWaitEBPFLessClient                     bool
+	enforcementExcludeBinary                   string
+	enforcementDisarmerContainerEnabled        bool
+	enforcementDisarmerContainerMaxAllowed     int
+	enforcementDisarmerContainerPeriod         time.Duration
+	enforcementDisarmerExecutableEnabled       bool
+	enforcementDisarmerExecutableMaxAllowed    int
+	enforcementDisarmerExecutablePeriod        time.Duration
+	eventServerRetention                       time.Duration
+	discardRuntime                             bool
 }
 
 type dynamicTestOpts struct {
@@ -99,6 +110,7 @@ func withForceReload() optFunc {
 
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.disableApprovers == opts.disableApprovers &&
+		to.disableEnvVarsResolution == opts.disableEnvVarsResolution &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
@@ -136,6 +148,16 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
 		to.preStartCallback == nil && opts.preStartCallback == nil &&
 		to.networkIngressEnabled == opts.networkIngressEnabled &&
+		to.networkRawPacketEnabled == opts.networkRawPacketEnabled &&
 		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
-		to.ebpfLessEnabled == opts.ebpfLessEnabled
+		to.ebpfLessEnabled == opts.ebpfLessEnabled &&
+		to.enforcementExcludeBinary == opts.enforcementExcludeBinary &&
+		to.enforcementDisarmerContainerEnabled == opts.enforcementDisarmerContainerEnabled &&
+		to.enforcementDisarmerContainerMaxAllowed == opts.enforcementDisarmerContainerMaxAllowed &&
+		to.enforcementDisarmerContainerPeriod == opts.enforcementDisarmerContainerPeriod &&
+		to.enforcementDisarmerExecutableEnabled == opts.enforcementDisarmerExecutableEnabled &&
+		to.enforcementDisarmerExecutableMaxAllowed == opts.enforcementDisarmerExecutableMaxAllowed &&
+		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
+		to.eventServerRetention == opts.eventServerRetention &&
+		to.discardRuntime == opts.discardRuntime
 }

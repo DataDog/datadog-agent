@@ -19,8 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -66,7 +66,7 @@ func TestNotRunning(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
-	addressPort, err := config.GetProcessAPIAddressPort()
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
 
@@ -81,7 +81,7 @@ func TestNotRunning(t *testing.T) {
 func TestError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
-	_, ipcError := config.GetIPCAddress()
+	_, ipcError := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()

@@ -29,7 +29,8 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -99,7 +100,7 @@ type cachedOriginCounter struct {
 // Server represent a Dogstatsd server
 type server struct {
 	log    log.Component
-	config config.Reader
+	config model.Reader
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
@@ -197,7 +198,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg config.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *util.Stats
@@ -393,7 +394,7 @@ func (s *server) start(context.Context) error {
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
 		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
 		if err != nil {
-			s.log.Errorf(err.Error())
+			s.log.Errorf("%s", err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, udpListener)
 			s.udpLocalAddr = udpListener.LocalAddr()
@@ -452,9 +453,9 @@ func (s *server) start(context.Context) error {
 
 	cacheSize := s.config.GetInt("dogstatsd_mapper_cache_size")
 
-	mappings, err := config.GetDogstatsdMappingProfiles()
+	mappings, err := getDogstatsdMappingProfiles(s.config)
 	if err != nil {
-		s.log.Warnf("Could not parse mapping profiles: %v", err)
+		s.log.Warn(err)
 	} else if len(mappings) != 0 {
 		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
 		if err != nil {
@@ -571,9 +572,9 @@ func dropCR(data []byte) []byte {
 	return data
 }
 
-// ScanLines is an almost identical reimplementation of bufio.ScanLines, but also
+// scanLines is an almost identical reimplementation of bufio.scanLines, but also
 // reports if the returned line is newline-terminated
-func ScanLines(data []byte, atEOF bool) (advance int, token []byte, eol bool, err error) {
+func scanLines(data []byte, atEOF bool) (advance int, token []byte, eol bool, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, false, nil
 	}
@@ -594,7 +595,7 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 		return nil
 	}
 
-	advance, message, eol, err := ScanLines(*packet, true)
+	advance, message, eol, err := scanLines(*packet, true)
 	if err != nil {
 		return nil
 	}
@@ -633,7 +634,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch) metrics.MetricSampleBatch {
+func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -815,19 +816,26 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	return serviceCheck, nil
 }
 
-func getBuckets(cfg config.Reader, logger log.Component, option string) []float64 {
+func getBuckets(cfg model.Reader, logger log.Component, option string) []float64 {
 	if !cfg.IsSet(option) {
 		return nil
 	}
 
-	buckets, err := cfg.GetFloat64SliceE(option)
-	if err != nil {
-		logger.Errorf("%s, falling back to default values", err)
-		return nil
-	}
+	buckets := cfg.GetFloat64Slice(option)
 	if len(buckets) == 0 {
 		logger.Debugf("'%s' is empty, falling back to default values", option)
 		return nil
 	}
 	return buckets
+}
+
+func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfig, error) {
+	var mappings []mapper.MappingProfileConfig
+	if cfg.IsSet("dogstatsd_mapper_profiles") {
+		err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &mappings)
+		if err != nil {
+			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+		}
+	}
+	return mappings, nil
 }

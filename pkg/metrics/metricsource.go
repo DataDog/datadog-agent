@@ -80,6 +80,7 @@ const (
 	MetricSourceSonarr
 	MetricSourceSnmpwalk
 	MetricSourceSendmail
+	MetricSourceScaphandre
 	MetricSourceScalr
 	MetricSourceRiakRepl
 	MetricSourceRedpanda
@@ -96,6 +97,7 @@ const (
 	MetricSourcePhpOpcache
 	MetricSourcePhpApcu
 	MetricSourceOpenPolicyAgent
+	MetricSourceOctopusDeploy
 	MetricSourceOctoprint
 	MetricSourceNvml
 	MetricSourceNs1
@@ -107,6 +109,7 @@ const (
 	MetricSourceLogstash
 	MetricSourceLighthouse
 	MetricSourceKernelcare
+	MetricSourceKepler
 	MetricSourceJfrogPlatformSelfHosted
 	MetricSourceHikaricp
 	MetricSourceGrpcCheck
@@ -115,6 +118,7 @@ const (
 	MetricSourceGnatsd
 	MetricSourceGitea
 	MetricSourceGatekeeper
+	MetricSourceFlyIo
 	MetricSourceFluentbit
 	MetricSourceFilemage
 	MetricSourceFilebeat
@@ -290,6 +294,14 @@ const (
 	MetricSourceWmiCheck
 	MetricSourceYarn
 	MetricSourceZk
+	MetricSourceAwsNeuron
+	MetricSourceTibcoEMS
+	MetricSourceSlurm
+	MetricSourceKyverno
+	MetricSourceKubeflow
+	MetricSourceAppgateSDP
+	MetricSourceAnyscale
+	MetricSourceMilvus
 )
 
 // String returns a string representation of MetricSource
@@ -467,6 +479,8 @@ func (ms MetricSource) String() string {
 		return "external_dns"
 	case MetricSourceFluentd:
 		return "fluentd"
+	case MetricSourceFlyIo:
+		return "fly_io"
 	case MetricSourceFoundationdb:
 		return "foundationdb"
 	case MetricSourceGearmand:
@@ -511,6 +525,8 @@ func (ms MetricSource) String() string {
 		return "istio"
 	case MetricSourceKafkaConsumer:
 		return "kafka_consumer"
+	case MetricSourceKepler:
+		return "kepler"
 	case MetricSourceKong:
 		return "kong"
 	case MetricSourceKubeAPIserverMetrics:
@@ -519,6 +535,8 @@ func (ms MetricSource) String() string {
 		return "kube_controller_manager"
 	case MetricSourceKubeDNS:
 		return "kube_dns"
+	case MetricSourceKubeflow:
+		return "kubeflow"
 	case MetricSourceKubeMetricsServer:
 		return "kube_metrics_server"
 	case MetricSourceKubeProxy:
@@ -773,6 +791,8 @@ func (ms MetricSource) String() string {
 		return "nvml"
 	case MetricSourceOctoprint:
 		return "octoprint"
+	case MetricSourceOctopusDeploy:
+		return "octopus_deploy"
 	case MetricSourceOpenPolicyAgent:
 		return "open_policy_agent"
 	case MetricSourcePhpApcu:
@@ -805,6 +825,8 @@ func (ms MetricSource) String() string {
 		return "riak_repl"
 	case MetricSourceScalr:
 		return "scalr"
+	case MetricSourceScaphandre:
+		return "scaphandre"
 	case MetricSourceSendmail:
 		return "sendmail"
 	case MetricSourceSnmpwalk:
@@ -841,6 +863,10 @@ func (ms MetricSource) String() string {
 		return "zabbix"
 	case MetricSourceZenohRouter:
 		return "zenoh_router"
+	case MetricSourceAwsNeuron:
+		return "aws_neuron"
+	case MetricSourceMilvus:
+		return "milvus"
 	default:
 		return "<unknown>"
 	}
@@ -1361,6 +1387,20 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceZabbix
 	case "zenoh_router":
 		return MetricSourceZenohRouter
+	case "aws_neuron":
+		return MetricSourceAwsNeuron
+	case "kyverno":
+		return MetricSourceKyverno
+	case "anyscale":
+		return MetricSourceAnyscale
+	case "appgate_sdp":
+		return MetricSourceAppgateSDP
+	case "slurm":
+		return MetricSourceSlurm
+	case "tibco_ems":
+		return MetricSourceTibcoEMS
+	case "milvus":
+		return MetricSourceMilvus
 	default:
 		return MetricSourceUnknown
 	}

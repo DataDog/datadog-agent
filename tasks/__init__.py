@@ -9,6 +9,7 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    ami,
     bench,
     buildimages,
     cluster_agent,
@@ -18,6 +19,7 @@ from tasks import (
     coverage,
     cws_instrumentation,
     debug,
+    debugging,
     devcontainer,
     diff,
     docker_tasks,
@@ -38,8 +40,10 @@ from tasks import (
     modules,
     msi,
     new_e2e_tests,
+    notes,
     notify,
     omnibus,
+    oracle,
     otel_agent,
     owners,
     package,
@@ -91,7 +95,13 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_protoc,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -121,6 +131,7 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
+ns.add_task(install_protoc)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
@@ -146,11 +157,13 @@ ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(ami)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
 ns.add_collection(coverage)
+ns.add_collection(debugging)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
@@ -168,7 +181,9 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
+ns.add_collection(notes)
 ns.add_collection(notify)
+ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(sds)
 ns.add_collection(selinux)

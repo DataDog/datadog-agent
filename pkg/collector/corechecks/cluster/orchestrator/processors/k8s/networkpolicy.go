@@ -95,7 +95,7 @@ func (h *NetworkPolicyHandlers) ResourceVersion(ctx processors.ProcessorContext,
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NetworkPolicyHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*netv1.NetworkPolicy)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

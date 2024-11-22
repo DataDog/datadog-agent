@@ -164,17 +164,11 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
 		tt.Run("default python version", func(tt *testing.T) {
-			pythonVersion, err := t.InstallTestClient.GetPythonVersion()
-			if !assert.NoError(tt, err, "should get python version") {
-				return
-			}
-			majorPythonVersion := strings.Split(pythonVersion, ".")[0]
-
+			expected := common.ExpectedPythonVersion3
 			if t.ExpectPython2Installed() {
-				assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
-			} else {
-				assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
+				expected = common.ExpectedPythonVersion2
 			}
+			common.CheckAgentPython(tt, t.InstallTestClient, expected)
 		})
 
 		if t.ExpectPython2Installed() {
@@ -246,10 +240,6 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	// don't need to check registry key permissions because the key is removed
 
 	tt.Run("file permissions", func(tt *testing.T) {
-		if strings.HasPrefix(tt.Name(), "TestInstallFail/") {
-			// TODO WINA-852: install rollback leaves different permissions behind
-			tt.Skip("WINA-852: skipping known failure, install rollback leaves different permissions behind")
-		}
 		t.testUninstalledFilePermissions(tt)
 	})
 }
@@ -309,6 +299,19 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			binPath = filepath.Join(t.expectedInstallPath, binPath)
 			_, err := t.host.Lstat(binPath)
 			assert.NoError(tt, err, "install should create %s bin file", binPath)
+		}
+	})
+
+	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
+		paths := []string{
+			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
+			filepath.Join(t.expectedInstallPath, "bin", "7zr.exe"),
+		}
+		for _, path := range paths {
+			exists, err := t.host.FileExists(path)
+			if assert.NoError(tt, err) {
+				assert.False(tt, exists, "install should remove %s", path)
+			}
 		}
 	})
 
@@ -557,6 +560,15 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	}
+
+	// ensure the agent user does not have an ACE on the install dir
+	out, err := windows.GetSecurityInfoForPath(t.host, t.expectedInstallPath)
+	require.NoError(tt, err)
+	if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+		assert.Empty(tt, windows.FilterRulesForIdentity(out.Access, ddAgentUserIdentity),
+			"%s should not have permissions on %s", ddAgentUserIdentity, t.expectedInstallPath)
+	}
+	assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", t.expectedInstallPath)
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester

@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -87,6 +87,7 @@ type cliParams struct {
 	thirdParty                bool
 	pythonMajorVersion        string
 	unsafeDisableVerification bool
+	logLevelDefaultOff        command.LogLevelDefaultOff
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -99,6 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 	}
 
+	cliParams.logLevelDefaultOff.Register(integrationCmd)
 	integrationCmd.PersistentFlags().CountVarP(&cliParams.verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
@@ -112,8 +114,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-				LogParams:    log.ForOneShot(command.LoggerName, "off", true),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
 			}),
 			core.Bundle(),
 		)
@@ -126,7 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 You must specify a version of the package to install using the syntax: <package>==<version>, with
  - <package> of the form datadog-<integration-name>
  - <version> of the form x.y.z`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(install)
 		},
@@ -147,7 +149,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Use:   "remove [package]",
 		Short: "Remove Datadog integration core/extra packages",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(remove)
 		},
@@ -158,7 +160,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Use:   "freeze",
 		Short: "Print the list of installed packages in the agent's python environment",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(list)
 		},
@@ -170,7 +172,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Short: "Print out information about [package]",
 		Args:  cobra.ExactArgs(1),
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(show)
 		},
@@ -556,7 +558,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := pkgconfig.Datadog().GetProxies()
+	proxies := pkgconfigsetup.Datadog().GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
@@ -798,7 +800,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 }
 
 func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
-	confFolder := pkgconfig.Datadog().GetString("confd_path")
+	confFolder := pkgconfigsetup.Datadog().GetString("confd_path")
 	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
@@ -860,7 +862,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		)))
 	}
 	if errorMsg != "" {
-		return fmt.Errorf(errorMsg)
+		return errors.New(errorMsg)
 	}
 	return nil
 }

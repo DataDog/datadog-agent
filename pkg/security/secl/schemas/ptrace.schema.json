@@ -1,0 +1,45 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ptrace.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "ptrace": {
+                    "type": "object",
+                    "required": [
+                        "request"
+                    ],
+                    "properties": {
+                        "request": {
+                            "type": "string"
+                        },
+                        "address": {
+                            "type": "string"
+                        },
+                        "tracee": {
+                            "$ref": "process.schema.json"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "ptrace"
+            ]
+        }
+    ]
+}

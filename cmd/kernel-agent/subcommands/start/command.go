@@ -46,18 +46,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -138,27 +139,17 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		authtokenimpl.Module(), // We need to think about this one
 
 		// Sending metrics to the backend
-		fx.Provide(defaultforwarder.NewParams),
-		defaultforwarder.Module(),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
+		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+		eventplatformreceiverimpl.Module(),
+		defaultforwarder.Module(defaultforwarder.NewParams()),
 		compressionimpl.Module(),
-		// Since we do not use the build tag orchestrator, we use the comp/forwarder/orchestrator/orchestratorimpl/forwarder_no_orchestrator.go
-		orchestratorimpl.Module(),
-		fx.Supply(orchestratorimpl.NewDisabledParams()),
-		eventplatformimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDisabledParams()),
-		eventplatformreceiver.NoneModule(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		demultiplexerimpl.Module(),
-		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.ContinueOnMissingHostname = true
-			return params
-		}),
-
 		// Autodiscovery
 		autodiscoveryimpl.Module(),
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
@@ -177,13 +168,10 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 				},
 			})
 		}),
-		fx.Provide(tagger.NewTaggerParams),
-		// Can the tagger works without the workloadmeta?
-		taggerimpl.Module(),
+		taggerfx.Module(tagger.Params{}),
 		// workloadmeta setup
-		collectors.GetCatalog(),
-		fx.Provide(workloadmeta.NewParams),
-		workloadmetafx.Module(),
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(defaults.DefaultParams()),
 
 		// Healthprobe
 		fx.Provide(func(config config.Component) healthprobe.Options {

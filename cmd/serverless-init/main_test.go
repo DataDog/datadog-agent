@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -26,6 +27,8 @@ import (
 func TestTagsSetup(t *testing.T) {
 	// TODO: Fix and re-enable flaky test
 	t.Skip()
+
+	fakeTagger := mock.SetupFakeTagger(t)
 
 	configmock.New(t)
 
@@ -38,7 +41,7 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup(mode.Conf{})
+	_, _, traceAgent, metricAgent, _ := setup(mode.Conf{}, fakeTagger)
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)

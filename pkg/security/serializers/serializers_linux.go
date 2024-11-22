@@ -430,6 +430,12 @@ type BindEventSerializer struct {
 	Addr IPPortFamilySerializer `json:"addr"`
 }
 
+// ConnectEventSerializer serializes a connect event to JSON
+// easyjson:json
+type ConnectEventSerializer struct {
+	Addr IPPortFamilySerializer `json:"addr"`
+}
+
 // MountEventSerializer serializes a mount event to JSON
 // easyjson:json
 type MountEventSerializer struct {
@@ -626,10 +632,12 @@ type EventSerializer struct {
 	*DNSEventSerializer       `json:"dns,omitempty"`
 	*IMDSEventSerializer      `json:"imds,omitempty"`
 	*BindEventSerializer      `json:"bind,omitempty"`
+	*ConnectEventSerializer   `json:"connect,omitempty"`
 	*MountEventSerializer     `json:"mount,omitempty"`
 	*SyscallsEventSerializer  `json:"syscalls,omitempty"`
 	*UserContextSerializer    `json:"usr,omitempty"`
 	*SyscallContextSerializer `json:"syscall,omitempty"`
+	*RawPacketSerializer      `json:"packet,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -658,15 +666,14 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		inode = forceInode[0]
 	}
 
-	mode := uint32(fe.FileFields.Mode)
 	fs := &FileSerializer{
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
-		Inode:               getUint64Pointer(&inode),
-		MountID:             getUint32Pointer(&fe.MountID),
+		Inode:               createNumPointer(inode),
+		MountID:             createNumPointer(fe.MountID),
 		Filesystem:          e.FieldHandlers.ResolveFileFilesystem(e, fe),
-		Mode:                getUint32Pointer(&mode), // only used by open events
+		Mode:                createNumPointer(uint32(fe.FileFields.Mode)), // only used by open events
 		UID:                 int64(fe.UID),
 		GID:                 int64(fe.GID),
 		User:                e.FieldHandlers.ResolveFileFieldsUser(e, &fe.FileFields),
@@ -727,7 +734,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 			Pid:           ps.Pid,
 			Tid:           ps.Tid,
-			PPid:          getUint32Pointer(&ps.PPid),
+			PPid:          createNumPointer(ps.PPid),
 			Comm:          ps.Comm,
 			TTY:           ps.TTYName,
 			Executable:    newFileSerializer(&ps.FileEvent, e),
@@ -934,6 +941,14 @@ func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 	return bes
 }
 
+func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
+	ces := &ConnectEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
+			model.AddressFamily(e.Connect.AddrFamily).String()),
+	}
+	return ces
+}
+
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	fh := e.FieldHandlers
 
@@ -946,13 +961,13 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
 			Path:    e.GetMountRootPath(),
-			MountID: &e.Mount.ParentPathKey.MountID,
-			Inode:   &e.Mount.ParentPathKey.Inode,
+			MountID: createNumPointer(e.Mount.ParentPathKey.MountID),
+			Inode:   createNumPointer(e.Mount.ParentPathKey.Inode),
 		},
 		Root: &FileSerializer{
 			Path:    e.GetMountMountpointPath(),
-			MountID: &e.Mount.RootPathKey.MountID,
-			Inode:   &e.Mount.RootPathKey.Inode,
+			MountID: createNumPointer(e.Mount.RootPathKey.MountID),
+			Inode:   createNumPointer(e.Mount.RootPathKey.Inode),
 		},
 		MountID:         e.Mount.MountID,
 		ParentMountID:   e.Mount.ParentPathKey.MountID,
@@ -974,11 +989,20 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	return mountSerializer
 }
 
-func newNetworkDeviceSerializer(e *model.Event) *NetworkDeviceSerializer {
+func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.Event) *NetworkDeviceSerializer {
 	return &NetworkDeviceSerializer{
-		NetNS:   e.NetworkContext.Device.NetNS,
-		IfIndex: e.NetworkContext.Device.IfIndex,
+		NetNS:   deviceCtx.NetNS,
+		IfIndex: deviceCtx.IfIndex,
 		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, &e.NetworkContext.Device),
+	}
+}
+
+func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawPacketSerializer {
+	return &RawPacketSerializer{
+		NetworkContextSerializer: newNetworkContextSerializer(e, &rp.NetworkContext),
+		TLSContext: &TLSContextSerializer{
+			Version: model.TLSVersion(rp.TLSContext.Version).String(),
+		},
 	}
 }
 
@@ -1054,12 +1078,20 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	return &ps
 }
 
+// DDContextSerializer serializes a span context to JSON
+// easyjson:json
+type DDContextSerializer struct {
+	// Span ID used for APM correlation
+	SpanID string `json:"span_id,omitempty"`
+	// Trace ID used for APM correlation
+	TraceID string `json:"trace_id,omitempty"`
+}
+
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
-	s := &DDContextSerializer{
-		SpanID:  e.SpanContext.SpanID,
-		TraceID: e.SpanContext.TraceID,
-	}
-	if s.SpanID != 0 || s.TraceID != 0 {
+	s := &DDContextSerializer{}
+	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
+		s.SpanID = fmt.Sprint(e.SpanContext.SpanID)
+		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
 		return s
 	}
 
@@ -1070,27 +1102,26 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		if pce.SpanID != 0 || pce.TraceID != 0 {
-			s.SpanID = pce.SpanID
-			s.TraceID = pce.TraceID
+		if pce.SpanID != 0 && (pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0) {
+			s.SpanID = fmt.Sprint(pce.SpanID)
+			s.TraceID = fmt.Sprintf("%x%x", pce.TraceID.Hi, pce.TraceID.Lo)
 			break
 		}
 
 		ptr = it.Next()
 	}
-
 	return s
 }
 
 // nolint: deadcode, unused
-func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
+func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
-		Device:      newNetworkDeviceSerializer(e),
-		L3Protocol:  model.L3Protocol(e.NetworkContext.L3Protocol).String(),
-		L4Protocol:  model.L4Protocol(e.NetworkContext.L4Protocol).String(),
-		Source:      newIPPortSerializer(&e.NetworkContext.Source),
-		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
-		Size:        e.NetworkContext.Size,
+		Device:      newNetworkDeviceSerializer(&networkCtx.Device, e),
+		L3Protocol:  model.L3Protocol(networkCtx.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(networkCtx.L4Protocol).String(),
+		Source:      newIPPortSerializer(&networkCtx.Source),
+		Destination: newIPPortSerializer(&networkCtx.Destination),
+		Size:        networkCtx.Size,
 	}
 }
 
@@ -1136,8 +1167,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
 
-	if s.Category == model.NetworkCategory {
-		s.NetworkContextSerializer = newNetworkContextSerializer(event)
+	if !event.NetworkContext.IsZero() {
+		s.NetworkContextSerializer = newNetworkContextSerializer(event, &event.NetworkContext)
 	}
 
 	if event.SecurityProfileContext.Name != "" {
@@ -1167,7 +1198,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
 			Destination: &FileSerializer{
-				Mode: &event.Chmod.Mode,
+				Mode: createNumPointer(event.Chmod.Mode),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
@@ -1203,7 +1234,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 		if event.Open.Flags&syscall.O_CREAT > 0 {
 			s.FileEventSerializer.Destination = &FileSerializer{
-				Mode: &event.Open.Mode,
+				Mode: createNumPointer(event.Open.Mode),
 			}
 		}
 
@@ -1216,7 +1247,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
 			Destination: &FileSerializer{
-				Mode: &event.Mkdir.Mode,
+				Mode: createNumPointer(event.Mkdir.Mode),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
@@ -1369,6 +1400,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
+	case model.ConnectEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
+		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
 		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
@@ -1385,6 +1419,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
+	case model.RawPacketEventType:
+		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	}
 
 	return s

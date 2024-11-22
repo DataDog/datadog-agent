@@ -9,4 +9,6 @@ package constants
 const (
 	// DefaultEBPFLessProbeAddr defines the default ebpfless probe address
 	DefaultEBPFLessProbeAddr = "localhost:5678"
+	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
+	ClusterIDCacheKey = "orchestratorClusterID"
 )

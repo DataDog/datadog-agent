@@ -49,8 +49,8 @@ func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, m
 		k8sClient: mockClient,
 		store:     mockStore,
 		logger:    mockLogger,
-		queue: workqueue.NewRateLimitingQueue(
-			workqueue.NewItemExponentialFailureRateLimiter(
+		queue: workqueue.NewTypedRateLimitingQueue[langUtil.NamespacedOwnerReference](
+			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				1*time.Second,
 				4*time.Second,
 			),
@@ -64,8 +64,7 @@ func TestRun(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mocklogger := logmock.New(t)
 
@@ -299,8 +298,7 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mocklogger := logmock.New(t)
 

@@ -26,7 +26,7 @@ import (
 )
 
 func TestOptionalModule(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) {
+	handler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"key1": "value1"}`))
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(handler))

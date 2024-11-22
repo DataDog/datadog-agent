@@ -120,8 +120,7 @@ func createDeps(t *testing.T, options ...fx.Option) Deps {
 		containercheckimpl.MockModule(),
 
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Options(options...),
 	))
 }

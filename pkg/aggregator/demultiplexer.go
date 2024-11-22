@@ -8,8 +8,9 @@ package aggregator
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -94,19 +95,23 @@ func createIterableMetrics(
 	serializer serializer.MetricSerializer,
 	logPayloads bool,
 	isServerless bool,
+	hostTagProvider *HostTagProvider,
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
-
+	hostTags := hostTagProvider.GetHostTags()
 	if serializer.AreSeriesEnabled() {
 		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
 			if logPayloads {
 				log.Debugf("Flushing serie: %s", se)
 			}
+
+			if hostTags != nil {
+				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
+			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
-
 	if serializer.AreSketchesEnabled() {
 		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
 			if logPayloads {
@@ -114,6 +119,9 @@ func createIterableMetrics(
 			}
 			if isServerless {
 				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			}
+			if hostTags != nil {
+				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
@@ -146,8 +154,8 @@ func GetDogStatsDWorkerAndPipelineCount() (int, int) {
 func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	var dsdWorkerCount int
 	var pipelineCount int
-	autoAdjust := config.Datadog().GetBool("dogstatsd_pipeline_autoadjust")
-	autoAdjustStrategy := config.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy")
+	autoAdjust := pkgconfigsetup.Datadog().GetBool("dogstatsd_pipeline_autoadjust")
+	autoAdjustStrategy := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy")
 
 	if autoAdjustStrategy != AutoAdjustStrategyMaxThroughput && autoAdjustStrategy != AutoAdjustStrategyPerOrigin {
 		log.Warnf("Invalid value for 'dogstatsd_pipeline_autoadjust_strategy', using default value: %s", AutoAdjustStrategyMaxThroughput)
@@ -160,7 +168,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	// ------------------------------------
 
 	if !autoAdjust {
-		pipelineCount = config.Datadog().GetInt("dogstatsd_pipeline_count")
+		pipelineCount = pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
 		if pipelineCount <= 0 { // guard against configuration mistakes
 			pipelineCount = 1
 		}
@@ -199,7 +207,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 			pipelineCount = 1
 		}
 
-		if config.Datadog().GetInt("dogstatsd_pipeline_count") > 1 {
+		if pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count") > 1 {
 			log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
 		}
 	} else if autoAdjustStrategy == AutoAdjustStrategyPerOrigin {
@@ -216,7 +224,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 			dsdWorkerCount = 2
 		}
 
-		pipelineCount = config.Datadog().GetInt("dogstatsd_pipeline_count")
+		pipelineCount = pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
 		if pipelineCount <= 0 { // guard against configuration mistakes
 			pipelineCount = vCPUs * 2
 		}

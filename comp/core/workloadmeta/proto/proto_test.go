@@ -189,6 +189,7 @@ func TestConversions(t *testing.T) {
 					IP:            "127.0.0.1",
 					PriorityClass: "some_priority",
 					QOSClass:      "guaranteed",
+					RuntimeClass:  "myclass",
 					KubeServices: []string{
 						"service1",
 					},
@@ -242,6 +243,7 @@ func TestConversions(t *testing.T) {
 					Ip:            "127.0.0.1",
 					PriorityClass: "some_priority",
 					QosClass:      "guaranteed",
+					RuntimeClass:  "myclass",
 					KubeServices: []string{
 						"service1",
 					},

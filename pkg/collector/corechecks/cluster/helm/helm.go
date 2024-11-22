@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -95,7 +95,7 @@ func newCheck() check.Check {
 		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},
 		store:             newReleasesStore(),
-		runLeaderElection: !config.IsCLCRunner(),
+		runLeaderElection: !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		eventsManager:     &eventsManager{},
 	}
 }
@@ -456,7 +456,7 @@ func isManagedByHelm(object metav1.Object) bool {
 }
 
 func isLeader() (bool, error) {
-	if !config.Datadog().GetBool("leader_election") {
+	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 		return false, errors.New("leader election not enabled. The check will not run")
 	}
 

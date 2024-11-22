@@ -15,11 +15,12 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/utilizationtracker"
 )
 
 const (
@@ -122,7 +123,8 @@ func newWorkerWithOptions(
 func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
-	utilizationTracker := NewUtilizationTracker(w.Name, w.utilizationTickInterval)
+	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
+	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
 	defer utilizationTracker.Stop()
 
 	startUtilizationUpdater(w.Name, utilizationTracker)
@@ -146,12 +148,12 @@ func (w *Worker) Run() {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		utilizationTracker.CheckStarted()
+		utilizationTracker.Started()
 
 		// Run the check
 		checkErr := check.Run()
 
-		utilizationTracker.CheckFinished()
+		utilizationTracker.Finished()
 
 		expvars.DeleteRunningStats(check.ID())
 
@@ -179,7 +181,7 @@ func (w *Worker) Run() {
 		}
 
 		if sender != nil && !longRunning {
-			if config.Datadog().GetBool("integration_check_status_enabled") {
+			if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
 				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
 			}
 			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
@@ -210,7 +212,7 @@ func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(name string, ut *UtilizationTracker) {
+func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
 	})
@@ -229,7 +231,7 @@ func startUtilizationUpdater(name string, ut *UtilizationTracker) {
 	}()
 }
 
-func startTrackerTicker(ut *UtilizationTracker, interval time.Duration) func() {
+func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration) func() {
 	ticker := time.NewTicker(interval)
 	cancel := make(chan struct{}, 1)
 	done := make(chan struct{})

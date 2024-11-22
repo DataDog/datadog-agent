@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -37,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -77,8 +78,13 @@ type EBPFLessProbe struct {
 	cancelFnc     context.CancelFunc
 	fieldHandlers *EBPFLessFieldHandlers
 	clients       map[net.Conn]*client
-	processKiller *ProcessKiller
 	wg            sync.WaitGroup
+
+	// kill action
+	processKiller *ProcessKiller
+
+	// hash action
+	fileHasher *FileHasher
 }
 
 // GetProfileManager returns the Profile Managers
@@ -91,7 +97,7 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
 			p.probe.DispatchCustomEvent(
-				NewEBPFLessHelloMsgEvent(msg.Hello, p.probe.scrubber),
+				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber),
 			)
 
 			cl.nsID = msg.Hello.NSID
@@ -131,7 +137,7 @@ func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 
 func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.SyscallMsg) {
 	event := p.zeroEvent()
-	event.NSID = cl.nsID
+	event.PIDContext.NSID = cl.nsID
 
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
@@ -325,14 +331,16 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Exit.Code = syscallMsg.Exit.Code
 		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
 
-		// update kill action reports
+		// update action reports
 		p.processKiller.HandleProcessExited(event)
+		p.fileHasher.HandleProcessExited(event)
 	}
 
 	p.DispatchEvent(event)
 
-	// flush pending kill actions
+	// flush pending actions
 	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -351,6 +359,8 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 
 // Init the probe
 func (p *EBPFLessProbe) Init() error {
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
@@ -399,7 +409,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		return errors.New("not enough data")
 	}
 
-	size := native.Endian.Uint32(sizeBuf)
+	size := binary.NativeEndian.Uint32(sizeBuf)
 	if size > maxMessageSize {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}
@@ -556,6 +566,7 @@ func (p *EBPFLessProbe) NewModel() *model.Model {
 
 // SendStats send the stats
 func (p *EBPFLessProbe) SendStats() error {
+	p.processKiller.SendStats(p.statsdClient)
 	return nil
 }
 
@@ -574,28 +585,36 @@ func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *EBPFLessProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
+	p.processKiller.Reset(rs)
+}
+
 // HandleActions handles the rule actions
 func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
 
-	for _, action := range rule.Definition.Actions {
+	for _, action := range rule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			})
-		case action.Hash != nil:
-			// force the resolution as it will force the hash resolution as well
-			ev.ResolveFields()
+			}) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
+		case action.Def.Hash != nil:
+			if p.fileHasher.HashAndReport(rule, ev) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		}
 	}
 }
@@ -630,9 +649,24 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFLessProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
+}
+
+// GetAgentContainerContext returns the agent container context
+func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.probe.GetAgentContainerContext()
+}
+
 // NewEBPFLessProbe returns a new eBPF less probe
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
 	opts.normalize()
+
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
@@ -646,26 +680,31 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		ctx:               ctx,
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
-		processKiller:     NewProcessKiller(),
+		processKiller:     processKiller,
 		containerContexts: make(map[string]*ebpfless.ContainerContext),
 	}
 
 	resolversOpts := resolvers.Opts{
-		TagsResolver: opts.TagsResolver,
+		Tagger: opts.Tagger,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &EBPFLessFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	fh, err := NewEBPFLessFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 

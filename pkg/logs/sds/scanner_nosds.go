@@ -24,13 +24,13 @@ type Match struct {
 }
 
 // CreateScanner creates a scanner for unsupported platforms/architectures.
-func CreateScanner(_ int) *Scanner {
+func CreateScanner(_ string) *Scanner {
 	return nil
 }
 
 // Reconfigure mocks the Reconfigure function.
-func (s *Scanner) Reconfigure(_ ReconfigureOrder) error {
-	return nil
+func (s *Scanner) Reconfigure(_ ReconfigureOrder) (bool, error) {
+	return false, nil
 }
 
 // Delete mocks the Delete function.

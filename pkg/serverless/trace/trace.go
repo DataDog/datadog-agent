@@ -8,21 +8,25 @@ package trace
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -45,7 +49,8 @@ type Load interface {
 
 // LoadConfig is implementing Load to retrieve the config
 type LoadConfig struct {
-	Path string
+	Path   string
+	Tagger tagger.Component
 }
 
 // httpURLMetaKey is the key of the span meta containing the HTTP URL
@@ -60,8 +65,8 @@ const tcpRemotePortMetaKey = "tcp.remote.port"
 // dnsAddressMetaKey is the key of the span meta containing the DNS address
 const dnsAddressMetaKey = "dns.address"
 
-// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API
-const lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
+// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
+var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
 
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
 const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
@@ -86,40 +91,49 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return comptracecfg.LoadConfigFile(l.Path, c)
+	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
+}
+
+// StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
+type StartServerlessTraceAgentArgs struct {
+	Enabled               bool
+	LoadConfig            Load
+	LambdaSpanChan        chan<- *pb.Span
+	ColdStartSpanID       uint64
+	AzureContainerAppTags string
+	RCService             *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
-	if enabled {
+func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTraceAgent {
+	if args.Enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
-		ddConfig.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
 
-		tc, confErr := loadConfig.Load()
+		// Turn off apm_sampling as it's not supported and generates debug logs
+		pkgconfigsetup.Datadog().Set("remote_configuration.apm_sampling.enabled", false, model.SourceAgentRuntime)
+
+		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			var compressor compression.Component
-			if tc.HasFeature("zstd-encoding") {
-				compressor = zstd.NewComponent()
-			} else {
-				compressor = gzip.NewComponent()
-			}
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, compressor)
+			tc.AzureContainerAppTags = args.AzureContainerAppTags
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: coldStartSpanId,
-				lambdaSpanChan:  lambdaSpanChan,
+				coldStartSpanId: args.ColdStartSpanID,
+				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
+			startTraceAgentConfigEndpoint(args.RCService, tc)
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:     ta,
@@ -130,6 +144,20 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		log.Info("Trace agent is disabled")
 	}
 	return noopTraceAgent{}
+}
+
+func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
+		statsdNoopClient := &statsd.NoOpClient{}
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/v0.7/config",
+			Handler: func(r *api.HTTPReceiver) http.Handler {
+				return remotecfg.ConfigHandler(r, rcService, tc, statsdNoopClient, timing.New(statsdNoopClient))
+			},
+		})
+	} else {
+		log.Debug("Not starting trace agent config endpoint")
+	}
 }
 
 type serverlessTraceAgent struct {
@@ -257,3 +285,9 @@ func (t noopTraceAgent) SetTags(map[string]string)           {}
 func (t noopTraceAgent) SetTargetTPS(float64)                {}
 func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
 func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
+
+func init() {
+	if lambdaRuntime := os.Getenv("AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {
+		lambdaRuntimeURLPrefix = fmt.Sprintf("http://%s", lambdaRuntime)
+	}
+}

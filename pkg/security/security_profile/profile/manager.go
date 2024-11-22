@@ -28,10 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -182,15 +182,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		m.onLocalStorageCleanup = dirProvider.OnLocalStorageCleanup
 	}
 
-	// instantiate remote-config provider
-	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
-		rcProvider, err := rconfig.NewRCProfileProvider()
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
-		}
-		m.providers = append(m.providers, rcProvider)
-	}
-
 	m.initMetricsMap()
 
 	// register the manager to the provider(s)
@@ -236,7 +227,7 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	}
 
 	// register the manager to the CGroup resolver
-	_ = m.resolvers.CGroupResolver.RegisterListener(cgroup.WorkloadSelectorResolved, m.OnWorkloadSelectorResolvedEvent)
+	_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, m.OnWorkloadSelectorResolvedEvent)
 	_ = m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.OnCGroupDeletedEvent)
 
 	seclog.Infof("security profile manager started")
@@ -686,6 +677,7 @@ func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error 
 
 	filename := profile.Metadata.Name + ".profile"
 	outputPath := path.Join(m.config.RuntimeSecurity.SecurityProfileDir, filename)
+	tmpOutputPath := outputPath + ".tmp"
 
 	// create output directory and output file, truncate existing file if a profile already exists
 	err = os.MkdirAll(m.config.RuntimeSecurity.SecurityProfileDir, 0400)
@@ -693,18 +685,22 @@ func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error 
 		return fmt.Errorf("couldn't ensure directory [%s] exists: %w", m.config.RuntimeSecurity.SecurityProfileDir, err)
 	}
 
-	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
+	file, err := os.OpenFile(tmpOutputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
 	if err != nil {
 		return fmt.Errorf("couldn't persist profile to file [%s]: %w", outputPath, err)
 	}
 	defer file.Close()
 
-	if _, err = file.Write(raw); err != nil {
-		return fmt.Errorf("couldn't write profile to file [%s]: %w", outputPath, err)
+	if _, err := file.Write(raw); err != nil {
+		return fmt.Errorf("couldn't write profile to file [%s]: %w", tmpOutputPath, err)
 	}
 
-	if err = file.Close(); err != nil {
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("error trying to close profile file [%s]: %w", file.Name(), err)
+	}
+
+	if err := os.Rename(tmpOutputPath, outputPath); err != nil {
+		return fmt.Errorf("couldn't rename profile file [%s] to [%s]: %w", tmpOutputPath, outputPath, err)
 	}
 
 	seclog.Infof("[profile] file for %s written at: [%s]", profile.selector.String(), outputPath)
@@ -771,6 +767,10 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
 	if globalEventTypeProfilState == model.UnstableEventType {
 		m.incrementEventFilteringStat(event.GetEventType(), model.UnstableEventType, NA)
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly. Here, when a version is unstable,
+		// we don't want to generate anomalies for this profile anymore.
+		event.ResetAnomalyDetectionEvent()
 		return
 	}
 
@@ -782,6 +782,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	case model.NoProfile, model.ProfileAtMaxSize, model.UnstableEventType:
 		// an error occurred or we are in unstable state
 		// do not link the profile to avoid sending anomalies
+
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly.
+		// We can also get a syscall anomaly detection kernel space for runc, which is ignored in the activity tree
+		// (i.e. tryAutolearn returns NoProfile) because "runc" can't be a root node.
+		event.ResetAnomalyDetectionEvent()
+
 		return
 	case model.AutoLearning, model.WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
@@ -802,12 +809,20 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
+
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly.
+			event.ResetAnomalyDetectionEvent()
 			return
 		}
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag, profileState)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
+
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly.
+			event.ResetAnomalyDetectionEvent()
 		} else {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 			if m.canGenerateAnomaliesFor(event) {
@@ -855,11 +870,19 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *Ver
 		globalEventTypeState := profile.GetGlobalEventTypeState(event.GetEventType())
 		if globalEventTypeState == model.StableEventType && m.canGenerateAnomaliesFor(event) {
 			event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+		} else {
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly: there is a new entry and no
+			// previous version is in stable state.
+			event.ResetAnomalyDetectionEvent()
 		}
 
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly
+		event.ResetAnomalyDetectionEvent()
 	}
 	return profileState
 }

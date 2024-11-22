@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestBasicMinCollectionIntervalRelocation(t *testing.T) {
@@ -73,6 +74,7 @@ func TestImport(t *testing.T) {
 }
 
 func RunImport(t *testing.T, integrations []string) {
+	mock.New(t)
 	a6ConfDir := t.TempDir()
 	a5ConfDir := path.Join(".", "tests", "a5_conf")
 	a6RefConfDir := path.Join(".", "tests", "a6_conf")

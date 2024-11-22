@@ -6,12 +6,12 @@
 package server
 
 import (
-	"net/http"
 	"time"
+
+	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"go.uber.org/fx"
 )
 
 type serverMock struct {
@@ -29,18 +29,12 @@ type MockProvides struct {
 func newMock() MockProvides {
 	m := &serverMock{}
 	return MockProvides{
-		Comp:     m,
-		Endpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/dogstatsd-stats", "GET"),
+		Comp: m,
 	}
 }
 
-// ServeHTTP is a simple mocked http.Handler function
-func (s *serverMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) Start(demultiplexer aggregator.Demultiplexer) error {
+func (s *serverMock) Start(_ aggregator.Demultiplexer) error {
 	s.isRunning = true
 	return nil
 }
@@ -56,7 +50,7 @@ func (s *serverMock) IsRunning() bool {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) Capture(p string, d time.Duration, compressed bool) (string, error) {
+func (s *serverMock) Capture(_ string, _ time.Duration, _ bool) (string, error) {
 	return "", nil
 }
 
@@ -74,4 +68,4 @@ func (s *serverMock) UDPLocalAddr() string {
 func (s *serverMock) ServerlessFlush(time.Duration) {}
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) SetExtraTags(tags []string) {}
+func (s *serverMock) SetExtraTags(_ []string) {}

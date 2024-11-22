@@ -3,18 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
-package impl
+package agenttelemetryimpl
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -25,14 +20,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	telemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+	telemetryEndpointPrefix         = "https://instrumentation-telemetry-intake."
+	telemetryConfigPrefix           = "agent_telemetry."
+	telemetryHostnameEndpointPrefix = "instrumentation-telemetry-intake."
+	telemetryIntakeTrackType        = "agenttelemetry"
+	telemetryPath                   = "/api/v2/apmtelemetry"
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
@@ -44,7 +43,6 @@ const (
 type sender interface {
 	startSession(cancelCtx context.Context) *senderSession
 	flushSession(ss *senderSession) error
-	sendAgentStatusPayload(ss *senderSession, agentStatusPayload map[string]interface{}) error
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error
 }
 
@@ -60,32 +58,30 @@ type senderImpl struct {
 
 	client client
 
-	endpointURL  string
+	endpoints *logconfig.Endpoints
+
 	agentVersion string
 
 	// pre-fill parts of payload which are not changing during run-time
 	payloadTemplate             Payload
 	metadataPayloadTemplate     AgentMetadataPayload
 	agentMetricsPayloadTemplate AgentMetricsPayload
-	agentStatusPayloadTemplate  AgentStatusPayload
 }
 
 // HostPayload defines the host payload object. It is currently used only as payload's header
 // and it is not stored with backend. It could be removed in the future completly. It is expected
 // by backend to be present in the payload and currently tootaly reducted.
 type HostPayload struct {
-	Hostname      string `json:"hostname"`
-	OS            string `json:"os"`
-	Arch          string `json:"architecture"`
-	KernelName    string `json:"kernel_name"`
-	KernelRelease string `json:"kernel_release"`
-	KernelVersion string `json:"kernel_version"`
+	Hostname string `json:"hostname"`
 }
 
 // AgentMetadataPayload should be top level object in the payload but currently tucked into specific payloads
 // until backend will be adjusted properly
 type AgentMetadataPayload struct {
-	HostID string `json:"hostid"`
+	HostID   string `json:"hostid"`
+	Hostname string `json:"hostname"`
+	OS       string `json:"os"`
+	OSVer    string `json:"osver"`
 }
 
 // Payload defines the top level object in the payload
@@ -137,16 +133,6 @@ type MetricPayload struct {
 	Buckets map[string]interface{} `json:"buckets,omitempty"`
 }
 
-// -------------
-// AGENT STATUS
-//
-
-// AgentStatusPayload defines AgentStatus object
-type AgentStatusPayload struct {
-	Message     string                 `json:"message"`
-	AgentStatus map[string]interface{} `json:"agent_status"`
-}
-
 func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
@@ -161,43 +147,56 @@ func newSenderClientImpl(agentCfg config.Component) client {
 	return httputils.NewResetClient(httpClientResetInterval, httpClientFactory(agentCfg, httpClientTimeout))
 }
 
+// buils url from a config endpoint.
+func buildURL(endpoint logconfig.Endpoint) string {
+	var address string
+	if endpoint.Port != 0 {
+		address = fmt.Sprintf("%v:%v", endpoint.Host, endpoint.Port)
+	} else {
+		address = endpoint.Host
+	}
+	url := url.URL{
+		Scheme: "https",
+		Host:   address,
+		Path:   telemetryPath,
+	}
+
+	return url.String()
+}
+
+func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
+	// borrowed and styled after EP Forwarder newHTTPPassthroughPipeline().
+	// Will be eliminated in the future after switching to EP Forwarder.
+	configKeys := logconfig.NewLogsConfigKeys(telemetryConfigPrefix, cfgComp)
+	return logconfig.BuildHTTPEndpointsWithConfig(cfgComp, configKeys,
+		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
+}
+
 func newSenderImpl(
 	cfgComp config.Component,
 	logComp log.Component,
 	client client) (sender, error) {
 
-	// Form Agent Telemetry endpoint URL
-	// We cannot use utils.GetMainEndpoint() function call with "dd_url" parameters directly,
-	// at this point, just as other Agent components are used for forwarding data to Datadog
-	// for a number of reasons. Accordingly, "site" configuration is required to be used at
-	// this time. This will fail for an explicit proxy relying on dd_url configuration. In
-	// future it will be addressed either at intake or at the Agent level (APM Telemetry e.g.
-	// is required to use "apm_config.telemetry.dd_url").
-	//
-	// On related note "sending" part of the sender will be moved to "DefaultForwarder"
+	// "Sending" part of the sender will be moved to EP Forwarder in the future to be able
 	// to support retry, caching, URL management, API key rotation at runtime, flush to
-	// disk, backoff logic, etc.
-	site := cfgComp.GetString("site")
-	if len(site) == 0 {
-		return nil, fmt.Errorf("site is not set in the configuration")
-	}
-	prefixedSite := utils.BuildURLWithPrefix(telemetryEndpointPrefix, site)
-	endpointURL, err := url.JoinPath(prefixedSite, "/api/v2/apmtelemetry")
+	// disk, backoff logic, etc. There are few nuances needs to be adopted by EP Forwarder
+	// to support Agent Telemetry:
+	//   * Support custom HTTP headers
+	//   * Support indication of main Endpoint selection/filtering if there are more than one
+	//   * Potentially/optionally support custom batching of payloads (custom batching envelope)
+	//
+	//  When ported to EP Forwarder we will need to send each telemetry type on a separate pipeline.
+	endpoints, err := getEndpoints(cfgComp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to form agent telemetry endpoint URL from configuration: %v", err)
+		return nil, fmt.Errorf("failed to get agent telemetry endpoints: %v", err)
 	}
 
 	// Get host information (only hostid is used for now)
 	info := metadatautils.GetInformation()
 
-	// Redact all host info for now until we have a proper way to handle it
+	// Complying with intake schema by providing dummy data (may change in the future)
 	host := HostPayload{
-		Hostname:      "[REDACTED]", // info.Hostname,
-		OS:            "[REDACTED]", // info.OS,
-		Arch:          "[REDACTED]", // info.KernelArch,
-		KernelName:    "[REDACTED]", // info.Platform,
-		KernelRelease: "[REDACTED]", // info.PlatformVersion,
-		KernelVersion: "[REDACTED]", // info.KernelVersion,
+		Hostname: "x",
 	}
 
 	agentVersion, _ := version.Agent()
@@ -207,7 +206,7 @@ func newSenderImpl(
 		logComp: logComp,
 
 		client:       client,
-		endpointURL:  endpointURL,
+		endpoints:    endpoints,
 		agentVersion: agentVersion.GetNumberAndPre(),
 		// pre-fill parts of payload which are not changing during run-time
 		payloadTemplate: Payload{
@@ -216,13 +215,13 @@ func newSenderImpl(
 			Host:       host,
 		},
 		metadataPayloadTemplate: AgentMetadataPayload{
-			HostID: info.HostID,
+			HostID:   info.HostID,
+			Hostname: info.Hostname,
+			OS:       info.OS,
+			OSVer:    info.PlatformVersion,
 		},
 		agentMetricsPayloadTemplate: AgentMetricsPayload{
 			Message: "Agent metrics",
-		},
-		agentStatusPayloadTemplate: AgentStatusPayload{
-			Message: "Agent status",
 		},
 	}, nil
 }
@@ -314,32 +313,36 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		return err
 	}
 
-	// Send the payload. In the future we want to move this functionality/code into DefaultForwarder
-	// because it provides retry, caching, URL management, API key rotation at runtime, flush to disk,
-	// backoff logic etc.
-	req, err := http.NewRequest("POST", s.endpointURL, bytes.NewReader(reqBody))
-	if err != nil {
-		return err
-	}
-	s.addHeaders(req, payload.RequestType, s.cfgComp.GetString("api_key"), strconv.Itoa(len(reqBody)))
-	resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			resp.Body.Close()
+	// Send the payload to all endpoints
+	var errs error
+	for _, ep := range s.endpoints.Endpoints {
+		url := buildURL(ep)
+		req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
+		if err != nil {
+			errs = errors.Join(errs, err)
+			continue
 		}
-	}()
+		s.addHeaders(req, payload.RequestType, ep.GetAPIKey(), strconv.Itoa(len(reqBody)))
+		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
+		if err != nil {
+			errs = errors.Join(errs, err)
+			continue
+		}
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
 
-	// Log return status (and URL if unsuccessful)
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		s.logComp.Infof("Telemetery enpoint response status: %s, status code: %d", resp.Status, resp.StatusCode)
-	} else {
-		s.logComp.Warnf("Telemetery enpoint response status: %s, status code: %d, url: %s", resp.Status, resp.StatusCode, s.endpointURL)
+		// Log return status (and URL if unsuccessful)
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			s.logComp.Debugf("Telemetery enpoint response status: %s, status code: %d", resp.Status, resp.StatusCode)
+		} else {
+			s.logComp.Debugf("Telemetery enpoint response status: %s, status code: %d, url: %s", resp.Status, resp.StatusCode, url)
+		}
 	}
 
-	return nil
+	return errs
 }
 
 func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error {
@@ -383,14 +386,6 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 	}
 
 	return nil
-}
-
-func (s *senderImpl) sendAgentStatusPayload(ss *senderSession, agentStatusPayload map[string]interface{}) error {
-	payload := s.agentStatusPayloadTemplate
-	payload.AgentStatus = agentStatusPayload
-	payload.AgentStatus["agent_metadata"] = s.metadataPayloadTemplate
-
-	return s.sendPayload(ss, "agent-status", payload)
 }
 
 func (s *senderImpl) sendPayload(ss *senderSession, requestType string, payload interface{}) error {

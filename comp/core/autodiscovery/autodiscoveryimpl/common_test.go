@@ -54,6 +54,11 @@ func (s *dummyService) GetTags() ([]string, error) {
 	return nil, nil
 }
 
+// GetTagsWithCardinality returns the tags for this service
+func (s *dummyService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetPid return a dummy pid
 func (s *dummyService) GetPid(context.Context) (int, error) {
 	return s.Pid, nil
@@ -72,14 +77,14 @@ func (s *dummyService) IsReady(context.Context) bool {
 // HasFilter returns false
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+func (s *dummyService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *dummyService) GetExtraConfig(key string) (string, error) {
+func (s *dummyService) GetExtraConfig(_ string) (string, error) {
 	return "", nil
 }
 

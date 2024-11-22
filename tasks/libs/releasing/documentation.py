@@ -93,11 +93,13 @@ def release_manager(version, team):
 
     from atlassian import Confluence
 
+    # Disable the rc flag if any to get the release base name `x.y.z`
+    version.rc = False
     c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
     page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
     account_ids = parse_table(page['body']['storage']['value'], missing=False, teams=[team])
     for id in account_ids:
-        user = c.get_user_by_account_id(id)
+        user = c.get_user_details_by_accountid(id)
         yield user['email']
 
 
@@ -205,8 +207,8 @@ def create_release_notes(freeze_date, teams):
     doc, tag, text, line = Doc().ttl()
     milestones = {
         '"Code freeze"': freeze_date,
-        '"RC.1 built"': freeze_date + timedelta(days=3),
-        '"Staging deployment"': freeze_date + timedelta(days=5),
+        '"RC.1 built"': freeze_date + timedelta(days=1),
+        '"Staging deployment"': freeze_date + timedelta(days=3),
         '"Prod deployment start"': freeze_date + timedelta(days=11),
         '"Full prod deployment"': freeze_date + timedelta(days=20),
         '"Release"': freeze_date + timedelta(days=26),

@@ -24,29 +24,30 @@ func newPhpDetector(ctx DetectionContext) detector {
 }
 
 func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
+	metadata := ServiceMetadata{}
 	// Look for datadog.service (e.g., php -ddatadog.service=service_name OR php -d datadog.service=service_name)
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.Contains(arg, "datadog.service=") }); index != -1 {
 		split := strings.Split(args[index], "=")
 		if len(split) == 2 {
-			return NewServiceMetadata(split[1]), true
+			metadata.DDService = split[1]
 		}
 	}
 	prevArgIsFlag := false
-	shouldSkipArg := false
 	for _, arg := range args {
-		hasFlagPrefix := shouldSkipArg || strings.HasPrefix(arg, "-")
-		includesAssignment := shouldSkipArg || strings.ContainsRune(arg, '=') || strings.HasPrefix(arg, "-d")
-		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		hasFlagPrefix := strings.HasPrefix(arg, "-")
 
-		if !shouldSkipArg {
+		// If the previous argument was a flag, or is the current arg is a flag, skip the argument. Otherwise, process it.
+		if !prevArgIsFlag && !hasFlagPrefix {
 			basePath := removeFilePath(arg)
 			if isRuneLetterAt(basePath, 0) && basePath == artisanConsole {
-				return NewServiceMetadata(newLaravelParser(p.ctx).GetLaravelAppName(arg)), true
+				metadata.SetNames(newLaravelParser(p.ctx).GetLaravelAppName(arg))
+				return metadata, true
 			}
 		}
 
+		includesAssignment := strings.ContainsRune(arg, '=')
 		prevArgIsFlag = hasFlagPrefix && !includesAssignment
 	}
 
-	return ServiceMetadata{}, false
+	return metadata, false
 }

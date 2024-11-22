@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -18,15 +17,17 @@ import (
 
 type infraAttributesSpanProcessor struct {
 	logger      *zap.Logger
-	tagger      tagger.Component
+	tagger      taggerClient
 	cardinality types.TagCardinality
+	generateID  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesSpanProcessor, error) {
 	iasp := &infraAttributesSpanProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
+		generateID:  generateID,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
 	return iasp, nil
@@ -36,39 +37,7 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		resourceAttributes := rss.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes)
-		tagMap := make(map[string]string)
-
-		// Get all unique tags from resource attributes and global tags
-		for _, entityID := range entityIDs {
-			entityTags, err := iasp.tagger.Tag(entityID, iasp.cardinality)
-			if err != nil {
-				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
-				continue
-			}
-			for _, tag := range entityTags {
-				k, v := splitTag(tag)
-				_, hasTag := tagMap[k]
-				if k != "" && v != "" && !hasTag {
-					tagMap[k] = v
-				}
-			}
-		}
-		globalTags, err := iasp.tagger.GlobalTags(iasp.cardinality)
-		if err != nil {
-			iasp.logger.Error("Cannot get global tags", zap.Error(err))
-		}
-		for _, tag := range globalTags {
-			k, v := splitTag(tag)
-			_, hasTag := tagMap[k]
-			if k != "" && v != "" && !hasTag {
-				tagMap[k] = v
-			}
-		}
-		// Add all tags as resource attributes
-		for k, v := range tagMap {
-			resourceAttributes.PutStr(k, v)
-		}
+		processInfraTags(iasp.logger, iasp.tagger, iasp.cardinality, iasp.generateID, resourceAttributes)
 	}
 	return td, nil
 }

@@ -61,3 +61,9 @@ type Processor interface {
 	// Process is called by the controller to process an object
 	Process(ctx context.Context, key, ns, name string) ProcessResult
 }
+
+// ProcessorPreStart is an interface that can be implemented by the Processor to perform some initialization after informers are synced and before the controller starts
+type ProcessorPreStart interface {
+	// PreStart is called by the controller before starting workers
+	PreStart(ctx context.Context)
+}

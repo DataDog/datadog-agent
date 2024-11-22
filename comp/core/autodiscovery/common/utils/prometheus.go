@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +24,7 @@ const (
 // buildInstances generates check config instances based on the Prometheus config and the object annotations
 // The second returned value is true if more than one instance is found
 func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, namespacedName string) ([]integration.Data, bool) {
-	openmetricsVersion := config.Datadog().GetInt("prometheus_scrape.version")
+	openmetricsVersion := pkgconfigsetup.Datadog().GetInt("prometheus_scrape.version")
 
 	instances := []integration.Data{}
 	for k, v := range pc.AD.KubeAnnotations.Incl {

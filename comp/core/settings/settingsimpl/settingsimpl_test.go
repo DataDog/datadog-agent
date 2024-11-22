@@ -252,7 +252,7 @@ func TestRuntimeSettings(t *testing.T) {
 				// simply compare strings.
 				expected := map[string]interface{}{}
 				actual := map[string]interface{}{}
-				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
+				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
 				err = json.Unmarshal(body, &actual)
 
 				require.NoError(t, err, fmt.Sprintf("error loading JSON body: %s", err))
@@ -312,7 +312,7 @@ func TestRuntimeSettings(t *testing.T) {
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Supply(
 					settings.Params{
-						Config: fxutil.Test[config.Component](t, config.MockModule()),
+						Config: config.NewMock(t),
 						Settings: map[string]settings.RuntimeSetting{
 							"foo": &runtimeTestSetting{
 								hidden:      false,

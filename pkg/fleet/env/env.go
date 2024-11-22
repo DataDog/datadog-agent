@@ -7,27 +7,41 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
+	envRegistryUsername      = "DD_INSTALLER_REGISTRY_USERNAME"
+	envRegistryPassword      = "DD_INSTALLER_REGISTRY_PASSWORD"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
+	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
+	envCDNEnabled            = "DD_INSTALLER_CDN_ENABLED"
+	envAgentUserName         = "DD_AGENT_USER_NAME"
+	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
+	envAgentUserNameCompat = "DDAGENTUSER_NAME"
+	envTags                = "DD_TAGS"
+	envExtraTags           = "DD_EXTRA_TAGS"
+	envHostname            = "DD_HOSTNAME"
 )
 
 var defaultEnv = Env{
@@ -37,8 +51,12 @@ var defaultEnv = Env{
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
+	RegistryUsername:            "",
+	RegistryPassword:            "",
 	RegistryOverrideByImage:     map[string]string{},
 	RegistryAuthOverrideByImage: map[string]string{},
+	RegistryUsernameByImage:     map[string]string{},
+	RegistryPasswordByImage:     map[string]string{},
 
 	DefaultPackagesInstallOverride: map[string]bool{},
 	DefaultPackagesVersionOverride: map[string]string{},
@@ -56,14 +74,19 @@ type ApmLibVersion string
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey         string
+	Site           string
+	RemoteUpdates  bool
+	RemotePolicies bool
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
+	RegistryUsername            string
+	RegistryPassword            string
 	RegistryOverrideByImage     map[string]string
 	RegistryAuthOverrideByImage map[string]string
+	RegistryUsernameByImage     map[string]string
+	RegistryPasswordByImage     map[string]string
 
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
@@ -72,42 +95,78 @@ type Env struct {
 
 	AgentMajorVersion string
 	AgentMinorVersion string
+	AgentUserName     string // windows only
 
 	InstallScript InstallScriptEnv
+
+	CDNEnabled      bool
+	CDNLocalDirPath string
+
+	Tags     []string
+	Hostname string
 }
 
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
+	splitFunc := func(c rune) bool {
+		return c == ','
+	}
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: os.Getenv(envRemoteUpdates) == "true",
+		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
+		RegistryUsername:            getEnvOrDefault(envRegistryUsername, defaultEnv.RegistryUsername),
+		RegistryPassword:            getEnvOrDefault(envRegistryPassword, defaultEnv.RegistryPassword),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
+		RegistryUsernameByImage:     overridesByNameFromEnv(envRegistryUsername, func(s string) string { return s }),
+		RegistryPasswordByImage:     overridesByNameFromEnv(envRegistryPassword, func(s string) string { return s }),
 
-		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
+		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
 
 		ApmLibraries: parseApmLibrariesEnv(),
 
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
+		AgentUserName:     getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
 
 		InstallScript: installScriptEnvFromEnv(),
+
+		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
+		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
+
+		Tags: append(
+			strings.FieldsFunc(os.Getenv(envTags), splitFunc),
+			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
+		),
+		Hostname: os.Getenv(envHostname),
 	}
 }
 
 // FromConfig returns an Env struct with values from the configuration.
-func FromConfig(config config.Reader) *Env {
+func FromConfig(config model.Reader) *Env {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hostname, err := hostname.Get(ctx)
+	if err != nil {
+		hostname = "unknown"
+	}
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
+		RemotePolicies:       config.GetBool("remote_policies"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
+		RegistryUsername:     config.GetString("installer.registry.username"),
+		RegistryPassword:     config.GetString("installer.registry.password"),
+		Tags:                 utils.GetConfiguredTags(config, false),
+		Hostname:             hostname,
 	}
 }
 
@@ -123,11 +182,20 @@ func (e *Env) ToEnv() []string {
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
+	if e.RemotePolicies {
+		env = append(env, envRemotePolicies+"=true")
+	}
 	if e.RegistryOverride != "" {
 		env = append(env, envRegistryURL+"="+e.RegistryOverride)
 	}
 	if e.RegistryAuthOverride != "" {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
+	}
+	if e.RegistryUsername != "" {
+		env = append(env, envRegistryUsername+"="+e.RegistryUsername)
+	}
+	if e.RegistryPassword != "" {
+		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
 	}
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
@@ -141,8 +209,16 @@ func (e *Env) ToEnv() []string {
 		slices.Sort(libraries)
 		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
 	}
+	if len(e.Tags) > 0 {
+		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
+	}
+	if len(e.Hostname) > 0 {
+		env = append(env, envHostname+"="+e.Hostname)
+	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env

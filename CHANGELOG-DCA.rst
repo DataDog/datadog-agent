@@ -2,6 +2,251 @@
 Release Notes
 =============
 
+.. _Release Notes_7.59.0:
+
+7.59.0
+======
+
+.. _Release Notes_7.59.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-11-07
+Pinned to datadog-agent v7.59.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7590>`_.
+
+.. _Release Notes_7.58.2:
+
+7.58.2
+======
+
+.. _Release Notes_7.58.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-11-04
+Pinned to datadog-agent v7.58.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7582>`_.
+
+.. _Release Notes_7.58.1:
+
+7.58.1
+======
+
+.. _Release Notes_7.58.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-10-24
+Pinned to datadog-agent v7.58.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7581>`_.
+
+.. _Release Notes_7.58.0:
+
+7.58.0
+======
+
+.. _Release Notes_7.58.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-10-21
+Pinned to datadog-agent v7.58.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7580>`_.
+
+.. _Release Notes_7.58.0_New Features:
+
+New Features
+------------
+
+- Added capability to tag any Kubernetes resource based on labels and annotations.
+  This feature can be configured with `kubernetes_resources_annotations_as_tags` and `kubernetes_resources_labels_as_tags`.
+  These feature configurations are associate group resources with annotations-to-tags (or labels-to-tags) map
+  For example, `deployments.apps` can be associated with an annotations-to-tags map to configure annotations as tags for deployments.
+  Example:
+  {`deployments.apps`: {`annotationKey1`: `tag1`, `annotationKey2`: `tag2`}}
+
+- The Kubernetes State Metrics (KSM) check can now be configured to collect
+  pods from the Kubelet in node agents instead of collecting them from the API
+  Server in the Cluster Agent or the Cluster check runners. This is useful in
+  clusters with a large number of pods where emitting pod metrics from a
+  single check instance can cause performance issues due to the large number
+  of metrics emitted.
+
+
+.. _Release Notes_7.58.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a new option for the Cluster Agent
+  ("admission_controller.inject_config.type_socket_volumes") to specify that
+  injected volumes should be of type "Socket". This option is disabled by
+  default. When set to true, injected pods will not start until the Agent
+  creates the DogstatsD and trace-agent sockets. This ensures no traces or
+  DogstatsD metrics are lost, but it can cause the pod to wait if the Agent
+  has issues creating the sockets.
+
+
+.. _Release Notes_7.58.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue that prevented the Kubernetes autoscaler from evicting pods
+  injected by the Admission Controller.
+  
+
+.. _Release Notes_7.57.1:
+
+7.57.1
+======
+
+.. _Release Notes_7.57.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-17
+Pinned to datadog-agent v7.57.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7571>`_.
+
+.. _Release Notes_7.57.0:
+
+
+7.57.0
+======
+
+.. _Release Notes_7.57.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-09
+Pinned to datadog-agent v7.57.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7570>`_.
+
+.. _Release Notes_7.57.0_New Features:
+
+New Features
+------------
+
+- The Cluster Agent now supports activating Continuous Profiling
+  using Admission Controller.
+
+- ``LimitRange`` and ``StorageClass`` resources are now collected by the orchestrator check.
+
+
+.. _Release Notes_7.57.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The auto-instrumentation webhook (beta) uses a new injector library.
+
+
+.. _Release Notes_7.57.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a rare bug where some Kubernetes events would be emitted
+  without a timestamp and would be dropped upstream as a result.
+
+- Library package versions for auto-instrumentation are now set to the latest major
+  version of the library-package instead of `latest`.
+  
+  * java:v1
+  * dotnet:v2
+  * python:v2
+  * ruby:v2
+  * js:v5
+
+- Fix APIServer error logs generated when external metrics endpoint is activated
+
+
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-02
+Pinned to datadog-agent v7.56.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7562>`_.
+
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-29
+Pinned to datadog-agent v7.56.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7561>`_.
+
+.. _Release Notes_7.56.0:
+
+7.56.0
+======
+
+.. _Release Notes_7.56.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-16
+Pinned to datadog-agent v7.56.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7560>`_.
+
+.. _Release Notes_7.56.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Disables default injection of the .NET profiler dependency for Kubernetes auto_instrumentation.
+
+
+.. _Release Notes_7.56.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Mark the NetworkPolicy collector as stable in the Cluster Agent
+
+- Enabled language detection automatically in the injected agent sidecar on EKS Fargate when APM SSI is enabled.
+  This is only available for users using the admission controller to automatically inject the agent sidecar.
+
+- The orchestrator check can now scrub sensitive data from probes in pods specifications.
+
+
+.. _Release Notes_7.56.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where the external metrics server would sometimes return metrics which had not
+  been updated for longer than the configured `external_metrics_provider.max_age` as valid.
+  In connection with this fix, a new config (`external_metrics_provider.query_validity_period`)
+  has been added to account for the delay between when metrics are resolved and when they
+  are queried by the various autoscaling controllers. It is set to 30 seconds by default.
+
+.. _Release Notes_7.55.3:
+
+7.55.3
+================
+
+.. _Release Notes_7.55.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-01
+Pinned to datadog-agent v7.55.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7553>`_.
+
 .. _Release Notes_7.55.2:
 
 7.55.2

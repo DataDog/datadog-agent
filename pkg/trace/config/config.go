@@ -117,6 +117,13 @@ type ObfuscationConfig struct {
 	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
 }
 
+func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
+	if enabled {
+		return obfuscate.ObfuscateOnly
+	}
+	return ""
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -126,6 +133,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
 			Cache:            conf.HasFeature("sql_cache"),
+			ObfuscationMode:  obfuscationMode(conf.HasFeature("sqllexer")),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -287,7 +295,6 @@ type AgentConfig struct {
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
-	PeerServiceAggregation bool          // TO BE DEPRECATED - enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags               []string      // additional tags to use for peer entity stats aggregation
@@ -443,6 +450,10 @@ type AgentConfig struct {
 
 	// Lambda function name
 	LambdaFunctionName string
+
+	// Azure container apps tags, in the form of a comma-separated list of
+	// key-value pairs, starting with a comma
+	AzureContainerAppTags string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -530,7 +541,9 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		Features: make(map[string]struct{}),
+		Features:               make(map[string]struct{}),
+		PeerTagsAggregation:    true,
+		ComputeStatsBySpanKind: true,
 	}
 }
 
@@ -554,6 +567,14 @@ func (c *AgentConfig) APIKey() string {
 		return ""
 	}
 	return c.Endpoints[0].APIKey
+}
+
+// UpdateAPIKey updates the API Key associated with the main endpoint.
+func (c *AgentConfig) UpdateAPIKey(val string) {
+	if len(c.Endpoints) == 0 {
+		return
+	}
+	c.Endpoints[0].APIKey = val
 }
 
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
@@ -604,6 +625,15 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+// ConfiguredPeerTags returns the set of peer tags that should be used
+// for aggregation based on the various config values and the base set of tags.
+func (c *AgentConfig) ConfiguredPeerTags() []string {
+	if !c.PeerTagsAggregation {
+		return nil
+	}
+	return preparePeerTags(append(basePeerTags, c.PeerTags...))
 }
 
 func inAzureAppServices() bool {

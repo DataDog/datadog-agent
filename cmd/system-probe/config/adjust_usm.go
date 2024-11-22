@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const (
 	maxHTTPFrag = 512 // matches hard limit currently imposed in NPM driver
 )
 
-func adjustUSM(cfg config.Config) {
+func adjustUSM(cfg model.Config) {
 	if cfg.GetBool(smNS("enabled")) {
 		applyDefault(cfg, netNS("enable_http_monitoring"), true)
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)

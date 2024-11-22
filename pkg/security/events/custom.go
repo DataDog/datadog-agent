@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -17,11 +18,6 @@ import (
 const (
 	// ServiceName is the service tag of the custom event types defined in this package
 	ServiceName = "runtime-security-agent"
-
-	// LostEventsRuleID is the rule ID for the lost_events_* events
-	LostEventsRuleID = "lost_events"
-	//LostEventsRuleDesc is the rule description for the lost_events_* events
-	LostEventsRuleDesc = "Lost events"
 
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RulesetLoadedRuleID = "ruleset_loaded"
@@ -58,49 +54,50 @@ const (
 	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 
-	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
-	RefreshUserCacheRuleID = "refresh_user_cache"
-
-	// RefreshSBOMRuleID is the rule ID used to refresh SBOM
-	RefreshSBOMRuleID = "refresh_sbom"
-
-	// NeedRefreshSBOMRuleID is the rule ID used to request a SBOM refresh
-	NeedRefreshSBOMRuleID = "need_refresh_sbom"
-
 	// EBPFLessHelloMessageRuleID is the rule ID used when a hello message is received
 	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
 	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
 	EBPFLessHelloMessageRuleDesc = "Hello message received"
+
 	// InternalCoreDumpRuleID internal core dump
 	InternalCoreDumpRuleID = "internal_core_dump"
 	// InternalCoreDumpRuleDesc internal core dump
 	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
+// AgentContainerContext is like model.ContainerContext, but without event based resolvers
+type AgentContainerContext struct {
+	ContainerID containerutils.ContainerID `json:"id,omitempty"`
+	CreatedAt   uint64                     `json:"created_at"`
+}
+
 // CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
-	Timestamp time.Time `json:"date"`
-	Service   string    `json:"service"`
+	Timestamp             time.Time              `json:"date"`
+	Service               string                 `json:"service"`
+	AgentContainerContext *AgentContainerContext `json:"container"`
 }
 
 // FillCustomEventCommonFields fills the common fields with default values
-func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
+func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields(acc *AgentContainerContext) {
 	commonFields.Service = ServiceName
 	commonFields.Timestamp = time.Now()
+	commonFields.AgentContainerContext = acc
 }
 
 // NewCustomRule returns a new custom rule
 func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 	return &rules.Rule{
-		Rule:       &eval.Rule{ID: id},
-		Definition: &rules.RuleDefinition{ID: id, Description: description},
+		Rule: &eval.Rule{ID: id},
+		PolicyRule: &rules.PolicyRule{
+			Def: &rules.RuleDefinition{ID: id, Description: description},
+		},
 	}
 }
 
 // AllCustomRuleIDs returns the list of custom rule IDs
 func AllCustomRuleIDs() []string {
 	return []string{
-		LostEventsRuleID,
 		RulesetLoadedRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
@@ -161,6 +158,11 @@ func (ce *CustomEvent) GetActionReports() []model.ActionReport {
 // GetWorkloadID returns the workload id
 func (ce *CustomEvent) GetWorkloadID() string {
 	return ""
+}
+
+// GetFieldValue returns the field value
+func (ce *CustomEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
+	return "", eval.ErrFieldNotFound{}
 }
 
 // GetEventType returns the event type

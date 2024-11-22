@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -37,9 +38,6 @@ func Test_AddDelete_Deployment(t *testing.T) {
 	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	deployment := appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-deployment",
 			Namespace: "test-namespace",
@@ -54,32 +52,17 @@ func Test_AddDelete_Deployment(t *testing.T) {
 
 	err := deploymentStore.Add(&deployment)
 	require.NoError(t, err)
-
-	// require deployment entity in store
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
-		return err == nil
-	}, timeout, interval)
-
-	// require metadata entity in store
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment"))
 		return err == nil
 	}, timeout, interval)
 
 	err = deploymentStore.Delete(&deployment)
 	require.NoError(t, err)
-
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
 		return err != nil
 	}, timeout, interval)
-
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment"))
-		return err != nil
-	}, timeout, interval)
-
 }
 
 func Test_AddDelete_Pod(t *testing.T) {
@@ -88,9 +71,6 @@ func Test_AddDelete_Pod(t *testing.T) {
 	podStore := newPodReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	pod := corev1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "/v1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
 			Namespace: "test-namespace",
@@ -106,32 +86,17 @@ func Test_AddDelete_Pod(t *testing.T) {
 
 	err := podStore.Add(&pod)
 	require.NoError(t, err)
-
-	// require pod entity in store
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
 		return err == nil
 	}, timeout, interval)
 
-	// require metadata entity in store
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "pods", "test-namespace", "test-pod"))
-		return err == nil
-	}, timeout, interval)
-
 	err = podStore.Delete(&pod)
 	require.NoError(t, err)
-
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
 		return err != nil
 	}, timeout, interval)
-
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "pods", "test-namespace", "test-pod"))
-		return err != nil
-	}, timeout, interval)
-
 }
 
 func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
@@ -142,12 +107,12 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		Version:  "v1",
 		Resource: "namespaces",
 	}
-	parser, err := newMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	require.NoError(t, err)
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string][]workloadmeta.EntityID),
+		seen:        make(map[string]workloadmeta.EntityID),
 		parser:      parser,
 	}
 
@@ -205,7 +170,7 @@ func TestReplace(t *testing.T) {
 
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	parser, err := newMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(10*time.Second))
@@ -265,7 +230,7 @@ func TestReplace(t *testing.T) {
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string][]workloadmeta.EntityID),
+		seen:        make(map[string]workloadmeta.EntityID),
 		parser:      parser,
 	}
 
@@ -295,7 +260,6 @@ func TestReplace(t *testing.T) {
 func mockedWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }

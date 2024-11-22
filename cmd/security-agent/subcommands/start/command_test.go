@@ -27,7 +27,7 @@ func TestCommand(t *testing.T) {
 		{
 			name:     "start",
 			cliInput: []string{"start"},
-			check: func(pidParams pidimpl.Params, params core.BundleParams) {
+			check: func(_ pidimpl.Params, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 			},
