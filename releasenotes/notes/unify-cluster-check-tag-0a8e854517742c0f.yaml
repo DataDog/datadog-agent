@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Cluster check tagging has been unified across all different environments.
+    Now, DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
+    will apply to all cluster check data, including when executing on the Cluster Agent itself, or when
+    dispatched to execute on the Node Agent or Cluster Checks Runner.
