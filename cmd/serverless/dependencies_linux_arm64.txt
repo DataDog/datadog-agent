@@ -540,6 +540,7 @@ github.com/mostynb/go-grpc-compression/nonclobbering/snappy
 github.com/mostynb/go-grpc-compression/nonclobbering/zstd
 github.com/munnerz/goautoneg
 github.com/olekukonko/tablewriter
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry
 github.com/opencontainers/go-digest
 github.com/opencontainers/image-spec/specs-go

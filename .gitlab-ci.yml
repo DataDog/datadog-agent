@@ -162,6 +162,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  S3_DD_AGENT_OMNIBUS_JAVA_URI: s3://dd-agent-omnibus/openjdk
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
@@ -300,7 +301,11 @@ variables:
   ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
   CODECOV: codecov  # agent-devx-infra
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  E2E_AZURE: e2e-azure  # agent-devx-loops
+  E2E_GCP: e2e-gcp  # agent-devx-loops
   GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  KITCHEN_AWS: kitchen-aws  # agent-devx-loops
+  KITCHEN_AZURE: kitchen-azure  # agent-devx-loops
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
   MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
   MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra

@@ -37,7 +37,8 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags: []string{},
+				Tags:     []string{},
+				Hostname: "",
 			},
 		},
 		{
@@ -68,6 +69,7 @@ func TestFromEnv(t *testing.T) {
 				envAgentUserName:                              "customuser",
 				envTags:                                       "k1:v1,k2:v2",
 				envExtraTags:                                  "k3:v3,k4:v4",
+				envHostname:                                   "hostname",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -111,7 +113,8 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags: []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Tags:     []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname: "hostname",
 			},
 		},
 		{
@@ -167,6 +170,7 @@ func TestFromEnv(t *testing.T) {
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 				Tags:                           []string{},
+				Hostname:                       "",
 			},
 		},
 	}
@@ -234,7 +238,8 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				Tags: []string{"k1:v1", "k2:v2"},
+				Tags:     []string{"k1:v1", "k2:v2"},
+				Hostname: "hostname",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -259,6 +264,7 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
 				"DD_TAGS=k1:v1,k2:v2",
+				"DD_HOSTNAME=hostname",
 			},
 		},
 	}
