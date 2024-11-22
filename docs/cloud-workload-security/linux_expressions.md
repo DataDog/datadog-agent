@@ -525,7 +525,6 @@ A connect was executed
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
 | [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 
 ### Event `dns`
 
