@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/cilium/ebpf"
 
@@ -34,10 +33,6 @@ const (
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
-
-	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
-	// and lowering it might cause constant cpu usage.
-	scanTerminatedProcessesInterval = 30 * time.Second
 
 	connReadProbe     = "uprobe__crypto_tls_Conn_Read"
 	connReadRetProbe  = "uprobe__crypto_tls_Conn_Read__return"
