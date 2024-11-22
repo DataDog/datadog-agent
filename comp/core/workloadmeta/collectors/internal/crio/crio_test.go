@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"os"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestPull(t *testing.T) {
