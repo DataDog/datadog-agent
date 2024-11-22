@@ -231,9 +231,14 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
 }
 
+type agentServiceDisabledSuite struct {
+	baseStartStopSuite
+	disabledServices []string
+}
+
 // TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
-	s := &agentServiceDisabledSuite{}
+	s := &agentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
 		"datadog-security-agent",
 		"datadog-system-probe",
@@ -243,9 +248,13 @@ func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled)
 }
 
+type agentServiceDisabledSystemProbeSuite struct {
+	agentServiceDisabledSuite
+}
+
 // TestServiceBehaviorWhenDisabledProcessAgent tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
-	s := &agentServiceDisabledSuite{}
+	s := &agentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-process-agent",
 		"datadog-security-agent",
@@ -256,17 +265,20 @@ func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled)
 }
 
+type agentServiceDisabledProcessAgentSuite struct {
+	agentServiceDisabledSuite
+}
+
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
-	s := &agentServiceDisabledSuite{}
+	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
 	}
 	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig)
 }
 
-type agentServiceDisabledSuite struct {
-	baseStartStopSuite
-	disabledServices []string
+type agentServiceDisabledTraceAgentSuite struct {
+	agentServiceDisabledSuite
 }
 
 func (s *agentServiceDisabledSuite) SetupSuite() {
