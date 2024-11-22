@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	SystemProcessIdInformationClass = 88 // SystemProcessIdInformationClass gives access to process names without elevated privileges on Windows
+	SystemProcessIDInformationClass = 88 // SystemProcessIdInformationClass gives access to process names without elevated privileges on Windows
 )
 
 // SYSTEM_PROCESS_ID_INFORMATION structure for Windows API.
@@ -27,7 +27,7 @@ type SystemProcessIDInformation struct {
 func RetrieveProcessName(pid int, _ string) (string, error) {
 	var processInfo SystemProcessIDInformation
 	processInfo.ProcessID = uintptr(pid)
-	ret := windows.NtQuerySystemInformation(SystemProcessIdInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
+	ret := windows.NtQuerySystemInformation(SystemProcessIDInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
 
 	if ret != nil {
 		return "", ret
