@@ -249,7 +249,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
 	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
-	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
 	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
@@ -271,7 +271,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
-	cfg.BindEnv(join(smNS, "enable_event_stream"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")

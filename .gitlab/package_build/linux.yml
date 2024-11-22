@@ -37,34 +37,23 @@
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-x64",
-      "go_deps",
-      "generate_minimized_btfs_x64",
-    ]
+  needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
-    DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 .agent_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-arm64",
-      "go_deps",
-      "generate_minimized_btfs_arm64",
-    ]
+    ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
-    DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
 .agent_7_build:
   variables:
@@ -116,16 +105,16 @@ iot-agent-x64:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   variables:
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 iot-agent-arm64:
   extends: .iot-agent-common
   tags: ["arch:arm64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   variables:
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 iot-agent-armhf:
   extends: .iot-agent-common
@@ -169,8 +158,8 @@ dogstatsd-x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 dogstatsd-arm64:
   extends: .dogstatsd_build_common
@@ -178,6 +167,5 @@ dogstatsd-arm64:
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
   variables:
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
-
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"

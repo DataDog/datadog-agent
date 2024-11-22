@@ -17,6 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -67,7 +68,7 @@ func TestEnrichTags(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
 
@@ -191,7 +192,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
 
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
@@ -216,7 +217,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 
@@ -312,7 +313,7 @@ func TestAgentTags(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	agentContainerID, podUID := "agentContainerID", "podUID"
 	mockMetricsProvider := collectormock.NewMetricsProvider()
@@ -351,7 +352,7 @@ func TestGlobalTags(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
 	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
 
