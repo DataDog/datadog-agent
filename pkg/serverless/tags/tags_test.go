@@ -6,7 +6,6 @@
 package tags
 
 import (
-	"fmt"
 	"os"
 	"sort"
 	"testing"
@@ -41,10 +40,9 @@ func TestBuildTracerTags(t *testing.T) {
 		"key1":     "value1",
 	}
 	resultTagsMap := BuildTracerTags(tagsMap)
-	assert.Equal(t, 3, len(resultTagsMap))
+	assert.Equal(t, 2, len(resultTagsMap))
 	assert.Equal(t, "value0", resultTagsMap["key0"])
 	assert.Equal(t, "value1", resultTagsMap["key1"])
-	assert.Contains(t, []string{"key0,key1", "key1,key0"}, resultTagsMap["_dd.tags.function"])
 }
 
 func TestBuildTagsFromMap(t *testing.T) {
@@ -405,73 +403,4 @@ func TestCleanRuntimeInvalid(t *testing.T) {
 		"AWS_Lambda_nodejs14.x",
 	}
 	assert.Equal(t, "", cleanRuntimes(runtimes))
-}
-
-func TestBuildBuildFunctionTags(t *testing.T) {
-	testcases := []struct {
-		tagIn map[string]string
-		// since order cannot be guaranteed, we will check to make sure the
-		// value is one of the possible permutations
-		tagsOut []string
-	}{
-		{
-			tagIn: map[string]string{},
-			tagsOut: []string{
-				"",
-			},
-		},
-		{
-			tagIn: map[string]string{
-				"key0": "value0",
-			},
-			tagsOut: []string{
-				"key0",
-			},
-		},
-		{
-			tagIn: map[string]string{
-				"key0": "value0",
-				"key1": "value1",
-			},
-			tagsOut: []string{
-				"key0,key1",
-				"key1,key0",
-			},
-		},
-		{
-			tagIn: map[string]string{
-				"key0": "value0",
-				"key1": "value1",
-				"key2": "value2",
-			},
-			tagsOut: []string{
-				"key0,key1,key2",
-				"key0,key2,key1",
-				"key1,key0,key2",
-				"key1,key2,key0",
-				"key2,key0,key1",
-				"key2,key1,key0",
-			},
-		},
-		{
-			tagIn: map[string]string{
-				"_dd.origin":     "lambda",
-				"git.commit.sha": "123456",
-				"key0":           "value0",
-			},
-			tagsOut: []string{
-				"key0",
-			},
-		},
-	}
-
-	for i, tc := range testcases {
-		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
-			tagsOut := BuildTracerTags(tc.tagIn)
-			assert.Len(t, tagsOut, len(tc.tagIn)+1)
-			fnTags, ok := tagsOut["_dd.tags.function"]
-			assert.True(t, ok)
-			assert.Contains(t, tc.tagsOut, fnTags)
-		})
-	}
 }

@@ -6,6 +6,8 @@
 package trace
 
 import (
+	"strings"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -16,10 +18,12 @@ const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 	ddOriginTagName    = "_dd.origin"
 	ddOriginTagValue   = "lambda"
+	funcTagKey         = "_dd.tags.function"
 )
 
 type spanModifier struct {
-	tags           map[string]string
+	service        string
+	funcTags       string
 	lambdaSpanChan chan<- *pb.Span
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
@@ -30,12 +34,16 @@ type spanModifier struct {
 func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 	if span.Service == "aws.lambda" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
-		if s.tags["service"] != "" {
-			span.Service = s.tags["service"]
+		if s.service != "" {
+			span.Service = s.service
 		}
 		if s.lambdaSpanChan != nil && span.Name == "aws.lambda" {
 			s.lambdaSpanChan <- span
 		}
+		// add the keys of all tags as the value of a new tag _dd.tags.function
+		// these tags will be added by intake to the traced invocation metric
+		// note, this tag set includes custom tags added via DD_TAGS
+		span.Meta[funcTagKey] = s.funcTags
 	}
 
 	// ensure all spans have tag _dd.origin in addition to span.Origin
@@ -61,5 +69,22 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 
 // SetTags sets the tags to be used by the span modifier.
 func (s *spanModifier) SetTags(tags map[string]string) {
-	s.tags = tags
+	s.service = tags["service"]
+	s.funcTags = buildFunctionTags(tags)
+}
+
+func buildFunctionTags(tags map[string]string) string {
+	buf := strings.Builder{}
+	var comma bool
+	for k := range tags {
+		if strings.HasPrefix(k, "git.") || strings.HasPrefix(k, "_dd.") {
+			continue
+		}
+		if comma {
+			buf.WriteString(",")
+		}
+		buf.WriteString(k)
+		comma = true
+	}
+	return buf.String()
 }
