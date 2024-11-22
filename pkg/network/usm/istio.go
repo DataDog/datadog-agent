@@ -99,7 +99,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		ProcRoot: c.ProcRoot,
 		Rules: []*uprobes.AttachRule{{
 			Targets:          uprobes.AttachToExecutable,
-			ProbesSelector:   nodeJSProbes,
+			ProbesSelector:   istioProbes,
 			ExecutableFilter: m.isIstioBinary,
 		}},
 		EbpfConfig:                     &c.Config,
