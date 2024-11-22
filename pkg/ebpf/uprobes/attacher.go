@@ -613,8 +613,6 @@ func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo)
 	return matchedRules
 }
 
-var errIterationStart = errors.New("iteration start")
-
 // getExecutablePath resolves the executable of the given PID looking in procfs.
 // Will return an error if the path cannot be resolved
 func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
