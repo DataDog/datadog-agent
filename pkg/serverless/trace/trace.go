@@ -36,7 +36,7 @@ type ServerlessTraceAgent interface {
 	Stop()
 	Flush()
 	Process(p *api.Payload)
-	SetTags(map[string]string, map[string]string)
+	SetTags(map[string]string)
 	SetTargetTPS(float64)
 	SetSpanModifier(agent.SpanModifier)
 	GetSpanModifier() agent.SpanModifier
@@ -180,8 +180,8 @@ type taggable interface {
 }
 
 // SetTags sets the tags to the trace agent config and span processor
-func (t *serverlessTraceAgent) SetTags(tags map[string]string, fnTags map[string]string) {
-	t.ta.SetGlobalTagsUnsafe(fnTags)
+func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
+	t.ta.SetGlobalTagsUnsafe(tags)
 	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
 		tagger.SetTags(tags)
 	}
@@ -278,13 +278,13 @@ func getDDOrigin() string {
 
 type noopTraceAgent struct{}
 
-func (t noopTraceAgent) Stop()                                        {}
-func (t noopTraceAgent) Flush()                                       {}
-func (t noopTraceAgent) Process(*api.Payload)                         {}
-func (t noopTraceAgent) SetTags(map[string]string, map[string]string) {}
-func (t noopTraceAgent) SetTargetTPS(float64)                         {}
-func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)           {}
-func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier          { return nil }
+func (t noopTraceAgent) Stop()                               {}
+func (t noopTraceAgent) Flush()                              {}
+func (t noopTraceAgent) Process(*api.Payload)                {}
+func (t noopTraceAgent) SetTags(map[string]string)           {}
+func (t noopTraceAgent) SetTargetTPS(float64)                {}
+func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
+func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
 
 func init() {
 	if lambdaRuntime := os.Getenv("AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {

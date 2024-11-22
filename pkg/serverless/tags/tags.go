@@ -169,7 +169,9 @@ func BuildTagsFromMap(tags map[string]string) []string {
 
 // BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
 func BuildTracerTags(tags map[string]string) map[string]string {
-	return buildTags(tags, []string{resourceKey})
+	newTags := buildTags(tags, []string{resourceKey})
+	newTags[funcTagsKey] = buildFunctionTags(newTags)
+	return newTags
 }
 
 func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
@@ -183,21 +185,20 @@ func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 	return tagsMap
 }
 
-func BuildFunctionTags(tags map[string]string) map[string]string {
+func buildFunctionTags(tags map[string]string) string {
 	buf := strings.Builder{}
 	var comma bool
-	for k, v := range tags {
+	for k := range tags {
+		if strings.HasPrefix(k, "git.") || strings.HasPrefix(k, "_dd.") {
+			continue
+		}
 		if comma {
 			buf.WriteString(",")
 		}
 		buf.WriteString(k)
-		buf.WriteString(":")
-		buf.WriteString(v)
 		comma = true
 	}
-	return map[string]string{
-		funcTagsKey: buf.String(),
-	}
+	return buf.String()
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
