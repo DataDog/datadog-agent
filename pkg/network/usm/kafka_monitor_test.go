@@ -1725,6 +1725,7 @@ func TestLoadKafkaBinary(t *testing.T) {
 func loadKafkaBinary(t *testing.T, debug bool) {
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug
