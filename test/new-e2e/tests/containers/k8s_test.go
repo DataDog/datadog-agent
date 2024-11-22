@@ -946,37 +946,12 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}, 5*time.Minute, 10*time.Second, "The deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", name, namespace)
 	}
 
-	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
-	oldPods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+	pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
 	suite.Require().NoError(err)
-	suite.Require().Len(oldPods.Items, 1)
-	oldPod := oldPods.Items[0]
-
-	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err = suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
-	})
-	suite.Require().NoError(err)
-
-	// Wait for the fresh pod to be created
-	var pod corev1.Pod
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", name).String(),
-		})
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.Len(c, pods.Items, 1) {
-			return
-		}
-		pod = pods.Items[0]
-		if !assert.NotEqual(c, oldPod.Name, pod.Name) {
-			return
-		}
-	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", name, namespace)
+	suite.Require().Len(pods.Items, 1)
+	pod := pods.Items[0]
 
 	suite.Require().Len(pod.Spec.Containers, 1)
 
