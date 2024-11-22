@@ -39,8 +39,11 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 	pctx := ctx.(*processors.K8sProcessorContext)
 	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 
+	tags := append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag)
 	for _, m := range resourceManifests {
-		manifests = append(manifests, m.(*model.Manifest))
+		manif := m.(*model.Manifest)
+		manif.Tags = tags
+		manifests = append(manifests, manif)
 	}
 
 	cm := &model.CollectorManifest{
@@ -49,7 +52,7 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		Manifests:   manifests,
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        tags,
 	}
 	return cm
 }
