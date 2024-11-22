@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package strategy provides a set of functions for compressing with zlib / zstd / gzip
+// Package compressionimpl provides a set of functions for compressing with zlib / zstd / gzip
 package compressionimpl
 
 import (
@@ -11,7 +11,7 @@ import (
 	"compress/gzip"
 	"io"
 
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
 // Requires contains the compression level for gzip compression
@@ -24,8 +24,8 @@ type GzipStrategy struct {
 	level int
 }
 
-// NewGzipStrategy returns a new GzipStrategy
-func NewComponent(level int) *GzipStrategy {
+// NewComponent returns a new GzipStrategy
+func NewComponent(level int) compression.Provides {
 	if level < gzip.NoCompression {
 		level = gzip.NoCompression
 	} else if level > gzip.BestCompression {

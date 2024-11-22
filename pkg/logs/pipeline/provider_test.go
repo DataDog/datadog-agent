@@ -13,7 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -32,7 +32,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		pipelines:            []*Pipeline{},
 		endpoints:            config.NewEndpoints(config.Endpoint{}, nil, true, false),
 		currentPipelineIndex: atomic.NewUint32(0),
-		compressionFactory:   compressionimpl.NewCompressorFactory(),
+		compressionFactory:   compressionfx.NewMockCompressorFactory(),
 	}
 }
 

@@ -65,5 +65,5 @@ func TestAddShutdownMetric(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), compressionimpl.MockModuleFactory(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), compressionmock.MockModuleFactory(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

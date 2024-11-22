@@ -36,7 +36,7 @@ import (
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -140,7 +140,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		tracker:            tailers.NewTailerTracker(),
 		endpoints:          endpoints,
 		tagger:             fakeTagger,
-		compressionFactory: compressionimpl.NewMockCompressorFactory(),
+		compressionFactory: compressionfx.NewMockCompressorFactory(),
 	}
 
 	agent.setupAgent()
@@ -407,7 +407,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		compressionimpl.MockModuleFactory(),
+		compressionfx.MockModuleFactory(),
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),

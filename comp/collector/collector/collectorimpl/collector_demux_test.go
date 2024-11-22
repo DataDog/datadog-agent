@@ -81,7 +81,7 @@ func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), compressionmock.MockModule(), compressionimpl.MockModuleFactory(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), compressionmock.MockModule(), compressionmock.MockModuleFactory(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),

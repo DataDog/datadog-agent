@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
@@ -20,7 +20,7 @@ func TestStatus(t *testing.T) {
 	provider := statusProvider{
 		agent: &Agent{
 			opts: AgentOptions{
-				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionimpl.NewCompressorFactory()),
+				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressorFactory()),
 			},
 		},
 	}

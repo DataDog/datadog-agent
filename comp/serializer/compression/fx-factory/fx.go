@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// Module defines the fx options for the component.
 func ModuleFactory() fxutil.Module {
 	// Module defines the fx options for the component.
 	return fxutil.Component(

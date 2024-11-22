@@ -10,14 +10,14 @@ import (
 	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 )
 
-type CompressorFactory struct{}
+type compressorFactory struct{}
 
 // NewCompressorFactory creates a new compression factory.
 func NewCompressorFactory() compression.Factory {
-	return &CompressorFactory{}
+	return &compressorFactory{}
 }
 
 // NewNoopCompressor returns an identity compression component that does no compression.
-func (*CompressorFactory) NewNoopCompressor() compression.Component {
+func (*compressorFactory) NewNoopCompressor() compression.Component {
 	return implnoop.NewComponent().Comp
 }

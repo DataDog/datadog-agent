@@ -16,7 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -75,7 +75,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 		log:                deps.Log,
 		config:             deps.Config,
 		endpoints:          endpoints,
-		compressionFactory: compressionimpl.NewMockCompressorFactory(),
+		compressionFactory: compressionfx.NewMockCompressorFactory(),
 	}
 
 	agent.setupAgent()

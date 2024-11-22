@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -18,7 +18,7 @@ func TestStreamStrategy(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output, strategy.NewNoopStrategy())
+	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor())
 	s.Start()
 
 	content := []byte("a")
@@ -46,7 +46,7 @@ func TestStreamStrategyShouldNotBlockWhenForceStopping(_ *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output, strategy.NewNoopStrategy())
+	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor())
 
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
@@ -61,7 +61,7 @@ func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output, strategy.NewNoopStrategy())
+	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor())
 
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {

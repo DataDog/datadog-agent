@@ -26,7 +26,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -42,7 +42,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
-		compressionimpl.MockModuleFactory(),
+		compressionfx.MockModuleFactory(),
 		hostnameimpl.MockModule(),
 	)
 }
