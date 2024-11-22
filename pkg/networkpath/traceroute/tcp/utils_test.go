@@ -54,6 +54,7 @@ func Test_reserveLocalPort(t *testing.T) {
 	// WHEN we reserve a local port
 	port, listener, err := reserveLocalPort()
 	require.NoError(t, err)
+	defer listener.Close()
 	require.NotNil(t, listener)
 
 	// THEN we should not be able to get another connection
