@@ -25,7 +25,8 @@ type GzipStrategy struct {
 }
 
 // NewComponent returns a new GzipStrategy
-func NewComponent(level int) compression.Provides {
+func NewComponent(req Requires) compression.Provides {
+	level := req.Level
 	if level < gzip.NoCompression {
 		level = gzip.NoCompression
 	} else if level > gzip.BestCompression {

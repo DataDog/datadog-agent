@@ -14,6 +14,10 @@ import (
 	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 )
 
+func (*compressorFactory) NewCompressor(kind string, level int, option string, valid []string) compression.Component {
+	return implnoop.NewComponent().Comp
+}
+
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called only when there is no zlib or zstd tag
 func NewCompressorReq(_ compression.Requires) compression.Provides {

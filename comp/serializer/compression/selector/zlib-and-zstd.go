@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	implgzip "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-gzip"
 	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	implzstd "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zstd"
@@ -34,6 +35,8 @@ func (*compressorFactory) NewCompressor(kind string, level int, option string, v
 		return implzlib.NewComponent().Comp
 	case common.ZstdKind:
 		return implzstd.NewComponent(implzstd.Requires{Level: level}).Comp
+	case common.GzipKind:
+		return implgzip.NewComponent(implgzip.Requires{Level: level}).Comp
 	case common.NoneKind:
 		log.Warn("no " + option + " set. use one of " + strings.Join(valid, ", "))
 		return implnoop.NewComponent().Comp
