@@ -25,6 +25,8 @@ type ConfigTestSuite struct {
 
 func (suite *ConfigTestSuite) SetupTest() {
 	configmock.New(suite.T())
+	suite.T().Setenv("DD_API_KEY", "")
+	suite.T().Setenv("DD_SITE", "")
 }
 
 func TestNoURIsProvided(t *testing.T) {

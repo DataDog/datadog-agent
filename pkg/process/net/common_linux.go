@@ -8,14 +8,13 @@
 package net
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
-	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
@@ -34,14 +33,13 @@ const (
 	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
 	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 	ebpfBTFLoaderURL     = "http://unix/debug/ebpf_btf_loader_info"
-	netType              = "unix"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
 // From the main agent and want to ensure the socket exists
 func CheckPath(path string) error {
 	if path == "" {
-		return fmt.Errorf("socket path is empty")
+		return errors.New("socket path is empty")
 	}
 
 	if _, err := os.Stat(path); err != nil {
@@ -53,34 +51,18 @@ func CheckPath(path string) error {
 // newSystemProbe creates a group of clients to interact with system-probe.
 func newSystemProbe(path string) *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		path: path,
-		httpClient: http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 30 * time.Second,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 5 * time.Second,
-				ExpectContinueTimeout: 50 * time.Millisecond,
-			},
-		},
+		path:       path,
+		httpClient: *client.Get(path),
 		pprofClient: http.Client{
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
+				DialContext: client.DialContextFunc(path),
 			},
 		},
 		tracerouteClient: http.Client{
 			// no timeout set here, the expected usage of this client
 			// is that the caller will set a timeout on each request
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
+				DialContext: client.DialContextFunc(path),
 			},
 		},
 	}
