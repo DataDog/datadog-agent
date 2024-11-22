@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -320,7 +320,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleID string) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -328,7 +328,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if event.GetEventType() != eventType {
+		if event.GetEventType() != eventType || rule.ID != ruleID {
 			return
 		}
 
