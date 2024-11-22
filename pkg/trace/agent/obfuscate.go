@@ -132,14 +132,17 @@ var (
 )
 
 func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
-	obfuscatorLock.Lock()
+	// Usually this is already inited and we can skip the cost of the mutex
 	if a.obfuscator == nil {
-		if a.obfuscatorConf != nil {
-			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
-		} else {
-			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
+		obfuscatorLock.Lock()
+		if a.obfuscator == nil {
+			if a.obfuscatorConf != nil {
+				a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
+			} else {
+				a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
+			}
+			obfuscatorLock.Unlock()
 		}
 	}
-	obfuscatorLock.Unlock()
 	return a.obfuscator
 }
