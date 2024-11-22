@@ -24,6 +24,7 @@ if ohai["platform"] != "windows"
     "--with-ensurepip=yes", # We upgrade pip later, in the pip3 software definition
     "--enable-optimizations",
     "--with-lto",
+    "--without-static-libpython",
   ]
 
   if mac_os_x?
