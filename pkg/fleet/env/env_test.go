@@ -6,7 +6,6 @@ package env
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +41,7 @@ func TestFromEnv(t *testing.T) {
 				Hostname:   "",
 				HTTPProxy:  "",
 				HTTPSProxy: "",
-				NoProxy:    "",
+				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 		{
@@ -74,9 +73,9 @@ func TestFromEnv(t *testing.T) {
 				envTags:                                       "k1:v1,k2:v2",
 				envExtraTags:                                  "k3:v3,k4:v4",
 				envHostname:                                   "hostname",
-				envHTTPProxy:                                  "http://proxy.example.com:8080",
+				envDDHTTPProxy:                                "http://proxy.example.com:8080",
 				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
-				strings.ToLower(envNoProxy):                   "localhost",
+				envDDNoProxy:                                  "localhost",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -152,7 +151,8 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags: []string{},
+				Tags:    []string{},
+				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 		{
@@ -181,6 +181,7 @@ func TestFromEnv(t *testing.T) {
 				DefaultPackagesVersionOverride: map[string]string{},
 				Tags:                           []string{},
 				Hostname:                       "",
+				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 	}
