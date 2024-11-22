@@ -4,9 +4,9 @@
 # Copyright 2016-present Datadog, Inc.
 
 # Embedded OpenSSL to meet FIPS requirements. It comes in two parts:
-# 1. The FIPS module itself (this software definition). It must use a FIPS-validated version 
+# 1. The FIPS module itself (this software definition). It must use a FIPS-validated version
 #    and follow the build steps outlined in the OpenSSL FIPS Security Policy.
-# 2. The OpenSSL library, which can be any 3.0.x version. This library will use the FIPS provider. 
+# 2. The OpenSSL library, which can be any 3.0.x version. This library will use the FIPS provider.
 
 name "openssl-fips-provider"
 default_version "0.0.1"
@@ -23,19 +23,25 @@ source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
+    prefix = if windows_target? then "perl.exe" else "" end
+    platform = if windows_target? then "mingw64" else "" end
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #
     # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-    command "./Configure enable-fips"
+    command "#{prefix} ./Configure enable-fips #{platform}"
 
-    command "make"
-    command "make install"
+    command "make V=1"
+    command "make install V=1"
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
 
     mkdir "#{install_dir}/embedded/ssl"
     mkdir "#{install_dir}/embedded/lib/ossl-modules"
-    copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+    if linux_target?
+      copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+    elsif windows_target?
+      copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+    end
 
     erb source: "openssl.cnf.erb",
         dest: "#{install_dir}/embedded/ssl/openssl.cnf.tmp",
