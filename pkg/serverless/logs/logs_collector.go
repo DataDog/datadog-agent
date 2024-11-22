@@ -28,7 +28,7 @@ const (
 	maxBufferedLogs = 2000
 
 	// Bottlecap Failover
-	bottlecapFailoverReasonEnvVar = "DD_EXTENSION_FAILOVER_REASON"
+	bottlecapFailoverReasonEnvVar = "DD_EXTENSION_FALLBACK_REASON"
 )
 
 // Tags contains the actual array of Tags (useful for passing it via reference)

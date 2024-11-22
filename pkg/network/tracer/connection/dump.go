@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-
 func dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 

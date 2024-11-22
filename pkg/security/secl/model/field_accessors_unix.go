@@ -946,38 +946,6 @@ func (ev *Event) GetConnectRetval() int64 {
 	return ev.Connect.SyscallEvent.Retval
 }
 
-// GetConnectServerAddrFamily returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrFamily() uint16 {
-	if ev.GetEventType().String() != "connect" {
-		return uint16(0)
-	}
-	return ev.Connect.AddrFamily
-}
-
-// GetConnectServerAddrIp returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrIp() net.IPNet {
-	if ev.GetEventType().String() != "connect" {
-		return net.IPNet{}
-	}
-	return ev.Connect.Addr.IPNet
-}
-
-// GetConnectServerAddrIsPublic returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrIsPublic() bool {
-	if ev.GetEventType().String() != "connect" {
-		return false
-	}
-	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
-}
-
-// GetConnectServerAddrPort returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrPort() uint16 {
-	if ev.GetEventType().String() != "connect" {
-		return uint16(0)
-	}
-	return ev.Connect.Addr.Port
-}
-
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {

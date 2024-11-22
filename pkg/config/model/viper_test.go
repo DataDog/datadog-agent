@@ -61,6 +61,7 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
+			// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
 			err := config.UnmarshalKey("foo", &s)
 			if err != nil {
 				errs <- fmt.Errorf("unable to decode into struct, %w", err)

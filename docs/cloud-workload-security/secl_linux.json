@@ -1839,26 +1839,6 @@
           "name": "connect.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
-        },
-        {
-          "name": "connect.server.addr.family",
-          "definition": "Server address family",
-          "property_doc_link": "connect-server-addr-family-doc"
-        },
-        {
-          "name": "connect.server.addr.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "connect.server.addr.is_public",
-          "definition": "Whether the IP address belongs to a public network",
-          "property_doc_link": "common-ipportcontext-is_public-doc"
-        },
-        {
-          "name": "connect.server.addr.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
@@ -8370,7 +8350,6 @@
       "prefixes": [
         "bind.addr",
         "connect.addr",
-        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8432,7 +8411,6 @@
       "prefixes": [
         "bind.addr",
         "connect.addr",
-        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -9128,7 +9106,6 @@
       "prefixes": [
         "bind.addr",
         "connect.addr",
-        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -9731,18 +9708,6 @@
       "link": "connect-addr-family-doc",
       "type": "int",
       "definition": "Address family",
-      "prefixes": [
-        "connect"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "connect.server.addr.family",
-      "link": "connect-server-addr-family-doc",
-      "type": "int",
-      "definition": "Server address family",
       "prefixes": [
         "connect"
       ],
