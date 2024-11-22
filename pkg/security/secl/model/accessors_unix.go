@@ -119,6 +119,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "bind.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Bind.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "bind.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -986,6 +995,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return int(ev.Connect.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20040,6 +20058,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"bind.addr.ip",
 		"bind.addr.is_public",
 		"bind.addr.port",
+		"bind.protocol",
 		"bind.retval",
 		"bpf.cmd",
 		"bpf.map.name",
@@ -20135,6 +20154,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"connect.addr.ip",
 		"connect.addr.is_public",
 		"connect.addr.port",
+		"connect.protocol",
 		"connect.retval",
 		"container.created_at",
 		"container.id",
@@ -21456,6 +21476,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr), nil
 	case "bind.addr.port":
 		return int(ev.Bind.Addr.Port), nil
+	case "bind.protocol":
+		return int(ev.Bind.Protocol), nil
 	case "bind.retval":
 		return int(ev.Bind.SyscallEvent.Retval), nil
 	case "bpf.cmd":
@@ -21650,6 +21672,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
 	case "connect.addr.port":
 		return int(ev.Connect.Addr.Port), nil
+	case "connect.protocol":
+		return int(ev.Connect.Protocol), nil
 	case "connect.retval":
 		return int(ev.Connect.SyscallEvent.Retval), nil
 	case "container.created_at":
@@ -28154,6 +28178,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "bind", nil
 	case "bind.addr.port":
 		return "bind", nil
+	case "bind.protocol":
+		return "bind", nil
 	case "bind.retval":
 		return "bind", nil
 	case "bpf.cmd":
@@ -28343,6 +28369,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "connect.addr.is_public":
 		return "connect", nil
 	case "connect.addr.port":
+		return "connect", nil
+	case "connect.protocol":
 		return "connect", nil
 	case "connect.retval":
 		return "connect", nil
@@ -30975,6 +31003,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 	case "bind.addr.port":
 		return reflect.Int, nil
+	case "bind.protocol":
+		return reflect.Int, nil
 	case "bind.retval":
 		return reflect.Int, nil
 	case "bpf.cmd":
@@ -31164,6 +31194,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "connect.addr.is_public":
 		return reflect.Bool, nil
 	case "connect.addr.port":
+		return reflect.Int, nil
+	case "connect.protocol":
 		return reflect.Int, nil
 	case "connect.retval":
 		return reflect.Int, nil
@@ -33822,6 +33854,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Bind.Addr.Port = uint16(rv)
 		return nil
+	case "bind.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Bind.Protocol"}
+		}
+		ev.Bind.Protocol = uint16(rv)
+		return nil
 	case "bind.retval":
 		rv, ok := value.(int)
 		if !ok {
@@ -34494,6 +34536,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
 		}
 		ev.Connect.Addr.Port = uint16(rv)
+		return nil
+	case "connect.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Protocol"}
+		}
+		ev.Connect.Protocol = uint16(rv)
 		return nil
 	case "connect.retval":
 		rv, ok := value.(int)

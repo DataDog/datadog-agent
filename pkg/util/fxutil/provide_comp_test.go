@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -43,19 +44,19 @@ func TestValidArgumentAndReturnValue(t *testing.T) {
 
 func TestInvalidArgumentOrReturnValue(t *testing.T) {
 	errOpt := ProvideComponentConstructor(1)
-	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
+	assertErrorWithSourceInfo(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func() {})
-	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
+	assertErrorWithSourceInfo(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func(FirstComp) SecondComp { return &secondImpl{} })
-	assertIsSingleError(t, errOpt, `constructor must either take 0 arguments, or 1 "requires" struct`)
+	assertErrorWithSourceInfo(t, errOpt, `must either take 0 arguments, or 1 "requires" struct`)
 
 	errOpt = ProvideComponentConstructor(func() (FirstComp, SecondComp) { return &firstImpl{}, &secondImpl{} })
-	assertIsSingleError(t, errOpt, "second return value must be error, got fxutil.SecondComp")
+	assertErrorWithSourceInfo(t, errOpt, "second return value must be error, got fxutil.SecondComp")
 
 	errOpt = ProvideComponentConstructor(func(requires1, requires2) FirstComp { return &firstImpl{} })
-	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
+	assertErrorWithSourceInfo(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 }
 
 func TestGetConstructorTypes(t *testing.T) {
@@ -553,14 +554,20 @@ func assertNoCtorError(t *testing.T, arg fx.Option) {
 	}
 }
 
-func assertIsSingleError(t *testing.T, arg fx.Option, errMsg string) {
+func assertErrorWithSourceInfo(t *testing.T, arg fx.Option, errMsgContained string) {
 	t.Helper()
 	app := fx.New(arg)
 	err := app.Err()
 	if err == nil {
 		t.Fatalf("expected an error, instead got %v of type %T", arg, arg)
-	} else if err.Error() != errMsg {
-		t.Fatalf("errror mismatch, expected %v, got %v", errMsg, err.Error())
+	} else if !strings.Contains(err.Error(), errMsgContained) {
+		t.Fatalf(`error mismatch, expected to contain "%v", got "%v"`, errMsgContained, err.Error())
+	}
+	// Assert that the callsite shows up in the error, with source file and line number
+	re := regexp.MustCompile(`pkg/util/fxutil/provide_comp_test.go:\d+:`)
+	match := re.FindString(err.Error())
+	if match == "" {
+		t.Fatalf(`error expected to contain source file and line number, got "%v"`, err.Error())
 	}
 }
 
