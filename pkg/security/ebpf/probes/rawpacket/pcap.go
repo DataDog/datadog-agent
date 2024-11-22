@@ -112,53 +112,73 @@ func BPFFilterToInsts(index int, filter string, opts ProgOpts) (asm.Instructions
 func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
 	var (
 		progInsts []asm.Instructions
-		currProg  uint32
 		mErr      *multierror.Error
 		tailCalls int
+		header    bool
 	)
 
-	progInsts = append(progInsts, asm.Instructions{})
+	// prepend a return instruction in case of fail
+	footerInsts := append(asm.Instructions{
+		asm.Return(),
+	}, senderInsts...)
 
-	progInsts[currProg] = append(progInsts[currProg], headerInsts...)
+	isMaxSizeExceeded := func(filterInsts, tailCallInsts asm.Instructions) bool {
+		return len(filterInsts)+len(tailCallInsts)+len(footerInsts) > opts.MaxProgSize
+	}
 
 	for i, filter := range filters {
 		filterInsts, err := BPFFilterToInsts(i, filter.BPFFilter, opts)
 		if err != nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bitcode for rule `%s`: %s", filter.RuleID, err))
+			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bytecode for rule `%s`: %s", filter.RuleID, err))
 			continue
 		}
 
-		tailCallInsts := asm.Instructions{
-			asm.Mov.Reg(asm.R1, opts.ctxSave),
-			asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
-			asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+currProg+1)),
-			asm.FnTailCall.Call(),
+		var tailCallInsts asm.Instructions
+
+		// insert tail call to the current filter if not the last prog
+		if i+1 < len(filters) {
+			tailCallInsts = asm.Instructions{
+				asm.Mov.Reg(asm.R1, opts.ctxSave),
+				asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
+				asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+uint32(tailCalls)+1)),
+				asm.FnTailCall.Call(),
+			}
 		}
+
+		// single program exceeded the limit
+		if isMaxSizeExceeded(filterInsts, tailCallInsts) {
+			mErr = multierror.Append(mErr, fmt.Errorf("max number of intructions exceeded for rule `%s`", filter.RuleID))
+			continue
+		}
+
+		if !header {
+			progInsts = append(progInsts, headerInsts)
+			header = true
+		}
+		progInsts[tailCalls] = append(progInsts[tailCalls], filterInsts...)
 
 		// max size exceeded, generate a new tail call
-		if len(progInsts[currProg])+len(tailCallInsts)+len(senderInsts) > opts.MaxProgSize {
-			// insert tail call to the previews filter
-			progInsts[currProg] = append(progInsts[currProg], tailCallInsts...)
-			progInsts[currProg] = append(progInsts[currProg], senderInsts...)
-			currProg++
-
-			// start a new program
-			progInsts = append(progInsts, asm.Instructions{})
-			progInsts[currProg] = append(progInsts[currProg], headerInsts...)
-
+		if isMaxSizeExceeded(progInsts[tailCalls], tailCallInsts) {
 			if opts.MaxTailCalls != 0 && tailCalls >= opts.MaxTailCalls {
-				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d", opts.MaxTailCalls))
+				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d vs %d", tailCalls, opts.MaxTailCalls))
 				break
 			}
+
+			// insert tail call to the current filter if not the last prog
+			progInsts[tailCalls] = append(progInsts[tailCalls], tailCallInsts...)
+
+			// insert the event sender instructions
+			progInsts[tailCalls] = append(progInsts[tailCalls], footerInsts...)
+
+			// start a new program
+			header = false
 			tailCalls++
 		}
-		progInsts[currProg] = append(progInsts[currProg], filterInsts...)
 	}
 
-	progInsts[currProg] = append(progInsts[currProg],
-		asm.Return(),
-	)
-	progInsts[currProg] = append(progInsts[currProg], senderInsts...)
+	if tailCalls < len(progInsts) && header {
+		progInsts[tailCalls] = append(progInsts[tailCalls], footerInsts...)
+	}
 
 	return progInsts, mErr
 }

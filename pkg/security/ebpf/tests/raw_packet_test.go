@@ -11,38 +11,42 @@ package tests
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/safchain/baloum/pkg/baloum"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 )
 
-func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expectedRetCode int64, opts rawpacket.ProgOpts) {
+func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {
 	var ctx baloum.StdContext
 
 	vm := newVM(t)
 
 	rawPacketEventMap, err := vm.LoadMap("raw_packet_event")
-	if err != nil {
-		t.Fatal("map not found")
-	}
+	assert.Nil(t, err, "map not found")
+
 	routerMap, err := vm.LoadMap("classifier_router")
-	if err != nil {
-		t.Fatal("map not found")
-	}
+	assert.Nil(t, err, "map not found")
 
 	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
 	if err != nil {
-		t.Fatal(err)
+		if catchCompilerError {
+			t.Fatal(err)
+		} else {
+			t.Log(err)
+		}
 	}
+
+	assert.Equal(t, expProgNum, len(progSpecs), "number of expected programs")
 
 	for i, progSpec := range progSpecs {
 		fd := vm.AddProgram(progSpec)
 
-		if _, err := routerMap.Update(probes.TCRawPacketFilterKey+uint32(i), fd, baloum.BPF_ANY); err != nil {
-			t.Error(err)
-		}
+		_, err := routerMap.Update(probes.TCRawPacketFilterKey+uint32(i), fd, baloum.BPF_ANY)
+		assert.Nil(t, err, "map update error")
 	}
 
 	// override the TCRawPacketParserSenderKey program with a test program
@@ -56,14 +60,14 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expectedRetCo
 	}
 	sendProgFD := vm.AddProgram(&sendProgSpec)
 
-	if _, err := routerMap.Update(probes.TCRawPacketParserSenderKey, sendProgFD, baloum.BPF_ANY); err != nil {
-		t.Error(err)
-	}
+	_, err = routerMap.Update(probes.TCRawPacketParserSenderKey, sendProgFD, baloum.BPF_ANY)
+	assert.Nil(t, err, "map update error")
 
 	code, err := vm.RunProgram(&ctx, "test/raw_packet_tail_calls", ebpf.SchedCLS)
-	if err != nil || code != expectedRetCode {
-		t.Errorf("unexpected error: %v, %d vs %d", err, code, expectedRetCode)
+	if expRetCode != -1 {
+		assert.Nil(t, err, "program execution error")
 	}
+	assert.Equal(t, expRetCode, code, "return code error: %v", err)
 }
 
 func TestRawPacketTailCalls(t *testing.T) {
@@ -74,7 +78,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, 2, rawpacket.DefaultProgOpts)
+		testRawPacketFilter(t, filters, 2, 1, rawpacket.DefaultProgOpts, true)
 	})
 
 	t.Run("syn-port-std-ko", func(t *testing.T) {
@@ -84,10 +88,34 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, 0, rawpacket.DefaultProgOpts)
+		testRawPacketFilter(t, filters, 0, 1, rawpacket.DefaultProgOpts, true)
 	})
 
-	t.Run("syn-port-mult-ok", func(t *testing.T) {
+	t.Run("syn-port-std-limit-ko", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ko",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+			},
+		}
+
+		opts := rawpacket.DefaultProgOpts
+		opts.NopInstLen = opts.MaxProgSize
+
+		testRawPacketFilter(t, filters, -1, 0, opts, false)
+	})
+
+	t.Run("syn-port-std-syntax-err", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port number and tcp[tcpflags] == tcp-syn",
+			},
+		}
+		testRawPacketFilter(t, filters, -1, 0, rawpacket.DefaultProgOpts, false)
+	})
+
+	t.Run("syn-port-multi-ok", func(t *testing.T) {
 		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ko",
@@ -100,26 +128,67 @@ func TestRawPacketTailCalls(t *testing.T) {
 		}
 
 		opts := rawpacket.DefaultProgOpts
-		opts.NopInstLen = opts.MaxProgSize
+		opts.NopInstLen = opts.MaxProgSize - 50
 
-		testRawPacketFilter(t, filters, 2, opts)
+		testRawPacketFilter(t, filters, 2, 2, opts, true)
 	})
 
-	t.Run("syn-port-mult-ko", func(t *testing.T) {
+	t.Run("syn-port-multi-ko", func(t *testing.T) {
 		filters := []rawpacket.Filter{
 			{
-				RuleID:    "ko",
+				RuleID:    "ko1",
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
 			},
 			{
-				RuleID:    "ok",
+				RuleID:    "ko2",
 				BPFFilter: "tcp dst port 7777 and tcp[tcpflags] == tcp-syn",
 			},
 		}
 
 		opts := rawpacket.DefaultProgOpts
-		opts.NopInstLen = opts.MaxProgSize
+		opts.NopInstLen = opts.MaxProgSize - 50
 
-		testRawPacketFilter(t, filters, 0, opts)
+		testRawPacketFilter(t, filters, 0, 2, opts, true)
+	})
+
+	t.Run("syn-port-multi-syntax-err", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ko",
+				BPFFilter: "tcp dst port number and tcp[tcpflags] == tcp-syn",
+			},
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+			},
+		}
+
+		opts := rawpacket.DefaultProgOpts
+		opts.NopInstLen = opts.MaxProgSize - 50
+
+		testRawPacketFilter(t, filters, 2, 1, opts, false)
+	})
+
+	t.Run("syn-port-multi-limit-ok", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+			},
+			{
+				RuleID:    "ko1",
+				BPFFilter: "tcp dst port number and tcp[tcpflags] == tcp-syn",
+			},
+			{
+				RuleID:    "ko2",
+				BPFFilter: "tcp dst port 7777 and tcp[tcpflags] == tcp-syn",
+			},
+		}
+
+		opts := rawpacket.DefaultProgOpts
+		opts.MaxTailCalls = 0
+		opts.NopInstLen = opts.MaxProgSize - 50
+
+		testRawPacketFilter(t, filters, 2, 2, opts, false)
 	})
 }

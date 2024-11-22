@@ -727,7 +727,7 @@ def e2e_prepare_win(ctx):
 
 
 @task
-def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
+def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     build_cws_object_files(
         ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
@@ -751,7 +751,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     if trace:
         args += " -trace"
 
-    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}", env=env)
+    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args} {testflags}", env=env)
 
 
 @task
