@@ -46,7 +46,6 @@ const (
 )
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
-var connClosedFlushMapTTL = 10 * time.Millisecond.Nanoseconds()
 
 var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	connections       telemetry.Gauge
@@ -152,7 +151,6 @@ type ebpfTracer struct {
 
 	// periodically clean the ongoing connection pid map
 	ongoingConnectCleaner *ddebpf.MapCleaner[netebpf.SkpConn, netebpf.PidTs]
-	connCloseFlushCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, int64]
 
 	removeTuple *netebpf.ConnTuple
 
@@ -353,7 +351,6 @@ func (t *ebpfTracer) Stop() {
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
-		t.connCloseFlushCleaner.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
