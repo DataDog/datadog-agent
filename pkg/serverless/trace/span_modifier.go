@@ -43,7 +43,7 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 		// add the keys of all tags as the value of a new tag _dd.tags.function
 		// these tags will be added by intake to the traced invocation metric
 		// note, this tag set includes custom tags added via DD_TAGS
-		span.Meta[funcTagKey] = s.funcTags
+		traceutil.SetMeta(span, funcTagKey, s.funcTags)
 	}
 
 	// ensure all spans have tag _dd.origin in addition to span.Origin

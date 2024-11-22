@@ -9,6 +9,7 @@ package trace
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -61,9 +62,8 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
-	agnt.SpanModifier = &spanModifier{
-		tags: cfg.GlobalTags,
-	}
+	agnt.SpanModifier = new(spanModifier)
+	agnt.SpanModifier.(taggable).SetTags(cfg.GlobalTags)
 	agnt.TraceWriter = &mockTraceWriter{}
 	defer cancel()
 
@@ -87,9 +87,8 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
-	agnt.SpanModifier = &spanModifier{
-		tags: cfg.GlobalTags,
-	}
+	agnt.SpanModifier = new(spanModifier)
+	agnt.SpanModifier.(taggable).SetTags(cfg.GlobalTags)
 	agnt.TraceWriter = &mockTraceWriter{}
 	defer cancel()
 
@@ -122,7 +121,8 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 	testOriginTags := func(withModifier bool) {
 		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		if withModifier {
-			agnt.SpanModifier = &spanModifier{tags: cfg.GlobalTags, ddOrigin: getDDOrigin()}
+			agnt.SpanModifier = &spanModifier{ddOrigin: getDDOrigin()}
+			agnt.SpanModifier.(taggable).SetTags(cfg.GlobalTags)
 		}
 		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
@@ -157,6 +157,35 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 
 	testOriginTags(true)
 	testOriginTags(false)
+}
+
+func TestSpanModifierAddsFunctionTagsToAllSpans(t *testing.T) {
+	cfg := config.New()
+	cfg.GlobalTags = map[string]string{
+		"service":   "myTestService",
+		"mycooltag": "mycoolvalue",
+	}
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt.SpanModifier = new(spanModifier)
+	agnt.SpanModifier.(taggable).SetTags(cfg.GlobalTags)
+	agnt.TraceWriter = &mockTraceWriter{}
+	defer cancel()
+
+	tc := testutil.RandomTraceChunk(1, 1)
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
+	tp.Chunks[0].Spans[0].Service = "aws.lambda"
+	agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+	assert.NotEmpty(t, payloads, "no payloads were written")
+	span := payloads[0].TracerPayload.Chunks[0].Spans[0]
+	// order not guaranteed
+	assert.Contains(t, []string{"mycooltag,service", "service,mycooltag"}, span.Meta[funcTagKey])
 }
 
 func TestSpanModifierDetectsCloudService(t *testing.T) {
@@ -229,9 +258,9 @@ func TestLambdaSpanChan(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	lambdaSpanChan := make(chan *pb.Span)
 	agnt.SpanModifier = &spanModifier{
-		tags:           cfg.GlobalTags,
 		lambdaSpanChan: lambdaSpanChan,
 	}
+	agnt.SpanModifier.(taggable).SetTags(cfg.GlobalTags)
 	defer cancel()
 
 	tc := testutil.RandomTraceChunk(1, 1)
@@ -264,9 +293,9 @@ func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	lambdaSpanChan := make(chan *pb.Span)
 	agnt.SpanModifier = &spanModifier{
-		tags:           cfg.GlobalTags,
 		lambdaSpanChan: lambdaSpanChan,
 	}
+	agnt.SpanModifier.(taggable).SetTags(cfg.GlobalTags)
 	defer cancel()
 
 	tc := testutil.RandomTraceChunk(1, 1)
@@ -287,4 +316,63 @@ func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
 		timedOut = true
 	}
 	assert.Equal(t, true, timedOut)
+}
+
+func TestBuildFunctionTags(t *testing.T) {
+	testcases := []struct {
+		tags   map[string]string
+		expect []string
+	}{
+		{
+			tags: map[string]string{
+				"key1": "value1",
+			},
+			expect: []string{
+				"key1",
+			},
+		},
+		{
+			tags: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			expect: []string{
+				"key1,key2",
+				"key2,key1",
+			},
+		},
+		{
+			tags: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+				"key3": "value3",
+			},
+			expect: []string{
+				"key1,key2,key3",
+				"key1,key3,key2",
+				"key2,key1,key3",
+				"key2,key3,key1",
+				"key3,key1,key2",
+				"key3,key2,key1",
+			},
+		},
+		{
+			tags: map[string]string{
+				"key1":       "value1",
+				"git.sha":    "1234",
+				"_dd.origin": "lambda",
+			},
+			expect: []string{
+				"key1",
+			},
+		},
+	}
+
+	for i, tc := range testcases {
+		t.Run(fmt.Sprintf("testcase-%d", i), func(t *testing.T) {
+			tags := buildFunctionTags(tc.tags)
+			// order not guaranteed
+			assert.Contains(t, tc.expect, tags)
+		})
+	}
 }
