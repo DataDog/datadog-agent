@@ -59,7 +59,7 @@
     # it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
     - >
       docker run --rm
-      -m 16384M
+      -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
