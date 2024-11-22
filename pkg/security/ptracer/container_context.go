@@ -68,11 +68,11 @@ func newContainerContext(containerID string) (*ebpfless.ContainerContext, error)
 				ctx.Name = data.DockerName
 			}
 			if data.Image != "" {
-				_, _, shortImageName, tag, err := image.SplitImageName(data.Image)
+				parsed, err := image.SplitImageName(data.Image)
 				if err == nil {
-					ctx.ImageShortName = shortImageName
-					if tag != "" {
-						ctx.ImageTag = tag
+					ctx.ImageShortName = parsed.ShortName
+					if parsed.Tag != "" {
+						ctx.ImageTag = parsed.Tag
 					} else {
 						ctx.ImageTag = "latest"
 					}

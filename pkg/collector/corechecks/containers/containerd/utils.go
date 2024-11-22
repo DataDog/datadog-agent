@@ -27,15 +27,15 @@ func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Comp
 }
 
 func getImageTags(imageName string) []string {
-	long, _, short, tag, err := pkgcontainersimage.SplitImageName(imageName)
+	parsed, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
 		return []string{fmt.Sprintf("image:%s", imageName)}
 	}
 
 	return []string{
 		fmt.Sprintf("image:%s", imageName),
-		fmt.Sprintf("image_name:%s", long),
-		fmt.Sprintf("image_tag:%s", tag),
-		fmt.Sprintf("short_image:%s", short),
+		fmt.Sprintf("image_name:%s", parsed.LongName),
+		fmt.Sprintf("image_tag:%s", parsed.Tag),
+		fmt.Sprintf("short_image:%s", parsed.ShortName),
 	}
 }

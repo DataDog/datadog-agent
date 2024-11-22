@@ -276,19 +276,19 @@ func NewContainerImage(imageID string, imageName string) (ContainerImage, error)
 		Name:    imageName,
 	}
 
-	name, registry, shortName, tag, err := pkgcontainersimage.SplitImageName(imageName)
+	parsedName, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
 
-	if tag == "" {
-		tag = "latest"
+	if parsedName.Tag == "" {
+		parsedName.Tag = "latest"
 	}
 
-	image.Name = name
-	image.Registry = registry
-	image.ShortName = shortName
-	image.Tag = tag
+	image.Name = parsedName.LongName
+	image.Registry = parsedName.Registry
+	image.ShortName = parsedName.ShortName
+	image.Tag = parsedName.Tag
 
 	return image, nil
 }

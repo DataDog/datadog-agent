@@ -52,11 +52,11 @@ func TestSplitImageName(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
-			long, registry, short, tag, err := SplitImageName(tc.source)
-			assert.Equal(tc.longName, long)
-			assert.Equal(tc.registry, registry)
-			assert.Equal(tc.shortName, short)
-			assert.Equal(tc.tag, tag)
+			parsed, err := SplitImageName(tc.source)
+			assert.Equal(tc.longName, parsed.LongName)
+			assert.Equal(tc.registry, parsed.Registry)
+			assert.Equal(tc.shortName, parsed.ShortName)
+			assert.Equal(tc.tag, parsed.Tag)
 
 			if tc.err == nil {
 				assert.Nil(err)

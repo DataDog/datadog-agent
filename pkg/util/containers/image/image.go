@@ -19,19 +19,30 @@ var (
 	ErrImageIsSha256 = errors.New("invalid image name (is a sha256)")
 )
 
+type ParsedImageName struct {
+	// LongName is the "long image name", with registry and prefix, without tag
+	LongName string
+	// Registry is the registry part of the image name
+	Registry string
+	// ShortName is the "short image name", without registry, prefix nor tag
+	ShortName string
+	// Tag is the image tag if present
+	Tag string
+}
+
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
 //   - the "long image name" with registry and prefix, without tag
 //   - the registry
 //   - the "short image name", without registry, prefix nor tag
 //   - the image tag if present
 //   - an error if parsing failed
-func SplitImageName(image string) (string, string, string, string, error) {
+func SplitImageName(image string) (ParsedImageName, error) {
 	// See TestSplitImageName for supported formats (number 6 will surprise you!)
 	if image == "" {
-		return "", "", "", "", ErrEmptyImage
+		return ParsedImageName{}, ErrEmptyImage
 	}
 	if strings.HasPrefix(image, "sha256:") {
-		return "", "", "", "", ErrImageIsSha256
+		return ParsedImageName{}, ErrImageIsSha256
 	}
 	long := image
 	if pos := strings.LastIndex(long, "@sha"); pos > 0 {
@@ -59,7 +70,13 @@ func SplitImageName(image string) (string, string, string, string, error) {
 		// we have a registry
 		registry = long[:firstSlash]
 	}
-	return long, registry, short, tag, nil
+
+	return ParsedImageName{
+		LongName:  long,
+		Registry:  registry,
+		ShortName: short,
+		Tag:       tag,
+	}, nil
 }
 
 // SanitizeHostPath changes the specified path by prepending the mount point of the host's filesystem

@@ -358,34 +358,31 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	}
 
 	var (
-		name      string
-		registry  string
-		shortName string
-		tag       string
-		err       error
+		parsedImageName pkgcontainersimage.ParsedImageName
+		err             error
 	)
 
 	if strings.Contains(imageSpec, "@sha256") {
-		name, registry, shortName, tag, err = pkgcontainersimage.SplitImageName(imageSpec)
+		parsedImageName, err = pkgcontainersimage.SplitImageName(imageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 		}
 	}
 
-	if name == "" && tag == "" {
+	if parsedImageName.LongName == "" && parsedImageName.Tag == "" {
 		resolvedImageSpec, err := resolve(ctx, container)
 		if err != nil {
 			log.Debugf("cannot resolve image name %q for container %q: %s", imageSpec, container.ID, err)
 			return image
 		}
 
-		name, registry, shortName, tag, err = pkgcontainersimage.SplitImageName(resolvedImageSpec)
+		parsedImageName, err = pkgcontainersimage.SplitImageName(resolvedImageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
 			if errors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
-				name, registry, shortName, tag, err = pkgcontainersimage.SplitImageName(imageSpec)
+				parsedImageName, err = pkgcontainersimage.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 					return image
@@ -396,10 +393,10 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 		}
 	}
 
-	image.Name = name
-	image.Registry = registry
-	image.ShortName = shortName
-	image.Tag = tag
+	image.Name = parsedImageName.LongName
+	image.Registry = parsedImageName.Registry
+	image.ShortName = parsedImageName.ShortName
+	image.Tag = parsedImageName.Tag
 	image.ID = container.Image
 	image.RepoDigest = util.ExtractRepoDigestFromImage(image.ID, image.Registry, store) // "sha256:digest"
 	return image
