@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"reflect"
 	"runtime"
 	"strconv"
 	"sync"
@@ -274,7 +275,8 @@ func (a *Agent) loop() {
 		a.obfuscator,
 		a.DebugServer,
 	} {
-		if stopper != nil {
+		// Fun with golang nil checks
+		if stopper != nil && !reflect.ValueOf(stopper).IsNil() {
 			stopper.Stop()
 		}
 	}

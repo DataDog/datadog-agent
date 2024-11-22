@@ -316,7 +316,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 
 // Stop cleans up after a finished Obfuscator.
 func (o *Obfuscator) Stop() {
-	if o != nil && o.queryCache != nil {
+	if o.queryCache != nil {
 		o.queryCache.Close()
 	}
 }
