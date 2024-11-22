@@ -231,7 +231,9 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			return err
 		}
 
-		_, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, cluster.ClusterArn, params.agentOptions...)
+		// add stack-id to tags
+		agentOptions := append(params.agentOptions, ecsagentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
+		_, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, cluster.ClusterArn, agentOptions...)
 		if err != nil {
 			return err
 		}
