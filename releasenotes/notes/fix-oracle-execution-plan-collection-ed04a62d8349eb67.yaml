@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    Fix Oracle execution plan collection failing because of out of bound position column. 
-    This could happen when the execution plan was too big.
+    Fix Oracle execution plan collection failures caused by an out-of-range position column, which can occur if the execution plan is excessively large.
