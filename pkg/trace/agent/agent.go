@@ -104,7 +104,8 @@ type Agent struct {
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
-	obfuscator *obfuscate.Obfuscator
+	obfuscator     *obfuscate.Obfuscator
+	obfuscatorConf *obfuscate.Config
 
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
@@ -156,7 +157,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
 		StatsWriter:           statsWriter,
-		obfuscator:            obfuscate.NewObfuscator(oconf),
+		obfuscatorConf:        &oconf,
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
@@ -273,7 +274,9 @@ func (a *Agent) loop() {
 		a.obfuscator,
 		a.DebugServer,
 	} {
-		stopper.Stop()
+		if stopper != nil {
+			stopper.Stop()
+		}
 	}
 }
 
