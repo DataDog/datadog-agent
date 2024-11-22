@@ -99,7 +99,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

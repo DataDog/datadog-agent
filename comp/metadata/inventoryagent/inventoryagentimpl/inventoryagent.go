@@ -399,7 +399,7 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
-	flareScrubber := scrubber.NewWithDefaults()
+	flareScrubber := scrubber.NewWithDefaults(false)
 
 	provided, err := yaml.Marshal(data)
 	if err != nil {

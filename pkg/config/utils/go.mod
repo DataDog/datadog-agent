@@ -37,7 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0
 	github.com/stretchr/testify v1.9.0
 )
 

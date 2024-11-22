@@ -41,6 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect

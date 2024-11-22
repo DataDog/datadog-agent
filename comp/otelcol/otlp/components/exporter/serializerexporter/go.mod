@@ -134,7 +134,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect

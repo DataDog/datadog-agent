@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/scrubber
 go 1.22.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )

@@ -71,7 +71,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1
-	github.com/DataDog/datadog-agent/pkg/version v0.57.1
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0
 	github.com/golang/protobuf v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.9.0

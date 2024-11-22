@@ -17,6 +17,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -40,6 +42,17 @@ type Replacer struct {
 	// ReplFunc, if set, is called with the matched bytes (see regexp#Regexp.ReplaceAllFunc). Only
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
+
+	// ImplementVersion is the version of the implementation of the replacer.
+	ImplementVersion *version.Version
+}
+
+func parseVersion(versionString string) *version.Version {
+	v, err := version.New(versionString, "")
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 // ReplacerKind modifies how a Replacer is applied
@@ -71,6 +84,33 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
+
+	// if true, rules are applied only to version bellows the implementVersion
+	applyOnlyToVersionsBelow bool
+	// agentVersion is the version of the agent that is running the scrubber
+	agentVersion *version.Version
+}
+
+func (c *Scrubber) shouldApplyReplacer(replacer Replacer) bool {
+	if c.agentVersion == nil {
+		agentVersion, _ := version.Agent()
+		c.agentVersion = &agentVersion
+	}
+	if c.applyOnlyToVersionsBelow && c.agentVersion != nil {
+		if c.agentVersion.Minor < replacer.ImplementVersion.Minor {
+			return true
+		}
+		if c.agentVersion.Minor == replacer.ImplementVersion.Minor && c.agentVersion.Patch < replacer.ImplementVersion.Patch {
+			return true
+		}
+		return false
+	}
+	return true
+}
+
+// SetAgentVersion sets the agent version that is running the scrubber
+func (c *Scrubber) SetAgentVersion(version string) {
+	c.agentVersion = parseVersion(version)
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -82,9 +122,10 @@ func New() *Scrubber {
 }
 
 // NewWithDefaults creates a new scrubber with the default replacers installed.
-func NewWithDefaults() *Scrubber {
+func NewWithDefaults(applyOnlyToVersionsBelow bool) *Scrubber {
 	s := New()
 	AddDefaultReplacers(s)
+	s.applyOnlyToVersionsBelow = applyOnlyToVersionsBelow
 	return s
 }
 
@@ -171,9 +212,14 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 
 // scrub applies the given replacers to the given data.
 func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
+
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
+			continue
+		}
+
+		if !c.shouldApplyReplacer(repl) {
 			continue
 		}
 

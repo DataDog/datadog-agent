@@ -91,7 +91,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
 		osFamily:             hostOutput.OSFamily,
-		scrubber:             scrubber.NewWithDefaults(),
+		scrubber:             scrubber.NewWithDefaults(false),
 	}
 
 	host.httpTransport = host.newHTTPTransport()

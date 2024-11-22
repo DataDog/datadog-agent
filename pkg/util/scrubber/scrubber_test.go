@@ -18,7 +18,7 @@ import (
 )
 
 func TestNewWithDefaults(t *testing.T) {
-	scrubber := NewWithDefaults()
+	scrubber := NewWithDefaults(false)
 	scrubberEmpty := New()
 	AddDefaultReplacers(scrubberEmpty)
 

@@ -67,7 +67,7 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 	return &Docker{
 		t:        t,
 		client:   client,
-		scrubber: scrubber.NewWithDefaults(),
+		scrubber: scrubber.NewWithDefaults(false),
 	}, nil
 }
 

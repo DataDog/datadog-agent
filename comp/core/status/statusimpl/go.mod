@@ -50,7 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.22.2
