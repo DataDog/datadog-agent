@@ -645,8 +645,9 @@ type BindEvent struct {
 // ConnectEvent represents a connect event
 type ConnectEvent struct {
 	SyscallEvent
-	Addr       IPPortContext `field:"addr;server.addr"`               // Connection address
-	AddrFamily uint16        `field:"addr.family;server.addr.family"` // SECLDoc[addr.family] Definition:`Address family` SECLDoc[server.addr.family] Definition:`Server address family`
+
+	Addr       IPPortContext `field:"addr"`        // Connection address
+	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device

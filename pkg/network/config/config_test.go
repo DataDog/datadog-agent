@@ -1269,23 +1269,23 @@ func TestIstioMonitoring(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.False(t, cfg.EnableIstioMonitoring)
+		assert.True(t, cfg.EnableIstioMonitoring)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.istio.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.istio.enabled", false)
 		cfg := New()
 
-		assert.True(t, cfg.EnableIstioMonitoring)
+		assert.False(t, cfg.EnableIstioMonitoring)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENABLED", "false")
 		cfg := New()
 
-		assert.True(t, cfg.EnableIstioMonitoring)
+		assert.False(t, cfg.EnableIstioMonitoring)
 	})
 }
 
@@ -1344,23 +1344,23 @@ func TestUSMEventStream(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.False(t, cfg.EnableUSMEventStream)
+		assert.True(t, cfg.EnableUSMEventStream)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_event_stream", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_event_stream", false)
 		cfg := New()
 
-		assert.True(t, cfg.EnableUSMEventStream)
+		assert.False(t, cfg.EnableUSMEventStream)
 	})
 
-	t.Run("via deprecated ENV variable", func(t *testing.T) {
+	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "false")
 		cfg := New()
 
-		assert.True(t, cfg.EnableUSMEventStream)
+		assert.False(t, cfg.EnableUSMEventStream)
 	})
 }
 

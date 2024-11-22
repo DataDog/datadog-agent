@@ -7,13 +7,16 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 const (
@@ -38,6 +41,7 @@ const (
 	envAgentUserNameCompat = "DDAGENTUSER_NAME"
 	envTags                = "DD_TAGS"
 	envExtraTags           = "DD_EXTRA_TAGS"
+	envHostname            = "DD_HOSTNAME"
 	envDDHTTPProxy         = "DD_PROXY_HTTP"
 	envHTTPProxy           = "HTTP_PROXY"
 	envDDHTTPSProxy        = "DD_PROXY_HTTPS"
@@ -104,7 +108,8 @@ type Env struct {
 	CDNEnabled      bool
 	CDNLocalDirPath string
 
-	Tags []string
+	Tags     []string
+	Hostname string
 
 	HTTPProxy  string
 	HTTPSProxy string
@@ -150,6 +155,7 @@ func FromEnv() *Env {
 			strings.FieldsFunc(os.Getenv(envTags), splitFunc),
 			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
 		),
+		Hostname: os.Getenv(envHostname),
 
 		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
@@ -159,6 +165,12 @@ func FromEnv() *Env {
 
 // FromConfig returns an Env struct with values from the configuration.
 func FromConfig(config model.Reader) *Env {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hostname, err := hostname.Get(ctx)
+	if err != nil {
+		hostname = "unknown"
+	}
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
@@ -169,6 +181,7 @@ func FromConfig(config model.Reader) *Env {
 		RegistryUsername:     config.GetString("installer.registry.username"),
 		RegistryPassword:     config.GetString("installer.registry.password"),
 		Tags:                 utils.GetConfiguredTags(config, false),
+		Hostname:             hostname,
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
@@ -216,6 +229,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if len(e.Tags) > 0 {
 		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
+	}
+	if len(e.Hostname) > 0 {
+		env = append(env, envHostname+"="+e.Hostname)
 	}
 	if e.HTTPProxy != "" {
 		env = append(env, envHTTPProxy+"="+e.HTTPProxy)

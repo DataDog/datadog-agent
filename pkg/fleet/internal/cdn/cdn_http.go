@@ -23,6 +23,7 @@ type cdnHTTP struct {
 	client              *remoteconfig.HTTPClient
 	currentRootsVersion uint64
 	hostTagsGetter      hostTagsGetter
+	env                 *env.Env
 }
 
 func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
@@ -39,6 +40,7 @@ func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 		client:              client,
 		currentRootsVersion: 1,
 		hostTagsGetter:      newHostTagsGetter(env),
+		env:                 env,
 	}, nil
 }
 
@@ -134,6 +136,6 @@ func (c *cdnHTTP) get(ctx context.Context) ([][]byte, error) {
 
 	return getOrderedScopedLayers(
 		files,
-		getScopeExprVars(ctx, c.hostTagsGetter),
+		getScopeExprVars(c.env, c.hostTagsGetter),
 	)
 }

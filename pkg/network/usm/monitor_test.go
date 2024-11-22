@@ -82,6 +82,8 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 			cfg := config.New()
 			cfg.EnableHTTPMonitoring = true
+			cfg.EnableIstioMonitoring = false
+
 			monitor, err := NewMonitor(cfg, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
