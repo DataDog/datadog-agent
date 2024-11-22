@@ -16,19 +16,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// Helper functions to create pointer values for testing
-func floatPtr(f float64) *float64 {
-	return &f
-}
-
-func uintPtr(u uint64) *uint64 {
-	return &u
-}
-
-func intPtr(i int64) *int64 {
-	return &i
-}
-
 // mockWorkloadmetaStore is a mock implementation of the workloadmeta store for testing purposes.
 type mockWorkloadmetaStore struct {
 	workloadmeta.Component
