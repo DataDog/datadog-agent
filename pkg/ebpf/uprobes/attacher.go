@@ -268,6 +268,9 @@ type FileRegistry interface {
 
 	// GetRegisteredProcesses returns a map of all the processes that are currently registered in the registry
 	GetRegisteredProcesses() map[uint32]struct{}
+
+	// Log is a function that gets called periodically to log the state of the registry
+	Log()
 }
 
 // AttachCallback is a callback that is called whenever a probe is attached successfully
@@ -464,6 +467,9 @@ func (ua *UprobeAttacher) Start() error {
 			case <-processSync.C:
 				// We always track process deletions in the scan, to avoid memory leaks.
 				_ = ua.Sync(ua.config.EnablePeriodicScanNewProcesses, true)
+
+				// Periodically log the state of the registry
+				ua.fileRegistry.Log()
 			case event, ok := <-sharedLibDataChan:
 				if !ok {
 					return
