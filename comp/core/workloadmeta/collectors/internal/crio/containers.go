@@ -97,7 +97,12 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 	}
 	imageResp, err := client.GetContainerImage(ctx, imageSpec, false)
 	if err != nil || imageResp == nil || imageResp.GetImage() == nil {
-		log.Warnf("Failed to fetch image: %v", err)
+		log.Warnf(
+			"Failed to fetch image, err: %v, imageResp is nil: %v, imageResp.GetImage() is nil: %v",
+			err,
+			imageResp == nil,
+			imageResp != nil && imageResp.GetImage() == nil,
+		)
 		return workloadmeta.ContainerImage{}
 	}
 	image := imageResp.GetImage()

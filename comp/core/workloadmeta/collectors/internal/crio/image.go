@@ -31,7 +31,7 @@ func (c *collector) generateImageEventFromContainer(ctx context.Context, contain
 	imageSpec := v1.ImageSpec{Image: container.GetImage().GetImage()}
 	imageResp, err := c.client.GetContainerImage(ctx, &imageSpec, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve image data for container %+v: %v", container, err)
+		return nil, fmt.Errorf("failed to retrieve image data for container %+v: %w", container, err)
 	}
 	image := imageResp.GetImage()
 

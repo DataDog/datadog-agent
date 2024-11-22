@@ -87,7 +87,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	if c.crioClient == nil {
 		cl, err := crioUtil.NewCRIOClient()
 		if err != nil {
-			return sbom.ScanResult{Error: fmt.Errorf("error creating CRI-O client: %v", err)}
+			return sbom.ScanResult{Error: fmt.Errorf("error creating CRI-O client: %w", err)}
 		}
 		c.crioClient = cl
 	}
@@ -99,7 +99,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 	imageMeta, err := wmeta.GetImage(crioScanRequest.ID())
 	if err != nil {
-		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image ID %s: %v", crioScanRequest.ID(), err)}
+		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image ID %s: %w", crioScanRequest.ID(), err)}
 	}
 
 	scanner := c.trivyCollector.ScanCRIOImageFromOverlayFS

@@ -173,7 +173,7 @@ func checkOverlayImageDirectoryExists() error {
 	if _, err := os.Stat(overlayImagePath); os.IsNotExist(err) {
 		return fmt.Errorf("overlay-image directory %s does not exist. Ensure this directory is mounted to enable access to layer size and media type", overlayImagePath)
 	} else if err != nil {
-		return fmt.Errorf("failed to check overlay-image directory %s: %v. Ensure this directory is mounted to enable access to layer size and media type", overlayImagePath, err)
+		return fmt.Errorf("failed to check overlay-image directory %s: %w. Ensure this directory is mounted to enable access to layer size and media type", overlayImagePath, err)
 	}
 	return nil
 }

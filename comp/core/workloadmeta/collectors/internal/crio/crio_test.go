@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"os"
 	"testing"
 	"time"
@@ -99,8 +100,8 @@ func TestPull(t *testing.T) {
 							RepoDigest: "myrepo/myimage@sha256:123abc",
 						},
 						Resources: workloadmeta.ContainerResources{
-							CPULimit:    floatPtr(0.5),
-							MemoryLimit: uintPtr(104857600),
+							CPULimit:    pointer.Ptr(0.5),
+							MemoryLimit: pointer.Ptr(uint64(104857600)),
 						},
 						Runtime: workloadmeta.ContainerRuntimeCRIO,
 						State: workloadmeta.ContainerState{
@@ -109,7 +110,7 @@ func TestPull(t *testing.T) {
 							CreatedAt:  time.Unix(0, createTime).UTC(),
 							StartedAt:  time.Unix(0, startTime).UTC(),
 							FinishedAt: time.Unix(0, finishTime).UTC(),
-							ExitCode:   intPtr(0),
+							ExitCode:   pointer.Ptr(int64(0)),
 						},
 					},
 				},
@@ -167,11 +168,11 @@ func TestPull(t *testing.T) {
 							CreatedAt:  time.Unix(0, createTime).UTC(),
 							StartedAt:  time.Unix(0, startTime).UTC(),
 							FinishedAt: time.Unix(0, finishTime).UTC(),
-							ExitCode:   intPtr(0),
+							ExitCode:   pointer.Ptr(int64(0)),
 						},
 						Resources: workloadmeta.ContainerResources{
-							CPULimit:    floatPtr(0.5),
-							MemoryLimit: uintPtr(104857600),
+							CPULimit:    pointer.Ptr(0.5),
+							MemoryLimit: pointer.Ptr(uint64(104857600)),
 						},
 						PID:        12345,
 						Hostname:   "container-host",
@@ -208,7 +209,7 @@ func TestPull(t *testing.T) {
 							CreatedAt:  time.Unix(0, 0).UTC(),
 							StartedAt:  time.Unix(0, 0).UTC(),
 							FinishedAt: time.Unix(0, 0).UTC(),
-							ExitCode:   intPtr(0),
+							ExitCode:   pointer.Ptr(int64(0)),
 						},
 					},
 				},
@@ -313,7 +314,7 @@ func TestPull(t *testing.T) {
 							CreatedAt:  time.Unix(0, createTime).UTC(),
 							StartedAt:  time.Unix(0, startTime).UTC(),
 							FinishedAt: time.Unix(0, finishTime).UTC(),
-							ExitCode:   intPtr(0),
+							ExitCode:   pointer.Ptr(int64(0)),
 						},
 					},
 				},

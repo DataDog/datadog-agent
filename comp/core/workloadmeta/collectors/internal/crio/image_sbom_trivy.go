@@ -29,7 +29,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return nil
 	}
 	if err := overlayDirectoryAccess(); err != nil {
-		return fmt.Errorf("SBOM collection enabled, but error accessing overlay directories: %v", err)
+		return fmt.Errorf("SBOM collection enabled, but error accessing overlay directories: %w", err)
 	}
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
@@ -92,7 +92,7 @@ func (c *collector) handleEventBundle(eventBundle workloadmeta.EventBundle) {
 // extractSBOMWithTrivy emits a scan request to the SBOM scanner. The scan result will be sent to the resultChan.
 func (c *collector) extractSBOMWithTrivy(imageID string) error {
 	if err := c.sbomScanner.Scan(crio.NewScanRequest(imageID)); err != nil {
-		return fmt.Errorf("failed to trigger SBOM generation for CRI-O image ID %s: %v", imageID, err)
+		return fmt.Errorf("failed to trigger SBOM generation for CRI-O image ID %s: %w", imageID, err)
 	}
 	return nil
 }
@@ -172,14 +172,14 @@ func overlayDirectoryAccess() error {
 	if _, err := os.Stat(overlayPath); os.IsNotExist(err) {
 		return fmt.Errorf("overlay directory %s does not exist. Ensure this directory is mounted for SBOM collection to work", overlayPath)
 	} else if err != nil {
-		return fmt.Errorf("failed to check overlay directory %s: %v. Ensure this directory is mounted for SBOM collection to work", overlayPath, err)
+		return fmt.Errorf("failed to check overlay directory %s: %w. Ensure this directory is mounted for SBOM collection to work", overlayPath, err)
 	}
 
 	overlayLayersPath := crioUtil.GetOverlayLayersPath()
 	if _, err := os.Stat(overlayLayersPath); os.IsNotExist(err) {
 		return fmt.Errorf("overlay-layers directory %s does not exist. Ensure this directory is mounted for SBOM collection to work", overlayLayersPath)
 	} else if err != nil {
-		return fmt.Errorf("failed to check overlay-layers directory %s: %v. Ensure this directory is mounted for SBOM collection to work", overlayLayersPath, err)
+		return fmt.Errorf("failed to check overlay-layers directory %s: %w. Ensure this directory is mounted for SBOM collection to work", overlayLayersPath, err)
 	}
 
 	return nil
