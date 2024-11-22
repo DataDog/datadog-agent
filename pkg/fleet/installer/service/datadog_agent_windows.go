@@ -26,9 +26,8 @@ const (
 func SetupAgent(ctx context.Context, args []string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
-		if err != nil {
-			log.Errorf("Failed to setup agent: %s", err)
-		}
+		// Don't log error here, or it will appear twice in the output
+		// since installerImpl.Install will also print the error.
 		span.Finish(tracer.WithError(err))
 	}()
 	// Make sure there are no Agent already installed
