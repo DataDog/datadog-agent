@@ -51,7 +51,7 @@ WORKDIR /output
 ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN apt install --no-install-recommends -y curl ca-certificates
+RUN apt install --no-install-recommends -y curl ca-certificates maven
 RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
@@ -103,6 +103,10 @@ COPY datadog*.yaml etc/datadog-agent/
 
 # Installation information
 COPY install_info etc/datadog-agent/
+
+# Download BouncyCastle FIPS provider jar files.
+COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
+RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
 
 ######################################
 #  Actual docker image construction  #
@@ -208,6 +212,12 @@ RUN if [ -n "$PYTHON_VERSION" ]; then \
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+# Copy BouncyCastle Java FIPS provider binaries and configuration
+COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
+COPY bouncycastle-fips/java.security /opt/bouncycastle-fips/
+COPY bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
