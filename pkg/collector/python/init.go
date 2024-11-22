@@ -304,7 +304,7 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Since the install location can be set by the user on Windows we use relative import
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		_here, err := executable.Folder()
 		if err != nil {
 			log.Warnf("Error getting executable folder: %v", err)
