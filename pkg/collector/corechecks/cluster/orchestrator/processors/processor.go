@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -126,6 +125,9 @@ type Handlers interface {
 	// ResourceUID returns the resource UID.
 	ResourceUID(ctx ProcessorContext, resource interface{}) types.UID
 
+	// ResourceModelTags returns the resource tags.
+	ResourceModelTags(ctx ProcessorContext, resourceModel interface{}) []string
+
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
 
@@ -231,6 +233,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Content:         yaml,
 			Version:         "v1",
 			ContentType:     "json",
+			Tags:            p.h.ResourceModelTags(ctx, resourceMetadataModel),
 		})
 	}
 

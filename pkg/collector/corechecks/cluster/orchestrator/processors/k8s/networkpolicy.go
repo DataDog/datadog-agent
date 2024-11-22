@@ -89,6 +89,13 @@ func (h *NetworkPolicyHandlers) ResourceVersion(ctx processors.ProcessorContext,
 	return resource.(*netv1.NetworkPolicy).ResourceVersion
 }
 
+// ResourceModelTags is a handler called to retrieve the tags of the resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NetworkPolicyHandlers) ResourceModelTags(ctx processors.ProcessorContext, resourceModel interface{}) []string {
+	return resourceModel.(*model.NetworkPolicy).Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //

@@ -93,6 +93,13 @@ func (t *TaskHandlers) ResourceVersion(ctx processors.ProcessorContext, resource
 	return resourceModel.(*model.ECSTask).ResourceVersion
 }
 
+// ResourceModelTags is a handler called to retrieve the tags of the resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *TaskHandlers) ResourceModelTags(ctx processors.ProcessorContext, resourceModel interface{}) []string {
+	return resourceModel.(*model.ECSTask).Tags
+}
+
 // AfterMarshalling is a handler called after resource marshalling.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter

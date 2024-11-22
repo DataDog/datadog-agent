@@ -90,6 +90,13 @@ func (h *ReplicaSetHandlers) ResourceVersion(ctx processors.ProcessorContext, re
 	return resource.(*appsv1.ReplicaSet).ResourceVersion
 }
 
+// ResourceModelTags is a handler called to retrieve the tags of the resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *ReplicaSetHandlers) ResourceModelTags(ctx processors.ProcessorContext, resourceModel interface{}) []string {
+	return resourceModel.(*model.ReplicaSet).Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //

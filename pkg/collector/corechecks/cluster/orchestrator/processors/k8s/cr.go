@@ -84,6 +84,13 @@ func (cr *CRHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 	return resource.(*unstructured.Unstructured).GetResourceVersion()
 }
 
+// ResourceModelTags is a handler called to retrieve the tags of the resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *CRHandlers) ResourceModelTags(ctx processors.ProcessorContext, resourceModel interface{}) []string {
+	return nil
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //

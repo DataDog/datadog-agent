@@ -77,6 +77,13 @@ func (h *PodDisruptionBudgetHandlers) ResourceVersion(_ processors.ProcessorCont
 	return resource.(*policyv1.PodDisruptionBudget).ResourceVersion
 }
 
+// ResourceModelTags is a handler called to retrieve the tags of the resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodDisruptionBudgetHandlers) ResourceModelTags(ctx processors.ProcessorContext, resourceModel interface{}) []string {
+	return resourceModel.(*model.PodDisruptionBudget).Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 func (h *PodDisruptionBudgetHandlers) ScrubBeforeExtraction(_ processors.ProcessorContext, resource interface{}) {
