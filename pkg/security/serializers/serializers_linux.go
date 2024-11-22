@@ -430,6 +430,12 @@ type BindEventSerializer struct {
 	Addr IPPortFamilySerializer `json:"addr"`
 }
 
+// ConnectEventSerializer serializes a connect event to JSON
+// easyjson:json
+type ConnectEventSerializer struct {
+	Addr IPPortFamilySerializer `json:"addr"`
+}
+
 // MountEventSerializer serializes a mount event to JSON
 // easyjson:json
 type MountEventSerializer struct {
@@ -626,6 +632,7 @@ type EventSerializer struct {
 	*DNSEventSerializer       `json:"dns,omitempty"`
 	*IMDSEventSerializer      `json:"imds,omitempty"`
 	*BindEventSerializer      `json:"bind,omitempty"`
+	*ConnectEventSerializer   `json:"connect,omitempty"`
 	*MountEventSerializer     `json:"mount,omitempty"`
 	*SyscallsEventSerializer  `json:"syscalls,omitempty"`
 	*UserContextSerializer    `json:"usr,omitempty"`
@@ -932,6 +939,14 @@ func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 			model.AddressFamily(e.Bind.AddrFamily).String()),
 	}
 	return bes
+}
+
+func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
+	ces := &ConnectEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
+			model.AddressFamily(e.Connect.AddrFamily).String()),
+	}
+	return ces
 }
 
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
@@ -1385,6 +1400,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
+	case model.ConnectEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
+		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
 		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:

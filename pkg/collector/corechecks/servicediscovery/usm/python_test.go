@@ -11,6 +11,8 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 func TestPythonDetect(t *testing.T) {
@@ -25,6 +27,7 @@ func TestPythonDetect(t *testing.T) {
 		"apps/app1/__main__.py":                     &fstest.MapFile{},
 		"apps/app2/cmd/run.py":                      &fstest.MapFile{},
 		"apps/app2/setup.py":                        &fstest.MapFile{},
+		"example.py":                                &fstest.MapFile{},
 	}
 	tests := []struct {
 		name     string
@@ -71,10 +74,15 @@ func TestPythonDetect(t *testing.T) {
 			cmd:      "python apps/app2/setup.py",
 			expected: "app2",
 		},
+		{
+			name:     "top level script",
+			cmd:      "python example.py",
+			expected: "example",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := newPythonDetector(NewDetectionContext(nil, nil, memFs)).detect(strings.Split(tt.cmd, " ")[1:])
+			value, ok := newPythonDetector(NewDetectionContext(nil, envs.NewVariables(nil), memFs)).detect(strings.Split(tt.cmd, " ")[1:])
 			require.Equal(t, tt.expected, value.Name)
 			require.Equal(t, len(value.Name) > 0, ok)
 		})

@@ -157,7 +157,7 @@ func TestFromConfigurationTrue(t *testing.T) {
 		EC2:              true,
 		EC2Proritized:    true,
 		expectedHostname: "hostname-from-configuration",
-		expectedProvider: configProvider,
+		expectedProvider: configProviderName,
 	})
 
 	data, err := GetWithProvider(context.TODO())
@@ -180,7 +180,7 @@ func TestHostnamePrority(t *testing.T) {
 			EC2:              true,
 			EC2Proritized:    true,
 			expectedHostname: "hostname-from-configuration",
-			expectedProvider: configProvider,
+			expectedProvider: configProviderName,
 		},
 		{
 			name:             "configuration hostname file",

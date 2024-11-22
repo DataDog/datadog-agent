@@ -47,6 +47,7 @@ type PlatformProbe interface {
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
@@ -56,26 +57,11 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
-	PlaySnapshot()
-}
-
-// EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type EventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
-// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerInterface interface {
-	ID() string
-	ChanSize() int
-	HandleEvent(_ any)
-	Copy(_ *model.Event) any
-	EventTypes() []model.EventType
 }
 
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
-	consumer     EventConsumerInterface
+	consumer     EventConsumerHandler
 	eventCh      chan any
 	eventDropped *atomic.Int64
 }
@@ -97,11 +83,6 @@ func (p *EventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
 	}()
 }
 
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface {
-	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
-}
-
 // DiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type DiscarderPushedCallback func(eventType string, event *model.Event, field string)
 
@@ -113,7 +94,8 @@ type actionStatsTags struct {
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	PlatformProbe PlatformProbe
+	PlatformProbe         PlatformProbe
+	agentContainerContext *events.AgentContainerContext
 
 	// Constants and configuration
 	Opts         Opts
@@ -229,10 +211,15 @@ func (p *Probe) FlushDiscarders() error {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	return p.PlatformProbe.ApplyRuleSet(rs)
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.ruleActionStatsLock.Lock()
 	clear(p.ruleActionStats)
 	p.ruleActionStatsLock.Unlock()
-	return p.PlatformProbe.ApplyRuleSet(rs)
+	p.PlatformProbe.OnNewRuleSetLoaded(rs)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -274,7 +261,7 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 }
 
 // AddEventConsumer sets a probe event consumer
-func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+func (p *Probe) AddEventConsumer(consumer EventConsumerHandler) error {
 	chanSize := consumer.ChanSize()
 	if chanSize <= 0 {
 		chanSize = defaultConsumerChanSize
@@ -431,6 +418,11 @@ func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
@@ -451,7 +443,7 @@ func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
 }
 
-// PlaySnapshot plays the snapshot
-func (p *Probe) PlaySnapshot() {
-	p.PlatformProbe.PlaySnapshot()
+// GetAgentContainerContext returns the agent container context
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.agentContainerContext
 }

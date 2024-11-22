@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -39,10 +40,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
-	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
@@ -53,7 +53,11 @@ type tlsSuite struct {
 }
 
 func TestTLSSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !usmconfig.TLSSupported(config.New()) {
 			t.Skip("TLS not supported for this setup")
 		}
@@ -181,7 +185,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs []string) {
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 	// not ideal but, short process are hard to catch
-	utils.WaitForProgramsToBeTraced(t, "shared_libraries", prefetchLib(t, prefetchLibs...).Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", prefetchLib(t, prefetchLibs...).Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
@@ -196,7 +200,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 	requestCmd.Stderr = requestCmd.Stdout
 	require.NoError(t, requestCmd.Start())
 
-	utils.WaitForProgramsToBeTraced(t, "shared_libraries", requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	if err := requestCmd.Wait(); err != nil {
 		output, err := io.ReadAll(stdout)
@@ -283,7 +287,7 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 		EnableTLS: true,
 	})
 
-	utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
@@ -350,7 +354,7 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 	// Giving the tracer time to install the hooks
-	utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	// Send a warmup batch of requests to trigger the fallback behavior
 	for i := 0; i < numberOfRequests; i++ {
@@ -455,98 +459,6 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 	return false
 }
 
-func (s *tlsSuite) TestJavaInjection() {
-	t := s.T()
-	t.Skip("JavaTLS tests are currently disabled")
-
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableJavaTLSSupport = true
-	defaultCfg := cfg
-
-	dir, _ := testutil.CurDir()
-	testdataDir := filepath.Join(dir, "../protocols/tls/java/testdata")
-	legacyJavaDir := cfg.JavaDir
-	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
-	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
-	require.NoError(t, err)
-	defer os.RemoveAll(fakeAgentDir)
-	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
-	require.NoError(t, err)
-
-	tests := []struct {
-		name            string
-		context         testContext
-		preTracerSetup  func(t *testing.T)
-		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, monitor *Monitor)
-		teardown        func(t *testing.T)
-	}{
-		{
-			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
-			preTracerSetup: func(t *testing.T) {
-				cfg.JavaDir = legacyJavaDir
-				cfg.ProtocolClassificationEnabled = true
-				cfg.CollectTCPv4Conns = true
-				cfg.CollectTCPv6Conns = true
-
-				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
-					EnableTLS: true,
-				})
-				t.Cleanup(serverDoneFn)
-			},
-			postTracerSetup: func(t *testing.T) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
-			},
-			validation: func(t *testing.T, monitor *Monitor) {
-				// Iterate through active connections until we find connection created above
-				require.Eventually(t, func() bool {
-					stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
-					if stats == nil {
-						return false
-					}
-					for key, stats := range stats {
-						if key.Path.Content.Get() == "/200/anything/java-tls-request" {
-							t.Log("path content found")
-
-							req, exists := stats.Data[200]
-							if !exists {
-								t.Logf("wrong response, not 200 : %#+v", key)
-								continue
-							}
-
-							if req.StaticTags != network.ConnTagJava {
-								t.Logf("tag not java : %#+v", key)
-								continue
-							}
-							return true
-						}
-					}
-
-					return false
-				}, 4*time.Second, 100*time.Millisecond, "couldn't find http connection matching: https://host.docker.internal:5443/200/anything/java-tls-request")
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.teardown != nil {
-				t.Cleanup(func() {
-					tt.teardown(t)
-				})
-			}
-			cfg = defaultCfg
-			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t)
-			}
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			tt.postTracerSetup(t)
-			tt.validation(t, usmMonitor)
-		})
-	}
-}
-
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	t.Skip("skipping GoTLS tests while we investigate their flakiness")
 
@@ -575,27 +487,27 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
-		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, cfg, true)
+		t.Run("new process", func(tt *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(tt, cfg, true)
 		})
-		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, cfg, true)
+		t.Run("already running process", func(tt *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(tt, cfg, true)
 		})
 	})
 }
 
 func TestHTTP2GoTLSAttachProbes(t *testing.T) {
 	t.Run("netlink",
-		func(t *testing.T) {
+		func(tt *testing.T) {
 			cfg := config.New()
 			cfg.EnableUSMEventStream = false
-			testHTTP2GoTLSAttachProbes(t, cfg)
+			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 	t.Run("event stream",
-		func(t *testing.T) {
+		func(tt *testing.T) {
 			cfg := config.New()
 			cfg.EnableUSMEventStream = true
-			testHTTP2GoTLSAttachProbes(t, cfg)
+			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 }
 
@@ -650,7 +562,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 
 		// The HTTPServer used here effectively works as an "echo" servers and
 		// returns back in the response whatever it received in the request
@@ -721,7 +633,7 @@ func TestLimitListenerRegression(t *testing.T) {
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 
 		// Issue multiple HTTP requests
 		for i := 0; i < 10; i++ {
@@ -781,7 +693,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bo
 
 	// spin-up goTLS client and issue requests after initialization
 	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
-	utils.WaitForProgramsToBeTraced(t, "go-tls", command.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
 	runRequests()
 	checkRequests(t, usmMonitor, expectedOccurrences, reqs, isHTTP2)
 }
@@ -818,7 +730,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config, isHTTP
 		reqs[req] = false
 	}
 
-	utils.WaitForProgramsToBeTraced(t, "go-tls", command.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
 	issueRequestsFn()
 	checkRequests(t, usmMonitor, expectedOccurrences, reqs, isHTTP2)
 }
@@ -840,7 +752,6 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 
@@ -875,7 +786,6 @@ func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 
@@ -949,7 +859,7 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
-	if cfg.EnableUSMEventStream {
+	if cfg.EnableUSMEventStream && usmconfig.NeedProcessMonitor(cfg) {
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
 	t.Cleanup(usmMonitor.Stop)
@@ -990,7 +900,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg.EnableNodeJSMonitoring = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
-	utils.WaitForProgramsToBeTraced(t, "nodejs", int(nodeJSPID), utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "nodejs", int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))

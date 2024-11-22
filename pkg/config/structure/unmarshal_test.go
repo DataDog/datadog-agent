@@ -12,7 +12,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Struct that is used within the config
@@ -61,7 +65,7 @@ network_devices:
 	mockConfig := mock.NewFromYAML(t, confYaml)
 
 	var trapsCfg = trapsConfig{}
-	err := UnmarshalKey(mockConfig, "network_devices.snmp_traps", &trapsCfg)
+	err := unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps", &trapsCfg)
 	assert.NoError(t, err)
 
 	assert.Equal(t, trapsCfg.Enabled, true)
@@ -134,7 +138,7 @@ endpoints:
 			mockConfig.SetKnown("endpoints")
 
 			var endpoints = []endpoint{}
-			err := UnmarshalKey(mockConfig, "endpoints", &endpoints)
+			err := unmarshalKeyReflection(mockConfig, "endpoints", &endpoints)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 
 			assert.Equal(t, len(endpoints), len(tc.want), "%s marshalled unexepected length of slices, wanted: %s got: %s", tc.name, len(tc.want), len(endpoints))
@@ -248,6 +252,15 @@ feature:
 			skip: false,
 		},
 		{
+			name: "float 1.0 value is true",
+			conf: `
+feature:
+  enabled: 1.0
+`,
+			want: true,
+			skip: false,
+		},
+		{
 			name: "string 'n' value is false",
 			conf: `
 feature:
@@ -304,7 +317,7 @@ feature:
 			mockConfig.SetKnown("feature")
 
 			var feature = featureConfig{}
-			err := UnmarshalKey(mockConfig, "feature", &feature)
+			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 
 			assert.Equal(t, feature.Enabled, tc.want, "%s unexpected marshal value, want: %s got: %s", tc.name, tc.want, feature.Enabled)
@@ -466,7 +479,7 @@ feature:
 			mockConfig.SetKnown("feature")
 
 			var feature = uintConfig{}
-			err := UnmarshalKey(mockConfig, "feature", &feature)
+			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 			if err != nil {
 				t.FailNow()
@@ -573,7 +586,7 @@ feature:
 			mockConfig.SetKnown("feature")
 
 			var feature = floatConfig{}
-			err := UnmarshalKey(mockConfig, "feature", &feature)
+			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 			if err != nil {
 				t.FailNow()
@@ -725,7 +738,7 @@ feature:
 			mockConfig.SetKnown("feature")
 
 			var feature = stringConfig{}
-			err := UnmarshalKey(mockConfig, "feature", &feature)
+			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 			if err != nil {
 				t.FailNow()
@@ -757,13 +770,13 @@ feature:
 	mockConfig.SetKnown("feature")
 
 	var feature = featureConfig{}
-	err := UnmarshalKey(mockConfig, "feature", &feature)
+	err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 	assert.NoError(t, err)
 
 	assert.Equal(t, feature.Enabled, true)
 
 	var diffcase = featureConfigDiffCase{}
-	err = UnmarshalKey(mockConfig, "feature", &diffcase)
+	err = unmarshalKeyReflection(mockConfig, "feature", &diffcase)
 	assert.NoError(t, err)
 
 	assert.Equal(t, diffcase.ENaBLEd, true)
@@ -780,7 +793,7 @@ feature:
 	// If the data from the config is missing, UnmarshalKey is a no-op, does
 	// nothing, and returns no error
 	var endpoints = []endpoint{}
-	err := UnmarshalKey(mockConfig, "config_providers", &endpoints)
+	err := unmarshalKeyReflection(mockConfig, "config_providers", &endpoints)
 	assert.NoError(t, err)
 }
 
@@ -798,9 +811,9 @@ feature:
 			Enabled int
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to int")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"true\" of type string to int64")
 	})
 
 	t.Run("errors on string to float", func(t *testing.T) {
@@ -816,9 +829,9 @@ feature:
 			Enabled float64
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to float")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"true\" of type string to float64")
 	})
 
 	t.Run("errors on bad string to bool", func(t *testing.T) {
@@ -834,9 +847,9 @@ feature:
 			Enabled bool
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to bool")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "could not convert \"elderberries\" to bool")
 	})
 
 	t.Run("errors on empty string bool ", func(t *testing.T) {
@@ -852,27 +865,9 @@ feature:
 			Enabled bool
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to bool")
-	})
-
-	t.Run("errors on float to bool", func(t *testing.T) {
-		confYaml := `
-feature:
-  enabled: 1.0
-`
-
-		mockConfig := mock.NewFromYAML(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := struct {
-			Enabled bool
-		}{}
-
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to bool")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could not convert \"\" to bool")
 	})
 
 	t.Run("errors on negative to uint", func(t *testing.T) {
@@ -889,15 +884,15 @@ feature:
 			Enabled uint
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not convert to uint")
 	})
 
 	t.Run("errors on bool to int", func(t *testing.T) {
 		confYaml := `
 feature:
-  enabled: true
+  enabled: test
 `
 
 		mockConfig := mock.NewFromYAML(t, confYaml)
@@ -907,15 +902,15 @@ feature:
 			Enabled int
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to int")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"test\" of type string to int64")
 	})
 
 	t.Run("errors on bool to float", func(t *testing.T) {
 		confYaml := `
 feature:
-  enabled: true
+  enabled: test
 `
 
 		mockConfig := mock.NewFromYAML(t, confYaml)
@@ -925,15 +920,15 @@ feature:
 			Enabled float64
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to float")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"test\" of type string to float64")
 	})
 
 	t.Run("errors on bool to string", func(t *testing.T) {
 		confYaml := `
 feature:
-  enabled: true
+  enabled: [1]
 `
 
 		mockConfig := mock.NewFromYAML(t, confYaml)
@@ -943,9 +938,9 @@ feature:
 			Enabled string
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to string")
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast []interface {}{1} of type []interface {} to string")
 	})
 
 	t.Run("errors on map to scalar type", func(t *testing.T) {
@@ -962,25 +957,9 @@ feature:
 			Enabled string
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't copy into target: scalar required")
-	})
-
-	t.Run("errors on non-string map", func(t *testing.T) {
-		confYaml := `
-feature:
-  enabled: true
-`
-
-		mockConfig := mock.NewFromYAML(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := make(map[string]bool)
-
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only map[string]string supported currently")
 	})
 }
 
@@ -1006,7 +985,7 @@ feature:
 			Enabled string `json:"enabled,omitempty"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "json omitempty flag", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1017,7 +996,7 @@ feature:
 			Enabled string `yaml:"enabled,omitempty"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "yaml omitempty flag", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1028,7 +1007,7 @@ feature:
 			Enabled string `yaml:"enabled,flow"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "yaml flow flag", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1039,7 +1018,7 @@ feature:
 			Enabled string `yaml:"enabled,inline"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "yaml inline flag", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1050,7 +1029,7 @@ feature:
 			Enabled string `yaml:"enabled,inline,flow"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "yaml multiple flags", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1061,7 +1040,7 @@ feature:
 			Enabled string `mapstructure:"enabled,remain"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "mapstructure omitempty flag", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1072,8 +1051,8 @@ feature:
 			Enabled string `mapstructure:"enabled,squash"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "EnableSquash")
 	})
 
@@ -1082,7 +1061,7 @@ feature:
 			Enabled string `mapstructure:"enabled,omitempty"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "mapstructure omitempty flag", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1093,7 +1072,7 @@ feature:
 			Enabled string `mapstructure:"enabled,remain,omitempty"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		assert.NoError(t, err, "%s failed to marshal: %s", "mapstructure multiple flags", err)
 
 		assert.Equal(t, feature.Enabled, want, "unexpected marshal value, want: %s got: %s", want, feature.Enabled)
@@ -1106,8 +1085,8 @@ feature:
 			Enabled string `mapstructure:"enabled,remain,squash"`
 		}{}
 
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "EnableSquash")
 	})
 }
@@ -1227,7 +1206,7 @@ service:
 	var svc = squashConfig{}
 
 	t.Run("squash flag succeeds with option", func(t *testing.T) {
-		err := UnmarshalKey(mockConfig, "service", &svc, EnableSquash)
+		err := unmarshalKeyReflection(mockConfig, "service", &svc, EnableSquash)
 		assert.NoError(t, err)
 
 		assert.Equal(t, svc.Host, "datad0g.com")
@@ -1236,43 +1215,70 @@ service:
 	})
 }
 
-func TestUnmarshalKeysToMap(t *testing.T) {
+func TestUnmarshalKeysToMapOfString(t *testing.T) {
 	confYaml := `
 service:
   host: datad0g.com
   name: intake
   apikey: abc1
   the_great_question: 42
+  enabled: true
+  disabled: f
 `
 	mockConfig := mock.NewFromYAML(t, confYaml)
 	mockConfig.SetKnown("service")
 	var svc = make(map[string]string)
 
-	err := UnmarshalKey(mockConfig, "service", &svc)
+	err := unmarshalKeyReflection(mockConfig, "service", &svc)
 	assert.NoError(t, err)
 
 	assert.Equal(t, svc["host"], "datad0g.com")
 	assert.Equal(t, svc["name"], "intake")
 	assert.Equal(t, svc["apikey"], "abc1")
 	assert.Equal(t, svc["the_great_question"], "42")
+	assert.Equal(t, svc["enabled"], "true")
+	assert.Equal(t, svc["disabled"], "f")
+}
+
+func TestUnmarshalKeysToMapOfBool(t *testing.T) {
+	confYaml := `
+service:
+  enabled: true
+  disabled: false
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("service")
+	var svc = make(map[string]bool)
+
+	err := unmarshalKeyReflection(mockConfig, "service", &svc)
+	assert.NoError(t, err)
+
+	assert.Equal(t, svc["enabled"], true)
+	assert.Equal(t, svc["disabled"], false)
+
+	err = UnmarshalKey(mockConfig, "service", &svc)
+	assert.NoError(t, err)
+
+	assert.Equal(t, svc["enabled"], true)
+	assert.Equal(t, svc["disabled"], false)
 }
 
 func TestMapGetChildNotFound(t *testing.T) {
-	m := map[string]string{"a": "apple", "b": "banana"}
-	n, err := newNode(reflect.ValueOf(m))
+	m := map[string]interface{}{"a": "apple", "b": "banana"}
+	n, err := nodetreemodel.NewNodeTree(m, model.SourceDefault)
 	assert.NoError(t, err)
 
 	val, err := n.GetChild("a")
 	assert.NoError(t, err)
-	str, err := val.(leafNode).GetString()
+	str, err := cast.ToStringE(val.(nodetreemodel.LeafNode).Get())
 	assert.NoError(t, err)
 	assert.Equal(t, str, "apple")
 
 	_, err = n.GetChild("c")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, err.Error(), "not found")
 
-	keys, err := n.ChildrenKeys()
-	assert.NoError(t, err)
-	assert.Equal(t, keys, []string{"a", "b"})
+	inner, ok := n.(nodetreemodel.InnerNode)
+	assert.True(t, ok)
+	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
 }

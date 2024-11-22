@@ -16,6 +16,7 @@ needs-rules:
     - build_processed_btfhub_archive
     - check_already_deployed_version_7
     - cleanup_kitchen_functional_test
+    - compute_gitlab_ci_config
     - deploy_containers-cws-instrumentation-final-versioned
     - deploy_containers-cws-instrumentation-latest
     - deploy_containers-cws-instrumentation-rc-mutable
@@ -26,9 +27,12 @@ needs-rules:
     - lint_flavor_dogstatsd_linux-x64
     - lint_flavor_heroku_linux-x64
     - lint_flavor_iot_linux-x64
+    - lint_gitlab_ci
+    - lint_gitlab_ci_jobs_codeowners
     - lint_linux-arm64
     - lint_linux-x64
     - lint_macos_gitlab_amd64
+    - new-e2e-eks-cleanup-on-failure
     - periodic_kitchen_cleanup_azure
     - periodic_kitchen_cleanup_ec2
     - periodic_kitchen_cleanup_s3
@@ -105,7 +109,6 @@ job-owners:
     - trace-agent-v05-2cpus-normal_load-fixed_sps
     - trace-agent-v05-2cpus-stress_load-fixed_sps
     - trigger-flakes-finder
-    - unit_tests_arm64_junit_upload
     - unit_tests_notify
     - update_rc_build_links
     - validate_modules

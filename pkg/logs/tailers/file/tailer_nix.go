@@ -56,6 +56,7 @@ func (t *Tailer) read() (int, error) {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
-	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+	msg := decoder.NewInput(inBuf[:n])
+	t.decoder.InputChan <- msg
 	return n, nil
 }

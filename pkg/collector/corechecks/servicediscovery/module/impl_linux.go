@@ -53,7 +53,7 @@ type serviceInfo struct {
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
-	startTimeSecs      uint64
+	startTimeMilli     uint64
 	cpuTime            uint64
 	cpuUsage           float64
 }
@@ -65,6 +65,9 @@ type discovery struct {
 	mux *sync.RWMutex
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
+
+	// ignorePids processes to be excluded from discovery
+	ignorePids map[int32]struct{}
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
@@ -80,15 +83,20 @@ type discovery struct {
 	lastCPUTimeUpdate time.Time
 }
 
-// NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+func newDiscovery() *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
+		ignorePids:         make(map[int32]struct{}),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
-	}, nil
+	}
+}
+
+// NewDiscoveryModule creates a new discovery system probe module.
+func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+	return newDiscovery(), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -108,6 +116,7 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	clear(s.cache)
+	clear(s.ignorePids)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -324,15 +333,50 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
+// addIgnoredPid store excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.ignorePids[pid] = struct{}{}
+}
+
+// shouldIgnorePid returns true if process should be excluded from handling.
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	_, found := s.ignorePids[pid]
+	return found
+}
+
+// shouldIgnoreService returns true if the service should be excluded from handling.
+func (s *discovery) shouldIgnoreService(name string) bool {
+	if len(s.config.ignoreServices) == 0 {
+		return false
+	}
+	_, found := s.config.ignoreServices[name]
+
+	return found
+}
+
+// cleanIgnoredPids removes dead PIDs from the list of ignored processes.
+func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	for pid := range s.ignorePids {
+		if _, alive := alivePids[pid]; alive {
+			continue
+		}
+		delete(s.ignorePids, pid)
+	}
+}
+
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
 	cmdline, err := proc.CmdlineSlice()
-	if err != nil {
-		return nil, err
-	}
-
-	envs, err := getEnvs(proc)
 	if err != nil {
 		return nil, err
 	}
@@ -347,15 +391,26 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	contextMap := make(usm.DetectorContextMap)
-
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
-	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, lang, contextMap)
-	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
+	env, err := getTargetEnvs(proc)
+	if err != nil {
+		return nil, err
+	}
+
+	contextMap := make(usm.DetectorContextMap)
+	contextMap[usm.ServiceProc] = proc
+
+	fs := usm.NewSubDirFS(root)
+	ctx := usm.NewDetectionContext(cmdline, env, fs)
+	ctx.Pid = int(proc.Pid)
+	ctx.ContextMap = contextMap
+
+	nameMeta := servicediscovery.GetServiceName(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx)
 
 	return &serviceInfo{
 		generatedName:      nameMeta.Name,
@@ -364,7 +419,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		apmInstrumentation: apmInstrumentation,
 		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeSecs:      uint64(createTime / 1000),
+		startTimeMilli:     uint64(createTime),
 	}, nil
 }
 
@@ -385,19 +440,6 @@ func customNewProcess(pid int32) (*process.Process, error) {
 	return p, nil
 }
 
-// ignoreComms is a list of process names (matched against /proc/PID/comm) to
-// never report as a service. Note that comm is limited to 16 characters.
-var ignoreComms = map[string]struct{}{
-	"sshd":             {},
-	"dhclient":         {},
-	"systemd":          {},
-	"systemd-resolved": {},
-	"systemd-networkd": {},
-	"datadog-agent":    {},
-	"livenessprobe":    {},
-	"docker-proxy":     {},
-}
-
 // maxNumberOfPorts is the maximum number of listening ports which we report per
 // service.
 const maxNumberOfPorts = 50
@@ -409,12 +451,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	comm, err := proc.Name()
-	if err != nil {
+	if s.shouldIgnorePid(proc.Pid) {
 		return nil
 	}
-
-	if _, found := ignoreComms[comm]; found {
+	if s.shouldIgnoreComm(proc) {
+		s.addIgnoredPid(proc.Pid)
 		return nil
 	}
 
@@ -499,6 +540,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if name == "" {
 		name = info.generatedName
 	}
+	if s.shouldIgnoreService(name) {
+		s.addIgnoredPid(proc.Pid)
+		return nil
+	}
 
 	return &model.Service{
 		PID:                int(pid),
@@ -511,7 +556,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		Language:           string(info.language),
 		RSS:                rss,
 		CommandLine:        info.cmdLine,
-		StartTimeSecs:      info.startTimeSecs,
+		StartTimeMilli:     info.startTimeMilli,
 		CPUCores:           info.cpuUsage,
 	}
 }
@@ -591,6 +636,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	s.cleanCache(alivePids)
+	s.cleanIgnoredPids(alivePids)
 
 	if err = s.updateServicesCPUStats(services); err != nil {
 		return nil, err

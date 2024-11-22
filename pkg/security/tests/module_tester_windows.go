@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && (functionaltests || stresstests)
+//go:build windows && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -14,37 +14,26 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	testActivityDumpDuration             = time.Second * 30
-	testActivityDumpLoadControllerPeriod = time.Second * 10
-)
-
 const testConfig = `---
 log_level: DEBUG
 
 event_monitoring_config:
-  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
-  network:
-    enabled: true
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
@@ -55,8 +44,6 @@ event_monitoring_config:
 {{if .DisableDiscarders}}
   enable_discarders: false
 {{end}}
-  erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
-  map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
   envs_with_value:
   {{range .EnvsWithValue}}
     - {{.}}
@@ -75,49 +62,6 @@ runtime_security_config:
   sbom:
     enabled: {{ .SBOMEnabled }}
   fim_enabled: {{ .FIMEnabled }}
-  activity_dump:
-    enabled: {{ .EnableActivityDump }}
-{{if .EnableActivityDump}}
-    rate_limiter: {{ .ActivityDumpRateLimiter }}
-    tag_rules:
-      enabled: {{ .ActivityDumpTagRules }}
-    dump_duration: {{ .ActivityDumpDuration }}
-    {{if .ActivityDumpLoadControllerPeriod }}
-    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
-    {{end}}
-    {{if .ActivityDumpCleanupPeriod }}
-    cleanup_period: {{ .ActivityDumpCleanupPeriod }}
-    {{end}}
-    {{if .ActivityDumpLoadControllerTimeout }}
-    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
-    {{end}}
-    traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
-    cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
-    auto_suppression:
-      enabled: {{ .ActivityDumpAutoSuppressionEnabled }}
-    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
-    - {{.}}
-    {{end}}
-    local_storage:
-      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
-      compression: {{ .ActivityDumpLocalStorageCompression }}
-      formats: {{range .ActivityDumpLocalStorageFormats}}
-      - {{.}}
-      {{end}}
-{{end}}
-  security_profile:
-    enabled: {{ .EnableSecurityProfile }}
-{{if .EnableSecurityProfile}}
-    dir: {{ .SecurityProfileDir }}
-    watch_dir: {{ .SecurityProfileWatchDir }}
-    anomaly_detection:
-      enabled: true
-      default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
-      minimum_stable_period:
-        exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
-        dns: {{.AnomalyDetectionMinimumStablePeriodDNS}}
-      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}
-{{end}}
 
   self_test:
     enabled: false
@@ -132,8 +76,6 @@ runtime_security_config:
   {{range .LogTags}}
     - {{.}}
   {{end}}
-  ebpfless:
-    enabled: {{.EBPFLessEnabled}}
   enforcement:
     exclude_binaries:
       - {{ .EnforcementExcludeBinary }}
@@ -147,21 +89,6 @@ runtime_security_config:
         max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
         period: {{.EnforcementDisarmerExecutablePeriod}}
 `
-
-type onRuleHandler func(*model.Event, *rules.Rule)
-type onProbeEventHandler func(*model.Event)
-type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
-type onSendEventHandler func(*rules.Rule, *model.Event)
-type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
-
-type eventHandlers struct {
-	sync.RWMutex
-	onRuleMatch       onRuleHandler
-	onProbeEvent      onProbeEventHandler
-	onCustomSendEvent onCustomSendEventHandler
-	onSendEvent       onSendEventHandler
-	onDiscarderPushed onDiscarderPushedHandler
-}
 
 type testModule struct {
 	sync.RWMutex
@@ -178,9 +105,6 @@ type testModule struct {
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
 }
-
-var testMod *testModule
-var commonCfgDir string
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 
@@ -229,9 +153,16 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: sprobe.Opts{
-			StatsdClient: statsdClient,
+			StatsdClient:       statsdClient,
+			DontDiscardRuntime: true,
 		},
 	}
+	if opts.staticOpts.tagger != nil {
+		emopts.ProbeOpts.Tagger = opts.staticOpts.tagger
+	} else {
+		emopts.ProbeOpts.Tagger = NewFakeTaggerDifferentImageNames()
+	}
+
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err
@@ -277,7 +208,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
-		defer testMod.RegisterRuleEventHandler(nil)
+		t.Cleanup(func() {
+			testMod.RegisterRuleEventHandler(nil)
+		})
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
@@ -297,24 +230,5 @@ func (tm *testModule) Close() {
 	tm.eventMonitor.Close()
 }
 
-// NewTimeoutError returns a new timeout error with the metrics collected during the test
-func (tm *testModule) NewTimeoutError() ErrTimeout {
-	var msg strings.Builder
-
-	msg.WriteString("timeout, details: ")
-
-	events := tm.ruleEngine.StopEventCollector()
-	if len(events) != 0 {
-		msg.WriteString("\nevents evaluated:\n")
-
-		for _, event := range events {
-			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
-			for field, value := range event.Fields {
-				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
-			}
-			msg.WriteString("}\n")
-		}
-	}
-
-	return ErrTimeout{msg.String()}
+func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {
 }

@@ -8,8 +8,6 @@ package stats
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -79,31 +77,8 @@ func TestNewStats(t *testing.T) {
 	assert.Equal(t, stats.Interval, 15*time.Second)
 }
 
-func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-		t.Skip("TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled is known to fail on the macOS Gitlab runners because of the already running Agent")
-	}
+func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.checks", "*")
-
-	NewStats(newMockCheck())
-
-	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	// Assert that no telemetry is recorded
-	assert.NotContains(t, tlmData, "checkString")
-	assert.NotContains(t, tlmData, "state=\"fail\"")
-	assert.NotContains(t, tlmData, "state=\"ok\"")
-}
-
-func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
 	mockConfig.SetWithoutSource("telemetry.checks", "*")
 
 	NewStats(newMockCheck())

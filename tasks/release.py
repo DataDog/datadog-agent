@@ -40,6 +40,7 @@ from tasks.libs.common.git import (
     get_last_release_tag,
     try_git_command,
 )
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -85,40 +86,6 @@ GITLAB_FILES_TO_UPDATE = [
 BACKPORT_LABEL_COLOR = "5319e7"
 
 is_agent6_context = False
-
-
-def read_default_modules(contents):
-    """Extract the modules from contents which is the content of tasks/modules.py."""
-
-    # Used dynamically
-    from tasks.modules import GoModule  # noqa
-
-    # Extract the DEFAULT_MODULES dict
-    match = re.search(r"DEFAULT_MODULES = ({.*?})", contents, re.DOTALL | re.MULTILINE)
-
-    assert match, 'Cannot extract "DEFAULT_MODULES" from tasks/modules.py'
-
-    modules = eval(match.group(1))
-
-    return modules
-
-
-def get_default_modules(ctx):
-    """Return DEFAULT_MODULES either from the current file if current agent context or from the agent6 branch.
-
-    Will read the file of the current branch and parse it if agent6 context.
-    """
-
-    if is_agent6_context:
-        # Read default modules directly from the file
-        with open("tasks/modules.py") as f:
-            modules_file = f.read()
-
-        return read_default_modules(modules_file)
-    else:
-        from tasks.modules import DEFAULT_MODULES
-
-        return DEFAULT_MODULES
 
 
 def set_agent6_context(
@@ -268,10 +235,9 @@ def update_modules(ctx, agent_version, verify=True):
         check_version(agent_version, agent6=agent_version.startswith('6.'))
 
     with agent_context(ctx, agent_version, mutable=True):
-        modules = get_default_modules(ctx)
-        for module in modules.values():
+        for module in get_default_modules().values():
             for dependency in module.dependencies:
-                dependency_mod = modules[dependency]
+                dependency_mod = get_default_modules()[dependency]
                 ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -333,13 +299,12 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     with agent_context(ctx, agent_version):
         force_option = __get_force_option(force)
-        modules = get_default_modules(ctx)
-        for module in modules.values():
+        for module in get_default_modules().values():
             # Skip main module; this is tagged at tag_version via __tag_single_module.
             if module.should_tag and module.path != ".":
                 __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
 
-    print(f"Created module tags for version {agent_version}")
+        print(f"Created module tags for version {agent_version}")
 
 
 @task
@@ -366,7 +331,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     # Always tag the main module
     force_option = __get_force_option(force)
     with agent_context(ctx, agent_version):
-        __tag_single_module(ctx, get_default_modules(ctx)["."], agent_version, commit, push, force_option, devel)
+        __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
 
 
@@ -910,13 +875,15 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
 def _update_last_stable(_, version, major_version: int = 7):
     """
-    Updates the last_release field(s) of release.json
+    Updates the last_release field(s) of release.json and returns the current milestone
     """
     release_json = load_release_json()
     # If the release isn't a RC, update the last stable release field
     version.major = major_version
     release_json['last_stable'][str(major_version)] = str(version)
     _save_release_json(release_json)
+
+    return release_json["current_milestone"]
 
 
 def _get_agent6_latest_release(gh):
@@ -943,11 +910,38 @@ def cleanup(ctx, major_version: int = 7):
 
     with agent_context(ctx, major_version=major_version, mutable=True):
         version = _create_version_from_match(match)
-        _update_last_stable(ctx, version, major_version=major_version)
+        current_milestone = _update_last_stable(ctx, version, major_version=major_version)
+
+        # create pull request to update last stable version
+        main_branch = "main"
+        cleanup_branch = f"release/{version}-cleanup"
+        ctx.run(f"git checkout -b {cleanup_branch}")
+        ctx.run("git add release.json")
+
+        commit_message = f"Update last_stable to {version}"
+        ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
+            raise Exit(
+                color_message(
+                    f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
 
     if major_version != 6:
         edit_schedule(ctx, 2555, ref=version.branch())
-    # TODO: Add the Agent6 schedule update
 
 
 @task
@@ -1245,9 +1239,61 @@ def create_qa_cards(ctx, tag):
     """
     from tasks.libs.releasing.qa import get_labels, setup_ddqa
 
-    version = _create_version_from_match(RC_VERSION_RE.match(tag))
+    version = _create_version_from_match(VERSION_RE.match(tag))
     if not version.rc:
         print(f"{tag} is not a release candidate, skipping")
         return
     setup_ddqa(ctx)
     ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
+
+
+@task
+def create_github_release(_ctx, version, draft=True):
+    """
+    Create a GitHub release for the given tag.
+    """
+    import pandoc
+
+    sections = (
+        ("Agent", "CHANGELOG.rst"),
+        ("Datadog Cluster Agent", "CHANGELOG-DCA.rst"),
+    )
+
+    notes = []
+
+    for section, filename in sections:
+        text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
+
+        header_found = False
+        lines = []
+
+        # Extract the section for the given version
+        for line in text.splitlines():
+            # Move to the right section
+            if line.startswith("## " + version):
+                header_found = True
+                continue
+
+            if header_found:
+                # Next version found, stop
+                if line.startswith("## "):
+                    break
+                lines.append(line)
+
+        # if we found the header, add the section to the final release note
+        if header_found:
+            notes.append(f"# {section}")
+            notes.extend(lines)
+
+    if not notes:
+        print(f"No release notes found for {version}")
+        raise Exit(code=1)
+
+    github = GithubAPI()
+    release = github.create_release(
+        version,
+        "\n".join(notes),
+        draft=draft,
+    )
+
+    print(f"Link to the release note: {release.html_url}")

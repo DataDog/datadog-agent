@@ -121,37 +121,8 @@ func (a *apmInjectorInstaller) Finish(err error) {
 func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 
-	// Set up defaults for agent sockets
-	if err := a.configureSocketsEnv(ctx); err != nil {
+	if err := setupAppArmor(ctx); err != nil {
 		return err
-	}
-	// Symlinks for sysvinit
-	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
-	}
-	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
-	}
-	systemdRunning, err := isSystemdRunning()
-	if err != nil {
-		return fmt.Errorf("failed to check if systemd is running: %w", err)
-	}
-	if systemdRunning {
-		if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
-			return err
-		}
-		if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
-			return err
-		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
-			return err
-		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
-			return err
-		}
-		if err := systemdReload(ctx); err != nil {
-			return err
-		}
 	}
 
 	// Create mandatory dirs
@@ -186,6 +157,11 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) (err error) {
 		return fmt.Errorf("error removing install scripts: %w", err)
 	}
 
+	err = removeAppArmor(ctx)
+	if err != nil {
+		return fmt.Errorf("error removing AppArmor profile: %w", err)
+	}
+
 	return a.Uninstrument(ctx)
 }
 
@@ -210,6 +186,10 @@ func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
 	}
 	if shouldInstrumentDocker(a.envs) && dockerIsInstalled {
+		// Set up defaults for agent sockets -- requires an agent restart
+		if err := a.configureSocketsEnv(ctx); err != nil {
+			return err
+		}
 		a.cleanups = append(a.cleanups, a.dockerConfigInstrument.cleanup)
 		rollbackDocker, err := a.instrumentDocker(ctx)
 		if err != nil {

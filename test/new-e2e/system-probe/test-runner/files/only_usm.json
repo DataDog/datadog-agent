@@ -1,5 +1,10 @@
 {
-    "pkg/network/usm": {
-        "exclude": false
+    "filters": {
+        "pkg/network/usm": {
+            "exclude": false
+        },
+        "pkg/network/usm/tests": {
+            "exclude": false
+        }
     }
 }

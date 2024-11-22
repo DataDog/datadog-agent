@@ -7,7 +7,6 @@
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-${DD_PROJECT}_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -22,14 +21,14 @@
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 .package_deb_x86:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
 
 .package_deb_arm64:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     PACKAGE_ARCH: arm64
@@ -47,7 +46,6 @@ agent_deb-x64-a7:
     - when: on_success
   needs: ["datadog-agent-7-x64"]
   variables:
-    DESTINATION_DEB: "datadog-agent_7_amd64.deb"
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7:
@@ -57,7 +55,6 @@ agent_deb-arm64-a7:
     - when: on_success
   needs: ["datadog-agent-7-arm64"]
   variables:
-    DESTINATION_DEB: "datadog-agent_7_arm64.deb"
     DD_PROJECT: "agent"
 
 .package_ot_deb_common:
@@ -68,7 +65,6 @@ agent_deb-arm64-a7:
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-ot-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
 
 ot_agent_deb-x64-a7:
   extends: [.package_ot_deb_common, .package_deb_x86, .package_deb_agent_7]
@@ -77,7 +73,6 @@ ot_agent_deb-x64-a7:
     - when: on_success
   needs: ["datadog-ot-agent-7-x64"]
   variables:
-    DESTINATION_DEB: "datadog-ot-agent_7_amd64.deb"
     DD_PROJECT: "agent"
 
 ot_agent_deb-arm64-a7:
@@ -87,7 +82,6 @@ ot_agent_deb-arm64-a7:
     - when: on_success
   needs: ["datadog-ot-agent-7-arm64"]
   variables:
-    DESTINATION_DEB: "datadog-ot-agent_7_arm64.deb"
     DD_PROJECT: "agent"
 
 installer_deb-amd64:
@@ -97,7 +91,6 @@ installer_deb-amd64:
     - when: on_success
   needs: ["installer-amd64"]
   variables:
-    DESTINATION_DEB: "datadog-installer_7_amd64.deb"
     DD_PROJECT: "installer"
     # There are currently no files to check for in the installer so we
     # explicitly disable the check
@@ -110,7 +103,6 @@ installer_deb-arm64:
     - when: on_success
   needs: ["installer-arm64"]
   variables:
-    DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PROJECT: "installer"
     PACKAGE_REQUIRED_FILES_LIST: ""
 
@@ -126,7 +118,6 @@ installer_deb-arm64:
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -143,23 +134,18 @@ installer_deb-arm64:
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]
   needs: ["iot-agent-x64"]
-  variables:
-    DESTINATION_DEB: "datadog-iot-agent_7_amd64.deb"
 
 iot_agent_deb-arm64:
   extends: [.package_iot_deb_common, .package_deb_arm64]
   needs: ["iot-agent-arm64"]
-  variables:
-    DESTINATION_DEB: "datadog-iot-agent_7_arm64.deb"
 
 iot_agent_deb-armhf:
   extends: .package_iot_deb_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
-    DESTINATION_DEB: "datadog-iot-agent_7_armhf.deb"
     DD_PKG_ARCH: "arm64"
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
@@ -171,7 +157,6 @@ dogstatsd_deb-x64:
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
-    DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 
 dogstatsd_deb-arm64:
@@ -182,6 +167,5 @@ dogstatsd_deb-arm64:
   needs: ["dogstatsd-arm64"]
   variables:
     DD_PROJECT: dogstatsd
-    DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 

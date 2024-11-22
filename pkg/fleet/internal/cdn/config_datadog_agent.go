@@ -50,25 +50,7 @@ func (a *agentConfig) Version() string {
 	return a.version
 }
 
-func newAgentConfig(configOrder *orderConfig, rawLayers ...[]byte) (*agentConfig, error) {
-	if configOrder == nil {
-		return nil, fmt.Errorf("order config is nil")
-	}
-
-	// Unmarshal layers
-	layers := map[string]*agentConfigLayer{}
-	for _, rawLayer := range rawLayers {
-		layer := &agentConfigLayer{}
-		if err := json.Unmarshal(rawLayer, layer); err != nil {
-			log.Warnf("Failed to unmarshal layer: %v", err)
-			continue
-		}
-		if layer.AgentConfig != nil || layer.SecurityAgentConfig != nil || layer.SystemProbeConfig != nil {
-			// Only add layers that have at least one config that matches the agent
-			layers[layer.ID] = layer
-		}
-	}
-
+func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 	// Compile ordered layers into a single config
 	layerIDs := []string{}
 	compiledLayer := &agentConfigLayer{
@@ -76,13 +58,18 @@ func newAgentConfig(configOrder *orderConfig, rawLayers ...[]byte) (*agentConfig
 		SecurityAgentConfig: map[string]interface{}{},
 		SystemProbeConfig:   map[string]interface{}{},
 	}
-	for i := len(configOrder.Order) - 1; i >= 0; i-- {
-		layerID := configOrder.Order[i]
-		layer, ok := layers[layerID]
-		if !ok {
+	for _, rawLayer := range orderedLayers {
+		layer := &agentConfigLayer{}
+		if err := json.Unmarshal(rawLayer, layer); err != nil {
+			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
-		layerIDs = append(layerIDs, layerID)
+		if layer.AgentConfig == nil && layer.SecurityAgentConfig == nil && layer.SystemProbeConfig == nil {
+			// Only add layers that have at least one config that matches the agent
+			continue
+		}
+
+		layerIDs = append(layerIDs, layer.ID)
 
 		if layer.AgentConfig != nil {
 			agentConfig, err := merge(compiledLayer.AgentConfig, layer.AgentConfig)
@@ -151,25 +138,37 @@ func (a *agentConfig) Write(dir string) error {
 	if a.datadog != nil {
 		err = os.WriteFile(filepath.Join(dir, configDatadogYAML), []byte(a.datadog), 0640)
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", configDatadogYAML, err)
 		}
 		if runtime.GOOS != "windows" {
 			err = os.Chown(filepath.Join(dir, configDatadogYAML), ddAgentUID, ddAgentGID)
 			if err != nil {
-				return fmt.Errorf("could not chown datadog.yaml: %w", err)
+				return fmt.Errorf("could not chown %s: %w", configDatadogYAML, err)
 			}
 		}
 	}
 	if a.securityAgent != nil {
-		err = os.WriteFile(filepath.Join(dir, configSecurityAgentYAML), []byte(a.securityAgent), 0600)
+		err = os.WriteFile(filepath.Join(dir, configSecurityAgentYAML), []byte(a.securityAgent), 0440)
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", configSecurityAgentYAML, err)
+		}
+		if runtime.GOOS != "windows" {
+			err = os.Chown(filepath.Join(dir, configSecurityAgentYAML), 0, ddAgentGID) // root:dd-agent
+			if err != nil {
+				return fmt.Errorf("could not chown %s: %w", configSecurityAgentYAML, err)
+			}
 		}
 	}
 	if a.systemProbe != nil {
-		err = os.WriteFile(filepath.Join(dir, configSystemProbeYAML), []byte(a.systemProbe), 0600)
+		err = os.WriteFile(filepath.Join(dir, configSystemProbeYAML), []byte(a.systemProbe), 0440)
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", configSecurityAgentYAML, err)
+		}
+		if runtime.GOOS != "windows" {
+			err = os.Chown(filepath.Join(dir, configSystemProbeYAML), 0, ddAgentGID) // root:dd-agent
+			if err != nil {
+				return fmt.Errorf("could not chown %s: %w", configSecurityAgentYAML, err)
+			}
 		}
 	}
 	return nil

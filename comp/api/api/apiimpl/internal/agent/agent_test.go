@@ -23,14 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -76,7 +80,7 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
-	Tagger                tagger.Mock
+	Tagger                taggermock.Mock
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -103,12 +107,16 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		eventplatformreceiverimpl.MockModule(),
-		taggerimpl.MockModule(),
+		taggermock.Module(),
 		fx.Options(
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
 		settingsimpl.MockModule(),
+		config.MockModule(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		telemetryimpl.MockModule(),
 	)
 }
 
@@ -126,6 +134,7 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.Ac,
 		deps.EndpointProviders,
+		deps.Tagger,
 	)
 
 	return router

@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -131,7 +132,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel(e.probe.Config, e.probe.Origin())
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(e.probe.Config, e.probe.Origin())
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -168,7 +169,6 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
-			e.probe.PlaySnapshot()
 		}
 	}()
 
@@ -253,9 +253,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				heartBeatCounter = 5
 				heartbeatTicker.Reset(1 * time.Minute)
 				// we report a heartbeat anyway
-				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
 			case <-heartbeatTicker.C:
-				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
 				if heartBeatCounter > 0 {
 					heartBeatCounter--
 					if heartBeatCounter == 0 {
@@ -333,6 +333,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
+	// reset the probe process killer state once the new ruleset is loaded
+	e.probe.OnNewRuleSetLoaded(rs)
+
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 
@@ -346,7 +349,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
+		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies)
 		e.policyMonitor.SetPolicies(policies)
 	}
 
@@ -481,7 +484,12 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 	if e.probe.IsNetworkEnabled() {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+				switch eventType {
+				case model.RawPacketEventType.String():
+					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				default:
+					enabled[eventType] = true
+				}
 			}
 		}
 	}

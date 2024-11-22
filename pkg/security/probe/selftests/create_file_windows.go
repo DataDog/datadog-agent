@@ -38,6 +38,7 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
 		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.device_path =~ "%s" && process.pid == %d`, basename, filepath.ToSlash(devicePath), os.Getpid()),
+		Silent:     true,
 	}
 }
 

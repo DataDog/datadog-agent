@@ -41,7 +41,7 @@ def build(
 
     build_include = (
         get_default_build_tags(
-            build="updater",
+            build="installer",
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
         else filter_incompatible_tags(build_include.split(","))
@@ -66,6 +66,8 @@ def build(
 
     if no_cgo:
         env["CGO_ENABLED"] = "0"
+    else:
+        env["CGO_ENABLED"] = "1"
 
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {installer_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"

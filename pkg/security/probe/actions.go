@@ -17,19 +17,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// KillActionStatus defines the status of a kill action
+type KillActionStatus string
+
+const (
+	// KillActionStatusPerformed indicates the kill action was performed
+	KillActionStatusPerformed KillActionStatus = "performed"
+	// KillActionStatusRuleDisarmed indicates the kill action was skipped because the rule was disarmed
+	KillActionStatusRuleDisarmed KillActionStatus = "rule_disarmed"
+)
+
 // KillActionReport defines a kill action reports
 type KillActionReport struct {
 	sync.RWMutex
 
-	Signal     string
-	Scope      string
-	Pid        uint32
-	CreatedAt  time.Time
-	DetectedAt time.Time
-	KilledAt   time.Time
-	ExitedAt   time.Time
+	Signal       string
+	Scope        string
+	Status       KillActionStatus
+	CreatedAt    time.Time
+	DetectedAt   time.Time
+	KilledAt     time.Time
+	ExitedAt     time.Time
+	DisarmerType string
 
 	// internal
+	Pid      uint32
 	resolved bool
 	rule     *rules.Rule
 }
@@ -37,14 +49,16 @@ type KillActionReport struct {
 // JKillActionReport used to serialize date
 // easyjson:json
 type JKillActionReport struct {
-	Type       string              `json:"type"`
-	Signal     string              `json:"signal"`
-	Scope      string              `json:"scope"`
-	CreatedAt  utils.EasyjsonTime  `json:"created_at"`
-	DetectedAt utils.EasyjsonTime  `json:"detected_at"`
-	KilledAt   utils.EasyjsonTime  `json:"killed_at"`
-	ExitedAt   *utils.EasyjsonTime `json:"exited_at,omitempty"`
-	TTR        string              `json:"ttr,omitempty"`
+	Type         string              `json:"type"`
+	Signal       string              `json:"signal"`
+	Scope        string              `json:"scope"`
+	Status       string              `json:"status"`
+	DisarmerType string              `json:"disarmer_type,omitempty"`
+	CreatedAt    utils.EasyjsonTime  `json:"created_at"`
+	DetectedAt   utils.EasyjsonTime  `json:"detected_at"`
+	KilledAt     *utils.EasyjsonTime `json:"killed_at,omitempty"`
+	ExitedAt     *utils.EasyjsonTime `json:"exited_at,omitempty"`
+	TTR          string              `json:"ttr,omitempty"`
 }
 
 // IsResolved return if the action is resolved
@@ -53,7 +67,7 @@ func (k *KillActionReport) IsResolved() bool {
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	return k.Signal != "SIGKILL" || k.resolved
+	return k.Signal != "SIGKILL" || k.resolved || k.Status == KillActionStatusRuleDisarmed
 }
 
 // ToJSON marshal the action
@@ -62,13 +76,15 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 	defer k.RUnlock()
 
 	jk := JKillActionReport{
-		Type:       rules.KillAction,
-		Signal:     k.Signal,
-		Scope:      k.Scope,
-		CreatedAt:  utils.NewEasyjsonTime(k.CreatedAt),
-		DetectedAt: utils.NewEasyjsonTime(k.DetectedAt),
-		KilledAt:   utils.NewEasyjsonTime(k.KilledAt),
-		ExitedAt:   utils.NewEasyjsonTimeIfNotZero(k.ExitedAt),
+		Type:         rules.KillAction,
+		Signal:       k.Signal,
+		Scope:        k.Scope,
+		Status:       string(k.Status),
+		DisarmerType: k.DisarmerType,
+		CreatedAt:    utils.NewEasyjsonTime(k.CreatedAt),
+		DetectedAt:   utils.NewEasyjsonTime(k.DetectedAt),
+		KilledAt:     utils.NewEasyjsonTimeIfNotZero(k.KilledAt),
+		ExitedAt:     utils.NewEasyjsonTimeIfNotZero(k.ExitedAt),
 	}
 
 	if !k.ExitedAt.IsZero() {
