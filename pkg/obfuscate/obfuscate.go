@@ -316,7 +316,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 
 // Stop cleans up after a finished Obfuscator.
 func (o *Obfuscator) Stop() {
-	o.queryCache.Close()
+	if o != nil && o.queryCache != nil {
+		o.queryCache.Close()
+	}
 }
 
 // compactWhitespaces compacts all whitespaces in t.

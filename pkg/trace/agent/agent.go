@@ -103,7 +103,7 @@ type Agent struct {
 	Timing                timing.Reporter
 
 	// obfuscator is used to obfuscate sensitive data from various span
-	// tags based on their type.
+	// tags based on their type. It is lazy initialized with obfuscatorConf in obfuscate.go
 	obfuscator     *obfuscate.Obfuscator
 	obfuscatorConf *obfuscate.Config
 
