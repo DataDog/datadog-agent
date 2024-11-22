@@ -957,13 +957,9 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			fx.Replace(corecomp.MockParams{
-				Params: corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
-			}),
-			MockModule(),
-		))
+		config := buildConfigComponent(t, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
+		}))
 		cfg := config.Object()
 
 		assert.NotNil(t, cfg)
