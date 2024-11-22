@@ -377,7 +377,11 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 
 	var unsubscribers []func()
 	for _, libset := range libsets {
-		// e.libsets is thread-safe for reads, subscribe takes the libset-specific callback.
+		// e.libsets is only modified when creating the EbpfProgram struct,
+		// which is a singleton with a mutex in the GetEBPFProgram function. As
+		// Golang maps are thread-safe for reads, we don't need here a mutex to
+		// access it. subscribe() will the libset-specific callback, to avoid
+		// locking on all callbacks for all libsets.
 		unsub := e.libsets[libset].subscribe(callback)
 		unsubscribers = append(unsubscribers, unsub)
 	}
