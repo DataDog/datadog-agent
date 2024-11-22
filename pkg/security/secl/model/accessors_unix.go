@@ -119,6 +119,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "bind.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Bind.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "bind.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20049,6 +20058,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"bind.addr.ip",
 		"bind.addr.is_public",
 		"bind.addr.port",
+		"bind.protocol",
 		"bind.retval",
 		"bpf.cmd",
 		"bpf.map.name",
@@ -21466,6 +21476,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr), nil
 	case "bind.addr.port":
 		return int(ev.Bind.Addr.Port), nil
+	case "bind.protocol":
+		return int(ev.Bind.Protocol), nil
 	case "bind.retval":
 		return int(ev.Bind.SyscallEvent.Retval), nil
 	case "bpf.cmd":
@@ -28166,6 +28178,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "bind", nil
 	case "bind.addr.port":
 		return "bind", nil
+	case "bind.protocol":
+		return "bind", nil
 	case "bind.retval":
 		return "bind", nil
 	case "bpf.cmd":
@@ -30988,6 +31002,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "bind.addr.is_public":
 		return reflect.Bool, nil
 	case "bind.addr.port":
+		return reflect.Int, nil
+	case "bind.protocol":
 		return reflect.Int, nil
 	case "bind.retval":
 		return reflect.Int, nil
@@ -33837,6 +33853,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "Bind.Addr.Port"}
 		}
 		ev.Bind.Addr.Port = uint16(rv)
+		return nil
+	case "bind.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Bind.Protocol"}
+		}
+		ev.Bind.Protocol = uint16(rv)
 		return nil
 	case "bind.retval":
 		rv, ok := value.(int)

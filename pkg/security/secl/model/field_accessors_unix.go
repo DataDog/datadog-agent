@@ -46,6 +46,14 @@ func (ev *Event) GetBindAddrPort() uint16 {
 	return ev.Bind.Addr.Port
 }
 
+// GetBindProtocol returns the value of the field, resolving if necessary
+func (ev *Event) GetBindProtocol() uint16 {
+	if ev.GetEventType().String() != "bind" {
+		return uint16(0)
+	}
+	return ev.Bind.Protocol
+}
+
 // GetBindRetval returns the value of the field, resolving if necessary
 func (ev *Event) GetBindRetval() int64 {
 	if ev.GetEventType().String() != "bind" {

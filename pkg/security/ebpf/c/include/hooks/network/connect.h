@@ -89,7 +89,6 @@ int hook_security_socket_connect(ctx_t *ctx) {
         protocol = IPPROTO_UDP;
     }
 
-
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (syscall) {

@@ -640,6 +640,7 @@ type BindEvent struct {
 
 	Addr       IPPortContext `field:"addr"`        // Bound address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // ConnectEvent represents a connect event

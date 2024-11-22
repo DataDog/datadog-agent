@@ -4684,6 +4684,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers29(
 		switch key {
 		case "addr":
 			(out.Addr).UnmarshalEasyJSON(in)
+		case "protocol":
+			out.Protocol = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -4702,6 +4704,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers29(
 		const prefix string = ",\"addr\":"
 		out.RawString(prefix[1:])
 		(in.Addr).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"protocol\":"
+		out.RawString(prefix)
+		out.String(string(in.Protocol))
 	}
 	out.RawByte('}')
 }

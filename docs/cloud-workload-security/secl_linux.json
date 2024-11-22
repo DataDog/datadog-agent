@@ -1327,6 +1327,11 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
+          "name": "bind.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "bind-protocol-doc"
+        },
+        {
           "name": "bind.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
@@ -9437,6 +9442,18 @@
       "link": "bind-addr-family-doc",
       "type": "int",
       "definition": "Address family",
+      "prefixes": [
+        "bind"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "bind.protocol",
+      "link": "bind-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
       "prefixes": [
         "bind"
       ],

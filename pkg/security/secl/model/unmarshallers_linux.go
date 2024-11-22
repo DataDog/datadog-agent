@@ -1255,7 +1255,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 20 {
+	if len(data)-read < 22 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1263,6 +1263,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	SliceToArray(data[read:read+16], ipRaw[:])
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1272,7 +1273,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
-	return read + 20, nil
+	return read + 22, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

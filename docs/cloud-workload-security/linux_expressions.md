@@ -388,6 +388,7 @@ A bind was executed
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`bind.protocol`](#bind-protocol-doc) | Socket Protocol |
 | [`bind.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `bpf`
@@ -2478,6 +2479,13 @@ Definition: User of the file's owner
 Type: int
 
 Definition: Address family
+
+
+
+### `bind.protocol` {#bind-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
 
 
 
