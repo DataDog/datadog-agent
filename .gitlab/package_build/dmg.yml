@@ -29,8 +29,6 @@ agent_dmg-x64-a7:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
   timeout: 6h
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
