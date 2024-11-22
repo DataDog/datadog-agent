@@ -6,6 +6,8 @@
 package agent
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -125,7 +127,12 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	}
 }
 
+var (
+	obfuscatorLock sync.Mutex
+)
+
 func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
+	obfuscatorLock.Lock()
 	if a.obfuscator == nil {
 		if a.obfuscatorConf != nil {
 			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
@@ -133,5 +140,6 @@ func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
 			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
 		}
 	}
+	obfuscatorLock.Unlock()
 	return a.obfuscator
 }
