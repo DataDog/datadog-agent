@@ -189,8 +189,10 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *m
 
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
-	if len(e.Tags) == 0 && e.ContainerID != "" {
+	// e.Tags is never empty because of image name and tag
+	if (!e.TagsResolved) && e.ContainerID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(string(e.ContainerID))
+		e.TagsResolved = true
 	}
 	return e.Tags
 }
