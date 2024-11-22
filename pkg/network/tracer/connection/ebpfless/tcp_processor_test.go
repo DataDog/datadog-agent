@@ -8,7 +8,6 @@
 package ebpfless
 
 import (
-	"fmt"
 	"net"
 	"syscall"
 	"testing"
@@ -76,29 +75,6 @@ type testCapture struct {
 	ipv4    *layers.IPv4
 	ipv6    *layers.IPv6
 	tcp     *layers.TCP
-}
-
-func (tc testCapture) sanityCheck() {
-	if tc.ipv4 == nil && tc.ipv6 == nil {
-		panic("testCapture is missing IP capture")
-	} else if tc.ipv4 != nil && tc.ipv6 != nil {
-		panic("testCapture has both IP families")
-	} else if tc.pktType != unix.PACKET_HOST && tc.pktType != unix.PACKET_OUTGOING {
-		panic(fmt.Sprintf("testCapture has unrecogized pktType %d", tc.pktType))
-	}
-}
-
-func (tc testCapture) payloadLen() uint16 {
-	tc.sanityCheck()
-	family := network.AFINET
-	if tc.ipv6 != nil {
-		family = network.AFINET6
-	}
-	payloadLen, err := TCPPayloadLen(family, tc.ipv4, tc.ipv6, tc.tcp)
-	if err != nil {
-		panic(err)
-	}
-	return payloadLen
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
