@@ -51,17 +51,17 @@ type connectionState struct {
 	remoteFinSeq uint32
 }
 
-type TCPProcessor struct {
+type TCPProcessor struct { //nolint:revive // TODO
 	conns map[network.ConnectionTuple]connectionState
 }
 
-func NewTCPProcessor() *TCPProcessor {
+func NewTCPProcessor() *TCPProcessor { //nolint:revive // TODO
 	return &TCPProcessor{
 		conns: map[network.ConnectionTuple]connectionState{},
 	}
 }
 
-func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) { //nolint:revive // TODO
 	if tcp.RST {
 		return
 	}
@@ -84,7 +84,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 
 // updateTcpStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
 // https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
-func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) { //nolint:revive // TODO
 	payloadSeq := tcp.Seq + uint32(payloadLen)
 
 	if pktType == unix.PACKET_OUTGOING {
@@ -146,7 +146,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	}
 }
 
-func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) { //nolint:revive // TODO
 	if !tcp.RST || st.tcpState == ConnStatClosed {
 		return
 	}

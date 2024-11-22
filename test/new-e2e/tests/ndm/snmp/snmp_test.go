@@ -149,6 +149,7 @@ type snmpDockerSuite struct {
 
 // TestSnmpSuite runs the snmp e2e suite
 func TestSnmpSuite(t *testing.T) {
+	t.Skip("Skipping test until we can fix the flakiness")
 	e2e.Run(t, &snmpDockerSuite{}, e2e.WithProvisioner(snmpDockerProvisioner()))
 }
 

@@ -31,6 +31,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 
 	// checks implemented as components
 
@@ -471,6 +472,7 @@ func getSharedFxOption() fx.Option {
 		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
 		remoteagentregistryfx.Module(),
+		haagentfx.Module(),
 	)
 }
 
