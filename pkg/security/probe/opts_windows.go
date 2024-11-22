@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -22,6 +23,9 @@ type Opts struct {
 
 	// EnvsVarResolutionEnabled defines if environment variables resolution is enabled
 	EnvsVarResolutionEnabled bool
+
+	// Tagger will override the default one. Mainly here for tests.
+	Tagger tags.Tagger
 
 	// this option for test purposes only; should never be true in main code
 	disableProcmon bool

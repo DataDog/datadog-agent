@@ -58,14 +58,12 @@ func TestEventRulesetLoaded(t *testing.T) {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
-
 			test.cws.SendStats()
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 
 			return validateRuleSetLoadedSchema(t, customEvent)
-		}, 20*time.Second, model.CustomRulesetLoadedEventType)
+		}, 20*time.Second, model.CustomEventType, events.RulesetLoadedRuleID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,11 +91,8 @@ func TestEventHeartbeatSent(t *testing.T) {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-
-			isHeartbeatEvent := events.HeartbeatRuleID == rule.ID
-
-			return validateHeartbeatSchema(t, customEvent) && isHeartbeatEvent
-		}, 80*time.Second, model.CustomHeartbeatEventType)
+			return validateHeartbeatSchema(t, customEvent)
+		}, 80*time.Second, model.CustomEventType, events.HeartbeatRuleID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -237,7 +232,7 @@ func TestEventIteratorRegister(t *testing.T) {
 		},
 		{
 			ID:         "test_register_2",
-			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-register" && process.ancestors[A].file.path == "%s" && process.ancestors[A].pid == 1`, pid1Path),
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-register-2" && process.ancestors[A].file.path == "%s" && process.ancestors[A].pid == 1`, pid1Path),
 		},
 	}
 
@@ -252,6 +247,12 @@ func TestEventIteratorRegister(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
+
+	testFile2, _, err := test.Path("test-register-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -268,7 +269,7 @@ func TestEventIteratorRegister(t *testing.T) {
 
 	t.Run("pid1", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			f, err := os.Create(testFile)
+			f, err := os.Create(testFile2)
 			if err != nil {
 				return err
 			}
@@ -317,9 +318,8 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 		}
 		return f.Close()
 	}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-		assert.Equal(t, events.AbnormalPathRuleID, rule.ID, "wrong rule")
 		return true
-	}, getEventTimeout, model.CustomTruncatedParentsEventType)
+	}, getEventTimeout, model.CustomEventType, events.AbnormalPathRuleID)
 	if err != nil {
 		t.Fatal(err)
 	}

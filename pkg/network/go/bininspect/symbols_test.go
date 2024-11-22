@@ -8,7 +8,6 @@
 package bininspect
 
 import (
-	"debug/elf"
 	"path/filepath"
 	"testing"
 
@@ -17,9 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-func openTestElf(t *testing.T) *elf.File {
+func openTestElf(t *testing.T) *safeelf.File {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -27,7 +27,7 @@ func openTestElf(t *testing.T) *elf.File {
 	// always.
 	lib := filepath.Join(curDir, "..", "..", "usm", "testdata",
 		"site-packages", "ddtrace", "libssl.so.arm64")
-	elfFile, err := elf.Open(lib)
+	elfFile, err := safeelf.Open(lib)
 	require.NoError(t, err)
 
 	return elfFile

@@ -21,6 +21,7 @@ import (
 	"go4.org/netipx"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -40,7 +41,7 @@ func TestConntrackers(t *testing.T) {
 		if ebpfCOREConntrackerSupportedOnKernelT(t) {
 			modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
 		}
-		if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+		if !prebuilt.IsDeprecated() && ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 			modes = append([]ebpftest.BuildMode{ebpftest.Prebuilt}, modes...)
 		}
 		ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
@@ -147,7 +148,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 
 		localAddr := nettestutil.MustPingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
 		var trans *network.IPTranslation
-		cs := network.ConnectionStats{
+		cs := network.ConnectionTuple{
 			Source: util.AddressFromNetIP(localAddr.IP),
 			SPort:  uint16(localAddr.Port),
 			Dest:   util.AddressFromNetIP(clientIP),
@@ -165,7 +166,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		// now dial TCP directly
 		localAddr = nettestutil.MustPingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
 
-		cs = network.ConnectionStats{
+		cs = network.ConnectionTuple{
 			Source: util.AddressFromNetIP(localAddr.IP),
 			SPort:  uint16(localAddr.Port),
 			Dest:   util.AddressFromNetIP(serverIP),
@@ -189,7 +190,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 
 		localAddrUDP := nettestutil.MustPingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
 		var trans *network.IPTranslation
-		cs := network.ConnectionStats{
+		cs := network.ConnectionTuple{
 			Source: util.AddressFromNetIP(localAddrUDP.IP),
 			SPort:  uint16(localAddrUDP.Port),
 			Dest:   util.AddressFromNetIP(clientIP),
@@ -221,7 +222,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	t.Logf("test ns: %d", testIno)
 
 	var trans *network.IPTranslation
-	cs := network.ConnectionStats{
+	cs := network.ConnectionTuple{
 		Source: util.AddressFromNetIP(laddr.IP),
 		SPort:  uint16(laddr.Port),
 		Dest:   util.AddressFromString("2.2.2.4"),
@@ -277,7 +278,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 	require.NotNil(t, laddr)
 
 	var trans *network.IPTranslation
-	cs := network.ConnectionStats{
+	cs := network.ConnectionTuple{
 		Source: util.AddressFromNetIP(laddr.IP),
 		SPort:  uint16(laddr.Port),
 		Dest:   util.AddressFromString("3.3.3.3"),

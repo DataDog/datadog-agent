@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -71,10 +71,11 @@ func (server *apiServer) startCMDServer(
 		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
-		dogstatsdServer:    server.dogstatsdServer,
-		capture:            server.capture,
-		pidMap:             server.pidMap,
+		workloadmetaServer:  workloadmetaServer.NewServer(server.wmeta),
+		dogstatsdServer:     server.dogstatsdServer,
+		capture:             server.capture,
+		pidMap:              server.pidMap,
+		remoteAgentRegistry: server.remoteAgentRegistry,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
@@ -120,6 +121,7 @@ func (server *apiServer) startCMDServer(
 				server.collector,
 				server.autoConfig,
 				server.endpointProviders,
+				server.taggerComp,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

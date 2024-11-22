@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -146,12 +146,12 @@ func preTestsHook() {
 			Debug:           true,
 		}
 
-		_, err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
+		retCode, err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)
 		}
-		os.Exit(0)
+		os.Exit(retCode)
 	}
 }
 

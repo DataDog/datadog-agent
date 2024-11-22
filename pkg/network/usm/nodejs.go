@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -107,7 +109,8 @@ var (
 // nodeJSMonitor essentially scans for Node processes and attaches SSL uprobes
 // to them.
 type nodeJSMonitor struct {
-	attacher *uprobes.UprobeAttacher
+	attacher       *uprobes.UprobeAttacher
+	processMonitor *monitor.ProcessMonitor
 }
 
 func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, error) {
@@ -127,13 +130,15 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, e
 		EnablePeriodicScanNewProcesses: true,
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{})
+	procMon := monitor.GetProcessMonitor()
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
 
 	return &nodeJSMonitor{
-		attacher: attacher,
+		attacher:       attacher,
+		processMonitor: procMon,
 	}, nil
 }
 
@@ -143,7 +148,7 @@ func (m *nodeJSMonitor) Start() {
 		return
 	}
 
-	m.attacher.Start()
+	m.attacher.Start() //nolint:errcheck // TODO
 	log.Info("Node JS TLS monitoring enabled")
 }
 
@@ -153,11 +158,12 @@ func (m *nodeJSMonitor) Stop() {
 		return
 	}
 
+	m.processMonitor.Stop()
 	m.attacher.Stop()
 }
 
 // getNodeJSPath checks if the given PID is a NodeJS process and returns the path to the binary
-func isNodeJSBinary(path string, procInfo *uprobes.ProcInfo) bool {
+func isNodeJSBinary(path string, procInfo *uprobes.ProcInfo) bool { //nolint:revive // TODO
 	exe, err := procInfo.Exe()
 	if err != nil {
 		return false

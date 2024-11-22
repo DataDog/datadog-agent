@@ -25,7 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -100,6 +101,7 @@ type ProviderTestSuite struct {
 	testServer   *httptest.Server
 	mockSender   *mocksender.MockSender
 	kubeUtil     kubelet.KubeUtilInterface
+	tagger       tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -114,8 +116,8 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
+	fakeTagger := mock.SetupFakeTagger(suite.T())
+
 	for entity, tags := range commontesting.CommonTags {
 		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
 		entityID := taggertypes.NewEntityID(prefix, id)
@@ -143,13 +145,16 @@ func (suite *ProviderTestSuite) SetupTest() {
 		},
 	}
 
+	suite.tagger = fakeTagger
+
 	suite.provider = &Provider{
 		config: config,
 		filter: &containers.Filter{
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		podUtils: common.NewPodUtils(),
+		podUtils: common.NewPodUtils(fakeTagger),
+		tagger:   fakeTagger,
 	}
 }
 

@@ -17,7 +17,7 @@
 
 .cache:
   stage: deps_fetch
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
   variables:
@@ -106,3 +106,19 @@ go_e2e_deps:
         prefix: "go_e2e_deps_modcache"
       paths:
         - modcache_e2e.tar.xz
+
+fetch_openjdk:
+  needs: []
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.manual]
+  stage: deps_fetch
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  variables:
+    JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
+    JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9
+    JDK_SHA256: 052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84
+  script:
+    - wget "$JDK_URL/$JDK_FILENAME" -O "$JDK_FILENAME"
+    - echo "$JDK_SHA256  $JDK_FILENAME" | sha256sum -c
+    - $S3_CP_CMD "$JDK_FILENAME" "$S3_DD_AGENT_OMNIBUS_JAVA_URI/$JDK_FILENAME" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers

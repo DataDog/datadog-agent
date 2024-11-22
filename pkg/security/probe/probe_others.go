@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -106,7 +107,7 @@ func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
 
-// PlaySnapshot plays the snapshot
-func (p *Probe) PlaySnapshot() {
-	// TODO: Implement this method if needed.
+// GetAgentContainerContext returns nil
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return nil
 }
