@@ -24,6 +24,7 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
@@ -50,7 +51,7 @@ GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
 )
 
 
@@ -226,6 +227,9 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
             print("Test washer is always enabled in the CI, enforcing it")
 
         tw = TestWasher()
+        print(
+            "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
+        )
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
             print(

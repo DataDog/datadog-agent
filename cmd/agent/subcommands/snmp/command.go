@@ -136,6 +136,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
+	logLevelDefaultOff := command.LogLevelDefaultOff{}
+
 	// This command does nothing until the backend supports it, so it isn't visible yet.
 	snmpScanCmd := &cobra.Command{
 		Hidden: true,
@@ -151,7 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
@@ -172,6 +174,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return nil
 		},
 	}
+
+	logLevelDefaultOff.Register(snmpScanCmd)
 	// TODO is there a way to merge these flags with snmpWalkCmd flags, without cobra changing the docs to mark them as "global flags"?
 	snmpScanCmd.Flags().VarP(Flag(&snmpparse.VersionOpts, &connParams.Version), "snmp-version", "v",
 		fmt.Sprintf("Specify SNMP version to use (%s)", snmpparse.VersionOpts.OptsStr()))

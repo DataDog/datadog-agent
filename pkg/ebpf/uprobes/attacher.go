@@ -273,7 +273,7 @@ type FileRegistry interface {
 // AttachCallback is a callback that is called whenever a probe is attached successfully
 type AttachCallback func(*manager.Probe, *utils.FilePath)
 
-var NopOnAttachCallback AttachCallback = nil
+var NopOnAttachCallback AttachCallback = nil //nolint:revive // TODO
 
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {
@@ -336,7 +336,7 @@ type UprobeAttacher struct {
 //     way).
 //   - The process monitor to be used to subscribe to process start and exit events. The lifecycle of the process monitor is managed by the caller, the attacher
 //     will not stop the monitor when it stops.
-func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
+func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	if err := config.Validate(); err != nil {
@@ -346,7 +346,7 @@ func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onA
 	ua := &UprobeAttacher{
 		name:                 name,
 		config:               config,
-		fileRegistry:         utils.NewFileRegistry(name),
+		fileRegistry:         utils.NewFileRegistry(moduleName, name),
 		manager:              mgr,
 		onAttachCallback:     onAttachCallback,
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
@@ -355,7 +355,7 @@ func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onA
 		processMonitor:       processMonitor,
 	}
 
-	utils.AddAttacher(name, ua)
+	utils.AddAttacher(moduleName, name, ua)
 
 	return ua, nil
 }
@@ -613,30 +613,13 @@ func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo)
 	return matchedRules
 }
 
-var errIterationStart = errors.New("iteration start")
-
-// getExecutablePath resolves the executable of the given PID looking in procfs. Automatically
-// handles delays in procfs updates. Will return an error if the path cannot be resolved
+// getExecutablePath resolves the executable of the given PID looking in procfs.
+// Will return an error if the path cannot be resolved
 func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(ua.config.ProcRoot, pidAsStr, "exe")
 
-	var binPath string
-	err := errIterationStart
-	end := time.Now().Add(procFSUpdateTimeout)
-
-	for err != nil && end.After(time.Now()) {
-		binPath, err = os.Readlink(exePath)
-		if err != nil {
-			time.Sleep(time.Millisecond)
-		}
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return binPath, nil
+	return os.Readlink(exePath)
 }
 
 const optionAttachToLibs = true

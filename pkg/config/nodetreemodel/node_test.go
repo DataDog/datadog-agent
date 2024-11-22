@@ -35,16 +35,14 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 	assert.NoError(t, err)
 
 	firstLeaf := first.(LeafNode)
-	str, err := firstLeaf.GetString()
-	assert.NoError(t, err)
+	str := firstLeaf.Get()
 	assert.Equal(t, str, "apple")
 
 	second, err := n.GetChild("b")
 	assert.NoError(t, err)
 
 	secondLeaf := second.(LeafNode)
-	num, err := secondLeaf.GetInt()
-	assert.NoError(t, err)
+	num := secondLeaf.Get()
 	assert.Equal(t, num, 123)
 
 	child, err := n.GetChild("c")
@@ -58,8 +56,7 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 	assert.NoError(t, err)
 
 	fourthLeaf := fourth.(LeafNode)
-	b, err := fourthLeaf.GetBool()
-	assert.NoError(t, err)
+	b := fourthLeaf.Get()
 	assert.Equal(t, b, true)
 
 	_, err = third.GetChild("e")

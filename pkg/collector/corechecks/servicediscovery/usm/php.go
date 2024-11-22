@@ -24,11 +24,12 @@ func newPhpDetector(ctx DetectionContext) detector {
 }
 
 func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
+	metadata := ServiceMetadata{}
 	// Look for datadog.service (e.g., php -ddatadog.service=service_name OR php -d datadog.service=service_name)
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.Contains(arg, "datadog.service=") }); index != -1 {
 		split := strings.Split(args[index], "=")
 		if len(split) == 2 {
-			return NewServiceMetadata(split[1]), true
+			metadata.DDService = split[1]
 		}
 	}
 	prevArgIsFlag := false
@@ -39,7 +40,8 @@ func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
 		if !prevArgIsFlag && !hasFlagPrefix {
 			basePath := removeFilePath(arg)
 			if isRuneLetterAt(basePath, 0) && basePath == artisanConsole {
-				return NewServiceMetadata(newLaravelParser(p.ctx).GetLaravelAppName(arg)), true
+				metadata.SetNames(newLaravelParser(p.ctx).GetLaravelAppName(arg))
+				return metadata, true
 			}
 		}
 
@@ -47,5 +49,5 @@ func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
 		prevArgIsFlag = hasFlagPrefix && !includesAssignment
 	}
 
-	return ServiceMetadata{}, false
+	return metadata, false
 }

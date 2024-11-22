@@ -78,6 +78,7 @@ type cliParams struct {
 	profileBlocking      bool
 	profileBlockingRate  int
 	withStreamLogs       time.Duration
+	logLevelDefaultOff   command.LogLevelDefaultOff
 	providerTimeout      time.Duration
 }
 
@@ -109,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         c,
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
 				flare.Module(flare.NewLocalParams(
 					defaultpaths.GetDistPath(),
@@ -146,6 +147,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
+	cliParams.logLevelDefaultOff.Register(flareCmd)
 
 	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")

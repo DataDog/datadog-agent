@@ -42,7 +42,7 @@ const (
 	MinimalDockerImage DockerImage = "alpine:3.20.3"
 )
 
-type SampleArgs struct {
+type SampleArgs struct { //nolint:revive // TODO
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
 
@@ -143,7 +143,7 @@ func RunSample(t *testing.T, name SampleName) *exec.Cmd {
 	return RunSampleWithArgs(t, name, GetDefaultArgs())
 }
 
-// RunSample executes the sample binary with args and returns the command. Cleanup is configured automatically
+// RunSampleWithArgs executes the sample binary with args and returns the command. Cleanup is configured automatically
 func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd {
 	builtBin := getBuiltSamplePath(t, name)
 
