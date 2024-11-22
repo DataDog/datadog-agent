@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
@@ -47,6 +48,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	ksmdiscovery "k8s.io/kube-state-metrics/v2/pkg/discovery"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
@@ -222,19 +224,22 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          model.Config
-	instance             *KSMConfig
-	allStores            [][]cache.Store
-	telemetry            *telemetryCache
-	cancel               context.CancelFunc
-	isCLCRunner          bool
-	isRunningOnNodeAgent bool
-	clusterNameTagValue  string
-	clusterNameRFC1123   string
-	metricNamesMapper    map[string]string
-	metricAggregators    map[string]metricAggregator
-	metricTransformers   map[string]metricTransformerFunc
-	metadataMetricsRegex *regexp.Regexp
+	agentConfig             model.Config
+	instance                *KSMConfig
+	allStores               [][]cache.Store
+	telemetry               *telemetryCache
+	cancel                  context.CancelFunc
+	isCLCRunner             bool
+	isRunningOnNodeAgent    bool
+	clusterNameTagValue     string
+	clusterNameRFC1123      string
+	metricNamesMapper       map[string]string
+	metricAggregators       map[string]metricAggregator
+	metricTransformers      map[string]metricTransformerFunc
+	metadataMetricsRegex    *regexp.Regexp
+	crdsAddEventsCounter    prometheus.Counter
+	crdsDeleteEventsCounter prometheus.Counter
+	crdsCacheCountGauge     prometheus.Gauge
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -283,6 +288,19 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	k.crdsAddEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "kube_state_metrics_custom_resource_state_add_events_total",
+		Help: "Number of times that the CRD informer triggered the add event.",
+	})
+	k.crdsDeleteEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "kube_state_metrics_custom_resource_state_delete_events_total",
+		Help: "Number of times that the CRD informer triggered the remove event.",
+	})
+	k.crdsCacheCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "kube_state_metrics_custom_resource_state_cache",
+		Help: "Net amount of CRDs affecting the cache currently.",
+	})
 
 	k.metricNamesMapper = k.defaultMetricNamesMapper()
 
@@ -488,11 +506,29 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
-	customResourceStateMetricFactories, err := FromConfig(customResourceDecoder{k.instance.CustomResource})
+	discovererInstance := &ksmdiscovery.CRDiscoverer{
+		CRDsAddEventsCounter:    k.crdsAddEventsCounter,
+		CRDsDeleteEventsCounter: k.crdsDeleteEventsCounter,
+		CRDsCacheCountGauge:     k.crdsCacheCountGauge,
+	}
+	clientConfig, err := apiserver.GetClientConfig(time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second)
+	if err != nil {
+		panic(err)
+	}
+	if err := discovererInstance.StartDiscovery(context.Background(), clientConfig); err != nil {
+		log.Errorf("failed to start custom resource discovery: %v", err)
+	}
+	customResourceStateMetricFactoriesFunc, err := customresourcestate.FromConfig(customResourceDecoder{k.instance.CustomResource}, discovererInstance)
+
 	if err != nil {
 		log.Errorf("failed to create custom resource state metrics: %v", err)
 	} else {
-		factories = append(factories, customResourceStateMetricFactories...)
+		customResourceStateMetricFactories, err := customResourceStateMetricFactoriesFunc()
+		if err != nil {
+			log.Errorf("failed to create custom resource state metrics: %v", err)
+		} else {
+			factories = append(factories, customResourceStateMetricFactories...)
+		}
 	}
 
 	coll := collectors
@@ -505,8 +541,9 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		// Hack to use the global dynamic client instead of creating multiple different clients
 		// TODO(KSM 2.9+), use GVR.String to index the client and add gvr.string() to the list of collectors
 		cl := c.DynamicCl.Resource(gvr)
-		clients[cr.GetResourceName()] = cl
-		coll = append(coll, cr.GetResourceName())
+		// clients[cr.GetResourceName()] = cl
+		clients[gvr.String()] = cl
+		coll = append(coll, gvr.String())
 	}
 
 	return customResources{
@@ -514,28 +551,6 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients:    clients,
 		factories:  factories,
 	}
-}
-
-// FromConfig decodes a configuration source into a slice of customresource.RegistryFactory that are ready to use.
-func FromConfig(decoder customresourcestate.ConfigDecoder) ([]customresource.RegistryFactory, error) {
-	var crconfig customresourcestate.Metrics
-	var factories []customresource.RegistryFactory
-	factoriesIndex := map[string]bool{}
-	if err := decoder.Decode(&crconfig); err != nil {
-		return nil, fmt.Errorf("failed to parse Custom Resource State metrics: %w", err)
-	}
-	for _, resource := range crconfig.Spec.Resources {
-		factory, err := customresourcestate.NewCustomResourceMetrics(resource)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create metrics factory for %s: %w", resource.GroupVersionKind, err)
-		}
-		if _, ok := factoriesIndex[factory.Name()]; ok {
-			return nil, fmt.Errorf("found multiple custom resource configurations for the same resource %s", factory.Name())
-		}
-		factoriesIndex[factory.Name()] = true
-		factories = append(factories, factory)
-	}
-	return factories, nil
 }
 
 func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
