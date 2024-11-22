@@ -136,13 +136,11 @@ func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLock.Lock()
 	defer obfuscatorLock.Unlock()
 
-	if a.obfuscator != nil {
-		if a.obfuscator == nil {
-			if a.obfuscatorConf != nil {
-				a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
-			} else {
-				a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
-			}
+	if a.obfuscator == nil {
+		if a.obfuscatorConf != nil {
+			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
+		} else {
+			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
 		}
 	}
 
