@@ -28,7 +28,7 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expRetCode in
 	rawPacketEventMap, err := vm.LoadMap("raw_packet_event")
 	assert.Nil(t, err, "map not found")
 
-	routerMap, err := vm.LoadMap("classifier_router")
+	routerMap, err := vm.LoadMap("raw_packet_classifier_router")
 	assert.Nil(t, err, "map not found")
 
 	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)

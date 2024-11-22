@@ -95,7 +95,8 @@ BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_progs, 6)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 3)
-BPF_PROG_ARRAY(classifier_router, 100)
+BPF_PROG_ARRAY(classifier_router, 10)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
+BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
 
 #endif

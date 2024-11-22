@@ -374,7 +374,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return errors.New("unable to find `rawpacket_event` map")
 	}
 
-	routerMap, _, err := p.Manager.GetMap("classifier_router")
+	routerMap, _, err := p.Manager.GetMap("raw_packet_classifier_router")
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
 			Program:       col.Programs[progSpec.Name],
 			Key:           probes.TCRawPacketFilterKey + uint32(i),
-			ProgArrayName: "classifier_router",
+			ProgArrayName: "raw_packet_classifier_router",
 		}); err != nil {
 			return err
 		}

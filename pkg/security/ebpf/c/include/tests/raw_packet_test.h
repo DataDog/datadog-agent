@@ -22,7 +22,7 @@ int raw_packet_tail_calls(struct __sk_buff *skb) {
     };
     baloum_memcpy(evt->data, data, sizeof(data));
 
-    tail_call_to_classifier(skb, RAW_PACKET_FILTER);
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return 1;
 }

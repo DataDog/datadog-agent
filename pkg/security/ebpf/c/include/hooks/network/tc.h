@@ -64,7 +64,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    tail_call_to_classifier(skb, RAW_PACKET_FILTER);
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return ACT_OK;
 };
@@ -80,7 +80,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    tail_call_to_classifier(skb, RAW_PACKET_FILTER);
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return ACT_OK;
 };

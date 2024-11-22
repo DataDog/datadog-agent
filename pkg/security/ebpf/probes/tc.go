@@ -126,7 +126,7 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 
 	if withRawPacket {
 		tcr = append(tcr, manager.TailCallRoute{
-			ProgArrayName: "classifier_router",
+			ProgArrayName: "raw_packet_classifier_router",
 			Key:           TCRawPacketParserSenderKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "classifier_raw_packet_sender",
