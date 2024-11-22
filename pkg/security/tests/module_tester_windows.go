@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && (functionaltests || stresstests)
+//go:build windows && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -157,6 +157,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			DontDiscardRuntime: true,
 		},
 	}
+	if opts.staticOpts.tagger != nil {
+		emopts.ProbeOpts.Tagger = opts.staticOpts.tagger
+	} else {
+		emopts.ProbeOpts.Tagger = NewFakeTaggerDifferentImageNames()
+	}
+
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err

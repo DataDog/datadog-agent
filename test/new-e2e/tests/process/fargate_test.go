@@ -21,7 +21,6 @@ import (
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -56,8 +55,6 @@ func TestECSFargateTestSuite(t *testing.T) {
 
 func (s *ECSFargateSuite) TestProcessCheck() {
 	t := s.T()
-	// PROCS-4219
-	flake.Mark(t)
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -78,8 +75,6 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 
 func (s *ECSFargateSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-	// PROCS-4219
-	flake.Mark(t)
 
 	extraConfig := runner.ConfigMap{
 		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=true"},

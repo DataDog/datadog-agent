@@ -135,34 +135,36 @@ func (c *ntmConfig) setDefault(key string, value interface{}) {
 	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
 }
 
-// Set assigns the newValue to the given key and marks it as originating from the given source
-func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
-	var tree InnerNode
-
-	// TODO: have a dedicated mapping in ntmConfig instead of a switch case
-	// TODO: Default and File source should use SetDefault or ReadConfig instead. Once the defaults are handle we
-	// should remove those two tree from here and consider this a bug.
+func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	switch source {
 	case model.SourceDefault:
-		tree = c.defaults
+		return c.defaults, nil
 	case model.SourceUnknown:
-		tree = c.unknown
+		return c.unknown, nil
 	case model.SourceFile:
-		tree = c.file
+		return c.file, nil
 	case model.SourceEnvVar:
-		tree = c.envs
+		return c.envs, nil
 	case model.SourceAgentRuntime:
-		tree = c.runtime
+		return c.runtime, nil
 	case model.SourceLocalConfigProcess:
-		tree = c.localConfigProcess
+		return c.localConfigProcess, nil
 	case model.SourceRC:
-		tree = c.remoteConfig
+		return c.remoteConfig, nil
 	case model.SourceFleetPolicies:
-		tree = c.fleetPolicies
+		return c.fleetPolicies, nil
 	case model.SourceCLI:
-		tree = c.cli
-	default:
-		log.Errorf("unknown source tree: %s\n", source)
+		return c.cli, nil
+	}
+	return nil, fmt.Errorf("unknown source tree: %s", source)
+}
+
+// Set assigns the newValue to the given key and marks it as originating from the given source
+func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		log.Errorf("unknown source: %s", source)
+		return
 	}
 
 	if !c.IsKnown(key) {
@@ -170,12 +172,15 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the key to lower case for the logs line and the notification
+	key = strings.ToLower(key)
+
 	c.Lock()
 	previousValue := c.leafAtPath(key).Get()
 
 	parts := splitKey(key)
 
-	_, err := tree.SetAt(parts, newValue, source)
+	_, err = tree.SetAt(parts, newValue, source)
 	if err != nil {
 		log.Errorf("could not set '%s' invalid key: %s", key, err)
 	}
@@ -255,6 +260,7 @@ func (c *ntmConfig) checkKnownKey(key string) {
 		return
 	}
 
+	key = strings.ToLower(key)
 	if _, ok := c.unknownKeys[key]; ok {
 		return
 	}
@@ -381,13 +387,16 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
+	return c.leafAtPathFromNode(key, c.root)
+}
+
+func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
 	if !c.isReady() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
 	}
 
 	pathParts := splitKey(key)
-	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
