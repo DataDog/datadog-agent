@@ -536,6 +536,17 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName: "test",
 		},
 		{
+			name: "gunicorn simple with python",
+			cmdline: []string{
+				"/usr/bin/python3",
+				"/usr/bin/gunicorn",
+				"--workers=2",
+				"foo:create_app()",
+			},
+			lang:                  language.Python,
+			expectedGeneratedName: "foo",
+		},
+		{
 			name: "gunicorn from name",
 			cmdline: []string{
 				"gunicorn",
