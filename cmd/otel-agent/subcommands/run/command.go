@@ -30,7 +30,7 @@ import (
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-factory"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -129,7 +129,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
-		compressionfx.Module(),
+		compressionfx.ModuleFactory(),
 		converterfx.Module(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp

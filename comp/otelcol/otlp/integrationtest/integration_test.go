@@ -122,8 +122,8 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
 		fx.Provide(compressionimpl.NewComponent),
-		fx.Provide(func(s *compressionimpl.ZlibStrategy) compression.Component {
-			return s
+		fx.Provide(func(s compression.Provides) compression.Component {
+			return s.Comp
 		}),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
