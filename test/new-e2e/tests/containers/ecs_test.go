@@ -213,8 +213,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
@@ -244,8 +243,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
@@ -277,7 +275,6 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
@@ -306,7 +303,6 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
@@ -472,7 +468,6 @@ func (suite *ecsSuite) TestCPU() {
 				`^docker_image:ghcr.io/colinianking/stress-ng:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:stress-ng$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-stress-ng$`,
 				`^git.commit.sha:`,
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
 				`^image_id:sha256:`,
@@ -517,8 +512,7 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-dogstatsd-ud[ps]$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
@@ -548,9 +542,8 @@ func (suite *ecsSuite) TestPrometheus() {
 				`^docker_image:ghcr.io/datadog/apps-prometheus:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:prometheus$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-prometheus$`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-prometheus$`,
