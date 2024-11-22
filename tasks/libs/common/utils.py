@@ -271,6 +271,10 @@ def get_build_flags(
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
+    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+        # fake the minimum windows version
+        env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0600"
+
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external "
