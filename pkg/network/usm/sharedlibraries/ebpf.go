@@ -469,8 +469,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 func (e *EbpfProgram) initCORE() error {
 	assetName := getAssetName("shared-libraries", e.cfg.BPFDebug)
-	fn := func(buf bytecode.AssetReader, options manager.Options) error { return e.init(buf, options) }
-	return ddebpf.LoadCOREAsset(assetName, fn)
+	return ddebpf.LoadCOREAsset(assetName, e.init)
 }
 
 func (e *EbpfProgram) initRuntimeCompiler() error {
