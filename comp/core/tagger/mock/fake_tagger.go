@@ -7,10 +7,8 @@ package mock
 
 import (
 	"context"
-	"net/http"
 	"strconv"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
@@ -39,8 +37,7 @@ type FakeTagger struct {
 
 // Provides is a struct containing the mock and the endpoint
 type Provides struct {
-	Comp     Mock
-	Endpoint api.AgentEndpointProvider
+	Comp Mock
 }
 
 // New instantiates a new fake tagger
@@ -50,7 +47,6 @@ func New() Provides {
 			errors: make(map[string]error),
 			store:  tagstore.NewTagStore(nil),
 		},
-		Endpoint: api.NewAgentEndpointProvider(mockHandleRequest, "/tagger-list", "GET"),
 	}
 }
 
@@ -191,9 +187,4 @@ func (f *FakeTagger) ChecksCardinality() types.TagCardinality {
 // DogstatsdCardinality noop
 func (f *FakeTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
-}
-
-// mockHandleRequest is a simple mocked http.Handler function to test the route is registered correctly on the api component
-func mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
 }
