@@ -60,12 +60,6 @@
 // file.  If, for example, application-layer is known, calling this helper multiple
 // times will result in traversing only the api and encryption-layer programs
 
-static __always_inline bool is_protocol_classification_supported() {
-    __u64 val = 0;
-    LOAD_CONSTANT("protocol_classification_enabled", val);
-    return val > 0;
-}
-
 // updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -89,38 +88,8 @@ func (n *structNodeImpl) SourceGreaterOrEqual(model.Source) bool {
 	return false
 }
 
-func (n *structNodeImpl) GetAny() (interface{}, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// GetBool returns the scalar as a bool, or an error otherwise
-func (n *structNodeImpl) GetBool() (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-// GetInt returns the scalar as a int, or an error otherwise
-func (n *structNodeImpl) GetInt() (int, error) {
-	return 0, fmt.Errorf("not implemented")
-}
-
-// GetFloat returns the scalar as a float64, or an error otherwise
-func (n *structNodeImpl) GetFloat() (float64, error) {
-	return 0, fmt.Errorf("not implemented")
-}
-
-// GetString returns the scalar as a string, or an error otherwise
-func (n *structNodeImpl) GetString() (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-// GetTime returns the scalar as a time, or an error otherwise, not implemented
-func (n *structNodeImpl) GetTime() (time.Time, error) {
-	return time.Time{}, fmt.Errorf("not implemented")
-}
-
-// GetDuration returns the scalar as a duration, or an error otherwise, not implemented
-func (n *structNodeImpl) GetDuration() (time.Duration, error) {
-	return time.Duration(0), fmt.Errorf("not implemented")
+func (n *structNodeImpl) Get() interface{} {
+	return nil
 }
 
 // SetWithSource assigns a value in the config, for the given source

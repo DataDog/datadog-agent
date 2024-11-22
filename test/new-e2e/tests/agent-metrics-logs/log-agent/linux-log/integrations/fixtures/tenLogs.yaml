@@ -1,0 +1,8 @@
+init_config:
+instances:
+  - min_collection_interval: 1000
+
+logs:
+  - type: integration
+    source: ten_logs_source
+    service: ten_logs_service

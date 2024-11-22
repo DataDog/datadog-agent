@@ -9,6 +9,8 @@ erratic: false
 target:
   name: datadog-agent
   command: /bin/entrypoint.sh
+  cpu_allotment: 8
+  memory_allotment: 1GiB
 
   environment:
     DD_API_KEY: 00000001
@@ -45,7 +47,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "770.0 MiB"
+      upper_bound: "738.0 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

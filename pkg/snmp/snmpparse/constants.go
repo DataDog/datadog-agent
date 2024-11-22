@@ -19,10 +19,10 @@ var AuthOpts = NewOptions(OptPairs[gosnmp.SnmpV3AuthProtocol]{
 	{"", gosnmp.NoAuth},
 	{"MD5", gosnmp.MD5},
 	{"SHA", gosnmp.SHA},
-	{"SHA-224", gosnmp.SHA224},
-	{"SHA-256", gosnmp.SHA256},
-	{"SHA-384", gosnmp.SHA384},
-	{"SHA-512", gosnmp.SHA512},
+	{"SHA224", gosnmp.SHA224},
+	{"SHA256", gosnmp.SHA256},
+	{"SHA384", gosnmp.SHA384},
+	{"SHA512", gosnmp.SHA512},
 })
 
 // PrivOpts maps string names to gosnmp privacy protocols

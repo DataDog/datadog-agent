@@ -134,7 +134,7 @@ build do
 
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
+    command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
@@ -150,7 +150,7 @@ build do
       if windows_target?
         command "invoke -e system-probe.build", env: env
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle", env: env
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}", env: env
       end
     end
 
@@ -173,7 +173,7 @@ build do
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
     if not bundled_agents.include? "security-agent"
-      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --no-bundle", :env => env
+      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
     end
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"

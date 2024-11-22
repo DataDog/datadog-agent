@@ -999,42 +999,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "connect.server.addr.family":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Connect.AddrFamily)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "connect.server.addr.ip":
-		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) net.IPNet {
-				ev := ctx.Event.(*Event)
-				return ev.Connect.Addr.IPNet
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "connect.server.addr.is_public":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "connect.server.addr.port":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Connect.Addr.Port)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20172,10 +20136,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"connect.addr.is_public",
 		"connect.addr.port",
 		"connect.retval",
-		"connect.server.addr.family",
-		"connect.server.addr.ip",
-		"connect.server.addr.is_public",
-		"connect.server.addr.port",
 		"container.created_at",
 		"container.id",
 		"container.runtime",
@@ -21692,14 +21652,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Connect.Addr.Port), nil
 	case "connect.retval":
 		return int(ev.Connect.SyscallEvent.Retval), nil
-	case "connect.server.addr.family":
-		return int(ev.Connect.AddrFamily), nil
-	case "connect.server.addr.ip":
-		return ev.Connect.Addr.IPNet, nil
-	case "connect.server.addr.is_public":
-		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
-	case "connect.server.addr.port":
-		return int(ev.Connect.Addr.Port), nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -28394,14 +28346,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "connect", nil
 	case "connect.retval":
 		return "connect", nil
-	case "connect.server.addr.family":
-		return "connect", nil
-	case "connect.server.addr.ip":
-		return "connect", nil
-	case "connect.server.addr.is_public":
-		return "connect", nil
-	case "connect.server.addr.port":
-		return "connect", nil
 	case "container.created_at":
 		return "", nil
 	case "container.id":
@@ -31222,14 +31166,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "connect.addr.port":
 		return reflect.Int, nil
 	case "connect.retval":
-		return reflect.Int, nil
-	case "connect.server.addr.family":
-		return reflect.Int, nil
-	case "connect.server.addr.ip":
-		return reflect.Struct, nil
-	case "connect.server.addr.is_public":
-		return reflect.Bool, nil
-	case "connect.server.addr.port":
 		return reflect.Int, nil
 	case "container.created_at":
 		return reflect.Int, nil
@@ -34565,40 +34501,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Connect.SyscallEvent.Retval"}
 		}
 		ev.Connect.SyscallEvent.Retval = int64(rv)
-		return nil
-	case "connect.server.addr.family":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.AddrFamily"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Connect.AddrFamily"}
-		}
-		ev.Connect.AddrFamily = uint16(rv)
-		return nil
-	case "connect.server.addr.ip":
-		rv, ok := value.(net.IPNet)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPNet"}
-		}
-		ev.Connect.Addr.IPNet = rv
-		return nil
-	case "connect.server.addr.is_public":
-		rv, ok := value.(bool)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IsPublic"}
-		}
-		ev.Connect.Addr.IsPublic = rv
-		return nil
-	case "connect.server.addr.port":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Port"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
-		}
-		ev.Connect.Addr.Port = uint16(rv)
 		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -33,7 +34,7 @@ import (
 )
 
 func TestRemoteAgentCreation(t *testing.T) {
-	provides, lc := buildComponent(t)
+	provides, lc, _ := buildComponent(t)
 
 	assert.NotNil(t, provides.Comp)
 	assert.NotNil(t, provides.FlareProvider)
@@ -48,10 +49,10 @@ func TestRemoteAgentCreation(t *testing.T) {
 
 func TestRecommendedRefreshInterval(t *testing.T) {
 	expectedRefreshIntervalSecs := uint32(27)
-	config := configmock.New(t)
+
+	provides, _, config := buildComponent(t)
 	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
 
-	provides, _ := buildComponentWithConfig(t, config)
 	component := provides.Comp
 
 	registrationData := &remoteagent.RegistrationData{
@@ -71,7 +72,7 @@ func TestRecommendedRefreshInterval(t *testing.T) {
 }
 
 func TestGetRegisteredAgents(t *testing.T) {
-	provides, _ := buildComponent(t)
+	provides, _, _ := buildComponent(t)
 	component := provides.Comp
 
 	registrationData := &remoteagent.RegistrationData{
@@ -90,7 +91,7 @@ func TestGetRegisteredAgents(t *testing.T) {
 }
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
-	provides, _ := buildComponent(t)
+	provides, _, _ := buildComponent(t)
 	component := provides.Comp
 
 	remoteAgentServer := &testRemoteAgentServer{
@@ -120,7 +121,7 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 }
 
 func TestFlareProvider(t *testing.T) {
-	provides, _ := buildComponent(t)
+	provides, _, _ := buildComponent(t)
 	component := provides.Comp
 	flareProvider := provides.FlareProvider
 
@@ -153,7 +154,7 @@ func TestFlareProvider(t *testing.T) {
 }
 
 func TestStatusProvider(t *testing.T) {
-	provides, _ := buildComponent(t)
+	provides, _, _ := buildComponent(t)
 	component := provides.Comp
 	statusProvider := provides.Status
 
@@ -199,8 +200,22 @@ func TestStatusProvider(t *testing.T) {
 	require.Equal(t, "test_value", registeredAgentStatuses[0].MainSection["test_key"])
 }
 
-func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle) {
-	return buildComponentWithConfig(t, configmock.New(t))
+func TestDisabled(t *testing.T) {
+	config := configmock.New(t)
+
+	provides, _ := buildComponentWithConfig(t, config)
+
+	require.Nil(t, provides.Comp)
+	require.Nil(t, provides.FlareProvider.Callback)
+	require.Nil(t, provides.Status.Provider)
+}
+
+func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component) {
+	config := configmock.New(t)
+	config.SetWithoutSource("remote_agent_registry.enabled", true)
+
+	provides, lc := buildComponentWithConfig(t, config)
+	return provides, lc, config
 }
 
 func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle) {
