@@ -26,7 +26,6 @@ from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     DEFAULT_AGENT6_BRANCH,
-    DEFAULT_AGENT6_VERSION,
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
 )
@@ -88,6 +87,10 @@ BACKPORT_LABEL_COLOR = "5319e7"
 is_agent6_context = False
 
 
+def get_version_from_branch(branch: str) -> str:
+    return branch.removesuffix('.x') + '.0'
+
+
 def set_agent6_context(
     ctx, version: str | None = None, major_version: int | None = None, allow_stash=False, echo_switch_info=True
 ) -> dict:
@@ -112,8 +115,8 @@ def set_agent6_context(
     ), "Exactly one of version or major_version is required"
 
     if major_version:
-        version = version or DEFAULT_AGENT6_VERSION
         branch = DEFAULT_AGENT6_BRANCH
+        version = version or get_version_from_branch(branch)
     else:
         branch = version[:4] + '.x'
 
