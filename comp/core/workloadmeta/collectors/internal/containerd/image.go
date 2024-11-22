@@ -441,11 +441,11 @@ func extractPlatform(platform *ocispec.Platform, outImage *workloadmeta.Containe
 func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
-	// If history is present, we use it to associate additional metadata with each manifest layer.
-	// Layers marked as "empty" in history are appended as standalone entries before processing the
-	// corresponding manifest layer. History is optional in the OCI specification, so if no history is available,
-	// the function still processes all manifest layers. Any remaining empty layers in history that
-	// do not correspond to a manifest layer are appended at the end.
+	// If history is present, we use it to associate additional metadata with each layer.
+	// Layers marked as "empty" in history are appended before processing the
+	// corresponding layer. History is optional in the OCI specification, so if no history is available,
+	// the function still processes all layers. Any remaining empty layers in history that
+	// do not correspond to a layer are appended at the end.
 
 	historyIndex := 0
 	for _, manifestLayer := range manifest.Layers {
