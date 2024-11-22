@@ -411,14 +411,8 @@ func (s *TracerSuite) TestTCPConnsReported() {
 
 	assert.Equal(t, network.INCOMING, forward.Direction)
 	assert.Equal(t, network.OUTGOING, reverse.Direction)
-	assert.Equal(t, 0, int(forward.Monotonic.SentBytes))
-	assert.Equal(t, 0, int(forward.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(reverse.Monotonic.SentBytes))
-	assert.Equal(t, 0, int(reverse.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(forward.Monotonic.SentPackets))
-	assert.Equal(t, 0, int(forward.Monotonic.RecvPackets))
-	assert.Equal(t, 0, int(reverse.Monotonic.SentPackets))
-	assert.Equal(t, 0, int(reverse.Monotonic.RecvPackets))
+	assert.Equal(t, network.StatCounters{}, forward.Monotonic)
+	assert.Equal(t, network.StatCounters{}, reverse.Monotonic)
 
 }
 
