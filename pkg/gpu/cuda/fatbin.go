@@ -52,6 +52,16 @@ func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 	return fb.Kernels[key]
 }
 
+// HasKernelWithName returns true if the fatbin has a kernel with the given name
+func (fb *Fatbin) HasKernelWithName(name string) bool {
+	for key := range fb.Kernels {
+		if key.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 type fatbinHeader struct {
 	Magic      uint32
 	Version    uint16
