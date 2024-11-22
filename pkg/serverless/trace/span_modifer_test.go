@@ -159,7 +159,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 	testOriginTags(false)
 }
 
-func TestSpanModifierAddsFunctionTagsToAllSpans(t *testing.T) {
+func TestSpanModifierAddsFunctionTagsToInvocationSpan(t *testing.T) {
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{
 		"service":   "myTestService",
