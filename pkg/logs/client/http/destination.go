@@ -198,7 +198,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
 		tlmInUse.Add(inUse, d.telemetryName)
 		startIdle = time.Now()
-	}
+	}``
 	// Wait for any pending concurrent sends to finish or terminate
 	d.wg.Wait()
 
@@ -273,9 +273,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}()
 
 	ctx := d.destinationsContext.Context()
-	if ctx == nil {
-		return fmt.Errorf("Destination context is nil")
-	}
 
 	if err != nil {
 		return err
@@ -310,13 +307,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
 	req = req.WithContext(ctx)
-	if d.client == nil {
-		return errors.New("HTTP client is nil")
-	}
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
-	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
 
@@ -336,6 +329,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
+	log.Tracef("Log payload 2 sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
 	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
