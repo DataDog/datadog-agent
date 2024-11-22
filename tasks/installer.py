@@ -41,7 +41,7 @@ def build(
 
     build_include = (
         get_default_build_tags(
-            build="updater",
+            build="installer",
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
         else filter_incompatible_tags(build_include.split(","))

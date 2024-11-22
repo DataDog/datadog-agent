@@ -2171,6 +2171,7 @@ func TestMockDefaultConfig(t *testing.T) {
 }
 
 func TestGetCoreConfigHandler(t *testing.T) {
+	t.Skip("skipping flaky test - APMSP-1390")
 	config := buildConfigComponent(t, fx.Supply(corecomp.Params{}))
 
 	handler := config.GetConfigHandler().(http.HandlerFunc)

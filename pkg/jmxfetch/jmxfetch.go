@@ -273,6 +273,16 @@ func (j *JMXFetch) Start(manage bool) error {
 		}
 	}
 
+	if !strings.Contains(javaOptions, "java.io.tmpdir") {
+		javaTmpDir := filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "jmxfetch")
+		if err := os.MkdirAll(javaTmpDir, 0755); err != nil {
+			log.Warnf("Failed to create jmxfetch temporary directory %s: %v", javaTmpDir, err)
+		} else {
+			javaTmpDirOpt := fmt.Sprintf(" -Djava.io.tmpdir=%s", javaTmpDir)
+			javaOptions += javaTmpDirOpt
+		}
+	}
+
 	j.setupFIPS(&subprocessArgs, &classpath)
 
 	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)

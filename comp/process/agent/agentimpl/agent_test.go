@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
@@ -66,6 +70,9 @@ func TestProcessAgentComponent(t *testing.T) {
 				taggermock.Module(),
 				statsd.MockModule(),
 				Module(),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				config.MockModule(),
+				sysprobeconfigimpl.MockModule(),
 			}
 
 			if tc.checksEnabled {

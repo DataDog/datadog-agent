@@ -440,7 +440,7 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         else:
             if file_type != "application/x-mach-binary":
                 continue
-            with tempfile.TemporaryFile() as tmpfile:
+            with tempfile.NamedTemporaryFile() as tmpfile:
                 result = ctx.run(f'otool -l {file} > {tmpfile.name}', warn=True, hide=True)
                 if result.exited:
                     continue
