@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package taggerimpl
+package mock
 
 import (
 	"context"
@@ -14,10 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+// Mock implements mock-specific methods for the tagger component.
+type Mock interface {
+	tagger.Component
+
+	// SetTags allows to set tags in the mock fake tagger
+	SetTags(entityID types.EntityID, source string, low, orch, high, std []string)
+
+	// SetGlobalTags allows to set tags in store for the global entity
+	SetGlobalTags(low, orch, high, std []string)
+}
 
 // FakeTagger is a fake implementation of the tagger interface
 type FakeTagger struct {
@@ -25,10 +35,18 @@ type FakeTagger struct {
 	store  *tagstore.TagStore
 }
 
-func newFakeTagger() *FakeTagger {
-	return &FakeTagger{
-		errors: make(map[string]error),
-		store:  tagstore.NewTagStore(nil),
+// Provides is a struct containing the mock and the endpoint
+type Provides struct {
+	Comp Mock
+}
+
+// New instantiates a new fake tagger
+func New() Provides {
+	return Provides{
+		Comp: &FakeTagger{
+			errors: make(map[string]error),
+			store:  tagstore.NewTagStore(nil),
+		},
 	}
 }
 

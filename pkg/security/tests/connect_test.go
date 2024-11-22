@@ -30,11 +30,11 @@ func TestConnectEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet",
-			Expression: `connect.server.addr.family == AF_INET && process.file.name == "syscall_tester"`,
+			Expression: `connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_connect_af_inet6",
-			Expression: `connect.server.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
 		},
 	}
 
