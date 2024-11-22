@@ -478,7 +478,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 	message := LambdaLogAPIMessage{
 		logType:      logTypeExtension,
 		time:         time.Now(),
-		stringRecord: "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}",
+		stringRecord: "{\"DD_EXTENSION_FALLBACK_REASON\":\"test-reason\"}",
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
@@ -504,7 +504,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 
 	// even if enhanced metrics are disabled, we should still send the failover metric
 	lc.enhancedMetricsEnabled = false
-	message.stringRecord = "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}" // add again bc processing empties it
+	message.stringRecord = "{\"DD_EXTENSION_FALLBACK_REASON\":\"test-reason\"}" // add again bc processing empties it
 	lc.processMessage(&message)
 
 	received, timed = demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)

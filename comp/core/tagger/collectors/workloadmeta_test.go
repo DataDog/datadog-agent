@@ -116,7 +116,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	tests := []struct {
 		name                          string
-		staticTags                    map[string][]string
+		staticTags                    map[string]string
 		k8sResourcesAnnotationsAsTags map[string]map[string]string
 		k8sResourcesLabelsAsTags      map[string]map[string]string
 		pod                           workloadmeta.KubernetesPod
@@ -789,8 +789,8 @@ func TestHandleKubePod(t *testing.T) {
 		},
 		{
 			name: "static tags",
-			staticTags: map[string][]string{
-				"eks_fargate_node": {"foobar"},
+			staticTags: map[string]string{
+				"eks_fargate_node": "foobar",
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -961,7 +961,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 
 	tests := []struct {
 		name                string
-		staticTags          map[string][]string
+		staticTags          map[string]string
 		labelsAsTags        map[string]string
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
@@ -1117,7 +1117,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	tests := []struct {
 		name                string
-		staticTags          map[string][]string
+		staticTags          map[string]string
 		labelsAsTags        map[string]string
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
@@ -1617,7 +1617,7 @@ func TestHandleContainer(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		staticTags   map[string][]string
+		staticTags   map[string]string
 		labelsAsTags map[string]string
 		envAsTags    map[string]string
 		container    workloadmeta.Container
@@ -2098,8 +2098,8 @@ func TestHandleContainer(t *testing.T) {
 		},
 		{
 			name: "static tags",
-			staticTags: map[string][]string{
-				"eks_fargate_node": {"foobar"},
+			staticTags: map[string]string{
+				"eks_fargate_node": "foobar",
 			},
 			container: workloadmeta.Container{
 				EntityID: entityID,
