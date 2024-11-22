@@ -11,17 +11,17 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+
+	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
-func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
+func install(ctx context.Context, env *fleetEnv.Env, url string, experiment bool) error {
 	err := os.MkdirAll(paths.RootTmpDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
@@ -48,9 +48,9 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 // 2. Export the installer image as an OCI layout on the disk.
 // 3. Extract the installer image layers on the disk.
 // 4. Create an installer executor from the extract layer.
-func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*exec.InstallerExec, error) {
+func downloadInstaller(ctx context.Context, env *fleetEnv.Env, url string, tmpDir string) (*exec.InstallerExec, error) {
 	// 1. Download the installer package from the registry.
-	downloader := oci.NewDownloader(env, http.DefaultClient)
+	downloader := oci.NewDownloader(env, fleetEnv.GetHTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
