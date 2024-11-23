@@ -42,12 +42,12 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.2
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/collector/confmap v1.19.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v1.19.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.19.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.19.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.19.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.19.0
+	go.opentelemetry.io/collector/confmap v1.20.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.20.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.20.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.20.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.20.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.20.0
 	go.uber.org/zap v1.27.0
 
 )
@@ -88,7 +88,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
-	github.com/knadh/koanf/v2 v2.1.1 // indirect
+	github.com/knadh/koanf/v2 v2.1.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
