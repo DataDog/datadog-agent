@@ -8,7 +8,6 @@
 package diconfig
 
 import (
-	"debug/elf"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+
 	"github.com/kr/pretty"
 )
 
@@ -40,7 +41,7 @@ func TestBinaryInspection(t *testing.T) {
 		t.Error(err)
 	}
 
-	f, err := elf.Open(binPath)
+	f, err := safeelf.Open(binPath)
 	if err != nil {
 		t.Error(err)
 	}

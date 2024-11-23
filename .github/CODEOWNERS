@@ -44,6 +44,8 @@
 /service.datadog.yaml                   @DataDog/agent-delivery
 /static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/agent-devx-infra
 
+/modules.yml                            @DataDog/agent-shared-components
+
 /.circleci/                             @DataDog/agent-devx-infra
 
 /.github/CODEOWNERS                                 # do not notify anyone
@@ -99,7 +101,7 @@
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx-infra @DataDog/ebpf-platform
 /.gitlab/powershell_script_signing/powershell_script_signing.yml    @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-devx-infra @DataDog/agent-devx-loops
-/.gitlab/source_test/include.yml                     @DataDog/agent-devx-infra
+/.gitlab/source_test/*                               @DataDog/agent-devx-infra
 /.gitlab/source_test/linux.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/source_test/macos.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/source_test/notify.yml                      @DataDog/agent-devx-infra @DataDog/agent-devx-loops
@@ -235,6 +237,8 @@
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
+/cmd/system-probe/api/client/client_windows.go    @DataDog/windows-kernel-integrations
+/cmd/system-probe/api/server/listener_windows.go    @DataDog/windows-kernel-integrations
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
@@ -247,6 +251,7 @@
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent-ot                    @DataDog/opentelemetry
+/Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metrics-logs
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
@@ -306,7 +311,6 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
-/comp/core/agenttelemetry @DataDog/agent-metrics-logs
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
@@ -315,11 +319,15 @@
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
+/comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/compression @DataDog/agent-metrics-logs
 /comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
+
+# Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
+/comp/core/agenttelemetry               @DataDog/agent-shared-components @iglendd
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
@@ -364,7 +372,7 @@
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
-/pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
+/pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-metrics-logs
@@ -416,6 +424,7 @@
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/flare/                             @DataDog/agent-shared-components
+/pkg/flare/manifests.go                 @DataDog/container-ecosystems
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
@@ -437,10 +446,12 @@
 /pkg/util/clusteragent/                 @DataDog/container-platform
 /pkg/util/containerd/                   @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
+/pkg/util/crio/                         @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/kernel/                       @DataDog/ebpf-platform
+/pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/ktime                         @DataDog/agent-security
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
@@ -477,8 +488,6 @@
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/process/net/common_windows.go      @DataDog/windows-agent
-/pkg/process/net/windows_pipe.go        @DataDog/windows-kernel-integrations
-/pkg/process/net/windows_pipe_testutil.go     @DataDog/windows-kernel-integrations
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/proto/pbgo/trace                   @DataDog/agent-apm
@@ -562,6 +571,7 @@
 /tasks/libs/ciproviders/                @DataDog/agent-devx-infra
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/release.py                       @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-shared-components
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-shared-components
@@ -608,7 +618,7 @@
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
-/test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-metrics-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations

@@ -434,6 +434,7 @@ func TestActualServer(t *testing.T) {
 	assert.Equal(200, resp.StatusCode)
 
 	close(done)
+	log.SetLogger(log.NoopLogger) // prevent race conditions on test buffer
 	r.telemetryForwarder.Stop()
 	assert.Equal(uint64(1), endpointCalled.Load())
 	assert.NotContains(logs.String(), "ERROR")

@@ -79,7 +79,10 @@ notify_github:
   allow_failure: true
   script:
     - !reference [.setup_agent_github_app]
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is 
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615      
+    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
@@ -101,7 +104,10 @@ notify_gitlab_ci_changes:
           - .gitlab/**/*.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is 
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615    
+    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
     - !reference [.setup_agent_github_app]
     - inv -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
@@ -176,5 +182,5 @@ close_failing_tests_stale_issues:
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt # For Atlassian / Jira dependencies
+    - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt --break-system-packages # For Atlassian / Jira dependencies
     - inv -e notify.close-failing-tests-stale-issues

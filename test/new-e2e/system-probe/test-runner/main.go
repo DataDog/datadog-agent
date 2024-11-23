@@ -144,7 +144,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	args = append(args, testArgs...)
 	args = append(
 		args,
-		"-test.v",
+		"-test.v=test2json",
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)

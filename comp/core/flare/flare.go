@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -48,7 +48,7 @@ type dependencies struct {
 	Config                config.Component
 	Diagnosesendermanager diagnosesendermanager.Component
 	Params                Params
-	Providers             []types.FlareCallback `group:"flare"`
+	Providers             []*types.FlareFiller `group:"flare"`
 	Collector             optional.Option[collector.Component]
 	WMeta                 optional.Option[workloadmeta.Component]
 	Secrets               secrets.Component
@@ -68,7 +68,7 @@ type flare struct {
 	log          log.Component
 	config       config.Component
 	params       Params
-	providers    []types.FlareCallback
+	providers    []*types.FlareFiller
 	diagnoseDeps diagnose.SuitesDeps
 }
 
@@ -92,8 +92,8 @@ func newFlare(deps dependencies) provides {
 	)
 	f.providers = append(
 		f.providers,
-		f.collectLogsFiles,
-		f.collectConfigFiles,
+		types.NewFiller(f.collectLogsFiles),
+		types.NewFiller(f.collectConfigFiles),
 	)
 
 	return provides{
@@ -116,7 +116,11 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	filePath, err := f.Create(nil, 0, nil)
+	flareArgs := types.FlareArgs{}
+	// flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling_runtime") will be utilized here on completion
+	// of AMLII-2127
+
+	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
 	if err != nil {
 		return true, err
 	}
@@ -185,11 +189,22 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
 func (f *flare) Create(pdata ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata)
+}
+
+// Create creates a new flare and returns the path to the final archive file.
+//
+// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
+func (f *flare) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error) (string, error) {
+	return f.create(flareArgs, providerTimeout, ipcError, ProfileData{})
+}
+
+func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata ProfileData) (string, error) {
 	if providerTimeout <= 0 {
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := helpers.NewFlareBuilder(f.params.local)
+	fb, err := helpers.NewFlareBuilder(f.params.local, flareArgs)
 	if err != nil {
 		return "", err
 	}
@@ -219,14 +234,16 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 	defer timer.Stop()
 
 	for _, p := range f.providers {
-		providerName := runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name()
-		f.log.Infof("Running flare provider %s", providerName)
-		_ = fb.Logf("Running flare provider %s", providerName)
+		timeout := max(providerTimeout, p.Timeout(fb))
+		timer.Reset(timeout)
+		providerName := runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name()
+		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
+		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
 
 		done := make(chan struct{})
 		go func() {
 			startTime := time.Now()
-			err := p(fb)
+			err := p.Callback(fb)
 			duration := time.Since(startTime)
 
 			if err == nil {
@@ -248,7 +265,6 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, providerTimeout)
 			_ = fb.Logf("%s", err.Error())
 		}
-		timer.Reset(providerTimeout)
 	}
 
 	f.log.Info("All flare providers have been run, creating archive...")

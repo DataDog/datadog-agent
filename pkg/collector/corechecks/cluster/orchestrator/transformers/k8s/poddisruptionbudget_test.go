@@ -298,13 +298,36 @@ func TestExtractPodDisruptionBudget(t *testing.T) {
 			if tc.expect == nil {
 				assert.Nil(t, got)
 			} else {
-				assert.Equal(t, tc.expect, got)
+				if tc.expect.Metadata == nil {
+					assert.Nil(t, got.Metadata)
+				} else if assert.NotNil(t, got.Metadata) {
+					assert.Equal(t, tc.expect.Metadata.Name, got.Metadata.Name)
+					assert.Equal(t, tc.expect.Metadata.Namespace, got.Metadata.Namespace)
+					assert.Equal(t, tc.expect.Metadata.Uid, got.Metadata.Uid)
+					assert.Equal(t, tc.expect.Metadata.CreationTimestamp, got.Metadata.CreationTimestamp)
+					assert.Equal(t, tc.expect.Metadata.DeletionTimestamp, got.Metadata.DeletionTimestamp)
+					assert.ElementsMatch(t, tc.expect.Metadata.Labels, got.Metadata.Labels)
+					assert.ElementsMatch(t, tc.expect.Metadata.Annotations, got.Metadata.Annotations)
+					if tc.expect.Metadata.OwnerReferences == nil {
+						assert.Nil(t, got.Metadata.OwnerReferences)
+					} else {
+						if assert.NotNil(t, got.Metadata.OwnerReferences) {
+							assert.ElementsMatch(t, tc.expect.Metadata.OwnerReferences, got.Metadata.OwnerReferences)
+						}
+					}
+					assert.Equal(t, tc.expect.Metadata.ResourceVersion, got.Metadata.ResourceVersion)
+					assert.ElementsMatch(t, tc.expect.Metadata.Finalizers, got.Metadata.Finalizers)
+				}
+				assert.Equal(t, tc.expect.Spec, got.Spec)
+				assert.Equal(t, tc.expect.Status, got.Status)
+				assert.ElementsMatch(t, tc.expect.Tags, got.Tags)
 			}
 		})
 	}
 }
 
 func TestExtractExtractPodDisruptionBudgetStatus(t *testing.T) {
+	t0 := time.Now()
 	for name, tc := range map[string]struct {
 		in     *policyv1.PodDisruptionBudgetStatus
 		expect *model.PodDisruptionBudgetStatus
@@ -322,7 +345,7 @@ func TestExtractExtractPodDisruptionBudgetStatus(t *testing.T) {
 		},
 		"full": {
 			in: &policyv1.PodDisruptionBudgetStatus{
-				DisruptedPods:      map[string]metav1.Time{"liborio": metav1.NewTime(time.Now())},
+				DisruptedPods:      map[string]metav1.Time{"liborio": metav1.NewTime(t0)},
 				DisruptionsAllowed: 4,
 				CurrentHealthy:     5,
 				DesiredHealthy:     6,
@@ -332,14 +355,14 @@ func TestExtractExtractPodDisruptionBudgetStatus(t *testing.T) {
 						Type:               "regular",
 						Status:             metav1.ConditionUnknown,
 						ObservedGeneration: 2,
-						LastTransitionTime: metav1.NewTime(time.Now()),
+						LastTransitionTime: metav1.NewTime(t0),
 						Reason:             "why not",
 						Message:            "instant",
 					},
 				},
 			},
 			expect: &model.PodDisruptionBudgetStatus{
-				DisruptedPods:      map[string]int64{"liborio": time.Now().Unix()},
+				DisruptedPods:      map[string]int64{"liborio": t0.Unix()},
 				DisruptionsAllowed: 4,
 				CurrentHealthy:     5,
 				DesiredHealthy:     6,
@@ -348,7 +371,7 @@ func TestExtractExtractPodDisruptionBudgetStatus(t *testing.T) {
 					{
 						Type:               "regular",
 						Status:             string(metav1.ConditionUnknown),
-						LastTransitionTime: time.Now().Unix(),
+						LastTransitionTime: t0.Unix(),
 						Reason:             "why not",
 						Message:            "instant",
 					},
