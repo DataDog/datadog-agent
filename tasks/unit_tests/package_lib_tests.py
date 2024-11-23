@@ -1,9 +1,18 @@
+import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from invoke import MockContext
+from invoke import Exit, MockContext, Result
 
-from tasks.libs.package.size import SCANNED_BINARIES, compute_package_size_metrics
+from tasks.libs.package.size import (
+    PACKAGE_SIZE_TEMPLATE,
+    SCANNED_BINARIES,
+    _get_uncompressed_size,
+    compare,
+    compute_package_size_metrics,
+    get_previous_size,
+)
+from tasks.libs.package.utils import list_packages
 
 
 class TestProduceSizeStats(unittest.TestCase):
@@ -94,3 +103,112 @@ class TestProduceSizeStats(unittest.TestCase):
                 bucket_branch=test_branch,
                 arch=test_arch,
             )
+
+
+class TestListPackages(unittest.TestCase):
+    def test_na_package(self):
+        template = {}
+        self.assertEqual(list_packages(template), [])
+
+    def test_single_package(self):
+        template = {"key": "value"}
+        self.assertEqual(list_packages(template), [["key", "value"]])
+
+    def test_multiple_packages(self):
+        template = {"key": {"key2": 42}}
+        self.assertEqual(list_packages(template), [["key", "key2", 42]])
+
+
+class TestGetPreviousSize(unittest.TestCase):
+    def setUp(self) -> None:
+        with open('tasks/unit_tests/testdata/package_sizes.json') as f:
+            self.package_sizes = json.load(f)
+
+    def test_is_ancestor(self):
+        self.assertEqual(get_previous_size(self.package_sizes, "grand_ma", "artdeco", "cherry", 'fibula'), 42)
+
+    def test_is_other_ancestor(self):
+        self.assertEqual(get_previous_size(self.package_sizes, "pa", "artdeco", "cherry", 'fibula'), 3)
+
+    def test_is_not_ancestor(self):
+        self.assertEqual(get_previous_size(self.package_sizes, "grandPa", "artdeco", "cherry", 'fibula'), 42)
+
+
+class TestGetUncompressedSize(unittest.TestCase):
+    def test_get_deb_uncompressed_size(self):
+        package = 'datadog-agent.deb'
+        c = MockContext(run={f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42)})
+        self.assertEqual(_get_uncompressed_size(c, package, 'deb'), 43008)
+
+    def test_get_rpm_uncompressed_size(self):
+        package = 'datadog-agent.rpm'
+        c = MockContext(run={f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(42)})
+        self.assertEqual(_get_uncompressed_size(c, package, 'rpm'), 42)
+
+    def test_get_suse_uncompressed_size(self):
+        package = 'datadog-agent.rpm'
+        c = MockContext(run={f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(69)})
+        self.assertEqual(_get_uncompressed_size(c, package, 'suse'), 69)
+
+
+class TestCompare(unittest.TestCase):
+    def setUp(self) -> None:
+        with open('tasks/unit_tests/testdata/package_sizes.json') as f:
+            self.package_sizes = json.load(f)
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'datadog-agent', 'OMNIBUS_PACKAGE_DIR_SUSE': 'datadog-agent'})
+    @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
+    @patch('builtins.print')
+    def test_on_main(self, mock_print):
+        package = 'datadog-agent'
+        c = MockContext(
+            run={
+                'git rev-parse --abbrev-ref HEAD': Result('main'),
+                'git merge-base main main': Result('12345'),
+                f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(69),
+            }
+        )
+        self.package_sizes['12345'] = PACKAGE_SIZE_TEMPLATE
+        compare(c, self.package_sizes, 'amd64', package, 'deb', 2001)
+        self.assertEqual(self.package_sizes['12345']['amd64']['datadog-agent']['deb'], 43008)
+        mock_print.assert_not_called()
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'datadog-agent', 'OMNIBUS_PACKAGE_DIR_SUSE': 'datadog-agent'})
+    @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-heroku-agent'))
+    @patch('builtins.print')
+    def test_on_branch_ok(self, mock_print):
+        package = 'datadog-heroku-agent'
+        c = MockContext(
+            run={
+                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
+                'git merge-base pikachu main': Result('25'),
+                f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(69000000),
+            }
+        )
+        compare(c, self.package_sizes, 'arm64', package, 'suse', 70000000)
+        mock_print.assert_called_with("""suse size increase is OK:
+  New package size is 69.00MB
+  Ancestor package (25) size is 68.00MB
+  Diff is 1.00MB (max allowed diff: 70.00MB)""")
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'datadog-agent', 'OMNIBUS_PACKAGE_DIR_SUSE': 'datadog-agent'})
+    @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-heroku-agent'))
+    @patch('builtins.print')
+    def test_on_branch_ko(self, mock_print):
+        package = 'datadog-heroku-agent'
+        c = MockContext(
+            run={
+                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
+                'git merge-base pikachu main': Result('25'),
+                f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(139000000),
+            }
+        )
+        with self.assertRaises(Exit):
+            compare(c, self.package_sizes, 'arm64', package, 'suse', 70000000)
+            mock_print.assert_called_with("""suse size increase is too large:
+  New package size is 139.00MB
+  Ancestor package (25) size is 68.00MB
+  Diff is 71.00MB (max allowed diff: 70.00MB)""")

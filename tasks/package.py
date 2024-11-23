@@ -1,31 +1,37 @@
-import glob
 import os
+from datetime import datetime
+from multiprocessing import Manager, Pool
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import compute_package_size_metrics
+from tasks.libs.common.constants import DEFAULT_BRANCH
+from tasks.libs.common.git import get_common_ancestor, get_current_branch
+from tasks.libs.package.size import (
+    PACKAGE_SIZE_TEMPLATE,
+    _get_deb_uncompressed_size,
+    _get_rpm_uncompressed_size,
+    compare,
+    compute_package_size_metrics,
+)
+from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_size
 
 
-def get_package_path(glob_pattern):
-    package_paths = glob.glob(glob_pattern)
-    if len(package_paths) > 1:
-        raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
-    elif len(package_paths) == 0:
-        raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
-
-    return package_paths[0]
-
-
-def _get_deb_uncompressed_size(ctx, package):
-    # the size returned by dpkg is a number of bytes divided by 1024
-    # so we multiply it back to get the same unit as RPM or stat
-    return int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs').stdout) * 1024
-
-
-def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs').stdout)
+@task
+def check_size(ctx, filename: str = 'package_sizes.json'):
+    packages = retrieve_package_sizes(ctx, filename)
+    if get_current_branch(ctx) == DEFAULT_BRANCH:
+        # Initialize to default values before writing in parallel to the dict
+        ancestor = get_common_ancestor(ctx, DEFAULT_BRANCH)
+        packages[ancestor] = PACKAGE_SIZE_TEMPLATE
+        packages[ancestor]['timestamp'] = int(datetime.now().timestamp())
+    # Check size of packages in parallel
+    with Manager() as manager:
+        package_sizes = manager.dict(packages)
+        with Pool() as pool:
+            pool.starmap(compare, [(ctx, package_sizes, *package) for package in list_packages(PACKAGE_SIZE_TEMPLATE)])
+        upload_package_size(ctx, package_sizes, filename)
 
 
 @task
