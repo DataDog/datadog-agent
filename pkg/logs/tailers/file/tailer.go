@@ -232,6 +232,7 @@ func (t *Tailer) Identifier() string {
 
 // Start begins the tailer's operation in a dedicated goroutine.
 func (t *Tailer) Start(offset int64, whence int) error {
+	fmt.Println("TAILER STARTING, FILE IS ", t.file.Path)
 	err := t.setup(offset, whence)
 	if err != nil {
 		t.file.Source.Status().Error(err)
