@@ -9,6 +9,7 @@ package checkconfig
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"hash/fnv"
 	"net"
 	"sort"
@@ -83,6 +84,7 @@ type DeviceDigest string
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
+	UseRCProfiles         bool                              `yaml:"use_remote_config_profiles"`
 	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize          Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
@@ -266,7 +268,8 @@ func (c *CheckConfig) ToString() string {
 }
 
 // NewCheckConfig builds a new check config
-func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
+func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data, rcClient rcclient.Component) (*CheckConfig,
+	error) {
 	instance := InstanceConfig{}
 	initConfig := InitConfig{}
 
@@ -430,11 +433,20 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	profiles, err := profile.GetProfileProvider(initConfig.Profiles)
+	if initConfig.UseRCProfiles {
+		if rcClient == nil {
+			return nil, fmt.Errorf("rc client not initialized, cannot use rc profiles")
+		}
+		if len(initConfig.Profiles) > 0 {
+			return nil, fmt.Errorf("cannot provide profiles in config when use_remote_config_profiles is set")
+		}
+		c.ProfileProvider, err = profile.NewRCProvider(rcClient)
+	} else {
+		c.ProfileProvider, err = profile.GetProfileProvider(initConfig.Profiles)
+	}
 	if err != nil {
 		return nil, err
 	}
-	c.ProfileProvider = profiles
 
 	// profile configs
 	c.ProfileName = instance.Profile
