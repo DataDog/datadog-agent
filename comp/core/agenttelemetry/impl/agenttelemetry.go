@@ -392,12 +392,12 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 		return nil, fmt.Errorf("unable to marshal agent telemetry payload: %w", err)
 	}
 
-	jsonPayloadScrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	jsonPayloadScrubbed, err := scrubber.ScrubJSONString(string(jsonPayload))
 	if err != nil {
 		return nil, fmt.Errorf("unable to scrub agent telemetry payload: %w", err)
 	}
 
-	return jsonPayloadScrubbed, nil
+	return []byte(jsonPayloadScrubbed), nil
 }
 
 // start is called by FX when the application starts.
