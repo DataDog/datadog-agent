@@ -35,6 +35,7 @@ type Provider interface {
 	ReconfigureSDSAgentConfig(config []byte) (bool, error)
 	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
+	GetOutputChan() chan *message.Message
 	NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor)
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -63,6 +64,7 @@ type provider struct {
 // processorOnlyProvider implements the Provider provider interface and only contains the processor
 type processorOnlyProvider struct {
 	processor       *processor.Processor
+	inputChan       chan *message.Message
 	outputChan      chan *message.Message
 	pipelineMonitor *metrics.TelemetryPipelineMonitor
 }
@@ -90,6 +92,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 
 	p := &processorOnlyProvider{
 		processor:       processor,
+		inputChan:       inputChan,
 		outputChan:      outputChan,
 		pipelineMonitor: pipelineMonitor,
 	}
@@ -262,11 +265,19 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 }
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
-	return p.outputChan
+	return p.inputChan
 }
 
 func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return p.outputChan, p.pipelineMonitor
+	return p.inputChan, p.pipelineMonitor
+}
+
+func (p *provider) GetOutputChan() chan *message.Message {
+	return nil
+}
+
+func (p *processorOnlyProvider) GetOutputChan() chan *message.Message {
+	return p.outputChan
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.

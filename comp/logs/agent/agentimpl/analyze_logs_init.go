@@ -13,6 +13,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -31,8 +32,10 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 		return nil
 	}
 
-	pipelineProvider := pipeline.NewProcessorOnlyProvider(nil, processingRules, conf, nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
+	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, conf, nil)
 	// setup the launchers
+
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
 	fileLimits := 500
 	fileValidatePodContainer := false
@@ -46,7 +49,6 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 		fileWildcardSelectionMode,
 		nil,
 		nil)
-	sourceProvider := sources.GetInstance()
 	tracker := tailers.NewTailerTracker()
 
 	DefaultAuditorTTL := 23
@@ -55,9 +57,12 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 
 	auditorTTL := time.Duration(DefaultAuditorTTL) * time.Hour
 	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
-	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
-	lnchrs.AddLauncher(fileLauncher)
 
-	outputChan := pipelineProvider.NextPipelineChan()
+	pipelineProvider.Start()
+	sourceProvider := sources.GetInstance()
+	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
+
+	lnchrs.AddLauncher(fileLauncher)
+	outputChan := pipelineProvider.GetOutputChan()
 	return outputChan
 }
