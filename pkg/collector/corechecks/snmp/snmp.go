@@ -8,6 +8,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"sync"
 	"time"
 
@@ -40,6 +41,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
+	rcClient                   rcclient.Component
 	config                     *checkconfig.CheckConfig
 	singleDeviceCk             *devicecheck.DeviceCheck
 	discovery                  *discovery.Discovery
@@ -125,8 +127,7 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 // Configure configures the snmp checks
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
-
-	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
+	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig, c.rcClient)
 	if err != nil {
 		return fmt.Errorf("build config failed: %s", err)
 	}
@@ -198,14 +199,15 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) optional.Option[func() check.Check] {
+func Factory(agentConfig config.Component, rcClient rcclient.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
-		return newCheck(agentConfig)
+		return newCheck(agentConfig, rcClient)
 	})
 }
 
-func newCheck(agentConfig config.Component) check.Check {
+func newCheck(agentConfig config.Component, rcClient rcclient.Component) check.Check {
 	return &Check{
+		rcClient:                   rcClient,
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
