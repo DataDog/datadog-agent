@@ -2409,11 +2409,11 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 // Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
-	if utils.IsProgramTraced(usm.GoTLSAttacherName, pid) {
+	if utils.IsProgramTraced("go-tls", pid) {
 		return
 	}
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
-	utils.WaitForProgramsToBeTraced(t, usm.GoTLSAttacherName, pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, "go-tls", pid, utils.ManualTracingFallbackEnabled)
 }
 
 // goTLSDetachPID detaches the Go-TLS monitoring from the given PID.
@@ -2422,13 +2422,13 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	t.Helper()
 
 	// The program is not traced; nothing to do.
-	if !utils.IsProgramTraced(usm.GoTLSAttacherName, pid) {
+	if !utils.IsProgramTraced("go-tls", pid) {
 		return
 	}
 
 	require.NoError(t, usm.GoTLSDetachPID(uint32(pid)))
 
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(usm.GoTLSAttacherName, pid)
+		return !utils.IsProgramTraced("go-tls", pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
 }
