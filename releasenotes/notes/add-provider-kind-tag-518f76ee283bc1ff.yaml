@@ -8,5 +8,4 @@
 ---
 enhancements:
   - |
-    Add new host tag `provider_kind` from the value of `DD_PROVIDER_KIND`
-    for agents running in GCE.
+    Add new host tag `provider_kind` from the value of `DD_PROVIDER_KIND` for Agents running in GCE.
