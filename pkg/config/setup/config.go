@@ -356,6 +356,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("flare.rc_profiling_runtime", 60*time.Second)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -1015,6 +1016,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 
 	// Remote agents
+	config.BindEnvAndSetDefault("remote_agent_registry.enabled", false)
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
@@ -1707,6 +1709,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
 	if isSet = config.IsSet("proxy"); isSet {
+		// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
 		if err := config.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
@@ -2468,6 +2471,7 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	var cps []ConfigurationProviders
+	// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
 	if err := config.UnmarshalKey("config_providers", &cps); err != nil {
 		return false
 	}

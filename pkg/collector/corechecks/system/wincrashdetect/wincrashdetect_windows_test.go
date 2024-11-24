@@ -8,37 +8,27 @@
 package wincrashdetect
 
 import (
-	"net"
 	"net/http"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/registry"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	processNet "github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
 const (
 	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
 )
-
-func createSystemProbeListener() (l net.Listener, close func()) {
-	conn, err := processNet.NewSystemProbeListener(systemProbeTestPipeName)
-	if err != nil {
-		panic(err)
-	}
-	return conn.GetListener(), func() {
-		_ = conn.GetListener().Close()
-	}
-}
 
 func testSetup(t *testing.T) {
 	// change the hive to hku for the test
@@ -59,17 +49,15 @@ func TestWinCrashReporting(t *testing.T) {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
-	listener, closefunc := createSystemProbeListener()
-	defer closefunc()
+	listener, err := server.NewListener(systemProbeTestPipeName)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	mux := http.NewServeMux()
-	server := http.Server{
+	srv := http.Server{
 		Handler: mux,
 	}
-	defer server.Close()
-
-	// no socket address is set in config for Windows since system probe
-	// utilizes a fixed named pipe.
+	defer srv.Close()
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different
@@ -87,7 +75,7 @@ func TestWinCrashReporting(t *testing.T) {
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
-	go server.Serve(listener)
+	go srv.Serve(listener)
 
 	t.Run("test that no crash detected properly reports", func(t *testing.T) {
 		testSetup(t)
@@ -194,14 +182,15 @@ func TestCrashReportingStates(t *testing.T) {
 
 	var crashStatus *probe.WinCrashStatus
 
-	listener, closefunc := createSystemProbeListener()
-	defer closefunc()
+	listener, err := server.NewListener(systemProbeTestPipeName)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	mux := http.NewServeMux()
-	server := http.Server{
+	srv := http.Server{
 		Handler: mux,
 	}
-	defer server.Close()
+	defer srv.Close()
 
 	cp, err := probe.NewWinCrashProbe(nil)
 	assert.NotNil(t, cp)
@@ -237,7 +226,7 @@ func TestCrashReportingStates(t *testing.T) {
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
-	go server.Serve(listener)
+	go srv.Serve(listener)
 
 	t.Run("test reporting a crash with a busy intermediate state", func(t *testing.T) {
 		testSetup(t)

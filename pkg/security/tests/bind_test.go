@@ -67,6 +67,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
 			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
+			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
 		})
@@ -89,6 +90,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
 			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
+			assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
 		})
