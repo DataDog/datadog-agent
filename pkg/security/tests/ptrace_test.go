@@ -40,7 +40,7 @@ func TestPTraceEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "ptrace", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "ptrace", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"ptrace-traceme"}
 		envs := []string{}
 
@@ -51,7 +51,7 @@ func TestPTraceEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "ptrace", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(42), event.PTrace.Address, "wrong address")
 

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -253,7 +254,7 @@ var (
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg obfuscate.Config
-		if err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = obfuscate.Config{}
 		}

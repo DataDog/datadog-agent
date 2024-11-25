@@ -1327,6 +1327,11 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
+          "name": "bind.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "bind-protocol-doc"
+        },
+        {
           "name": "bind.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
@@ -1834,6 +1839,11 @@
           "name": "connect.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "connect-protocol-doc"
         },
         {
           "name": "connect.retval",
@@ -9440,6 +9450,18 @@
       "examples": []
     },
     {
+      "name": "bind.protocol",
+      "link": "bind-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
+      "prefixes": [
+        "bind"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bpf.cmd",
       "link": "bpf-cmd-doc",
       "type": "int",
@@ -9708,6 +9730,18 @@
       "link": "connect-addr-family-doc",
       "type": "int",
       "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.protocol",
+      "link": "connect-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
       "prefixes": [
         "connect"
       ],
