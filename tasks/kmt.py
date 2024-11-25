@@ -51,7 +51,7 @@ from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
-from tasks.security_agent import build_functional_tests, build_stress_tests
+from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
@@ -694,7 +694,6 @@ def kmt_secagent_prepare(
         skip_object_files=True,
         arch=arch,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
@@ -1326,7 +1325,7 @@ def build(
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")

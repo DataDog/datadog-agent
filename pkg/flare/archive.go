@@ -53,7 +53,7 @@ func getProcessAPIAddressPort() (string, error) {
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCallback {
+func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -61,19 +61,19 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	 * is always better to not capture data containing secrets, than to scrub that data.
 	 */
 
-	providers := []flaretypes.FlareCallback{
-		provideExtraFiles,
-		provideSystemProbe,
-		provideConfigDump,
-		provideRemoteConfig,
-		getRegistryJSON,
-		getVersionHistory,
-		getWindowsData,
-		getExpVar,
-		provideInstallInfo,
-		provideAuthTokenPerm,
-		provideDiagnoses(diagnoseDeps),
-		provideContainers(diagnoseDeps),
+	providers := []*flaretypes.FlareFiller{
+		flaretypes.NewFiller(provideExtraFiles),
+		flaretypes.NewFiller(provideSystemProbe),
+		flaretypes.NewFiller(provideConfigDump),
+		flaretypes.NewFiller(provideRemoteConfig),
+		flaretypes.NewFiller(getRegistryJSON),
+		flaretypes.NewFiller(getVersionHistory),
+		flaretypes.NewFiller(getWindowsData),
+		flaretypes.NewFiller(getExpVar),
+		flaretypes.NewFiller(provideInstallInfo),
+		flaretypes.NewFiller(provideAuthTokenPerm),
+		flaretypes.NewFiller(provideDiagnoses(diagnoseDeps)),
+		flaretypes.NewFiller(provideContainers(diagnoseDeps)),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -86,10 +86,12 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 		"go-routine-dump.log": func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
 		"telemetry.log":       func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
 	} {
-		providers = append(providers, func(fb flaretypes.FlareBuilder) error {
-			fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
-			return nil
-		})
+		providers = append(providers, flaretypes.NewFiller(
+			func(fb flaretypes.FlareBuilder) error {
+				fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
+				return nil
+			},
+		))
 	}
 
 	return providers

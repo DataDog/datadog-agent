@@ -8,9 +8,7 @@ package remotetaggerimpl
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
@@ -21,19 +19,15 @@ type tagStore struct {
 	mutex     sync.RWMutex
 	store     types.ObjectStore[*types.Entity]
 	telemetry map[string]float64
-	cfg       config.Component
 
-	subscriptionManager subscriber.SubscriptionManager
-	telemetryStore      *telemetry.Store
+	telemetryStore *telemetry.Store
 }
 
-func newTagStore(cfg config.Component, telemetryStore *telemetry.Store) *tagStore {
+func newTagStore(telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:               genericstore.NewObjectStore[*types.Entity](),
-		telemetry:           make(map[string]float64),
-		cfg:                 cfg,
-		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
-		telemetryStore:      telemetryStore,
+		store:          genericstore.NewObjectStore[*types.Entity](),
+		telemetry:      make(map[string]float64),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -61,8 +55,6 @@ func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error
 			s.store.Unset(event.Entity.ID)
 		}
 	}
-
-	s.notifySubscribers(events)
 
 	return nil
 }
@@ -101,30 +93,8 @@ func (s *tagStore) collectTelemetry() {
 	}
 }
 
-func (s *tagStore) subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	events := make([]types.EntityEvent, 0, s.store.Size())
-
-	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) {
-		events = append(events, types.EntityEvent{
-			EventType: types.EventTypeAdded,
-			Entity:    *e,
-		})
-	})
-
-	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
-}
-
-func (s *tagStore) notifySubscribers(events []types.EntityEvent) {
-	s.subscriptionManager.Notify(events)
-}
-
 // reset clears the local store, preparing it to be re-initialized from a fresh
-// stream coming from the remote source. It also notifies all subscribers that
-// entities have been deleted before re-adding them. In practice, a remote
-// tagger is not expected to have subscribers though.
+// stream coming from the remote source.
 // NOTE: caller must ensure that it holds s.mutex's lock, as this func does not
 // do it on its own.
 func (s *tagStore) reset() {
@@ -140,8 +110,6 @@ func (s *tagStore) reset() {
 			Entity:    types.Entity{ID: e.ID},
 		})
 	})
-
-	s.notifySubscribers(events)
 
 	s.store = genericstore.NewObjectStore[*types.Entity]()
 }

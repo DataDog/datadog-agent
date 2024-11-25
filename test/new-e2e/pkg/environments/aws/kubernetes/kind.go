@@ -138,7 +138,7 @@ agents:
   useHostNetwork: true
 `
 
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName)}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {

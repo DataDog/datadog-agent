@@ -148,7 +148,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    update_protocol_classification_information(t, val);
+    if (is_protocol_classification_supported()) {
+        update_protocol_classification_information(t, val);
+    }
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);
@@ -204,6 +206,10 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 
     if (stats.state_transitions > 0) {
         val->state_transitions |= stats.state_transitions;
+    }
+
+    if (stats.failure_reason != 0) {
+        val->failure_reason = stats.failure_reason;
     }
 }
 

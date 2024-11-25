@@ -15,9 +15,10 @@ import (
 
 func TestServiceNameFromCLI(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     []string
-		expected string
+		name              string
+		args              []string
+		expected          string
+		expectedDDService string
 	}{
 		{
 			name:     "should return laravel for artisan commands",
@@ -25,14 +26,20 @@ func TestServiceNameFromCLI(t *testing.T) {
 			expected: "laravel",
 		},
 		{
-			name:     "should return service_name for php -ddatadog.service=service_name",
-			args:     []string{"php", "-ddatadog.service=service_name", "server.php"},
-			expected: "service_name",
+			name:              "should return service_name for php -ddatadog.service=service_name",
+			args:              []string{"php", "-ddatadog.service=service_name", "server.php"},
+			expectedDDService: "service_name",
 		},
 		{
-			name:     "should return service_name for php -d datadog.service=service_name",
-			args:     []string{"php", "-d", "datadog.service=service_name", "server.php"},
-			expected: "service_name",
+			name:              "should return service_name for php -d datadog.service=service_name",
+			args:              []string{"php", "-d", "datadog.service=service_name", "server.php"},
+			expectedDDService: "service_name",
+		},
+		{
+			name:              "should return both laravel and dd service",
+			args:              []string{"php", "-ddatadog.service=foo", "artisan", "serve"},
+			expected:          "laravel",
+			expectedDDService: "foo",
 		},
 		{
 			name:     "artisan command with -x flag",
@@ -60,6 +67,7 @@ func TestServiceNameFromCLI(t *testing.T) {
 			} else {
 				require.False(t, ok)
 			}
+			require.Equal(t, tt.expectedDDService, value.DDService)
 		})
 	}
 }
