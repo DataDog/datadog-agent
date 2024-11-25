@@ -1755,7 +1755,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponent(t, fx.Replace(corecomp.MockParams{
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
 			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 		}))
 		cfg := c.Object()
