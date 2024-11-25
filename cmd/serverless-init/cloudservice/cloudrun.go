@@ -7,10 +7,9 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
-
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 )
 
 const (
