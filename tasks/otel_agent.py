@@ -76,8 +76,6 @@ def integration_test(ctx):
     """
     Run the otel integration test
     """
-    cmd = """go test -timeout 0s -tags kubelet,jmx,cri,otlp,zstd,zk,jetson,etcd,\
-            kubeapiserver,zlib,podman,netcgo,docker,oracle,python,consul,orchestrator,\
-            process,trivy,systemd,datadog.no_waf,apm,containerd,ec2,gce,test -run \
-            ^TestIntegration$ github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
+    cmd = """go test -timeout 0s -tags otlp,test -run ^TestIntegration$ \
+        github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
     ctx.run(cmd)
