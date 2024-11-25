@@ -56,8 +56,11 @@ def is_worktree():
     return Path.cwd() == WORKTREE_DIRECTORY
 
 
-def enter_env(ctx, branch: str, skip_checkout=False):
+def enter_env(ctx, branch: str | None, skip_checkout=False):
     """Enters the worktree environment."""
+
+    if not branch:
+        assert skip_checkout, 'skip_checkout must be set to True if branch is None'
 
     if not skip_checkout:
         init_env(ctx, branch)
@@ -65,7 +68,7 @@ def enter_env(ctx, branch: str, skip_checkout=False):
         assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and skip_checkout is set to True"
 
     os.chdir(WORKTREE_DIRECTORY)
-    if skip_checkout:
+    if skip_checkout and branch:
         current_branch = get_current_branch(ctx)
         assert (
             current_branch == branch
@@ -83,7 +86,7 @@ def agent_context(ctx, branch: str | None, skip_checkout=False):
     """Applies code to the worktree environment if the branch is not None.
 
     Args:
-        branch: The branch to switch to.
+        branch: The branch to switch to. If None, will enter the worktree environment without switching branch (ensures that skip_checkout is True).
         skip_checkout: If True, the branch will not be switched (no pull will be performed too).
 
     Usage:
@@ -91,22 +94,16 @@ def agent_context(ctx, branch: str | None, skip_checkout=False):
         >    ctx.run("head CHANGELOG.rst")  # Displays the changelog of the target branch
     """
 
-    if branch is not None:
-        # Do not stack two environments
-        if is_worktree():
-            yield
-            return
+    # Do not stack two environments
+    if is_worktree():
+        yield
+        return
 
-        try:
-            # Enter
-            enter_env(ctx, branch, skip_checkout=skip_checkout)
-
-            yield
-        finally:
-            # Exit
-            exit_env()
-    else:
-        # NOTE: This ensures that we don't push local context from a worktree context (context might be switched within inner functions)
-        assert not is_worktree(), 'Local context cannot be used within a worktree context'
+    try:
+        # Enter
+        enter_env(ctx, branch, skip_checkout=skip_checkout)
 
         yield
+    finally:
+        # Exit
+        exit_env()

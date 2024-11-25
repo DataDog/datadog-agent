@@ -23,8 +23,7 @@ class TestWorktree(unittest.TestCase):
             self.assertTrue(is_worktree())
 
     def test_context_is_worktree_false(self):
-        with agent_context(get_ctx(), None):
-            self.assertFalse(is_worktree())
+        self.assertFalse(is_worktree())
 
     def test_context_nested(self):
         with agent_context(get_ctx(), '6.53.x'):
@@ -35,13 +34,17 @@ class TestWorktree(unittest.TestCase):
     def test_context_pwd(self):
         ctx = get_ctx()
 
-        with agent_context(ctx, None):
-            pwdlocal = ctx.run('pwd').stdout
+        with agent_context(ctx, None, skip_checkout=True):
+            pwdnone = ctx.run('pwd').stdout
 
         with agent_context(ctx, '6.53.x'):
             pwd6 = ctx.run('pwd').stdout
 
-        self.assertNotEqual(pwd6, pwdlocal)
+        with agent_context(ctx, 'main'):
+            pwdmain = ctx.run('pwd').stdout
+
+        self.assertEqual(pwd6, pwdnone)
+        self.assertEqual(pwd6, pwdmain)
 
     def test_context_modules(self):
         ctx = get_ctx()
