@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	sysprobeserver "github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	processNet "github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
 const (
@@ -32,12 +32,12 @@ func sysprobeSocketPath(_ *testing.T) string {
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	server := httptest.NewUnstartedServer(handler)
 
-	conn, err := processNet.NewSystemProbeListener(systemProbeTestPipeName)
+	conn, err := sysprobeserver.NewListener(systemProbeTestPipeName)
 	if err != nil {
 		return nil, err
 	}
 
-	server.Listener = conn.GetListener()
+	server.Listener = conn
 	return server, nil
 }
 
