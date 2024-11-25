@@ -217,7 +217,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/inner/app.js",
 			},
 			lang:                  language.Node,
-			expectedGeneratedName: "app.js",
+			expectedGeneratedName: "app",
 			fs:                    &subUsmTestData,
 		},
 		{
