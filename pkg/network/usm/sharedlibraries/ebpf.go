@@ -146,11 +146,6 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	return progSingleton
 }
 
-// enableLibset enables the eBPF program for the given libset. Assumes initMutex is locked
-func (e *EbpfProgram) enableLibset(libset Libset) {
-	e.libsets[libset].enabled = true
-}
-
 // isLibsetEnabled checks if the libset is enabled. Assumes initMutex is locked
 func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	data, ok := e.libsets[libset]
