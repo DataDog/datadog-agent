@@ -16,21 +16,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
-
 	"github.com/kr/pretty"
 )
 
-func TestBinaryInspection(t *testing.T) {
-
-	testFunctions := []string{
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string",
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct",
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct",
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_slice",
-	}
-
+func TestAnalyzeBinary(t *testing.T) {
 	curDir, err := pwd()
 	if err != nil {
 		t.Error(err)
@@ -46,19 +36,46 @@ func TestBinaryInspection(t *testing.T) {
 		t.Error(err)
 	}
 
-	result, err := bininspect.InspectWithDWARF(f, testFunctions, nil)
-	if err != nil {
-		t.Error(">", err)
-	}
-
-	for _, funcMetadata := range result.Functions {
-		for paramName, paramMeta := range funcMetadata.Parameters {
-			for _, piece := range paramMeta.Pieces {
-				pretty.Log(paramName, piece)
-			}
-		}
-	}
+	pretty.Log(x.TypeMap.Functions)
 }
+
+// func TestBinaryInspection(t *testing.T) {
+
+// 	testFunctions := []string{
+// 		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string",
+// 		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct",
+// 		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct",
+// 		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_slice",
+// 	}
+
+// 	curDir, err := pwd()
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
+
+// 	binPath, err := testutil.BuildGoBinaryWrapper(curDir, "../testutil/sample/sample_service")
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
+
+// 	f, err := elf.Open(binPath)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
+
+// 	result, err := bininspect.InspectWithDWARF(f, testFunctions, nil)
+// 	if err != nil {
+// 		t.Error(">", err)
+// 	}
+
+// 	for _, funcMetadata := range result.Functions {
+// 		for paramName, paramMeta := range funcMetadata.Parameters {
+// 			for _, piece := range paramMeta.Pieces {
+// 				pretty.Log(paramName, piece)
+// 			}
+// 		}
+// 	}
+// }
 
 // pwd returns the current directory of the caller.
 func pwd() (string, error) {

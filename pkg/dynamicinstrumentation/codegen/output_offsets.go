@@ -86,44 +86,6 @@ func flattenParameters(params []ditypes.Parameter) []ditypes.Parameter {
 	return flattenedParams
 }
 
-func applyFieldCountLimit(params []ditypes.Parameter) {
-	queue := []*ditypes.Parameter{}
-	for i := range params {
-		queue = append(queue, &params[len(params)-1-i])
-	}
-	var (
-		current *ditypes.Parameter
-		max     int
-	)
-	for len(queue) != 0 {
-		current = queue[0]
-		queue = queue[1:]
-
-		max = len(current.ParameterPieces)
-		if len(current.ParameterPieces) > ditypes.MaxFieldCount {
-			max = ditypes.MaxFieldCount
-			for j := max; j < len(current.ParameterPieces); j++ {
-				excludeForFieldCount(&current.ParameterPieces[j])
-			}
-		}
-		for n := 0; n < max; n++ {
-			queue = append(queue, &current.ParameterPieces[n])
-		}
-	}
-}
-
-func excludeForFieldCount(root *ditypes.Parameter) {
-	// Exclude all in this tree
-	if root == nil {
-		return
-	}
-	root.NotCaptureReason = ditypes.FieldLimitReached
-	root.Kind = ditypes.KindCutFieldLimit
-	for i := range root.ParameterPieces {
-		excludeForFieldCount(&root.ParameterPieces[i])
-	}
-}
-
 func hasHeader(kind reflect.Kind) bool {
 	return kind == reflect.Struct ||
 		kind == reflect.Array ||
