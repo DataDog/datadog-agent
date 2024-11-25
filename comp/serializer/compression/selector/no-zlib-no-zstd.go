@@ -16,12 +16,12 @@ import (
 
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called only when there is no zlib or zstd tag
-func NewCompressorReq(_ compression.Requires) compression.Provides {
-	return implnoop.NewComponent()
+func NewCompressorReq(_ Requires) Provides {
+	return Provides{Comp: implnoop.NewComponent().Comp}
 }
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when there is no zlib or zstd tag
 func NewCompressor(cfg config.Component) compression.Component {
-	return NewCompressorReq(compression.Requires{Cfg: cfg}).Comp
+	return NewCompressorReq(Requires{Cfg: cfg}).Comp
 }

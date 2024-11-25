@@ -19,24 +19,24 @@ import (
 
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
-func NewCompressorReq(req compression.Requires) compression.Provides {
+func NewCompressorReq(req Requires) Provides {
 	switch req.Cfg.GetString("serializer_compressor_kind") {
 	case common.ZlibKind:
-		return implzlib.NewComponent()
+		return Provides{implzlib.NewComponent().Comp}
 	case common.ZstdKind:
 		log.Warn("zstd build tag not included. using zlib")
-		return implzlib.NewComponent()
+		return Provides{implzlib.NewComponent().Comp}
 	case common.NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return implnoop.NewComponent()
+		return Provides{implnoop.NewComponent().Comp}
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return implnoop.NewComponent()
+		return Provides{implnoop.NewComponent().Comp}
 	}
 }
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(cfg config.Component) compression.Component {
-	return NewCompressorReq(compression.Requires{Cfg: cfg}).Comp
+	return NewCompressorReq(Requires{Cfg: cfg}).Comp
 }
