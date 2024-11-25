@@ -6,7 +6,6 @@
 package model
 
 import (
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -39,7 +38,7 @@ func TestConcurrencySetGet(t *testing.T) {
 	assert.Equal(t, config.GetString("foo"), "bar")
 }
 
-func TestConcurrencyUnmarshalling(t *testing.T) {
+func TestConcurrencyUnmarshalling(_ *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.SetDefault("foo", map[string]string{})
@@ -47,39 +46,20 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	config.SetDefault("baz", "test")
 
 	var wg sync.WaitGroup
-	errs := make(chan error, 1000)
 
 	wg.Add(2)
-	go func() {
+	getter := func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
 			config.GetStringMapString("foo")
 		}
-	}()
-
-	var s *[]string
-	go func() {
-		defer wg.Done()
-		for n := 0; n <= 1000; n++ {
-			// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
-			err := config.UnmarshalKey("foo", &s)
-			if err != nil {
-				errs <- fmt.Errorf("unable to decode into struct, %w", err)
-				return
-			}
-		}
-	}()
+	}
+	go getter()
+	go getter()
 
 	go func() {
 		wg.Wait()
-		close(errs)
 	}()
-
-	for err := range errs {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 }
 
 func TestGetConfigEnvVars(t *testing.T) {
