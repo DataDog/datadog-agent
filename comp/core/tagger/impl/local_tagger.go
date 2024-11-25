@@ -60,7 +60,7 @@ func (t *localTagger) Start(ctx context.Context) error {
 	)
 
 	go t.tagStore.Run(t.ctx)
-	go t.collector.Run(t.ctx, t.cfg)
+	go t.collector.Run(t.ctx)
 
 	return nil
 }
