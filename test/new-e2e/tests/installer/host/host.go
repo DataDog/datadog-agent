@@ -702,8 +702,12 @@ type LocalCDN struct {
 }
 
 type orderConfig struct {
-	// Order is the order of the layers.
-	Order []string `json:"order"`
+	Order            []string          `json:"order"`
+	ScopeExpressions []scopeExpression `json:"scope_expressions"`
+}
+type scopeExpression struct {
+	Expression string `json:"expression"`
+	PolicyID   string `json:"config_id"`
 }
 
 // NewLocalCDN creates a new local CDN.
@@ -714,7 +718,8 @@ func NewLocalCDN(host *Host) *LocalCDN {
 	// Create order file
 	orderPath := filepath.Join(localCDNPath, "configuration_order")
 	orderContent := orderConfig{
-		Order: []string{},
+		Order:            []string{},
+		ScopeExpressions: []scopeExpression{},
 	}
 	orderBytes, err := json.Marshal(orderContent)
 	require.NoError(host.t, err)
@@ -736,7 +741,7 @@ func (c *LocalCDN) AddLayer(name string, content string) error {
 
 	layerPath := filepath.Join(c.DirPath, name)
 
-	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
+	jsonContent := fmt.Sprintf(`{"name": "%s", %s}`, name, content)
 
 	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
 	require.NoError(c.host.t, err)
@@ -749,6 +754,10 @@ func (c *LocalCDN) AddLayer(name string, content string) error {
 	err = json.Unmarshal(orderBytes, &orderContent)
 	require.NoError(c.host.t, err)
 	orderContent.Order = append(orderContent.Order, name)
+	orderContent.ScopeExpressions = append(orderContent.ScopeExpressions, scopeExpression{
+		Expression: "true",
+		PolicyID:   name,
+	})
 	orderBytes, err = json.Marshal(orderContent)
 	require.NoError(c.host.t, err)
 	_, err = c.host.remote.WriteFile(orderPath, orderBytes)

@@ -25,7 +25,6 @@ import (
 	"go.uber.org/fx"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
@@ -63,7 +62,6 @@ type dependencies struct {
 	Context            context.Context
 	Params             *Params
 	TelemetryCollector telemetry.TelemetryCollector
-	Workloadmeta       workloadmeta.Component
 	Statsd             statsd.Component
 	Tagger             tagger.Component
 	Compressor         compression.Component
@@ -91,7 +89,6 @@ type component struct {
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
-	workloadmeta       workloadmeta.Component
 	wg                 *sync.WaitGroup
 }
 
@@ -111,7 +108,6 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		cancel:             cancel,
 		config:             deps.Config,
 		params:             deps.Params,
-		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
 		wg:                 &sync.WaitGroup{},
