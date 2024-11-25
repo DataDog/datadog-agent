@@ -949,10 +949,10 @@ api_key:
   #
   # force_use_http: true
 
-  ## @param transport_type - string - optional - default: auto
-  ## @env DD_LOGS_CONFIG_TRANSPORT_TYPE - string - optional - default: auto
+  ## @param http_protocol - string - optional - default: auto
+  ## @env DD_LOGS_CONFIG_HTTP_PROTOCOL - string - optional - default: auto
   ## The transport type to use for sending logs. Possible values are "auto" or "http1".
-  # transport_type: auto
+  # http_protocol: auto
 
   ## @param force_use_tcp - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false

@@ -371,10 +371,10 @@ func TestDestinationHA(t *testing.T) {
 
 func TestTransportProtocol_HTTP1(t *testing.T) {
 	c := configmock.New(t)
-	assert.True(t, c.IsKnown("logs_config.transport_type"), "Config key logs_config.transport_type should be known")
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to use HTTP/1
-	c.SetWithoutSource("logs_config.transport_type", "http1")
+	c.SetWithoutSource("logs_config.http_protocol", "http1")
 	// Skip SSL validation
 	c.SetWithoutSource("skip_ssl_validation", true)
 
@@ -404,10 +404,10 @@ func TestTransportProtocol_HTTP1(t *testing.T) {
 
 func TestTransportProtocol_HTTP2(t *testing.T) {
 	c := configmock.New(t)
-	assert.True(t, c.IsKnown("logs_config.transport_type"), "Config key logs_config.transport_type should be known")
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to use ALNP
-	c.SetWithoutSource("logs_config.transport_type", "auto")
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
 	// Skip SSL validation
 	c.SetWithoutSource("skip_ssl_validation", true)
 
@@ -435,10 +435,10 @@ func TestTransportProtocol_HTTP2(t *testing.T) {
 
 func TestTransportProtocol_InvalidProtocol(t *testing.T) {
 	c := configmock.New(t)
-	assert.True(t, c.IsKnown("logs_config.transport_type"), "Config key logs_config.transport_type should be known")
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to default to ALNP from invalid protocol
-	c.SetWithoutSource("logs_config.transport_type", "htto2")
+	c.SetWithoutSource("logs_config.http_protocol", "htto2")
 	// Skip SSL validation
 	c.SetWithoutSource("skip_ssl_validation", true)
 
@@ -466,10 +466,10 @@ func TestTransportProtocol_InvalidProtocol(t *testing.T) {
 
 func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
 	c := configmock.New(t)
-	assert.True(t, c.IsKnown("logs_config.transport_type"), "Config key logs_config.transport_type should be known")
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to use ALNP
-	c.SetWithoutSource("logs_config.transport_type", "auto")
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
 	// Skip SSL validation
 	c.SetWithoutSource("skip_ssl_validation", true)
 

@@ -1517,7 +1517,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 
 	// Transport protocol for log payloads
-	config.BindEnvAndSetDefault("logs_config.transport_type", "auto")
+	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
