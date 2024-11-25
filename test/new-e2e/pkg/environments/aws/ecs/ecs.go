@@ -206,6 +206,7 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 
 	// Create task and service
 	if params.agentOptions != nil {
+		params.agentOptions = append(params.agentOptions, ecsagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		if params.fakeintakeOptions != nil {
 			fakeIntakeOptions := []fakeintake.Option{}
 			fakeIntakeOptions = append(fakeIntakeOptions, params.fakeintakeOptions...)

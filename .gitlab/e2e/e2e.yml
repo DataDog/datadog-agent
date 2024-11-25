@@ -410,7 +410,7 @@ new-e2e-installer-windows:
     # Must run before new_e2e_template changes the aws profile
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
-    - CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7) || exit $?; export CURRENT_AGENT_VERSION
+    - CURRENT_AGENT_VERSION=$(invoke agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - !reference [.new_e2e_template, before_script]
@@ -646,7 +646,7 @@ new-e2e-eks-cleanup-on-failure:
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
-    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_PULUMI_CONFIG_PASSPHRASE) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     - inv -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
   variables:
