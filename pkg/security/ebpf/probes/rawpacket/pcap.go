@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cloudflare/cbpfc"
@@ -20,6 +19,8 @@ import (
 	"github.com/google/gopacket/pcap"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/bpf"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
 const (
@@ -63,7 +64,7 @@ var DefaultProgOpts = ProgOpts{
 	},
 	sendEventLabel: "send_event",
 	ctxSave:        asm.R9,
-	MaxTailCalls:   6,
+	MaxTailCalls:   probes.RawPacketFilterMaxTailCall,
 	MaxProgSize:    4000,
 }
 

@@ -403,6 +403,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
 		opts.MaxProgSize = 1_000_000
 	}
+
 	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	// compile the filters
@@ -427,6 +428,11 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return fmt.Errorf("failed to load program: %w", err)
 	}
 	p.rawPacketFilterCollection = col
+
+	// check that the sender program is not overridden. The default opts should avoid this.
+	if probes.TCRawPacketFilterKey+uint32(len(progSpecs)) >= probes.TCRawPacketParserSenderKey {
+		return fmt.Errorf("sender program overridden")
+	}
 
 	// setup tail calls
 	for i, progSpec := range progSpecs {
