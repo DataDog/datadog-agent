@@ -80,3 +80,16 @@ class TestWorktree(unittest.TestCase):
 
         self.assertNotEqual(branch6, branch7)
         self.assertEqual(branch7, branch_no_checkout)
+
+    def test_context_no_checkout_error(self):
+        ctx = get_ctx()
+
+        with agent_context(ctx, '6.53.x'):
+            pass
+
+        def switch_context():
+            # The current branch is not main
+            with agent_context(ctx, 'main', skip_checkout=True):
+                pass
+
+        self.assertRaises(AssertionError, switch_context)

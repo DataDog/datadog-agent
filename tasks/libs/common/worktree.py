@@ -11,6 +11,7 @@ from pathlib import Path
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_current_branch
 
 WORKTREE_DIRECTORY = Path.cwd().parent / "datadog-agent-worktree"
 LOCAL_DIRECTORY = Path.cwd().resolve()
@@ -64,6 +65,11 @@ def enter_env(ctx, branch: str, skip_checkout=False):
         assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_checkout is set to True"
 
     os.chdir(WORKTREE_DIRECTORY)
+    if skip_checkout:
+        current_branch = get_current_branch(ctx)
+        assert (
+            current_branch == branch
+        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}"
 
 
 def exit_env():
