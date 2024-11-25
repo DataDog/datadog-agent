@@ -50,7 +50,7 @@ func TestBindEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "bind-af-inet-any-success-tcp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "tcp"}
 		envs := []string{}
 
@@ -61,7 +61,7 @@ func TestBindEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
@@ -73,7 +73,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet-any-success-udp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "udp"}
 		envs := []string{}
 
@@ -84,7 +84,7 @@ func TestBindEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
@@ -96,7 +96,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet6-any-success", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET6", "any"}
 		envs := []string{}
 
@@ -107,7 +107,7 @@ func TestBindEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Bind.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
@@ -118,7 +118,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-unknown-unix", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_UNIX"}
 		envs := []string{}
 
@@ -129,7 +129,7 @@ func TestBindEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_UNIX), event.Bind.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(0), event.Bind.Addr.Port, "wrong address port")
