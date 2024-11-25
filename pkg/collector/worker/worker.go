@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -141,6 +142,13 @@ func (w *Worker) Run() {
 			continue
 		}
 
+		if !shouldRunIntegrationInstance(check) {
+			checkLogger.Debug("HA Integration skipped")
+			// Remove the check from the running list
+			w.checksTracker.DeleteCheck(check.ID())
+			continue
+		}
+
 		checkStartTime := time.Now()
 
 		checkLogger.CheckStarted()
@@ -252,4 +260,11 @@ func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time
 		cancel <- struct{}{}
 		<-done // make sure Tick will not be called after we return.
 	}
+}
+
+func shouldRunIntegrationInstance(check check.Check) bool {
+	if haagent.IsEnabled() && haagent.IsHAIntegration(check.String()) {
+		return haagent.ShouldRunHAIntegrationInstance(string(check.ID()))
+	}
+	return true
 }
