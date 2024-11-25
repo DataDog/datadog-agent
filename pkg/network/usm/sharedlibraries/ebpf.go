@@ -49,29 +49,64 @@ var progSingleton *EbpfProgram
 // LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
 type LibraryCallback func(LibPath)
 
+// libsetHandler contains all the structures and state required to handle a single libset.
 type libsetHandler struct {
+	// callbacksMutex protects the callbacks map for this specific libset
 	callbacksMutex sync.RWMutex
-	callbacks      map[*LibraryCallback]struct{}
-	done           chan struct{}
-	perfHandler    *ddebpf.PerfHandler
-	enabled        bool
-	requested      bool
+
+	// callbacks is a map of the callbacks that are subscribed to this libset
+	callbacks map[*LibraryCallback]struct{}
+
+	// done is a channel that is closed when the handler stops, to signal the goroutine to end
+	done chan struct{}
+
+	// perfHandler is the perf handler for this libset, that will get the events from the perf buffer
+	perfHandler *ddebpf.PerfHandler
+
+	// enabled is true if the eBPF program has been enabled for this libset,
+	// which means that the perf buffer is being read, the eBPF program has been
+	// edited to enable this libset, and the handler that redirects events to
+	// callbacks is running.
+	enabled bool
+
+	// requested means that the libset has been requested to be enabled, but it
+	// might not be enabled yet. We need to have this distinction as the init flow
+	// is different depending on whether a libset is enabled/requested or none.
+	// For example, an enabled program will need to stop the handlers and re-start them
+	// as the underlying eBPF probe is updated. Meanwhile, a requested program will not
+	// need to stop the handlers, as they are not running yet.
+	requested bool
 }
 
 // EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	*ddebpf.Manager
 
-	libsets  map[Libset]*libsetHandler
-	cfg      *ddebpf.Config
+	// libsets is a map of all defined libsets to their respective handlers. This map
+	// is filled with all libsets from LibsetToLibSuffixes when the program is initialized
+	// in GetEBPFProgram. The fact that all libsets are initialized at the same time
+	// allows us to avoid locking the map when accessing it, as Golang maps are thread-safe
+	// for reads.
+	libsets map[Libset]*libsetHandler
+
+	// cfg is the configuration for the eBPF program
+	cfg *ddebpf.Config
+
+	// refcount is the number of times the program has been initialized. It is used to
+	// stop the program only when the refcount reaches 0.
 	refcount atomic.Int32
 
+	// initMutex is a mutex to protect the initialization variables and the libset map
 	wg sync.WaitGroup
 
 	// We need to protect the initialization variables and libset map with a
 	// mutex, as the program can be initialized from multiple goroutines at the
 	// same time.
-	initMutex     sync.Mutex
+	initMutex sync.Mutex
+
+	// isInitialized is true if the program has been initialized, false
+	// otherwise used to check if the program needs to be stopped and re-started
+	// when adding new libsets
 	isInitialized bool
 }
 
