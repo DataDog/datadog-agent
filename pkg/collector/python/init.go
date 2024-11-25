@@ -317,6 +317,9 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 		log.Debugf("Executable folder is %v", _here)
 
 		embeddedPythonHome3 := filepath.Join(_here, "..", "embedded3")
+		if runtime.GOOS == "darwin" {
+			embeddedPythonHome3 = filepath.Join(_here, "../..", "embedded")
+		}
 
 		// We want to use the path-relative embedded2/3 directories above by default.
 		// They will be correct for normal installation on Windows. However, if they
