@@ -69,7 +69,7 @@ func (f stringSetSymbolFilter) findMissing(symbolByName map[string]safeelf.Symbo
 	return missingSymbols
 }
 
-// infixSymbolFilter is a symbol filter which gets any one symbol which has the
+// infixSymbolFilter is a symbol filter which gets any symbol which has the
 // specified infix.
 type infixSymbolFilter struct {
 	infix     string
