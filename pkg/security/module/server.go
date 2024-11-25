@@ -21,6 +21,7 @@ import (
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -563,7 +564,8 @@ func (a *APIServer) getGlobalTags() []string {
 		return nil
 	}
 
-	globalTags, err := a.tagger.GlobalTags(types.OrchestratorCardinality)
+	// GlobalTags returns an empty result in 7.59.x
+	globalTags, err := a.tagger.Tag(taggercommon.GetGlobalEntityID().String(), types.OrchestratorCardinality)
 	if err != nil {
 		seclog.Errorf("failed to get global tags: %v", err)
 		return nil
