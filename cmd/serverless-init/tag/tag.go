@@ -66,7 +66,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 func WithoutContainerID(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {
-		if k != "container_id" && k != "gcr.container_id" {
+		if k != "container_id" && k != "gcr.container_id" && k != "gcrfx.container_id" {
 			newTags[k] = v
 		}
 	}
