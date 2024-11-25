@@ -12,6 +12,8 @@ chmod +x /tmp/otel-ci/retry.sh
 # mv "$(go env GOPATH)/bin/builder" /tmp/otel-ci/ocb
 
 # TODO: remove this once we upgrade collector dependencies to v0.114.0
+# https://datadoghq.atlassian.net/browse/OTEL-2256
+# Needs new package version published of logsagentexporter that uses NewLogs function
 # clone collector repo and build cmd/builder from source
 git clone https://github.com/open-telemetry/opentelemetry-collector.git /tmp/otel-ci/opentelemetry-collector
 cwd=$(pwd)
