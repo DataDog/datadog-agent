@@ -69,7 +69,7 @@ def enter_env(ctx, branch: str, skip_checkout=False):
         current_branch = get_current_branch(ctx)
         assert (
             current_branch == branch
-        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}"
+        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should switch branch before using this command, this can be safely done with `inv worktree.switch {branch}`."
 
 
 def exit_env():
