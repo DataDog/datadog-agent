@@ -157,6 +157,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 func TestIntegration(t *testing.T) {
 	// 1. Set up mock Datadog server
 	// See also https://github.com/DataDog/datadog-agent/blob/49c16e0d4deab396626238fa1d572b684475a53f/cmd/trace-agent/test/backend.go
+	assert.Equal(t, 1, 0)
 	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
 	tracesRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.TraceEndpoint, ReqChan: make(chan []byte)}
 	server := testutil.DatadogServerMock(apmstatsRec.HandlerFunc, tracesRec.HandlerFunc)
