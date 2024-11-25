@@ -1556,6 +1556,8 @@ github.com/prashantv/gostub v1.1.0 h1:BTyx3RfQjRHnUWaGF9oQos79AlQ5k8WNktv7VGvVH4
 github.com/prashantv/gostub v1.1.0/go.mod h1:A5zLQHz7ieHGG7is6LLXLz7I8+3LZzsrV0P1IAHhP5U=
 github.com/prometheus-community/pro-bing v0.4.1 h1:aMaJwyifHZO0y+h8+icUz0xbToHbia0wdmzdVZ+Kl3w=
 github.com/prometheus-community/pro-bing v0.4.1/go.mod h1:aLsw+zqCaDoa2RLVVSX3+UiCkBBXTMtZC3c7EkfWnAE=
+github.com/prometheus-community/pro-bing v0.5.0 h1:Fq+4BUXKIvsPtXUY8K+04ud9dkAuFozqGmRAyNUpffY=
+github.com/prometheus-community/pro-bing v0.5.0/go.mod h1:1joR9oXdMEAcAJJvhs+8vNDvTg5thfAZcRFhcUozG2g=
 github.com/prometheus-community/windows_exporter v0.27.2 h1:/tdRTouPMVsC4qt8+s9NOPEm7L/9qdDxmasiETlx+Wk=
 github.com/prometheus-community/windows_exporter v0.27.2/go.mod h1:8+T6hfv71nvgVIzguouXkIGoa15ni+uXHHULBOA2bZo=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
