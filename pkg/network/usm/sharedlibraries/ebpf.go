@@ -21,7 +21,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -346,7 +345,7 @@ func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
 	}
 }
 
-func (l *libsetHandler) handleEvent(event *ebpf.DataEvent) {
+func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 	defer event.Done()
 	l.callbacksMutex.RLock()
 	defer l.callbacksMutex.RUnlock()
