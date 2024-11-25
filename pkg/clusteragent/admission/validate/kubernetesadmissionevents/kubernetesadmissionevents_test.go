@@ -54,14 +54,14 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 	tests := []struct {
 		name                    string
 		supportsMatchConditions bool
-		emitted                 bool
+		expectedEmitted         bool
 		request                 admission.Request
-		event                   event.Event
+		expectedEvent           event.Event
 	}{
 		{
 			name:                    "Pod creation",
 			supportsMatchConditions: true,
-			emitted:                 true,
+			expectedEmitted:         true,
 			request: admission.Request{
 				UID:       "000",
 				Name:      "pod",
@@ -84,7 +84,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 				DynamicClient: nil,
 				APIClient:     nil,
 			},
-			event: event.Event{
+			expectedEvent: event.Event{
 				Title: fmt.Sprintf("%s Event for %s %s/%s by %s", "CREATE", "Pod", "namespace", "pod", "username"),
 				Text: "%%%" +
 					"**Kind:** " + "Pod" + "\\\n" +
@@ -112,7 +112,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 		{
 			name:                    "Pod update",
 			supportsMatchConditions: true,
-			emitted:                 true,
+			expectedEmitted:         true,
 			request: admission.Request{
 				UID:       "000",
 				Name:      "pod",
@@ -135,7 +135,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 				DynamicClient: nil,
 				APIClient:     nil,
 			},
-			event: event.Event{
+			expectedEvent: event.Event{
 				Title: fmt.Sprintf("%s Event for %s %s/%s by %s", "UPDATE", "Pod", "namespace", "pod", "username"),
 				Text: "%%%" +
 					"**Kind:** " + "Pod" + "\\\n" +
@@ -163,7 +163,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 		{
 			name:                    "Pod deletion",
 			supportsMatchConditions: true,
-			emitted:                 true,
+			expectedEmitted:         true,
 			request: admission.Request{
 				UID:       "000",
 				Name:      "pod",
@@ -186,7 +186,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 				DynamicClient: nil,
 				APIClient:     nil,
 			},
-			event: event.Event{
+			expectedEvent: event.Event{
 				Title: fmt.Sprintf("%s Event for %s %s/%s by %s", "DELETE", "Pod", "namespace", "pod", "username"),
 				Text: "%%%" +
 					"**Kind:** " + "Pod" + "\\\n" +
@@ -214,7 +214,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 		{
 			name:                    "Pod creation by system user without match conditions",
 			supportsMatchConditions: false,
-			emitted:                 false,
+			expectedEmitted:         false,
 			request: admission.Request{
 				UID:       "000",
 				Name:      "pod",
@@ -237,7 +237,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 				DynamicClient: nil,
 				APIClient:     nil,
 			},
-			event: event.Event{},
+			expectedEvent: event.Event{},
 		},
 	}
 	for _, tt := range tests {
@@ -252,8 +252,8 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			validated, err := kubernetesAuditWebhook.emitEvent(&tt.request, "", nil)
 			assert.NoError(t, err)
 			assert.True(t, validated)
-			if tt.emitted {
-				mockSender.AssertCalled(t, "Event", tt.event)
+			if tt.expectedEmitted {
+				mockSender.AssertCalled(t, "Event", tt.expectedEvent)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}
