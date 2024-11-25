@@ -72,7 +72,7 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
 
 
 @task
-def otel_agent_integration(ctx):
+def integration_test(ctx):
     """
     Run the otel integration test
     """
