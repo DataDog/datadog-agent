@@ -42,7 +42,7 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 	var funcName string
 
 	var result = ditypes.TypeMap{
-		Functions:        make(map[string][]ditypes.Parameter),
+		Functions:        make(map[string]*[]ditypes.Parameter),
 		InlinedFunctions: make(map[uint64][]*dwarf.Entry),
 	}
 
@@ -117,7 +117,8 @@ entryLoop:
 					if !targetFunctions[funcName] {
 						continue entryLoop
 					}
-					result.Functions[funcName] = make([]ditypes.Parameter, 0)
+					params := make([]ditypes.Parameter, 0)
+					result.Functions[funcName] = &params
 					readingAFunction = true
 					continue entryLoop
 				}
@@ -164,7 +165,7 @@ entryLoop:
 		if typeFields != nil {
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
-			result.Functions[funcName] = append(result.Functions[funcName], *typeFields)
+			*result.Functions[funcName] = append((*result.Functions[funcName]), *typeFields)
 		}
 		seenTypes = make(map[string]*seenTypeCounter) // reset seen types map for next parameter
 	}
@@ -237,13 +238,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 		}
 	}
 
-	if typeKind == uint(reflect.Slice) {
-		sliceElements, err := getSliceField(typeEntry.Offset, dwarfData)
-		if err != nil {
-			return nil, fmt.Errorf("could not collect fields of slice type: %w", err)
-		}
-		typeHeader = sliceElements[0]
-	} else if typeEntry.Tag == dwarf.TagStructType {
+	if typeEntry.Tag == dwarf.TagStructType || typeKind == uint(reflect.Slice) || typeKind == uint(reflect.String) {
 		structFields, err := getStructFields(typeEntry.Offset, dwarfData)
 		if err != nil {
 			return nil, fmt.Errorf("could not collect fields of struct type of ditypes.Parameter: %w", err)
@@ -564,11 +559,11 @@ func correctStructSizes(params []ditypes.Parameter) {
 
 // correctStructSize sets the size of structs to the number of fields in the struct
 func correctStructSize(param *ditypes.Parameter) {
-	if len(param.ParameterPieces) == 0 {
-		return
-	}
 	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
 		param.TotalSize = int64(len(param.ParameterPieces))
+	}
+	if len(param.ParameterPieces) == 0 {
+		return
 	}
 	for i := range param.ParameterPieces {
 		correctStructSize(&param.ParameterPieces[i])
