@@ -16,8 +16,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -43,6 +41,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
+	logsSender *sender.Sender,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
 	pipelineID int,
@@ -50,21 +49,18 @@ func NewPipeline(outputChan chan *message.Payload,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 
-	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
 	if serverless {
-		senderDoneChan = make(chan *sync.WaitGroup)
+		// XXX(remy): restore serverless mode
+		//		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
 	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 
-	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
-
 	strategyInput := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 	flushChan := make(chan struct{})
 
-	var logsSender *sender.Sender
+	//	var logsSender *sender.Sender
 
 	var encoder processor.Encoder
 	if serverless {
@@ -77,8 +73,10 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor)
-	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
+	strategy := getStrategy(strategyInput, logsSender.In(), flushChan, endpoints, serverless, flushWg, pipelineMonitor)
+	//	var senderDoneChan chan *sync.WaitGroup
+	//	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
+	//	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
@@ -99,7 +97,6 @@ func NewPipeline(outputChan chan *message.Payload,
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
-	p.sender.Start()
 	p.strategy.Start()
 	p.processor.Start()
 }
@@ -108,7 +105,6 @@ func (p *Pipeline) Start() {
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
 	p.strategy.Stop()
-	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
@@ -120,39 +116,6 @@ func (p *Pipeline) Flush(ctx context.Context) {
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
 		p.flushWg.Wait()
 	}
-}
-
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineMonitor metrics.PipelineMonitor, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
-	reliable := []client.Destination{}
-	additionals := []client.Destination{}
-
-	if endpoints.UseHTTP {
-		for i, endpoint := range endpoints.GetReliableEndpoints() {
-			destMeta := client.NewDestinationMetadata("logs", pipelineMonitor.ID(), "reliable", strconv.Itoa(i))
-			if serverless {
-				reliable = append(reliable, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, destMeta, cfg))
-			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, destMeta, cfg, pipelineMonitor))
-			}
-		}
-		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
-			destMeta := client.NewDestinationMetadata("logs", pipelineMonitor.ID(), "unreliable", strconv.Itoa(i))
-			if serverless {
-				additionals = append(additionals, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, destMeta, cfg))
-			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, destMeta, cfg, pipelineMonitor))
-			}
-		}
-		return client.NewDestinations(reliable, additionals)
-	}
-	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !serverless, status))
-	}
-	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false, status))
-	}
-
-	return client.NewDestinations(reliable, additionals)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

@@ -8,12 +8,14 @@
 package agentimpl
 
 import (
+	"sync"
 	"time"
 
 	"github.com/spf13/afero"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compsender "github.com/DataDog/datadog-agent/comp/logs/agent/sender"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -27,8 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -45,8 +50,28 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
+	// TODO(remy): create a pool of senders
+	// TODO(remy): pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
+	var pipelineMonitor *metrics.TelemetryPipelineMonitor = metrics.NewTelemetryPipelineMonitor("shared_sender")
+	status := NewStatusProvider()
+
+	serverless := false // XXX
+	var flushWg *sync.WaitGroup
+	var senderDoneChan chan *sync.WaitGroup
+	if serverless {
+		senderDoneChan = make(chan *sync.WaitGroup)
+		flushWg = &sync.WaitGroup{}
+	}
+
+	// XXX(remy): don't we want to revisit this chan size: now that we are sharing forwarders,
+	// it makes more sense to be able to buffer a set of payloads from processors.
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+
+	mainDestinations := compsender.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, serverless, senderDoneChan, status, a.config)
+	logsSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
+
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, logsSender, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
@@ -78,7 +103,6 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	a.launchers = lnchrs
 	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
-
 }
 
 // buildEndpoints builds endpoints for the logs agent
