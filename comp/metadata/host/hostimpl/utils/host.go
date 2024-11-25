@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -36,7 +35,6 @@ var (
 	hostInfoCacheKey    = cache.BuildAgentKey("host", "utils", "hostInfo")
 
 	// for testing
-	otlpIsEnabled  = otlp.IsEnabled
 	installinfoGet = installinfo.Get
 )
 
@@ -190,7 +188,7 @@ func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 		LogsMeta:      getLogsMeta(conf),
 		InstallMethod: getInstallMethod(conf),
 		ProxyMeta:     getProxyMeta(conf),
-		OtlpMeta:      &OtlpMeta{Enabled: otlpIsEnabled(conf)},
+		OtlpMeta:      &OtlpMeta{Enabled: false},
 	}
 
 	// Cache the metadata for use in other payloads
