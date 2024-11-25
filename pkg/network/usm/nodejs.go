@@ -148,8 +148,11 @@ func (m *nodeJSMonitor) Start() {
 		return
 	}
 
-	m.attacher.Start()
-	log.Info("Node JS TLS monitoring enabled")
+	if err := m.attacher.Start(); err != nil {
+		log.Errorf("cannot start nodeJS attacher: %s", err)
+	} else {
+		log.Info("Node JS TLS monitoring enabled")
+	}
 }
 
 // Stop the nodeJSMonitor.
@@ -162,8 +165,8 @@ func (m *nodeJSMonitor) Stop() {
 	m.attacher.Stop()
 }
 
-// getNodeJSPath checks if the given PID is a NodeJS process and returns the path to the binary
-func isNodeJSBinary(path string, procInfo *uprobes.ProcInfo) bool {
+// isNodeJSBinary returns true if the process is a NodeJS binary.
+func isNodeJSBinary(_ string, procInfo *uprobes.ProcInfo) bool {
 	exe, err := procInfo.Exe()
 	if err != nil {
 		return false

@@ -42,6 +42,7 @@ const (
 const (
 	javaJarFlag      = "-jar"
 	javaJarExtension = ".jar"
+	javaWarExtension = ".war"
 	dllExtension     = ".dll"
 	javaApachePrefix = "org.apache."
 	maxParseFileSize = 1024 * 1024

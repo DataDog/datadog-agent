@@ -63,7 +63,12 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				if ok {
 					return NewServiceMetadata(value), true
 				}
-				break
+
+				// We couldn't find a package.json, fall back to the script/link
+				// name since it should be better than just using "node".
+				base := filepath.Base(absFile)
+				name := strings.TrimSuffix(base, path.Ext(base))
+				return NewServiceMetadata(name), true
 			}
 		}
 	}
