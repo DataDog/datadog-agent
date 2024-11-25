@@ -15,12 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
-
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 )
@@ -29,12 +28,12 @@ func startTestUnixServer(t *testing.T, handler http.Handler) string {
 	t.Helper()
 
 	socketPath := path.Join(t.TempDir(), "test.sock")
-	listener, err := net.NewSystemProbeListener(socketPath)
+	listener, err := server.NewListener(socketPath)
 	require.NoError(t, err)
-	t.Cleanup(listener.Stop)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	srv := httptest.NewUnstartedServer(handler)
-	srv.Listener = listener.GetListener()
+	srv.Listener = listener
 	srv.Start()
 	t.Cleanup(srv.Close)
 
