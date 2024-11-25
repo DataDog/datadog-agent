@@ -2,7 +2,7 @@
 // Source: epforwarder.go
 
 // Package eventplatformimpl is a generated GoMock package.
-package eventplatformimpl
+package mock
 
 import (
 	reflect "reflect"

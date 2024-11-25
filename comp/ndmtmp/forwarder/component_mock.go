@@ -6,11 +6,11 @@
 // Package forwarder exposes the event platform forwarder for netflow.
 package forwarder
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+import "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 
 // MockComponent is the type for mock components.
 // It is a gomock-generated mock of EventPlatformForwarder.
 type MockComponent interface {
 	Component
-	EXPECT() *eventplatformimpl.MockEventPlatformForwarderMockRecorder
+	EXPECT() *mock.MockEventPlatformForwarderMockRecorder
 }

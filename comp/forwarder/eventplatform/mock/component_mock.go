@@ -5,9 +5,11 @@
 
 //go:build test
 
-package eventplatform
+package mock
+
+import eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	eventplatform.Component
 }

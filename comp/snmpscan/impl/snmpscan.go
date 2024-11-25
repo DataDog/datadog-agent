@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 )
@@ -30,10 +30,7 @@ type Provides struct {
 
 // NewComponent creates a new snmpscan component
 func NewComponent(reqs Requires) (Provides, error) {
-	forwarder, err := reqs.Demultiplexer.GetEventPlatformForwarder()
-	if err != nil {
-		return Provides{}, err
-	}
+	forwarder, _ := reqs.Demultiplexer.GetEventPlatformForwarder()
 	scanner := snmpScannerImpl{
 		log:         reqs.Logger,
 		epforwarder: forwarder,
@@ -46,5 +43,5 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 type snmpScannerImpl struct {
 	log         log.Component
-	epforwarder eventplatform.Forwarder
+	epforwarder eventplatform.Component
 }

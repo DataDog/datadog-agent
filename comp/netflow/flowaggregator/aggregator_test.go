@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -87,7 +87,7 @@ func TestAggregator(t *testing.T) {
 		TCPFlags:       19,
 		EtherType:      uint32(0x0800),
 	}
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(gomock.NewController(t))
 
 	// language=json
 	event := []byte(`
@@ -246,7 +246,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 		},
 	}
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 
 	testutil.ExpectNetflow5Payloads(t, epForwarder)
 
@@ -363,7 +363,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
@@ -402,7 +402,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
@@ -479,7 +479,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
@@ -514,7 +514,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
@@ -599,7 +599,7 @@ func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
@@ -632,7 +632,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
@@ -717,7 +717,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
@@ -821,7 +821,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 	}
 
 	ctrl := gomock.NewController(t)
-	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder := eventplatformmock.NewMockEventPlatformForwarder(ctrl)
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
