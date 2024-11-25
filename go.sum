@@ -351,6 +351,8 @@ github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0 h1:4zuGQITyy9O+GlSGcs+aUz3+Smlv
 github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0/go.mod h1:T0t6q7wBD2P11xwVcc6GvwmuDT3i6ZJgZ+13ziQUUnA=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0 h1:k97fGog9Tl0woxTiSIHN14Qs5ehqK6GXejUwkhJYyL0=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0/go.mod h1:mzj8EEjIHSN2oZRXiw1Dd+uB4HZTl7hC8nBzX9IZMWw=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.193.0 h1:RhSoBFT5/8tTmIseJUXM6INTXTQDF8+0oyxWBnozIms=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.193.0/go.mod h1:mzj8EEjIHSN2oZRXiw1Dd+uB4HZTl7hC8nBzX9IZMWw=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.36.0 h1:OVg61nfvhkvneY2btZ50sdYHsvhJs46dqtuBiURZo2A=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.36.0/go.mod h1:kdKXMMVpJd/N59EYI8aneYNsQNqCd99iSg2bEmQHaUI=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.0 h1:k4ykVLeoO2JohTC7BIfIqWYvmf8HcirbWHf8Zn0SPpI=
@@ -368,6 +370,8 @@ github.com/aws/aws-sdk-go-v2/service/kms v1.37.6 h1:CZImQdb1QbU9sGgJ9IswhVkxAcjk
 github.com/aws/aws-sdk-go-v2/service/kms v1.37.6/go.mod h1:YJDdlK0zsyxVBxGU48AR/Mi8DMrGdc1E3Yij4fNrONA=
 github.com/aws/aws-sdk-go-v2/service/rds v1.90.0 h1:Lg3GkzGkgqY03qsLSXPFyxW59t/lSoXaK9SWa8EKCiI=
 github.com/aws/aws-sdk-go-v2/service/rds v1.90.0/go.mod h1:h2jc7IleH3xHY7y+h8FH7WAZcz3IVLOB6/jXotIQ/qU=
+github.com/aws/aws-sdk-go-v2/service/rds v1.91.0 h1:eqHz3Uih+gb0vLE5Cc4Xf733vOxsxDp6GFUUVQU4d7w=
+github.com/aws/aws-sdk-go-v2/service/rds v1.91.0/go.mod h1:h2jc7IleH3xHY7y+h8FH7WAZcz3IVLOB6/jXotIQ/qU=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.40.2/go.mod h1:Zjfqt7KhQK+PO1bbOsFNzKgaq7TcxzmEoDWN8lM0qzQ=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.6 h1:1KDMKvOKNrpD667ORbZ/+4OgvUoaok1gg/MLzrHF9fw=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.6/go.mod h1:DmtyfCfONhOyVAJ6ZMTrDSFIeyCBlEO93Qkfhxwbxu0=

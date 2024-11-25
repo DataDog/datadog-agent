@@ -385,7 +385,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.24 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.193.0
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.5 // indirect
@@ -737,7 +737,7 @@ require (
 	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.6
-	github.com/aws/aws-sdk-go-v2/service/rds v1.90.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.91.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.6
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240409155312-26d1ea377073
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
