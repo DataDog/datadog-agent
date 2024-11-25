@@ -36,6 +36,7 @@ func (v *myECSSuite) TestECS() {
 		Cluster: aws.String(v.Env().ECSCluster.ClusterName),
 	})
 	require.NoError(v.T(), err)
+	require.NotEmpty(v.T(), tasks.TaskArns)
 	out, err := v.Env().ECSCluster.ECSClient.ExecCommand(tasks.TaskArns[0], "datadog-agent", "ls -l")
 	require.NoError(v.T(), err)
 	fmt.Println("cmd output:", out, "end of cmd output")

@@ -99,6 +99,7 @@ func execute(s *session.Session, logger log.T) (string, error) {
 	return "", nil
 }
 
+// retrieveResultFromExecOutput that allows to retrieve the result from the output of ecs ExecuteCommand method. It uses session-manager-plugin to retrieve the output.
 func retrieveResultFromExecOutput(c *Client, output *ecs.ExecuteCommandOutput, task, container string) (string, error) {
 	containerRuntime, err := c.getContainerRuntime(task, container)
 	if err != nil {
