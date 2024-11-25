@@ -75,7 +75,8 @@ type Webhook interface {
 	// Endpoint returns the endpoint of the webhook
 	Endpoint() string
 	// Resources returns the kubernetes resources for which the webhook should
-	// be invoked
+	// be invoked.
+	// The key is the API group, and the value is a list of resources.
 	Resources() map[string][]string
 	// Operations returns the operations on the resources specified for which
 	// the webhook should be invoked
