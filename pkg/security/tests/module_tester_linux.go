@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -592,7 +592,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
-		os.Chdir(commonCfgDir)
+		if err := os.Chdir(commonCfgDir); err != nil {
+			return nil, err
+		}
 	}
 
 	var proFile *os.File
