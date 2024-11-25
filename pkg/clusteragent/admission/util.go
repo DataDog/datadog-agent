@@ -29,11 +29,11 @@ func supportsMatchConditions(discoveryCl discovery.DiscoveryInterface) (bool, er
 	if err != nil {
 		return false, fmt.Errorf("cannot get Kubernetes version: %w", err)
 	}
-	if semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.28.0") < 0 {
-		log.Debugf("Match conditions are not supported in Kubernetes version %s", serverVersion.String())
-		return false, nil
+	if semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.28.0") >= 0 {
+		return true, nil
 	}
-	return true, nil
+	log.Debugf("Match conditions are not supported in Kubernetes version %s", serverVersion.String())
+	return false, nil
 }
 
 // useNamespaceSelector returns whether we need to fallback to using namespace selector instead of object selector.
