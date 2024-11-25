@@ -12,6 +12,7 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -39,7 +40,7 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
 	fileLimits := 500
 	fileValidatePodContainer := false
-	fileScanPeriod := time.Duration(10.0 * float64(time.Second))
+	fileScanPeriod := time.Duration(1 * float64(time.Second))
 	fileWildcardSelectionMode := "by_name"
 	fileLauncher := filelauncher.NewLauncher(
 		fileLimits,
@@ -47,7 +48,7 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 		fileValidatePodContainer,
 		fileScanPeriod,
 		fileWildcardSelectionMode,
-		nil,
+		flare.NewFlareController(),
 		nil)
 	tracker := tailers.NewTailerTracker()
 

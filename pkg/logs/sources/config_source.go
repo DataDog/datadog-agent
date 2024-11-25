@@ -53,7 +53,6 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	}
 	configSource := GetInstance()
 	for _, cfg := range logsConfig {
-		cfg.Path = absolutePath
 		if cfg.TailingMode == "" {
 			cfg.TailingMode = "beginning"
 		}
