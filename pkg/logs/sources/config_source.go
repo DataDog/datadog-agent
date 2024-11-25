@@ -6,6 +6,7 @@
 package sources
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -39,26 +40,34 @@ func GetInstance() *ConfigSources {
 // AddFileSource gets a file from a file path and adds it as a source.
 func (s *ConfigSources) AddFileSource(path string) error {
 	wd, err := os.Getwd()
+	fmt.Println("HEHEXD1")
 	if err != nil {
 		return err
 	}
+	fmt.Println("HEHEXD2")
 	absolutePath := wd + "/" + path
 	data, err := os.ReadFile(absolutePath)
+	fmt.Println("HEHEXD3")
 	if err != nil {
 		return err
 	}
+	fmt.Println("HEHEXD4")
 	logsConfig, err := logsConfig.ParseYAML(data)
+	fmt.Println("HEHEXD5")
 	if err != nil {
 		return err
 	}
 	configSource := GetInstance()
+	fmt.Println("HEHEXD6")
 	for _, cfg := range logsConfig {
 		if cfg.TailingMode == "" {
 			cfg.TailingMode = "beginning"
 		}
+		fmt.Println("HEHEXD7")
 		source := NewLogSource(cfg.Name, cfg)
 		configSource.AddSource(source)
 	}
+	fmt.Println("HEHEXD8")
 
 	return nil
 }
