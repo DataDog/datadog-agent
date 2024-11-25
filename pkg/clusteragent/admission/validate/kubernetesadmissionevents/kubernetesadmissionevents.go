@@ -134,17 +134,36 @@ func (w *Webhook) emitEvent(request *admission.Request, _ string, _ dynamic.Inte
 		}
 	}
 
+	e, err := generateDatadogEvent(request, w.Name())
+	if err != nil {
+		return true, fmt.Errorf("failed to generate event: %w", err)
+	}
+
+	// Send the event to the sender.
+	s, err := w.demultiplexer.GetSender(w.checkid)
+	if err != nil {
+		_ = log.Errorf("Error getting the default sender: %s", err)
+	} else {
+		log.Debugf("Sending Kubernetes Audit Event: %v", e)
+		s.Event(e)
+	}
+
+	// Validation must always validate incoming request.
+	return true, nil
+}
+
+func generateDatadogEvent(request *admission.Request, webhookName string) (event.Event, error) {
 	// Decode object and oldObject.
 	var newResource unstructured.Unstructured
 	if request.Operation != admissionregistrationv1.Delete {
 		if err := json.Unmarshal(request.Object, &newResource); err != nil {
-			return true, fmt.Errorf("failed to unmarshal object: %w", err)
+			return event.Event{}, fmt.Errorf("failed to unmarshal object: %w", err)
 		}
 	}
 	var oldResource unstructured.Unstructured
 	if request.Operation != admissionregistrationv1.Create && request.Operation != admissionregistrationv1.Connect {
 		if err := json.Unmarshal(request.OldObject, &oldResource); err != nil {
-			return true, fmt.Errorf("failed to unmarshal oldObject: %w", err)
+			return event.Event{}, fmt.Errorf("failed to unmarshal oldObject: %w", err)
 		}
 	}
 
@@ -176,7 +195,7 @@ func (w *Webhook) emitEvent(request *admission.Request, _ string, _ dynamic.Inte
 		tags = append(tags, fmt.Sprintf("%s:%s", key, value))
 	}
 
-	e := event.Event{
+	return event.Event{
 		Title:          title,
 		Text:           text,
 		Ts:             0,
@@ -184,18 +203,6 @@ func (w *Webhook) emitEvent(request *admission.Request, _ string, _ dynamic.Inte
 		Tags:           tags,
 		AlertType:      event.AlertTypeInfo,
 		SourceTypeName: "kubernetes admission",
-		EventType:      w.Name(),
-	}
-
-	// Send the event to the default sender.
-	s, err := w.demultiplexer.GetSender(w.checkid)
-	if err != nil {
-		_ = log.Errorf("Error getting the default sender: %s", err)
-	} else {
-		log.Debugf("Sending Kubernetes Audit Event: %v", e)
-		s.Event(e)
-	}
-
-	// Validation must always validate incoming request.
-	return true, nil
+		EventType:      webhookName,
+	}, nil
 }
