@@ -162,6 +162,14 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName: "myservice",
 		},
 		{
+			name: "java using the -jar flag to point to a .war",
+			cmdline: []string{
+				"java", "-Duser.home=/var/jenkins_home", "-Dhudson.lifecycle=hudson.lifecycle.ExitLifecycle", "-jar", "/usr/share/jenkins/jenkins.war", "--httpPort=8000",
+			},
+			lang:                  language.Java,
+			expectedGeneratedName: "jenkins",
+		},
+		{
 			name: "java class name as service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
@@ -525,6 +533,17 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			lang:                  language.Python,
 			expectedGeneratedName: "test",
+		},
+		{
+			name: "gunicorn simple with python",
+			cmdline: []string{
+				"/usr/bin/python3",
+				"/usr/bin/gunicorn",
+				"--workers=2",
+				"foo:create_app()",
+			},
+			lang:                  language.Python,
+			expectedGeneratedName: "foo",
 		},
 		{
 			name: "gunicorn from name",
