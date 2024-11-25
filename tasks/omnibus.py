@@ -6,7 +6,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
+from tasks.go import deps, repo_go_version
 from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
@@ -136,6 +136,19 @@ def get_omnibus_env(
 
     if fips_mode:
         env['FIPS_MODE'] = 'true'
+        if sys.platform == 'win32' and not os.environ.get('MSGO_ROOT'):
+            # Point omnibus at the msgo root
+            # TODO: idk how to do this in omnibus datadog-agent.rb
+            #       because `File.read` is executed when the script is loaded,
+            #       not when the `command`s are run and the source tree is not
+            #       available at that time.
+            #       Comments from the Linux FIPS PR discussed wanting to centralize
+            #       the msgo root logic, so this can be updated then.
+            go_version = repo_go_version()
+            env['MSGO_ROOT'] = f'C:\\msgo\\{go_version}\\go'
+            gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
+            if not os.path.exists(gobinpath):
+                raise Exit(f"msgo go.exe not found at {gobinpath}")
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.

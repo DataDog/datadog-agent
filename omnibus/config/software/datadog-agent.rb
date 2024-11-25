@@ -33,7 +33,6 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  msgoroot = "/usr/local/msgo"
   flavor_arg = ENV['AGENT_FLAVOR']
   fips_args = fips_mode? ? "--fips-mode" : ""
   if windows_target?
@@ -62,9 +61,22 @@ build do
   env = with_standard_compiler_flags(with_embedded_path(env))
 
   # Use msgo toolchain when fips mode is enabled
-  if fips_mode? && !windows_target?
-    env["GOROOT"] = msgoroot
-    env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+  if fips_mode?
+    if windows_target?
+      msgoroot = ENV['MSGO_ROOT']
+      if msgoroot.nil? || msgoroot.empty?
+        raise "MSGO_ROOT not set"
+      end
+      if !File.exist?("#{msgoroot}\\bin\\go.exe")
+        raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
+      end
+      env["GOROOT"] = msgoroot
+      env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+    else
+      msgoroot = "/usr/local/msgo"
+      env["GOROOT"] = msgoroot
+      env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+    end
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -141,7 +153,7 @@ build do
   # System-probe
   if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
     if windows_target?
-      command "invoke -e system-probe.build", env: env
+      command "invoke -e system-probe.build #{fips_args}", env: env
     elsif linux_target?
       command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
     end

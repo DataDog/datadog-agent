@@ -724,3 +724,11 @@ def mod_diffs(_, targets):
                 print(f"  - Version {version} in:")
                 for path in paths:
                     print(f"    * {path}")
+
+
+def repo_go_version():
+    """
+    Returns the go version specified in the .go-version file
+    """
+    with open('.go-version') as f:
+        return f.read().strip()
