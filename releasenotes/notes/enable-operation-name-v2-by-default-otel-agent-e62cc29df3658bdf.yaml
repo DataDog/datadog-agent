@@ -1,4 +1,0 @@
----
-other:
-  - |
-    The `enable_operation_and_resource_name_logic_v2` flag is now set to true by default in Converged Agent. This update changes how operation and resource names are derived from OTLP spans, resulting in shorter, more readable names and better alignment with OpenTelemetry specifications.
