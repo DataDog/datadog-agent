@@ -11,7 +11,6 @@ import (
 	"net"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -26,24 +25,6 @@ var (
 
 	innerSrcIP = net.ParseIP("10.0.0.1")
 	innerDstIP = net.ParseIP("192.168.1.1")
-)
-
-type (
-	mockRawConn struct {
-		setReadDeadlineErr error
-		readDeadline       time.Time
-
-		readTimeoutCount int
-		readFromErr      error
-		header           *ipv4.Header
-		payload          []byte
-		cm               *ipv4.ControlMessage
-
-		writeDelay time.Duration
-		writeToErr error
-	}
-
-	mockTimeoutErr string
 )
 
 func Test_parseICMP(t *testing.T) {
