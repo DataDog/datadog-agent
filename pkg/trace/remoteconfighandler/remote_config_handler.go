@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -98,7 +99,14 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		if err == nil {
 			h.configState.FallbackLogLevel = newFallback.String()
 			var resp *http.Response
-			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
+			var req *http.Request
+			req, err = http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), nil)
+			if err != nil {
+				pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
+				return
+			}
+			req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+			resp, err = http.DefaultClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				h.configState.LatestLogLevel = mergedConfig.LogLevel
@@ -111,7 +119,13 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
 			var resp *http.Response
-			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
+			var req *http.Request
+			req, err = http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), nil)
+			if err != nil {
+				pkglog.Infof("Failed to build request to revert log level of the trace-agent to %s through remote config", h.configState.FallbackLogLevel)
+				return
+			}
+			resp, err = http.DefaultClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 			}

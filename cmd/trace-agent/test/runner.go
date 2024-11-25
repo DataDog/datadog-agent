@@ -198,6 +198,22 @@ func (s *Runner) DoReq(url, method string, payload []byte) (*http.Response, erro
 	return http.DefaultClient.Do(req)
 }
 
+// BuildRequest returns a request pointed at the running trace-agent
+func (s *Runner) BuildRequest(path, method string) (*http.Request, error) {
+	if s.agent == nil {
+		return nil, ErrNotStarted
+	}
+	if s.agent.PID() == 0 {
+		return nil, errors.New("post: trace-agent not running")
+	}
+	addr := fmt.Sprintf("http://%s/%s", s.agent.Addr(), path)
+	req, err := http.NewRequest(method, addr, nil)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
 func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

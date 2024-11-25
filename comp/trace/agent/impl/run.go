@@ -69,14 +69,13 @@ func runAgentSidekicks(ag component) error {
 		log.Errorf("could not set auth token: %s", err)
 	} else {
 		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/config/set",
+			Handler: func(_ *api.HTTPReceiver) http.Handler {
+				return ag.config.SetHandler()
+			},
+		})
 	}
-
-	api.AttachEndpoint(api.Endpoint{
-		Pattern: "/config/set",
-		Handler: func(_ *api.HTTPReceiver) http.Handler {
-			return ag.config.SetHandler()
-		},
-	})
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {

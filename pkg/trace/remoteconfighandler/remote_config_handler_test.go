@@ -13,14 +13,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cihub/seelog"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/cihub/seelog"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 )
 
 // nolint: revive
@@ -193,7 +194,8 @@ func TestLogLevel(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 
 	pkglog.SetupLogger(seelog.Default, "debug")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NotEmpty(t, r.Header.Get("Authorization"))
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
