@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -49,7 +50,7 @@ func assertFileContent(t *testing.T, fb *builder, expected string, path string) 
 }
 
 func getNewBuilder(t *testing.T) *builder {
-	f, err := NewFlareBuilder(false)
+	f, err := NewFlareBuilder(false, flarebuilder.FlareArgs{})
 	require.NotNil(t, f)
 	require.NoError(t, err)
 

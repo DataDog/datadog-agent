@@ -9,7 +9,6 @@ package tags
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -53,14 +52,7 @@ type DefaultResolver struct {
 
 // Resolve returns the tags for the given id
 func (t *DefaultResolver) Resolve(id string) []string {
-	// container id for ecs task are composed of task id + container id.
-	// use only the container id part for the tag resolution.
-	if els := strings.Split(id, "-"); len(els) == 2 {
-		id = els[1]
-	}
-
-	entityID := types.NewEntityID(types.ContainerID, id)
-	tags, _ := t.tagger.Tag(entityID, types.OrchestratorCardinality)
+	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
