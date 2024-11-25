@@ -22,10 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 	"github.com/google/uuid"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type cdnRC struct {
+type fetcherRC struct {
 	rcService           *remoteconfig.CoreAgentService
 	currentRootsVersion uint64
 	clientUUID          string
@@ -35,9 +34,9 @@ type cdnRC struct {
 	env                 *env.Env
 }
 
-// newCDNRC creates a new CDN with RC: it fetches the configuration from the remote config service instead of cloudfront
+// newRCFetcher creates a new CDN fetcher with RC: it fetches the configuration from the remote config service instead of cloudfront
 // note: naming is a bit misleading, it's not really a cdn, but we're following the convention
-func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
+func newRCFetcher(env *env.Env, configDBPath string) (CDNFetcher, error) {
 	ctx := context.Background()
 	ctx, cc := context.WithTimeout(ctx, 10*time.Second)
 	defer cc()
@@ -80,7 +79,7 @@ func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 	if err != nil {
 		return nil, err
 	}
-	cdn := &cdnRC{
+	cdn := &fetcherRC{
 		rcService:           service,
 		currentRootsVersion: 1,
 		clientUUID:          uuid.New().String(),
@@ -93,45 +92,8 @@ func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 	return cdn, nil
 }
 
-func (c *cdnRC) Get(ctx context.Context, pkg string) (cfg Config, err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
-	span.SetTag("cdn_type", "remote_config")
-	defer func() {
-		spanErr := err
-		if spanErr == ErrProductNotSupported {
-			spanErr = nil
-		}
-		span.Finish(tracer.WithError(spanErr))
-	}()
-
-	switch pkg {
-	case "datadog-agent":
-		orderedLayers, err := c.get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cfg, err = newAgentConfig(orderedLayers...)
-		if err != nil {
-			return nil, err
-		}
-	case "datadog-apm-inject":
-		orderedLayers, err := c.get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderedLayers...)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, ErrProductNotSupported
-	}
-
-	return cfg, nil
-}
-
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
+func (c *fetcherRC) get(ctx context.Context) ([][]byte, error) {
 	if c.firstRequest {
 		// A first request is made to the remote config service at service startup,
 		// so if we do another request too close to the first one (in the same second)
@@ -198,7 +160,7 @@ func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
 	)
 }
 
-func (c *cdnRC) Close() error {
+func (c *fetcherRC) close() error {
 	err := c.rcService.Stop()
 	if err != nil {
 		return err

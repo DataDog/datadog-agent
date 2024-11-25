@@ -11,33 +11,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type cdnNoop struct {
+type fetcherNoop struct {
 }
 
-type configNoop struct{}
-
-// newCDNNoop creates a new noop CDN.
-func newCDNNoop() (CDN, error) {
-	return &cdnNoop{}, nil
+// newNoopFetcher creates a new noop CDN.
+func newNoopFetcher() (CDNFetcher, error) {
+	return &fetcherNoop{}, nil
 }
 
-// Get gets the configuration from the CDN.
-func (c *cdnNoop) Get(_ context.Context, _ string) (Config, error) {
+func (c *fetcherNoop) get(_ context.Context) ([][]byte, error) {
 	log.Debug("Noop CDN get")
-	return &configNoop{}, nil
+	return nil, nil
 }
 
-func (c *cdnNoop) Close() error {
+func (c *fetcherNoop) close() error {
 	log.Debug("Noop CDN close")
-	return nil
-}
-
-func (c *configNoop) Version() string {
-	log.Debug("Noop CDN version")
-	return ""
-}
-
-func (c *configNoop) Write(_ string) error {
-	log.Debug("Noop CDN write")
 	return nil
 }

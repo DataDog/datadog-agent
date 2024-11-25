@@ -71,7 +71,7 @@ type daemonImpl struct {
 	env           *env.Env
 	installer     installer.Installer
 	rc            *remoteConfig
-	cdn           cdn.CDN
+	cdn           *cdn.CDN
 	catalog       catalog
 	requests      chan remoteAPIRequest
 	requestsWG    sync.WaitGroup
@@ -105,7 +105,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	return newDaemon(rc, installer, env, cdn), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn cdn.CDN) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,

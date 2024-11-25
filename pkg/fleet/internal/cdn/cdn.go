@@ -12,6 +12,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var (
@@ -25,20 +26,35 @@ type Config interface {
 	Write(dir string) error
 }
 
-// CDN provides access to the Remote Config CDN.
-type CDN interface {
-	Get(ctx context.Context, pkg string) (Config, error)
-	Close() error
+// CDNFetcher provides access to the Remote Config CDN.
+type CDNFetcher interface {
+	get(ctx context.Context) ([][]byte, error)
+	close() error
+}
+
+// CDN
+type CDN struct {
+	fetcher        CDNFetcher
+	hostTagsGetter hostTagsGetter
 }
 
 // New creates a new CDN and chooses the implementation depending
 // on the environment
-func New(env *env.Env, configDBPath string) (CDN, error) {
+func New(env *env.Env, configDBPath string) (*CDN, error) {
+	cdn := CDN{
+		hostTagsGetter: newHostTagsGetter(env),
+	}
+
 	if runtime.GOOS == "windows" {
 		// There's an assumption on windows that some directories are already there
 		// but they are in fact created by the regular CDN implementation. Until
 		// there is a fix on windows we keep the previous CDN behaviour for them
-		return newCDNHTTP(env, configDBPath)
+		fetcher, err := newHTTPFetcher(env, configDBPath)
+		if err != nil {
+			return nil, err
+		}
+		cdn.fetcher = fetcher
+		return &cdn, nil
 	}
 
 	if !env.RemotePolicies {
@@ -46,21 +62,83 @@ func New(env *env.Env, configDBPath string) (CDN, error) {
 		// and we don't want to create the directories that the CDN
 		// implementation would create. We return a no-op CDN to avoid
 		// nil pointer dereference.
-		return newCDNNoop()
+		fetcher, err := newNoopFetcher()
+		if err != nil {
+			return nil, err
+		}
+		cdn.fetcher = fetcher
+		return &cdn, nil
 	}
 
 	if env.CDNLocalDirPath != "" {
 		// Mock the CDN for local development or testing
-		return newCDNLocal(env)
+		fetcher, err := newLocalFetcher(env)
+		if err != nil {
+			return nil, err
+		}
+		cdn.fetcher = fetcher
+		return &cdn, nil
 	}
 
 	if !env.CDNEnabled {
 		// Remote policies are enabled but we don't want to use the CDN
 		// as it's still in development. We use standard remote config calls
 		// instead (dubbed "direct" CDN).
-		return newCDNRC(env, configDBPath)
+		fetcher, err := newRCFetcher(env, configDBPath)
+		if err != nil {
+			return nil, err
+		}
+		cdn.fetcher = fetcher
+		return &cdn, nil
 	}
 
 	// Regular CDN with the cloudfront distribution
-	return newCDNHTTP(env, configDBPath)
+	fetcher, err := newHTTPFetcher(env, configDBPath)
+	if err != nil {
+		return nil, err
+	}
+	cdn.fetcher = fetcher
+	return &cdn, nil
+}
+
+// Get fetches the configuration for the given package.
+func (c *CDN) Get(ctx context.Context, pkg string) (cfg Config, err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
+	defer func() {
+		spanErr := err
+		if spanErr == ErrProductNotSupported {
+			spanErr = nil
+		}
+		span.Finish(tracer.WithError(spanErr))
+	}()
+
+	switch pkg {
+	case "datadog-agent":
+		orderedLayers, err := c.fetcher.get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		cfg, err = newAgentConfig(orderedLayers...)
+		if err != nil {
+			return nil, err
+		}
+	case "datadog-apm-inject":
+		orderedLayers, err := c.fetcher.get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderedLayers...)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, ErrProductNotSupported
+	}
+
+	return cfg, nil
+}
+
+// Close closes the CDN.
+func (c *CDN) Close() error {
+	return c.fetcher.close()
 }
