@@ -145,7 +145,7 @@ require (
 	go.uber.org/fx v1.22.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/net v0.31.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
@@ -170,3 +170,55 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )
+
+replace github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
+
+replace github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets => ../../comp/core/secrets
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../comp/def
+
+replace github.com/DataDog/datadog-agent/pkg/api => ../api
+
+replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
+
+replace github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
+
+replace github.com/DataDog/datadog-agent/pkg/config/mock => ../config/mock
+
+replace github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
+
+replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../config/nodetreemodel
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../config/teeconfig
+
+replace github.com/DataDog/datadog-agent/pkg/config/utils => ../config/utils
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../util/hostname/validate
+
+replace github.com/DataDog/datadog-agent/pkg/util/optional => ../util/optional
+
+replace github.com/DataDog/datadog-agent/pkg/util/system => ../util/system
+
+replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../util/testutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../util/winutil
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../version
