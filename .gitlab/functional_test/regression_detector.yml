@@ -269,7 +269,8 @@ single-machine-performance-regression_detector-pr-comment:
       - pr_comment_payload.json # for debugging PR commenter JSON payload bugs
   variables:
     # Not using the entrypoint script for the pr-commenter image
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false      
+    RUNNER_SCRIPT_TIMEOUT: 300m 
   allow_failure: true # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     # Prevent posting empty Regression Detector report if Markdown report is not found or
