@@ -28,7 +28,7 @@ func Test_TracerouteSequential(t *testing.T) {
 	recvFrom = func(_ windows.Handle, buf []byte, _ int) (n int, from windows.Sockaddr, err error) {
 		for currentTTL <= 10 {
 			// Mock ICMP packet
-			fakeHopIP := net.Parse(fmt.Sprintf("1.1.1.%d", currentTTL))
+			fakeHopIP := net.ParseIP(fmt.Sprintf("1.1.1.%d", currentTTL))
 			packetBytes := createMockICMPPacket(createMockIPv4Layer(fakeHopIP, srcIP, layers.IPProtocolICMPv4), createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(srcIP, target, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false)
 			copy(buf, packetBytes)
 			return len(packetBytes), nil, nil
