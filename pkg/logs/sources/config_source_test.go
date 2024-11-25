@@ -62,9 +62,8 @@ func TestAddFileSource(t *testing.T) {
 	assert.Len(t, configSource.sources, 1)
 	assert.Equal(t, "file", configSource.sources[0].Config.Type)
 
-	wd, err := os.Getwd()
 	assert.NoError(t, err)
-	assert.Equal(t, wd+"/"+tempFile.Name(), configSource.sources[0].Config.Path)
+	assert.Equal(t, "/tmp/test.log", configSource.sources[0].Config.Path)
 }
 
 func TestSubscribeForTypeConfig(t *testing.T) {
