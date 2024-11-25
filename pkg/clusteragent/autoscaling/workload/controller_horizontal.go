@@ -41,9 +41,6 @@ const (
 
 	defaultMinReplicas int32 = 1
 	defaultMaxReplicas int32 = math.MaxInt32
-
-	stabilizationWindowDownscaleSeconds int32 = 300
-	stabilizationWindowUpscaleSeconds   int32 = 0
 )
 
 type horizontalController struct {
@@ -213,8 +210,19 @@ func (hr *horizontalController) computeScaleAction(
 	// Stabilize recommendation
 	var stabilizationLimitReason string
 	var stabilizationLimitedReplicas int32
+	upscaleStabilizationSeconds := int32(0)
+	downscaleStabilizationSeconds := int32(0)
 
-	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, autoscalerInternal.Spec().Policy.Upscale.StabilizationWindowSeconds, autoscalerInternal.Spec().Policy.Downscale.StabilizationWindowSeconds)
+	if policy := autoscalerInternal.Spec().Policy; policy != nil {
+		if upscalePolicy := policy.Upscale; upscalePolicy != nil {
+			upscaleStabilizationSeconds = int32(upscalePolicy.StabilizationWindowSeconds)
+		}
+		if downscalePolicy := policy.Downscale; downscalePolicy != nil {
+			downscaleStabilizationSeconds = int32(downscalePolicy.StabilizationWindowSeconds)
+		}
+	}
+
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds)
 	if stabilizationLimitReason != "" {
 		limitReason = stabilizationLimitReason
 		targetDesiredReplicas = stabilizationLimitedReplicas
