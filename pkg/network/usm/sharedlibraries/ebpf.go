@@ -146,6 +146,16 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	return progSingleton
 }
 
+// isLibsetValid checks if the given libset is valid (i.e., it's in the libsets map). Note that
+// this function assumes that a libset is valid if it's in the map, as the map is initialized with
+// all valid libsets when the program is initialized. We could also call IsLibsetValid, but doing
+// it this way centralizes the "validity" check in the program: if in the future we have a different
+// way to check if a libset is valid, we only need to change how the e.libsets map is filled.
+func (e *EbpfProgram) isLibsetValid(libset Libset) bool {
+	_, ok := e.libsets[libset]
+	return ok
+}
+
 // isLibsetEnabled checks if the libset is enabled. Assumes initMutex is locked
 func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	data, ok := e.libsets[libset]
@@ -250,7 +260,7 @@ func (e *EbpfProgram) loadProgram() error {
 func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 	// Ensure we have all valid libsets, we don't want cryptic errors later
 	for _, libset := range libsets {
-		if !IsLibsetValid(libset) {
+		if !e.isLibsetValid(libset) {
 			return fmt.Errorf("libset %s is not valid, ensure it is in the LibsetToLibSuffixes map", libset)
 		}
 	}
