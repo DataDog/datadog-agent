@@ -256,7 +256,7 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID,
 	}
 
 	// send the custom event with the list of succeed and failed self tests
-	rule, event := selftests.NewSelfTestEvent(success, fails, testEvents)
+	rule, event := selftests.NewSelfTestEvent(c.probe.GetAgentContainerContext(), success, fails, testEvents)
 	c.SendEvent(rule, event, nil, "")
 }
 

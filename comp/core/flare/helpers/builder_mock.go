@@ -32,7 +32,7 @@ type FlareBuilderMock struct {
 func NewFlareBuilderMock(t *testing.T, local bool) *FlareBuilderMock {
 	root := t.TempDir()
 
-	builder, err := newBuilder(root, "test-hostname", local)
+	builder, err := newBuilder(root, "test-hostname", local, types.FlareArgs{})
 	require.NoError(t, err)
 
 	fb := &FlareBuilderMock{

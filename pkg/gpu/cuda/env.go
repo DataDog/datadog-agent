@@ -119,7 +119,7 @@ func getDeviceWithIndex(systemDevices []nvml.Device, visibleDevice string) (nvml
 	}
 
 	if idx < 0 || idx >= len(systemDevices) {
-		return nil, fmt.Errorf("device index %d is out of range [0, %d]", idx, len(systemDevices)-1)
+		return nil, fmt.Errorf("device index %d is out of range [0, %d)", idx, len(systemDevices))
 	}
 
 	return systemDevices[idx], nil

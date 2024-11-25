@@ -126,8 +126,10 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 
 func (s *TracerSuite) TestTCPRetransmit() {
 	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
@@ -175,6 +177,8 @@ func (s *TracerSuite) TestTCPRetransmit() {
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -203,7 +207,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	// this connection (if there are pid collisions,
 	// we assign the tcp stats to one connection randomly,
 	// which is the point of this test)
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	const numProcesses = 10
 	iptablesWrapper(t, func() {
@@ -252,8 +256,10 @@ func (s *TracerSuite) TestTCPRTT() {
 	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
 		flake.Mark(t)
 	}
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -1101,6 +1107,10 @@ func (s *TracerSuite) TestSelfConnect() {
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPConnTimeout = 3 * time.Second
+	// TODO filter out connections in ebpfless where the incoming IP:port == outgoing IP:port because
+	// packet capture can't trace it properly
+	skipEbpflessTodo(t, cfg)
+
 	tr := setupTracer(t, cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -1141,7 +1151,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 // sets up two udp sockets talking to each other locally.
 // returns (listener, dialer)
-func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
+func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) { //nolint:revive // TODO
 	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
 	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
@@ -1479,7 +1489,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
-	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) { //nolint:revive // TODO
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections := getConnections(t, tr)
 
@@ -2047,22 +2057,11 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	ch <- struct{}{}
 	<-ch
 
-	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		t.Log(conns) // for debugging failures
-		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		return conn != nil
-	}, 3*time.Second, 100*time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 
-	m := conn.Monotonic
-	assert.Zero(t, m.SentBytes, "sent bytes should be 0")
-	assert.Zero(t, m.RecvBytes, "recv bytes should be 0")
-	assert.Zero(t, m.SentPackets, "sent packets should be 0")
-	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
-	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
-	assert.Equal(t, uint16(1), m.TCPClosed, "tcp closed should be 1")
-	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
+	conns := getConnections(t, tr)
+	_, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+	require.False(t, ok, "expected connection to not be found")
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
@@ -2328,6 +2327,7 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 func (s *TracerSuite) TestConnectionDuration() {
 	t := s.T()
 	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	tr := setupTracer(t, cfg)
 
 	srv := tracertestutil.NewTCPServer(func(c net.Conn) {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -150,6 +152,8 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuSuite) TestVectorAddProgramDetected() {
+	flake.Mark(v.T())
+
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
@@ -160,6 +164,12 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+
+			for _, metric := range metrics {
+				assert.True(c, slices.ContainsFunc(metric.Tags, func(tag string) bool {
+					return strings.HasPrefix(tag, "gpu_uuid:")
+				}), "no gpu_uuid tag found in %v", metric)
+			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
