@@ -51,6 +51,8 @@ func (d *dockerUDPSuite) TestLogsReceived() {
 }
 
 func TestTCPListener(t *testing.T) {
+	t.Parallel()
+
 	e2e.Run(t,
 		&dockerTCPSuite{},
 		e2e.WithProvisioner(
@@ -64,6 +66,8 @@ func TestTCPListener(t *testing.T) {
 }
 
 func TestUDPListener(t *testing.T) {
+	t.Parallel()
+
 	e2e.Run(t,
 		&dockerUDPSuite{},
 		e2e.WithProvisioner(

@@ -36,6 +36,7 @@ var (
 
 func TestVMSuite(t *testing.T) {
 	flake.Mark(t)
+	t.Parallel()
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
 	if *devMode {

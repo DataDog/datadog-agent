@@ -219,6 +219,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 }
 
 func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string) {
+	t.Parallel()
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
 		awsHostWindows.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),

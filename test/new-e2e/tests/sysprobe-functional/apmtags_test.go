@@ -17,13 +17,14 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type apmvmSuite struct {
@@ -36,6 +37,7 @@ type apmvmSuite struct {
 var systemProbeConfig string
 
 func TestUSMAutoTaggingSuite(t *testing.T) {
+	t.Parallel()
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
 		awsHostWindows.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(systemProbeConfig),
