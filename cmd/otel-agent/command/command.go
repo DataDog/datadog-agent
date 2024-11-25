@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build otlp
+//go:build otlp_agent
 
 // Package command implements the top-level `otel-agent` binary, including its subcommands.
 package command
@@ -18,10 +18,11 @@ import (
 	"github.com/kouhin/envflag"
 	"github.com/spf13/cobra"
 
+	"go.opentelemetry.io/collector/featuregate"
+
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
-	"go.opentelemetry.io/collector/featuregate"
 )
 
 const (

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build otlp_agent
+
 // Package config provides a way to convert the OpenTelemetry Collector configuration to the Datadog Agent configuration.
 package config
 

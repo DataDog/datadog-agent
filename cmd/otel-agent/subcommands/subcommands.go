@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build otlp_agent
+
 // Package subcommands contains the subcommands of the otel-agent.
 package subcommands
 
