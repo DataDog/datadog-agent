@@ -356,7 +356,6 @@ func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 	defer l.callbacksMutex.RUnlock()
 
 	libpath := ToLibPath(event.Data)
-	fmt.Println(libpath.String())
 	for callback := range l.callbacks {
 		// Not using a callback runner for now, as we don't have a lot of callbacks
 		(*callback)(libpath)
