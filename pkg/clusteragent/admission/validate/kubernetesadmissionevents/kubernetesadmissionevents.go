@@ -142,7 +142,7 @@ func (w *Webhook) emitEvent(request *admission.Request, _ string, _ dynamic.Inte
 		}
 	}
 	var oldResource unstructured.Unstructured
-	if request.Operation != "CREATE" && request.Operation != "CONNECT" {
+	if request.Operation != admissionregistrationv1.Create && request.Operation != admissionregistrationv1.Connect {
 		if err := json.Unmarshal(request.OldObject, &oldResource); err != nil {
 			return true, fmt.Errorf("failed to unmarshal oldObject: %w", err)
 		}
