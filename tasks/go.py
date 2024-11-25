@@ -448,6 +448,8 @@ def tidy_all(ctx):
 def tidy(ctx):
     check_valid_mods(ctx)
 
+    ctx.run("go work sync")
+
     if os.name != 'nt':  # not windows
         import resource
 
