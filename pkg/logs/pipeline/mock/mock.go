@@ -44,7 +44,7 @@ func (p *mockProvider) StopSDSProcessing() error {
 	return nil
 }
 
-func (p *mockProvider) GetOutputChan() error {
+func (p *mockProvider) GetOutputChan() chan *message.Message {
 	return nil
 }
 
