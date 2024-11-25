@@ -29,7 +29,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"golang.org/x/net/http2"
 )
 
 // ContentType options,
@@ -198,7 +197,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
 		tlmInUse.Add(inUse, d.telemetryName)
 		startIdle = time.Now()
-	}``
+	}
 	// Wait for any pending concurrent sends to finish or terminate
 	d.wg.Wait()
 
@@ -329,7 +328,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
-	log.Tracef("Log payload 2 sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
+	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
 	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
@@ -378,13 +377,14 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 }
 
 func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
+	var transport *http.Transport
 
-	transport := httputils.CreateHTTPTransport(cfg)
 	transportConfig := cfg.Get("logs_config.transport_type")
 	// Configure transport based on user setting
 	switch transportConfig {
 	case "http1":
 		// Use default ALPN auto-negotiation to negotiate up to http/1.1
+		transport = httputils.CreateHTTPTransport(cfg)
 	case "auto":
 		fallthrough
 	default:
@@ -392,10 +392,7 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 			log.Warnf("Invalid transport_type '%v', falling back to 'auto'", transportConfig)
 		}
 		// Use default ALPN auto-negotiation and negotiate to HTTP/2 if possible, if not it will automatically fallback to best available protocol
-		err := http2.ConfigureTransport(transport)
-		if err != nil {
-			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocol", err)
-		}
+		transport = httputils.CreateHTTPTransport(cfg, httputils.WithHTTP2())
 	}
 
 	return func() *http.Client {
