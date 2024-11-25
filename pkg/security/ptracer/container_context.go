@@ -10,10 +10,10 @@ package ptracer
 import (
 	"encoding/json"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
 // ECSMetadata defines ECS metadata
@@ -68,20 +68,14 @@ func newContainerContext(containerID string) (*ebpfless.ContainerContext, error)
 				ctx.Name = data.DockerName
 			}
 			if data.Image != "" {
-				image := data.Image
-				lastSlash := strings.LastIndex(image, "/")
-				lastColon := strings.LastIndex(image, ":")
-				if lastColon > -1 && lastColon > lastSlash {
-					ctx.ImageTag = image[lastColon+1:]
-					image = image[:lastColon]
-				}
-				if lastSlash > -1 {
-					ctx.ImageShortName = image[lastSlash+1:]
-				} else {
-					ctx.ImageShortName = image
-				}
-				if ctx.ImageShortName != "" && ctx.ImageTag == "" {
-					ctx.ImageTag = "latest"
+				_, _, shortImageName, tag, err := image.SplitImageName(data.Image)
+				if err == nil {
+					ctx.ImageShortName = shortImageName
+					if tag != "" {
+						ctx.ImageTag = tag
+					} else {
+						ctx.ImageTag = "latest"
+					}
 				}
 			}
 		}

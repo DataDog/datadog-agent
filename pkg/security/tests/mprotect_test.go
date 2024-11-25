@@ -48,7 +48,7 @@ func TestMProtectEvent(t *testing.T) {
 				return fmt.Errorf("couldn't mprotect segment: %w", err)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "mprotect", event.GetType(), "wrong event type")
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MProtect.VMProtection&(unix.PROT_READ|unix.PROT_WRITE), fmt.Sprintf("wrong initial protection: %s", model.Protection(event.MProtect.VMProtection)))
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, event.MProtect.ReqProtection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong requested protection: %s", model.Protection(event.MProtect.ReqProtection)))
