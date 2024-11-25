@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
@@ -31,9 +30,9 @@ type replayTagger struct {
 	telemetryStore  *telemetry.Store
 }
 
-func newReplayTagger(cfg config.Component, telemetryStore *telemetry.Store) tagger.ReplayTagger {
+func newReplayTagger(telemetryStore *telemetry.Store) tagger.ReplayTagger {
 	return &replayTagger{
-		store:          tagstore.NewTagStore(cfg, telemetryStore),
+		store:          tagstore.NewTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
 	}
 }

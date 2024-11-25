@@ -61,7 +61,7 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	expCfg := cfg.(*ExporterConfig)
-	expCfg.Metrics.HistConfig.Mode = "InvalidMode"
+	expCfg.Metrics.Metrics.HistConfig.Mode = "InvalidMode"
 
 	set := exportertest.NewNopSettings()
 	_, err := factory.CreateMetrics(context.Background(), set, cfg)

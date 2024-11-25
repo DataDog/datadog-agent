@@ -32,6 +32,7 @@ type cdnRC struct {
 	configDBPath        string
 	firstRequest        bool
 	hostTagsGetter      hostTagsGetter
+	env                 *env.Env
 }
 
 // newCDNRC creates a new CDN with RC: it fetches the configuration from the remote config service instead of cloudfront
@@ -86,6 +87,7 @@ func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 		configDBPath:        configDBPathTemp,
 		firstRequest:        true,
 		hostTagsGetter:      ht,
+		env:                 env,
 	}
 	service.Start()
 	return cdn, nil
@@ -192,7 +194,7 @@ func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
 	}
 	return getOrderedScopedLayers(
 		files,
-		getScopeExprVars(ctx, c.hostTagsGetter),
+		getScopeExprVars(c.env, c.hostTagsGetter),
 	)
 }
 

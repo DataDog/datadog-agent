@@ -6,20 +6,17 @@
 package inventorychecksimpl
 
 import (
-	"net/http"
+	"go.uber.org/fx"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	icinterface "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockProvides is the mock component output
 type MockProvides struct {
 	fx.Out
 
-	Comp     icinterface.Component
-	Endpoint api.AgentEndpointProvider
+	Comp icinterface.Component
 }
 
 // InventorychecksMock mocks methods for the inventorychecks components for testing
@@ -34,14 +31,8 @@ func NewMock() MockProvides {
 		metadata: map[string]map[string]interface{}{},
 	}
 	return MockProvides{
-		Comp:     ic,
-		Endpoint: api.NewAgentEndpointProvider(ic.handlerFunc, "/metadata/inventory-checks", "GET"),
+		Comp: ic,
 	}
-}
-
-// handlerFunc is a simple mocked http.Handler function
-func (m *InventorychecksMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
 }
 
 // Set sets a metadata value for a specific instancID
