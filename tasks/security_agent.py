@@ -55,7 +55,7 @@ def build(
     incremental_build=True,
     install_path=None,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     skip_assets=False,
     static=False,
 ):
@@ -373,7 +373,7 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=readonly -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/{src_path}'
 
     args = {

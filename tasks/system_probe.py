@@ -416,9 +416,13 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     }
 
     nw.rule(
-        name="headerincl", command="go generate -run=\"include_headers\" -mod=mod -tags linux_bpf $in", depfile="$out.d"
+        name="headerincl",
+        command="go generate -run=\"include_headers\" -mod=readonly -tags linux_bpf $in",
+        depfile="$out.d",
     )
-    nw.rule(name="integrity", command="go generate -run=\"integrity\" -mod=mod -tags linux_bpf $in", depfile="$out.d")
+    nw.rule(
+        name="integrity", command="go generate -run=\"integrity\" -mod=readonly -tags linux_bpf $in", depfile="$out.d"
+    )
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
     for in_path, out_filename in runtime_compiler_files.items():
@@ -674,7 +678,7 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
     kernel_release=None,
@@ -729,7 +733,7 @@ def build_sysprobe_binary(
     race=False,
     incremental_build=True,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
     install_path=None,
@@ -852,7 +856,7 @@ def test(
         args["dir"] = pdir
         testto = timeout if timeout else get_test_timeout(pdir)
         args["timeout"] = f"-timeout {testto}" if testto else ""
-        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
+        cmd = '{sudo}{go} test -mod=readonly -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
         res = ctx.run(cmd.format(**args), env=env, warn=True)
         if res.exited is None or res.exited > 0:
             failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
@@ -913,7 +917,7 @@ def test_debug(
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
 
-    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
+    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=readonly -v {failfast} -tags={build_tags}" -- -test.run {run}'
     ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
 
 
@@ -944,7 +948,7 @@ def go_package_dirs(packages, build_tags):
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
     packages_arg = " ".join(packages)
-    cmd = f"go list -find -f \"{format_arg}\" -mod=mod -tags \"{buildtags_arg}\" {packages_arg}"
+    cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
