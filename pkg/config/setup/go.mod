@@ -29,7 +29,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 
 	// Internal deps fix version
-	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
+	github.com/spf13/cast => github.com/DataDog/cast v1.7.0
 )
 
 require (
