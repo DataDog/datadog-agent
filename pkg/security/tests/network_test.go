@@ -17,12 +17,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cilium/ebpf"
 	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
@@ -147,5 +149,118 @@ func TestRawPacket(t *testing.T) {
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
 		})
+	})
+}
+
+func TestRawPacketFilter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		// OpenSUSE distributions are missing the dummy kernel module
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || (kv.IsAmazonLinuxKernel() && kv.Code < kernel.Kernel4_15)
+	})
+
+	colSpecForMaps := ebpf.CollectionSpec{
+		Maps: map[string]*ebpf.MapSpec{
+			"raw_packet_event": {
+				Name:       "raw_packet_event",
+				Type:       ebpf.Array,
+				KeySize:    4,
+				ValueSize:  4096, // to be adapted with the raw_packet_event
+				MaxEntries: 1,
+			},
+			"classifier_router": {
+				Name:       "classifier_router",
+				Type:       ebpf.ProgramArray,
+				KeySize:    4,
+				ValueSize:  4,
+				MaxEntries: 1,
+			},
+		},
+	}
+
+	mapsCol, err := ebpf.NewCollection(&colSpecForMaps)
+	assert.Nil(t, err)
+	defer mapsCol.Close()
+
+	rawPacketEventMap := mapsCol.Maps["raw_packet_event"]
+	assert.NotNil(t, rawPacketEventMap)
+	assert.Greater(t, rawPacketEventMap.FD(), 0)
+
+	clsRouterMapFd := mapsCol.Maps["classifier_router"]
+	assert.NotNil(t, clsRouterMapFd)
+	assert.Greater(t, clsRouterMapFd.FD(), 0)
+
+	filters := []rawpacket.Filter{
+		{
+			BPFFilter: "port 5555",
+		},
+		{
+			BPFFilter: "tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420",
+		},
+		{
+			BPFFilter: "icmp[icmptype] != icmp-echo and icmp[icmptype] != icmp-echoreply",
+		},
+		{
+			BPFFilter: "port ftp or ftp-data",
+		},
+		{
+			BPFFilter: "tcp[tcpflags] & (tcp-syn|tcp-fin) != 0 and not src and dst net 192.168.1.0/24",
+		},
+		{
+			BPFFilter: "tcp port 80 and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)",
+		},
+		{
+			BPFFilter: "ether[0] & 1 = 0 and ip[16] >= 224",
+		},
+		{
+			BPFFilter: "udp port 67 and port 68",
+		},
+		{
+			BPFFilter: "((port 67 or port 68) and (udp[38:4] = 0x3e0ccf08))",
+		},
+		{
+			BPFFilter: "portrange 21-23",
+		},
+		{
+			BPFFilter: "tcp[13] & 8!=0",
+		},
+	}
+
+	runTest := func(t *testing.T, filters []rawpacket.Filter, opts rawpacket.ProgOpts) {
+		progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), clsRouterMapFd.FD(), filters, opts)
+		assert.Nil(t, err)
+		assert.NotEmpty(t, progSpecs)
+
+		colSpec := ebpf.CollectionSpec{
+			Programs: make(map[string]*ebpf.ProgramSpec),
+		}
+		for _, progSpec := range progSpecs {
+			colSpec.Programs[progSpec.Name] = progSpec
+		}
+
+		progsCol, err := ebpf.NewCollection(&colSpec)
+		assert.Nil(t, err)
+		if err == nil {
+			progsCol.Close()
+		}
+	}
+
+	for _, filter := range filters {
+		t.Run(filter.BPFFilter, func(t *testing.T) {
+			runTest(t, []rawpacket.Filter{filter}, rawpacket.DefaultProgOpts)
+		})
+	}
+
+	t.Run("all-without-limit", func(t *testing.T) {
+		runTest(t, filters, rawpacket.DefaultProgOpts)
+	})
+
+	t.Run("all-with-limit", func(t *testing.T) {
+		opts := rawpacket.DefaultProgOpts
+		opts.MaxProgSize = 4000
+		opts.NopInstLen = 3500
+		runTest(t, filters, rawpacket.DefaultProgOpts)
 	})
 }
