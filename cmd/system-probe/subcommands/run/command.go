@@ -60,7 +60,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -123,9 +122,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return func() (string, error) { return security.FetchAuthToken(c) }
 					},
 					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
-				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
@@ -296,9 +292,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 				return func() (string, error) { return security.FetchAuthToken(c) }
 			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
-		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-			proccontainers.InitSharedContainerProvider(wmeta, tagger)
 		}),
 		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
