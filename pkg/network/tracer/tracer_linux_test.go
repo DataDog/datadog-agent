@@ -2057,22 +2057,11 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	ch <- struct{}{}
 	<-ch
 
-	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		t.Log(conns) // for debugging failures
-		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		return conn != nil
-	}, 3*time.Second, 100*time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 
-	m := conn.Monotonic
-	assert.Zero(t, m.SentBytes, "sent bytes should be 0")
-	assert.Zero(t, m.RecvBytes, "recv bytes should be 0")
-	assert.Zero(t, m.SentPackets, "sent packets should be 0")
-	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
-	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
-	assert.Equal(t, uint16(1), m.TCPClosed, "tcp closed should be 1")
-	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
+	conns := getConnections(t, tr)
+	_, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+	require.False(t, ok, "expected connection to not be found")
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {

@@ -56,7 +56,7 @@ func TestHash(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(_ *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_exec")
 		})
 	})
@@ -80,7 +80,7 @@ func TestHash(t *testing.T) {
 			syscall.Close(fd)
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(_ *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_fifo")
 		})
 	})
