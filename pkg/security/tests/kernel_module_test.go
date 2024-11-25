@@ -148,7 +148,7 @@ func TestKworker(t *testing.T) {
 		}
 
 		return nil
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(_ *model.Event, r *rules.Rule) {
 		assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
 	})
 }
