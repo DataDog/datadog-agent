@@ -7,7 +7,8 @@ package config
 
 // Pipeline constraints
 const (
-	NumberOfPipelines = 4
+	NumberOfPipelines          = 4
+	MaxLatencyThrottledSenders = 10
 )
 
 const (

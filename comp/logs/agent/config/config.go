@@ -262,11 +262,12 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 	batchWait := logsConfig.batchWait()
 	batchMaxConcurrentSend := logsConfig.batchMaxConcurrentSend()
+	targetLatency := logsConfig.targetLatency()
 	batchMaxSize := logsConfig.batchMaxSize()
 	batchMaxContentSize := logsConfig.batchMaxContentSize()
 	inputChanSize := logsConfig.inputChanSize()
 
-	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
+	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, targetLatency, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 }
 
 type defaultParseAddressFunc func(string) (host string, port int, err error)

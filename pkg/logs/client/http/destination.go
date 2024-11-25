@@ -70,8 +70,8 @@ type Destination struct {
 	isMRF               bool
 
 	// Concurrency
-	climit chan struct{} // semaphore for limiting concurrent background sends
-	wg     sync.WaitGroup
+	senderPool SenderPool
+	wg         sync.WaitGroup
 
 	// Retry
 	backoff        backoff.Policy
@@ -94,7 +94,7 @@ type Destination struct {
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	maxConcurrentBackgroundSends int,
+	senderPool SenderPool,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
@@ -104,7 +104,7 @@ func NewDestination(endpoint config.Endpoint,
 		contentType,
 		destinationsContext,
 		time.Second*10,
-		maxConcurrentBackgroundSends,
+		senderPool,
 		shouldRetry,
 		destMeta,
 		cfg,
@@ -115,15 +115,12 @@ func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
 	timeout time.Duration,
-	maxConcurrentBackgroundSends int,
+	senderPool SenderPool,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
 	pipelineMonitor metrics.PipelineMonitor) *Destination {
 
-	if maxConcurrentBackgroundSends <= 0 {
-		maxConcurrentBackgroundSends = 1
-	}
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
 		endpoint.BackoffBase,
@@ -147,7 +144,7 @@ func newDestination(endpoint config.Endpoint,
 		contentType:         contentType,
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
-		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		senderPool:          senderPool,
 		wg:                  sync.WaitGroup{},
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
@@ -222,14 +219,10 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 
 func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	d.wg.Add(1)
-	d.climit <- struct{}{}
-	go func() {
-		defer func() {
-			<-d.climit
-			d.wg.Done()
-		}()
+	d.senderPool.Run(func() {
 		d.sendAndRetry(payload, output, isRetrying)
-	}()
+		d.wg.Done()
+	})
 }
 
 // Send sends a payload over HTTP,
@@ -438,7 +431,7 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, client.NewNoopDestinationMetadata(), cfg, metrics.NewNoopPipelineMonitor(""))
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, NewLimitedMaxSenderPool(0), false, client.NewNoopDestinationMetadata(), cfg, metrics.NewNoopPipelineMonitor(""))
 	return ctx, destination
 }
 

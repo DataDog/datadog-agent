@@ -70,7 +70,7 @@ func TestSenderSingleDestination(t *testing.T) {
 
 	respondChan := make(chan int)
 
-	server := http.NewTestServerWithOptions(200, 0, true, respondChan, cfg)
+	server := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
@@ -97,10 +97,10 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	output := make(chan *message.Payload, 1)
 
 	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
+	server1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan1, cfg)
 
 	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2, cfg)
+	server2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
@@ -132,10 +132,10 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	output := make(chan *message.Payload, 1)
 
 	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
+	server1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan1, cfg)
 
 	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, false, respondChan2, cfg)
+	server2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, respondChan2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
@@ -164,10 +164,10 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	output := make(chan *message.Payload, 1)
 
 	reliableRespond := make(chan int)
-	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond, cfg)
+	reliableServer := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, reliableRespond, cfg)
 
 	unreliableRespond := make(chan int)
-	unreliableServer := http.NewTestServerWithOptions(200, 0, false, unreliableRespond, cfg)
+	unreliableServer := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, unreliableRespond, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
@@ -213,10 +213,10 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	output := make(chan *message.Payload, 1)
 
 	reliableRespond1 := make(chan int)
-	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
+	reliableServer1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, reliableRespond1, cfg)
 
 	reliableRespond2 := make(chan int)
-	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2, cfg)
+	reliableServer2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, reliableRespond2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
@@ -259,10 +259,10 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	output := make(chan *message.Payload, 1)
 
 	reliableRespond1 := make(chan int)
-	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
+	reliableServer1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, reliableRespond1, cfg)
 
 	reliableRespond2 := make(chan int)
-	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2, cfg)
+	reliableServer2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, reliableRespond2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 

@@ -94,7 +94,7 @@ func testNoRetry(t *testing.T, statusCode int) {
 func retryTest(t *testing.T, statusCode int) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(statusCode, 0, true, respondChan, cfg)
+	server := NewTestServerWithOptions(statusCode, NewLimitedMaxSenderPool(0), true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -124,7 +124,7 @@ func retryTest(t *testing.T, statusCode int) {
 func TestDestinationContextCancel(t *testing.T) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(429, 0, true, respondChan, cfg)
+	server := NewTestServerWithOptions(429, NewLimitedMaxSenderPool(0), true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -220,7 +220,7 @@ func TestDestinationConcurrentSends(t *testing.T) {
 	cfg := configmock.New(t)
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
+	server := NewTestServerWithOptions(500, NewLimitedMaxSenderPool(2), true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 	server.Destination.Start(input, output, nil)
@@ -275,7 +275,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	cfg := configmock.New(t)
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
+	server := NewTestServerWithOptions(500, NewLimitedMaxSenderPool(2), true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
@@ -323,7 +323,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 func TestBackoffDelayEnabled(t *testing.T) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, true, respondChan, cfg)
+	server := NewTestServerWithOptions(500, NewLimitedMaxSenderPool(0), true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -340,7 +340,7 @@ func TestBackoffDelayEnabled(t *testing.T) {
 func TestBackoffDelayDisabled(t *testing.T) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, false, respondChan, cfg)
+	server := NewTestServerWithOptions(500, NewLimitedMaxSenderPool(0), false, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -361,7 +361,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, client.NewNoopDestinationMetadata(), configmock.New(t), metrics.NewNoopPipelineMonitor(""))
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), NewLimitedMaxSenderPool(0), false, client.NewNoopDestinationMetadata(), configmock.New(t), metrics.NewNoopPipelineMonitor(""))
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)

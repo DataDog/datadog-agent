@@ -132,7 +132,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 			if serverless {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, destMeta, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, destMeta, cfg, pipelineMonitor))
+				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, getSenderPool(endpoints, destMeta), true, destMeta, cfg, pipelineMonitor))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
@@ -140,7 +140,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 			if serverless {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, destMeta, cfg))
 			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, destMeta, cfg, pipelineMonitor))
+				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, getSenderPool(endpoints, destMeta), false, destMeta, cfg, pipelineMonitor))
 			}
 		}
 		return client.NewDestinations(reliable, additionals)
@@ -153,6 +153,15 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	}
 
 	return client.NewDestinations(reliable, additionals)
+}
+
+func getSenderPool(endpoints *config.Endpoints, destMeta *client.DestinationMetadata) http.SenderPool {
+	// If the user explicitly set the number of concurrent sends, use the old concurrency model
+	if endpoints.BatchMaxConcurrentSend > 1 {
+		return http.NewLimitedMaxSenderPool(endpoints.BatchMaxConcurrentSend)
+	}
+	return http.NewLatencyThrottledSenderPool(config.MaxLatencyThrottledSenders, endpoints.TargetLatency, destMeta)
+
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
