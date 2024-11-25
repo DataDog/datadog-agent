@@ -129,8 +129,9 @@ def __get_force_option(force: bool) -> str:
     return force_option
 
 
-def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
+def __tag_single_module(ctx, module, agent_version, commit, force_option, devel):
     """Tag a given module."""
+    tags = []
     for tag in module.tag(agent_version):
         if devel:
             tag += "-devel"
@@ -143,9 +144,8 @@ def __tag_single_module(ctx, module, agent_version, commit, push, force_option, 
             message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
             raise Exit(color_message(message, "red"), code=1)
         print(f"Created tag {tag}")
-        if push:
-            ctx.run(f"git push origin {tag}{force_option}")
-            print(f"Pushed tag {tag}")
+        tags.append(tag)
+    return tags
 
 
 @task
@@ -170,11 +170,17 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
         check_version(agent_version)
 
     force_option = __get_force_option(force)
+    tags = []
     for module in get_default_modules().values():
         # Skip main module; this is tagged at tag_version via __tag_single_module.
         if module.should_tag and module.path != ".":
-            __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
+            new_tags = __tag_single_module(ctx, module, agent_version, commit, force_option, devel)
+            tags.extend(new_tags)
 
+    if push:
+        tags_list = ' '.join(tags)
+        ctx.run(f"git push origin {tags_list}{force_option}")
+        print(f"Pushed tag {tags_list}")
     print(f"Created module tags for version {agent_version}")
 
 
@@ -200,7 +206,11 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, push, force_option, devel)
+    tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
+    if push:
+        tags_list = ' '.join(tags)
+        ctx.run(f"git push origin {tags_list}{force_option}")
+        print(f"Pushed tag {tags_list}")
     print(f"Created tags for version {agent_version}")
 
 
