@@ -114,6 +114,7 @@ namespace Datadog.CustomActions
                 }
 
                 File.Delete(Path.Combine(projectLocation, "bin", "7zr.exe"));
+                File.Delete(embedded);
             }
             catch (Exception e)
             {

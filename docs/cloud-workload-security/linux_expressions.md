@@ -386,7 +386,9 @@ A bind was executed
 | -------- | ------------- |
 | [`bind.addr.family`](#bind-addr-family-doc) | Address family |
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`bind.protocol`](#bind-protocol-doc) | Socket Protocol |
 | [`bind.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `bpf`
@@ -520,11 +522,10 @@ A connect was executed
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
-| [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `dns`
 
@@ -540,12 +541,14 @@ A DNS request was sent
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `exec`
@@ -742,12 +745,14 @@ An IMDS event was captured
 | [`imds.url`](#imds-url-doc) | the queried IMDS URL |
 | [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `link`
@@ -960,6 +965,7 @@ A raw network packet captured
 | Property | Definition |
 | -------- | ------------- |
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`packet.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`packet.filter`](#packet-filter-doc) | pcap filter expression |
@@ -967,6 +973,7 @@ A raw network packet captured
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`packet.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
 
@@ -2135,8 +2142,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -2155,6 +2162,15 @@ Definition: Indicates whether the process is a kworker
 
 `*.is_kworker` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.is_public` {#common-ipportcontext-is_public-doc}
+Type: bool
+
+Definition: Whether the IP address belongs to a public network
+
+`*.is_public` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_thread` {#common-process-is_thread-doc}
@@ -2350,8 +2366,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2463,6 +2479,13 @@ Definition: User of the file's owner
 Type: int
 
 Definition: Address family
+
+
+
+### `bind.protocol` {#bind-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
 
 
 
@@ -2654,10 +2677,10 @@ Definition: Address family
 
 
 
-### `connect.server.addr.family` {#connect-server-addr-family-doc}
+### `connect.protocol` {#connect-protocol-doc}
 Type: int
 
-Definition: Server address family
+Definition: Socket Protocol
 
 
 

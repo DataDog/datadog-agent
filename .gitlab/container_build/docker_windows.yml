@@ -32,7 +32,7 @@
       -e DOCKER_REGISTRY_LOGIN=${DOCKER_REGISTRY_LOGIN}
       -e DOCKER_REGISTRY_PWD=${DOCKER_REGISTRY_PWD}
       -v "$(Get-Location):C:\mnt"
-      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine registry.ddbuild.io/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell
       -File C:\mnt\tools\ci\docker-login.ps1
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }

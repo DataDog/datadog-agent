@@ -2,7 +2,8 @@
 Description=Datadog Security Agent Experiment
 After=network.target
 BindsTo=datadog-agent-exp.service
-ConditionPathExists=/etc/datadog-agent/security-agent.yaml
+ConditionPathExists=|/etc/datadog-agent/security-agent.yaml
+ConditionPathExists=|/etc/datadog-packages/datadog-agent/experiment/security-agent.yaml
 
 [Service]
 Type=simple

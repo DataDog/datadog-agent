@@ -162,6 +162,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  S3_DD_AGENT_OMNIBUS_JAVA_URI: s3://dd-agent-omnibus/openjdk
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
@@ -172,49 +173,49 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v47046711-76471b8e
+  DATADOG_AGENT_BUILDIMAGES: v48372186-ff395e52
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v47046711-76471b8e
+  DATADOG_AGENT_WINBUILDIMAGES: v48372186-ff395e52
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v47046711-76471b8e
+  DATADOG_AGENT_ARMBUILDIMAGES: v48372186-ff395e52
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v47046711-76471b8e
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v48372186-ff395e52
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v47046711-76471b8e
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v48372186-ff395e52
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v47046711-76471b8e
+  CI_IMAGE_BTF_GEN: v48372186-ff395e52
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v47046711-76471b8e
+  CI_IMAGE_DEB_X64: v48372186-ff395e52
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v47046711-76471b8e
+  CI_IMAGE_DEB_ARM64: v48372186-ff395e52
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v47046711-76471b8e
+  CI_IMAGE_DEB_ARMHF: v48372186-ff395e52
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v47046711-76471b8e
+  CI_IMAGE_DD_AGENT_TESTING: v48372186-ff395e52
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v47046711-76471b8e
+  CI_IMAGE_DOCKER_X64: v48372186-ff395e52
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v47046711-76471b8e
+  CI_IMAGE_DOCKER_ARM64: v48372186-ff395e52
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v47046711-76471b8e
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v48372186-ff395e52
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v47046711-76471b8e
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v48372186-ff395e52
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v47046711-76471b8e
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v48372186-ff395e52
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v47046711-76471b8e
+  CI_IMAGE_SYSTEM_PROBE_X64: v48372186-ff395e52
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v47046711-76471b8e
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v48372186-ff395e52
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v47046711-76471b8e
+  CI_IMAGE_RPM_X64: v48372186-ff395e52
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v47046711-76471b8e
+  CI_IMAGE_RPM_ARM64: v48372186-ff395e52
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v47046711-76471b8e
+  CI_IMAGE_RPM_ARMHF: v48372186-ff395e52
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_1809_X64: v47046711-76471b8e
+  CI_IMAGE_WIN_1809_X64: v48372186-ff395e52
   CI_IMAGE_WIN_1809_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v47046711-76471b8e
+  CI_IMAGE_WIN_LTSC2022_X64: v48372186-ff395e52
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -225,8 +226,8 @@ variables:
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-013ea43cbe85107c0"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-02fbd245475d6a63d"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-05b3973acf5422348"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
@@ -254,7 +255,6 @@ variables:
   E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
   E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
   E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx-loops
-  E2E_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_password  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
@@ -298,8 +298,13 @@ variables:
   AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
   AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
   ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
+  CODECOV: codecov  # agent-devx-infra
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  E2E_AZURE: e2e-azure  # agent-devx-loops
+  E2E_GCP: e2e-gcp  # agent-devx-loops
   GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  KITCHEN_AWS: kitchen-aws  # agent-devx-loops
+  KITCHEN_AZURE: kitchen-azure  # agent-devx-loops
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
   MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
   MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
@@ -745,6 +750,7 @@ workflow:
   - .gitlab/kernel_matrix_testing/security_agent.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/source_test/ebpf.yml
+  - test/new-e2e/tests/cws/**/*
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/pkg/runner/**/*
@@ -964,9 +970,7 @@ workflow:
 .on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths:
-        # TODO: Add paths that should trigger tests for CWS
-        - test/new-e2e/tests/cws/**/*
+      paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_process_or_e2e_changes:
