@@ -65,6 +65,7 @@ func withSecurityContextOverrides(container *corev1.Container, securityContext *
 
 	if securityContext != nil {
 		container.SecurityContext = securityContext
+		mutated = true
 	}
 
 	return mutated, nil
