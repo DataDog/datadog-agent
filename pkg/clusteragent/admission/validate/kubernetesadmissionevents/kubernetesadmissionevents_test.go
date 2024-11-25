@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -71,7 +72,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Version: "v1",
 					Kind:    "Pod",
 				},
-				Operation: "CREATE",
+				Operation: admissionregistrationv1.Create,
 				UserInfo:  &authenticationv1.UserInfo{Username: "username"},
 				Object: func() []byte {
 					marshalledObject, _ := json.Marshal(&unstructured.Unstructured{Object: map[string]interface{}{"kind": "Pod"}})
@@ -122,7 +123,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Version: "v1",
 					Kind:    "Pod",
 				},
-				Operation: "UPDATE",
+				Operation: admissionregistrationv1.Update,
 				UserInfo:  &authenticationv1.UserInfo{Username: "username"},
 				Object: func() []byte {
 					marshalledObject, _ := json.Marshal(&unstructured.Unstructured{Object: map[string]interface{}{"kind": "Pod"}})
@@ -173,7 +174,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Version: "v1",
 					Kind:    "Pod",
 				},
-				Operation: "DELETE",
+				Operation: admissionregistrationv1.Delete,
 				UserInfo:  &authenticationv1.UserInfo{Username: "username"},
 				Object: func() []byte {
 					marshalledObject, _ := json.Marshal(&unstructured.Unstructured{Object: map[string]interface{}{"kind": "Pod"}})
@@ -224,7 +225,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Version: "v1",
 					Kind:    "Pod",
 				},
-				Operation: "CREATE",
+				Operation: admissionregistrationv1.Create,
 				UserInfo:  &authenticationv1.UserInfo{Username: "system:serviceaccount"},
 				Object: func() []byte {
 					marshalledObject, _ := json.Marshal(&unstructured.Unstructured{Object: map[string]interface{}{"kind": "Pod"}})
