@@ -39,7 +39,7 @@ func TestBinaryUnmarshalCallback(t *testing.T) {
 		type x struct{}
 		BinaryUnmarshalCallback(func() *x {
 			return new(x)
-		}, func(x *x, err error) {})
+		}, func(_ *x, _ error) {})
 	})
 
 	cb := BinaryUnmarshalCallback(func() *emptyTestType {
