@@ -51,10 +51,12 @@ func TestRunAnalyzeLogs(t *testing.T) {
 	// Write config content to the temp file
 	configContent := fmt.Sprintf(`logs:
   - type: file
-    path: '%s'
-    service: hello
-    source: custom_log
-   
+    path: %s
+    log_processing_rules:
+      - type: exclude_at_match
+        name: exclude_random
+        pattern: "datadog-agent"
+      
 `, tempFile2.Name())
 
 	_, err = tempFile.Write([]byte(configContent))
@@ -116,12 +118,10 @@ Auto-discovery IDs:
 	// Assert output matches expected
 	expectedOutput := `=== apm check ===
 Configuration provider: file
-Configuration source: file:/opt/datadog-agent/etc/conf.d/apm.yaml.default
 Config for instance ID: apm:1234567890abcdef
 {}
 === container_image check ===
 Configuration provider: file
-Configuration source: file:/opt/datadog-agent/etc/conf.d/container_image.d/conf.yaml.default
 Config for instance ID: container_image:abcdef1234567890
 {}
 ~
