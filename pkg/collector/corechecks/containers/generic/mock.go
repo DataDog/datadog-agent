@@ -10,7 +10,7 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
@@ -75,5 +75,6 @@ func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
 			// Put the creation date in the past as, on Windows, the timer resolution may generate a 0 elapsed.
 			StartedAt: time.Now().Add(-2 * time.Second),
 		},
+		RestartCount: 42,
 	}
 }

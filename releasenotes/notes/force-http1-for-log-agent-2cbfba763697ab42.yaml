@@ -13,5 +13,3 @@ features:
 enhancements:
   - |
     Improved logging to add visiblity for latency and transport protocol
-
-    
