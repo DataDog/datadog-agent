@@ -148,9 +148,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
-    if (!protocol_stack) {
-        return;
-    }
 
     if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
