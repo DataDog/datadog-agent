@@ -65,9 +65,11 @@ func (s *ConfigSources) AddFileSource(path string) error {
 		}
 		fmt.Println("HEHEXD7")
 		source := NewLogSource(cfg.Name, cfg)
+		fmt.Println("HEHEXD8")
 		configSource.AddSource(source)
+		fmt.Println("HEHEXD9")
 	}
-	fmt.Println("HEHEXD8")
+	fmt.Println("HEHEXD10")
 
 	return nil
 }
