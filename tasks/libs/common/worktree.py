@@ -62,7 +62,7 @@ def enter_env(ctx, branch: str, skip_checkout=False):
     if not skip_checkout:
         init_env(ctx, branch)
     else:
-        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_checkout is set to True"
+        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and skip_checkout is set to True"
 
     os.chdir(WORKTREE_DIRECTORY)
     if skip_checkout:
