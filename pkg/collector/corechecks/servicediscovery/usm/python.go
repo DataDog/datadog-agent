@@ -37,6 +37,10 @@ func newPythonDetector(ctx DetectionContext) detector {
 }
 
 func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
+	// When Gunicorn is invoked via its wrapper script the command line ends up
+	// looking like the example below, so redirect to the Gunicorn detector for
+	// this case:
+	//  /usr/bin/python3 /usr/bin/gunicorn foo:app()
 	if len(args) > 0 && filepath.Base(args[0]) == "gunicorn" {
 		return p.gunicorn.detect(args[1:])
 	}
