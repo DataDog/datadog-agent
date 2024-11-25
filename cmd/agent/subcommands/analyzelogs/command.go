@@ -7,6 +7,7 @@
 package analyzelogs
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -72,7 +73,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
 func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	outputChan := agentimpl.SetUpLaunchers(config)
-	//send paths to source provider
+
+	// Send paths to source provider
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
@@ -89,7 +91,21 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	for {
 		select {
 		case msg := <-outputChan:
-			fmt.Println(string(msg.GetContent()))
+			// Parse the JSON content
+			var parsedMessage struct {
+				Message struct {
+					Message string `json:"message"`
+				} `json:"message"`
+			}
+
+			err := json.Unmarshal(msg.GetContent(), &parsedMessage)
+			if err != nil {
+				fmt.Printf("Failed to parse message: %v\n", err)
+				continue
+			}
+
+			// Print only the message
+			fmt.Println(parsedMessage.Message.Message)
 
 			// Reset the inactivity timer every time a message is processed
 			if !idleTimer.Stop() {
