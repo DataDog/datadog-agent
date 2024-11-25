@@ -301,9 +301,9 @@ type UprobeAttacher struct {
 	// inspector is used  extract the metadata from the binaries
 	inspector BinaryInspector
 
-	// pathToAttachedProbes maps a filesystem path to the probes attached to it.
+	// fileIDToAttachedProbes maps a filesystem path to the probes attached to it.
 	// Used to detach them once the path is no longer used.
-	pathToAttachedProbes map[string][]manager.ProbeIdentificationPair
+	fileIDToAttachedProbes map[utils.PathIdentifier][]manager.ProbeIdentificationPair
 
 	// onAttachCallback is a callback that is called whenever a probe is attached
 	onAttachCallback AttachCallback
@@ -344,15 +344,15 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 	}
 
 	ua := &UprobeAttacher{
-		name:                 name,
-		config:               config,
-		fileRegistry:         utils.NewFileRegistry(moduleName, name),
-		manager:              mgr,
-		onAttachCallback:     onAttachCallback,
-		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
-		done:                 make(chan struct{}),
-		inspector:            inspector,
-		processMonitor:       processMonitor,
+		name:                   name,
+		config:                 config,
+		fileRegistry:           utils.NewFileRegistry(moduleName, name),
+		manager:                mgr,
+		onAttachCallback:       onAttachCallback,
+		fileIDToAttachedProbes: make(map[utils.PathIdentifier][]manager.ProbeIdentificationPair),
+		done:                   make(chan struct{}),
+		inspector:              inspector,
+		processMonitor:         processMonitor,
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -822,7 +822,7 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 			}
 
 			ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
-			ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
+			ua.fileIDToAttachedProbes[fpath.ID] = append(ua.fileIDToAttachedProbes[fpath.ID], newProbeID)
 
 			if ua.onAttachCallback != nil {
 				ua.onAttachCallback(newProbe, &fpath)
@@ -872,13 +872,14 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]Symbol
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
-	for _, probeID := range ua.pathToAttachedProbes[fpath.HostPath] {
+	for _, probeID := range ua.fileIDToAttachedProbes[fpath.ID] {
 		err := ua.manager.DetachHook(probeID)
 		if err != nil {
 			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
 		}
 	}
 
+	delete(ua.fileIDToAttachedProbes, fpath.ID)
 	ua.inspector.Cleanup(fpath)
 
 	return nil
