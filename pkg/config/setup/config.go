@@ -804,6 +804,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 
+	config.BindEnv("provider_kind")
+
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
 	// enabling/disabling the environment variables & command scrubbing from the container specs

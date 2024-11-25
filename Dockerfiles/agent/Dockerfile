@@ -245,13 +245,11 @@ COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
-COPY entrypoint.sh /bin/entrypoint.sh
-COPY entrypoint.d /opt/entrypoints
-RUN chmod 755 /bin/entrypoint.sh \
-  && chmod 755 -R /opt/entrypoints
+COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
+COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
 
 FROM release AS test
-COPY test_image_contents.py /tmp/test_image_contents.py
+COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
 RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
