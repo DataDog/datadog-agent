@@ -555,7 +555,7 @@ def get_required_checks(_, branch: str = "main"):
 
 
 @task(iterable=['check'])
-def add_required_checks(_, branch: str, check: str):
+def add_required_checks(_, branch: str, check: str, force: bool = False):
     """
     For this task to work:
         - A Personal Access Token (PAT) needs the "repo" permissions.
@@ -570,4 +570,4 @@ def add_required_checks(_, branch: str, check: str):
         raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
 
     gh = GithubAPI()
-    gh.add_branch_protection_check(branch, check)
+    gh.add_branch_required_check(branch, check, force)

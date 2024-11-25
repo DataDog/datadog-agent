@@ -13,10 +13,11 @@ import requests
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.user_interactions import yes_no_question
 
 try:
     import semver
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
+    from github import Auth, BranchProtection, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -89,38 +90,126 @@ class GithubAPI:
                 return milestone
         return None
 
-    def get_branch_required_checks(self, branch_name: str) -> list[str]:
+    def get_branch_protection(self, branch_name: str) -> BranchProtection:
         """
-        Get the required checks for a given branch
+        Get the protection of a given branch
         """
         branch = self.get_branch(branch_name)
         if not branch:
             raise Exit(color_message(f"Branch {branch_name} not found", Color.RED), code=1)
         elif not branch.protected:
             raise Exit(color_message(f"Branch {branch_name} doesn't have protection", Color.RED), code=1)
-        protection = branch.get_protection()
-        return protection.required_status_checks.contexts
+        return branch.get_protection()
 
-    def add_branch_protection_check(self, branch_name: str, checks: list[str]) -> None:
+    def protection_to_payload(self, protection_raw_data: dict) -> dict:
+        """
+        Convert the protection object to a payload.
+        See https://docs.github.com/en/rest/branches/branch-protection?apiVersion=2022-11-28#update-branch-protection
+
+        The following seems to be defined at the Org scale, so we're not resending them here:
+        - required_pull_request_reviews > dismissal_restrictions
+        - required_pull_request_reviews > bypass_pull_request_allowances
+        """
+        prot = protection_raw_data
+        return {
+            "required_status_checks": {
+                "strict": prot["required_status_checks"]["strict"],
+                # "contexts": prot["required_status_checks"]["contexts"],
+                "checks": [
+                    {"context": check["context"], "app_id": -1 if check["app_id"] is None else check["app_id"]}
+                    for check in prot["required_status_checks"]["checks"]
+                ],
+            },
+            "enforce_admins": prot["enforce_admins"]["enabled"],
+            "required_pull_request_reviews": {
+                "dismiss_stale_reviews": prot["required_pull_request_reviews"]["dismiss_stale_reviews"],
+                "require_code_owner_reviews": prot["required_pull_request_reviews"]["require_code_owner_reviews"],
+                "required_approving_review_count": prot["required_pull_request_reviews"][
+                    "required_approving_review_count"
+                ],
+                "require_last_push_approval": prot["required_pull_request_reviews"]["require_last_push_approval"],
+            },
+            "restrictions": {
+                "users": prot["restrictions"]["users"],
+                "teams": prot["restrictions"]["teams"],
+                "apps": [app["slug"] for app in prot["restrictions"]["apps"]],
+            },
+            "required_linear_history": prot["required_linear_history"]["enabled"],
+            "allow_force_pushes": prot["allow_force_pushes"]["enabled"],
+            "allow_deletions": prot["allow_deletions"]["enabled"],
+            "block_creations": prot["block_creations"]["enabled"],
+            "required_conversation_resolution": prot["required_conversation_resolution"]["enabled"],
+            "lock_branch": prot["lock_branch"]["enabled"],
+            "allow_fork_syncing": prot["allow_fork_syncing"]["enabled"],
+        }
+
+    def get_branch_required_checks(self, branch_name: str) -> list[str]:
+        """
+        Get the required checks for a given branch
+        """
+        return self.get_branch_protection(branch_name).required_status_checks.contexts
+
+    def add_branch_required_check(self, branch_name: str, checks: list[str], force: bool = False) -> None:
         """
         Add required checks to a given branch
+
+        It uses the Github API directly to add the required checks to the branch.
+        Using the "checks" argument is not supported by PyGithub.
+        :calls: `PUT /repos/{owner}/{repo}/branches/{branch}/protection
+
         """
-        current_required_checks = self.get_branch_required_checks(branch_name)
+        current_protection = self.get_branch_protection(branch_name)
+        current_required_checks = current_protection.required_status_checks.contexts
         new_required_checks = []
         for check in checks:
             if check in current_required_checks:
                 print(
                     color_message(
-                        f"Ignoring the {check} check as it is already required on the {branch_name} branch",
+                        f"Ignoring the '{check}' check as it is already required on the {branch_name} branch",
                         Color.ORANGE,
                     )
                 )
             else:
                 new_required_checks.append(check)
-        self._repository.get_branch(branch_name).edit_required_status_checks(
-            contexts=current_required_checks + new_required_checks
+        if not new_required_checks:
+            print(color_message("No new checks to add", Color.GREEN))
+            return
+        print(
+            color_message(
+                f"Warning: You are about to add the following checks to the {branch_name} branch:\n{new_required_checks}",
+                Color.ORANGE,
+            )
         )
-        print(color_message(f"The {checks} checks were successfully added!", Color.GREEN))
+        print(color_message(f"Current required checks: {sorted(current_required_checks)}", Color.GREY))
+        if force or yes_no_question("Are you sure?", default=False):
+            # We're crafting the request and not using PyGithub becasue it doesn't support passing the checks variable instead of contexts.
+            protection_url = f"{self.repo.url}/branches/{branch_name}/protection"
+            headers = {
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+            payload = self.protection_to_payload(current_protection.raw_data)
+            payload["required_status_checks"]["checks"] = sorted(
+                payload["required_status_checks"]["checks"]
+                + [{"context": check, "app_id": -1} for check in new_required_checks],
+                key=lambda x: x['context'],
+            )
+
+            response = requests.put(protection_url, headers=headers, json=payload, timeout=10)
+            if response.status_code != 200:
+                print(
+                    color_message(
+                        f"Error while sending the PUT request to {protection_url}\n{response.text}", Color.RED
+                    )
+                )
+                raise Exit(
+                    color_message(f"Failed to update the required checks for the {branch_name} branch", Color.RED),
+                    code=1,
+                )
+            print(color_message(f"The {checks} checks were successfully added!", Color.GREEN))
+        else:
+            print(color_message("Aborting changes to the branch required checks", Color.GREEN))
 
     def is_release_note_needed(self, pull_number):
         """
