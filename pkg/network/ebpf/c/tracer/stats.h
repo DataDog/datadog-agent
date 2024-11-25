@@ -207,6 +207,10 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     if (stats.state_transitions > 0) {
         val->state_transitions |= stats.state_transitions;
     }
+
+    if (stats.failure_reason != 0) {
+        val->failure_reason = stats.failure_reason;
+    }
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
