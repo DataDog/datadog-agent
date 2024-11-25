@@ -67,7 +67,7 @@ func TestNetworkCIDR(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
 
@@ -82,7 +82,7 @@ func TestRawPacket(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		// OpenSUSE distributions are missing the dummy kernel module
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || (kv.IsAmazonLinuxKernel() && kv.Code < kernel.Kernel4_15)
 	})
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {

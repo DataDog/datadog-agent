@@ -372,6 +372,7 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 	require.False(t, ok)
 }
 
+// tests the case of empty TCP connections
 func (s *TracerSuite) TestTCPConnsReported() {
 	t := s.T()
 	// Setup
@@ -394,16 +395,24 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	defer c.Close()
 	<-processedChan
 
+	var forward *network.ConnectionStats
+	var reverse *network.ConnectionStats
+	var okForward, okReverse bool
 	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.Eventually(t, func() bool {
 		// Test
 		connections := getConnections(t, tr)
 		// Server-side
-		_, okForward := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		forward, okForward = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 		// Client-side
-		_, okReverse := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		reverse, okReverse = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		return okForward && okReverse
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+
+	assert.Equal(t, network.INCOMING, forward.Direction)
+	assert.Equal(t, network.OUTGOING, reverse.Direction)
+	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 1}, forward.Monotonic)
+	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 0}, reverse.Monotonic)
 
 }
 
