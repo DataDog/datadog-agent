@@ -12,7 +12,7 @@ def init(ctx, branch: str | None = None):
 
 @task
 def remove(ctx):
-    """Will the git worktree context."""
+    """Will remove the git worktree context."""
 
     remove_env(ctx)
 

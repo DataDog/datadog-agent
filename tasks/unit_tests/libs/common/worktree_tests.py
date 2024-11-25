@@ -66,7 +66,7 @@ class TestWorktree(unittest.TestCase):
 
         self.assertNotEqual(branch6, branch7)
 
-    def test_context_no_switch(self):
+    def test_context_no_checkout(self):
         ctx = get_ctx()
 
         with agent_context(ctx, '6.53.x'):

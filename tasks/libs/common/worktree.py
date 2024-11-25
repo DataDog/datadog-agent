@@ -61,7 +61,7 @@ def enter_env(ctx, branch: str, no_checkout=False):
     if not no_checkout:
         init_env(ctx, branch)
     else:
-        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_switch is set to True"
+        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_checkout is set to True"
 
     os.chdir(WORKTREE_DIRECTORY)
 
@@ -74,7 +74,7 @@ def exit_env():
 
 @contextmanager
 def agent_context(ctx, branch: str | None, no_checkout=False):
-    """Applies code to the worktree environment if the version is not None.
+    """Applies code to the worktree environment if the branch is not None.
 
     Args:
         branch: The branch to switch to.
