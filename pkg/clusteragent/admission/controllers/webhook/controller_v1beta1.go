@@ -476,12 +476,12 @@ func (c *ControllerV1beta1) getReinvocationPolicy() admiv1beta1.ReinvocationPoli
 
 // convertMatchConditions converts the match conditions from the v1 API to the v1beta1 API.
 func convertMatchConditions(v1MatchConditions []admiv1.MatchCondition) []admiv1beta1.MatchCondition {
-	v1beta1MatchConditions := []admiv1beta1.MatchCondition{}
-	for _, matchCondition := range v1MatchConditions {
-		v1beta1MatchConditions = append(v1beta1MatchConditions, admiv1beta1.MatchCondition{
+	v1beta1MatchConditions := make([]admiv1beta1.MatchCondition, len(v1MatchConditions))
+	for index, matchCondition := range v1MatchConditions {
+		v1beta1MatchConditions[index] = admiv1beta1.MatchCondition{
 			Name:       matchCondition.Name,
 			Expression: matchCondition.Expression,
-		})
+		}
 	}
 	return v1beta1MatchConditions
 }
