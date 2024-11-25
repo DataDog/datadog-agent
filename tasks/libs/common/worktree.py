@@ -52,13 +52,13 @@ def remove_env(ctx):
 def is_worktree():
     """Will return True if the current environment is a worktree environment."""
 
-    return Path.cwd() != LOCAL_DIRECTORY
+    return Path.cwd() == WORKTREE_DIRECTORY
 
 
-def enter_env(ctx, branch: str, no_checkout=False):
+def enter_env(ctx, branch: str, skip_checkout=False):
     """Enters the worktree environment."""
 
-    if not no_checkout:
+    if not skip_checkout:
         init_env(ctx, branch)
     else:
         assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_checkout is set to True"
@@ -73,12 +73,12 @@ def exit_env():
 
 
 @contextmanager
-def agent_context(ctx, branch: str | None, no_checkout=False):
+def agent_context(ctx, branch: str | None, skip_checkout=False):
     """Applies code to the worktree environment if the branch is not None.
 
     Args:
         branch: The branch to switch to.
-        no_checkout: If True, the branch will not be switched (no pull will be performed too).
+        skip_checkout: If True, the branch will not be switched (no pull will be performed too).
 
     Usage:
         > with agent_context(ctx, branch):
@@ -93,7 +93,7 @@ def agent_context(ctx, branch: str | None, no_checkout=False):
 
         try:
             # Enter
-            enter_env(ctx, branch, no_checkout=no_checkout)
+            enter_env(ctx, branch, skip_checkout=skip_checkout)
 
             yield
         finally:

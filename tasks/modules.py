@@ -265,7 +265,7 @@ def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
 
     Args:
         remove_defaults: If True, will remove default values from the output.
-        version: If 6, will show agent 6 modules.
+        base_dir: Where to load modules from.
     """
 
     config = Configuration.from_file(Path(base_dir))
@@ -287,8 +287,8 @@ def show_all(_, base_dir: str = '.', ignored=False):
     """Show the list of modules.
 
     Args:
+        base_dir: Where to load modules from.
         ignored: If True, will list ignored modules.
-        version: If 6, will show agent 6 modules.
     """
 
     config = Configuration.from_file(Path(base_dir))
