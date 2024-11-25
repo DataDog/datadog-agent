@@ -31,6 +31,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-factory"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -80,6 +81,7 @@ func main() {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
 		coreconfig.Module(),
+		compressionfx.ModuleFactory(),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),

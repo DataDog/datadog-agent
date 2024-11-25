@@ -43,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
