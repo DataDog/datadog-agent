@@ -149,6 +149,8 @@ single_machine_performance-ot_oss-amd64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  needs: 
+    - docker_build_ot_agent7 # TODO not needed
 variables:
     IMG_REGISTRIES: internal-aws-smp
     IMG_SOURCES: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
