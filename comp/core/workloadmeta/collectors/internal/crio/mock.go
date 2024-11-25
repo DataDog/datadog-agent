@@ -90,8 +90,3 @@ func (f *mockCRIOClient) GetCRIOImageLayers(_ *workloadmeta.ContainerImageMetada
 	}
 	return nil, errors.New("mock GetCRIOImageLayers function not defined")
 }
-
-// Close is a no-op function for the mock client, implementing the required interface method.
-func (f *mockCRIOClient) Close() error {
-	return nil
-}

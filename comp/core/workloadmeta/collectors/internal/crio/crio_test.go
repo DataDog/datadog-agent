@@ -377,7 +377,6 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 						Id:          "image123",
 						RepoTags:    []string{"myrepo/myimage:latest"},
 						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
-						Size_:       123456789,
 					},
 					Info: map[string]string{
 						"info": `{
@@ -424,7 +423,6 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 						Name:   "myrepo/myimage:latest",
 						Labels: map[string]string{"label1": "value1", "label2": "value2"},
 					},
-					SizeBytes:    123456789,
 					RepoTags:     []string{"myrepo/myimage:latest"},
 					RepoDigests:  []string{"myrepo/myimage@sha256:123abc"},
 					OS:           "linux",

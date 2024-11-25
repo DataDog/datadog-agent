@@ -64,10 +64,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	client, err := crio.NewCRIOClient()
 	if err != nil {
-		errClose := client.Close()
-		if errClose != nil {
-			log.Warnf("Failed to close CRI-O client: %v", errClose)
-		}
 		return fmt.Errorf("CRI-O client creation failed: %v", err)
 	}
 	c.client = client

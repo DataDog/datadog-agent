@@ -193,8 +193,7 @@ func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]stri
 		return cpuLimit, memLimit
 	}
 
-	log.Debug("Container status resources are nil or do not contain resource information. Parsing resources from container info")
-
+	// If containerStatus is nil or does not contain resource information, try to get resources from container info
 	return parseResourceLimitsFromInfo(info)
 }
 

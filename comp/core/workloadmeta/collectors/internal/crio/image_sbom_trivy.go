@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	crioUtil "github.com/DataDog/datadog-agent/pkg/util/crio"
+	crioutil "github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -168,14 +168,14 @@ func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadme
 
 // overlayDirectoryAccess checks if the overlay directory and overlay-layers directory are accessible.
 func overlayDirectoryAccess() error {
-	overlayPath := crioUtil.GetOverlayPath()
+	overlayPath := crioutil.GetOverlayPath()
 	if _, err := os.Stat(overlayPath); os.IsNotExist(err) {
 		return fmt.Errorf("overlay directory %s does not exist. Ensure this directory is mounted for SBOM collection to work", overlayPath)
 	} else if err != nil {
 		return fmt.Errorf("failed to check overlay directory %s: %w. Ensure this directory is mounted for SBOM collection to work", overlayPath, err)
 	}
 
-	overlayLayersPath := crioUtil.GetOverlayLayersPath()
+	overlayLayersPath := crioutil.GetOverlayLayersPath()
 	if _, err := os.Stat(overlayLayersPath); os.IsNotExist(err) {
 		return fmt.Errorf("overlay-layers directory %s does not exist. Ensure this directory is mounted for SBOM collection to work", overlayLayersPath)
 	} else if err != nil {

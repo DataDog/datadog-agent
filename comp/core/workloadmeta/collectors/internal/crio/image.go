@@ -37,12 +37,12 @@ func (c *collector) generateImageEventFromContainer(ctx context.Context, contain
 
 	namespace := getPodNamespace(ctx, c.client, container.GetPodSandboxId())
 
-	imageEvent := c.convertImageToEvent(image, imageResp.GetInfo(), namespace, nil)
+	imageEvent := c.convertImageToEvent(image, imageResp.GetInfo(), namespace)
 	return imageEvent, nil
 }
 
 // convertImageToEvent converts a CRI-O image and additional metadata into a workloadmeta CollectorEvent.
-func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, namespace string, sbom *workloadmeta.SBOM) *workloadmeta.CollectorEvent {
+func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, namespace string) *workloadmeta.CollectorEvent {
 	var annotations map[string]string
 	if img.GetSpec() == nil {
 		annotations = nil
@@ -55,7 +55,7 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 		name = img.GetRepoTags()[0]
 	}
 	imgID := img.GetId()
-	os, arch, variant, labels, layers := parseImageInfo(info, crio.GetOverlayImagePath(), imgID)
+	imgInfo := parseImageInfo(info, crio.GetOverlayImagePath(), imgID)
 
 	imgIDAsDigest, err := parseDigests(img.GetRepoDigests())
 	if err == nil {
@@ -73,16 +73,15 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
-			Labels:      labels,
+			Labels:      imgInfo.labels,
 		},
-		SizeBytes:    int64(img.Size_),
+		SizeBytes:    imgInfo.size,
 		RepoTags:     img.GetRepoTags(),
 		RepoDigests:  img.GetRepoDigests(),
-		SBOM:         sbom,
-		OS:           os,
-		Architecture: arch,
-		Variant:      variant,
-		Layers:       layers,
+		OS:           imgInfo.os,
+		Architecture: imgInfo.arch,
+		Variant:      imgInfo.variant,
+		Layers:       imgInfo.layers,
 	}
 
 	return &workloadmeta.CollectorEvent{
@@ -118,10 +117,8 @@ func parseDigests(imageRefs []string) (string, error) {
 }
 
 // parseImageInfo extracts operating system, architecture, variant, labels, and layer history from image info metadata.
-func parseImageInfo(info map[string]string, layerFilePath string, imgID string) (string, string, string, map[string]string, []workloadmeta.ContainerImageLayer) {
-	var os, arch, variant string
-	var layers []workloadmeta.ContainerImageLayer
-	var labels map[string]string
+func parseImageInfo(info map[string]string, layerFilePath string, imgID string) imageInfo {
+	var imgInfo imageInfo
 
 	// Fetch additional layer information from the file
 	layerDetails, err := parseLayerInfo(layerFilePath, imgID)
@@ -133,24 +130,39 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 		var parsed parsedInfo
 
 		if err := json.Unmarshal([]byte(imgSpec), &parsed); err == nil {
-			os = parsed.ImageSpec.OS
-			arch = parsed.ImageSpec.Architecture
-			variant = parsed.ImageSpec.Variant
-			labels = parsed.Labels
+			imgInfo.os = parsed.ImageSpec.OS
+			imgInfo.arch = parsed.ImageSpec.Architecture
+			imgInfo.variant = parsed.ImageSpec.Variant
+			imgInfo.labels = parsed.Labels
 
-			// Match layers with their history entries, ignoring empty layers
+			// Match layers with their history entries, including empty layers
 			historyIndex := 0
-			for i, layerDigest := range parsed.ImageSpec.RootFS.DiffIDs {
-				var historyEntry *imgspecs.History
-
-				// Loop until we find a non-empty history layer entry that corresponds to a layer
+			for layerIndex, layerDigest := range parsed.ImageSpec.RootFS.DiffIDs {
+				// Append all empty layers encountered before this layer
 				for historyIndex < len(parsed.ImageSpec.History) {
-					h := parsed.ImageSpec.History[historyIndex]
-					historyIndex++
-					if h.EmptyLayer {
-						continue
+					history := parsed.ImageSpec.History[historyIndex]
+					if history.EmptyLayer {
+						created, _ := time.Parse(time.RFC3339, history.Created)
+						imgInfo.layers = append(imgInfo.layers, workloadmeta.ContainerImageLayer{
+							History: &imgspecs.History{
+								Created:    &created,
+								CreatedBy:  history.CreatedBy,
+								Author:     history.Author,
+								Comment:    history.Comment,
+								EmptyLayer: history.EmptyLayer,
+							},
+						})
+						historyIndex++
+					} else {
+						// Stop at the first non-empty layer
+						break
 					}
+				}
 
+				// Match the non-empty history to this layer
+				var historyEntry *imgspecs.History
+				if historyIndex < len(parsed.ImageSpec.History) {
+					h := parsed.ImageSpec.History[historyIndex]
 					created, _ := time.Parse(time.RFC3339, h.Created)
 					historyEntry = &imgspecs.History{
 						Created:    &created,
@@ -159,27 +171,48 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 						Comment:    h.Comment,
 						EmptyLayer: h.EmptyLayer,
 					}
-					break
+					historyIndex++
 				}
 
+				// Create and append the layer with the matched history
 				layer := workloadmeta.ContainerImageLayer{
 					Digest:  layerDigest,
 					History: historyEntry,
 				}
 
-				if i < len(layerDetails) {
-					layer.SizeBytes = int64(layerDetails[i].Size)
-					layer.MediaType = layerDetails[i].MediaType
+				// Add additional details from parsed layer info
+				if layerIndex < len(layerDetails) {
+					imgInfo.size += int64(layerDetails[layerIndex].Size)
+					layer.SizeBytes = int64(layerDetails[layerIndex].Size)
+					layer.MediaType = layerDetails[layerIndex].MediaType
 				}
 
-				layers = append(layers, layer)
+				imgInfo.layers = append(imgInfo.layers, layer)
+			}
+
+			// Append any remaining empty layers
+			for historyIndex < len(parsed.ImageSpec.History) {
+				history := parsed.ImageSpec.History[historyIndex]
+				if history.EmptyLayer {
+					created, _ := time.Parse(time.RFC3339, history.Created)
+					imgInfo.layers = append(imgInfo.layers, workloadmeta.ContainerImageLayer{
+						History: &imgspecs.History{
+							Created:    &created,
+							CreatedBy:  history.CreatedBy,
+							Author:     history.Author,
+							Comment:    history.Comment,
+							EmptyLayer: history.EmptyLayer,
+						},
+					})
+				}
+				historyIndex++
 			}
 		} else {
 			log.Warnf("Failed to parse image info: %v", err)
 		}
 	}
 
-	return os, arch, variant, labels, layers
+	return imgInfo
 }
 
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo
@@ -206,6 +239,16 @@ func parseLayerInfo(rootPath string, imgID string) ([]layerInfo, error) {
 type layerInfo struct {
 	Size      int    `json:"size"`
 	MediaType string `json:"mediaType"`
+}
+
+// imageInfo holds the size, OS, architecture, variant, labels, and layers of an image.
+type imageInfo struct {
+	size    int64
+	os      string
+	arch    string
+	variant string
+	labels  map[string]string
+	layers  []workloadmeta.ContainerImageLayer
 }
 
 // parsedInfo holds layer metadata extracted from image JSON.

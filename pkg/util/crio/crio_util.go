@@ -21,7 +21,9 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -36,9 +38,6 @@ const (
 // Client defines an interface for interacting with the CRI-API, providing methods for
 // retrieving information about container and pod statuses, images, and metadata.
 type Client interface {
-	// Close terminates the CRI-O API connection and cleans up resources.
-	Close() error
-
 	// RuntimeMetadata returns metadata about the container runtime, including version details.
 	// Accepts a context to manage request lifetime.
 	RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error)
@@ -92,14 +91,6 @@ func NewCRIOClient() (Client, error) {
 	}
 
 	return client, nil
-}
-
-// Close closes the CRI-O client connection.
-func (c *clientImpl) Close() error {
-	if c == nil || c.conn == nil {
-		return fmt.Errorf("CRI-O client is not initialized")
-	}
-	return c.conn.Close()
 }
 
 // RuntimeMetadata retrieves the runtime metadata including runtime name and version.
@@ -157,12 +148,15 @@ func (c *clientImpl) GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMeta
 
 	// Construct the list of lowerDirs by mapping each layer to its corresponding `diff` directory path
 	for _, layer := range imgMeta.Layers {
+		if layer.Digest == "" { // Skip empty layers
+			continue
+		}
 		layerID, found := digestToIDMap[layer.Digest]
 		if !found {
 			return nil, fmt.Errorf("layer ID not found for digest %s", layer.Digest)
 		}
 
-		layerPath := filepath.Join(overlayPath, layerID, "diff")
+		layerPath := filepath.Join(GetOverlayPath(), layerID, "diff")
 		lowerDirs = append([]string{layerPath}, lowerDirs...)
 	}
 
@@ -171,17 +165,26 @@ func (c *clientImpl) GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMeta
 
 // GetOverlayImagePath returns the path to the overlay-images directory.
 func GetOverlayImagePath() string {
+	if env.IsContainerized() {
+		return containersimage.SanitizeHostPath(overlayImagePath)
+	}
 	return overlayImagePath
 }
 
 // GetOverlayPath returns the path to the overlay directory.
 func GetOverlayPath() string {
-	return overlayLayersPath
+	if env.IsContainerized() {
+		return containersimage.SanitizeHostPath(overlayPath)
+	}
+	return overlayPath
 }
 
 // GetOverlayLayersPath returns the path to the overlay-layers directory.
 func GetOverlayLayersPath() string {
-	return overlayPath
+	if env.IsContainerized() {
+		return containersimage.SanitizeHostPath(overlayLayersPath)
+	}
+	return overlayLayersPath
 }
 
 // getCRIOSocketPath returns the configured CRI-O socket path or the default path.
@@ -224,7 +227,7 @@ func (c *clientImpl) connect() error {
 
 // buildDigestToIDMap creates a map of layer digests to IDs for the layers in imgMeta.
 func (c *clientImpl) buildDigestToIDMap(imgMeta *workloadmeta.ContainerImageMetadata) (map[string]string, error) {
-	file, err := os.Open(overlayLayersPath)
+	file, err := os.Open(GetOverlayLayersPath())
 	if err != nil {
 		return nil, fmt.Errorf("failed to open layers.json: %w", err)
 	}
@@ -242,7 +245,9 @@ func (c *clientImpl) buildDigestToIDMap(imgMeta *workloadmeta.ContainerImageMeta
 
 	neededDigests := make(map[string]struct{})
 	for _, layer := range imgMeta.Layers {
-		neededDigests[layer.Digest] = struct{}{}
+		if layer.Digest != "" { // Skip empty layers
+			neededDigests[layer.Digest] = struct{}{}
+		}
 	}
 
 	digestToIDMap := make(map[string]string)
