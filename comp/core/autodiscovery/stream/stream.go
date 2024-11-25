@@ -9,6 +9,8 @@ package stream
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
@@ -24,8 +26,11 @@ func Config(ac autodiscovery.Component, out pb.AgentSecure_AutodiscoveryStreamCo
 		done: make(chan error, 1),
 	}
 
-	// TODO: add a uuid to avoid name collision when there are concurrent rpc calls ?
-	schedulerName := "remote"
+	// Generate a unique scheduler name
+	id := uuid.New().String()
+	schedulerName := "remote-" + id
+
+	// replay the existing configs
 	ac.AddScheduler(schedulerName, s, true)
 	defer ac.RemoveScheduler(schedulerName)
 
@@ -65,7 +70,11 @@ func (s *scheduler) handleEvent(configs []integration.Config, eventType pb.Confi
 
 	if err != nil {
 		log.Warnf("error sending %s autodiscovery event: %s", eventType.String(), err)
-		s.done <- err
+		// do not block if an error was already sent
+		select {
+		case s.done <- err:
+		default:
+		}
 	}
 }
 
