@@ -10,7 +10,7 @@ suites:
   attributes:
     datadog:
       agent_major_version: 6
-      agent_version: 6.53.0
+      agent_version: 6.42.0
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -18,7 +18,7 @@ suites:
     dd-agent-install:
       agent_major_version: 6
       enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
-      agent_version: 6.53.0
+      agent_version: 6.42.0
     dd-agent-upgrade:
       add_new_repo: true
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
@@ -54,7 +54,7 @@ suites:
   attributes:
     datadog:
       agent_major_version: 6
-      agent_version: 6.53.0
+      agent_version: 6.42.0
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -95,7 +95,7 @@ suites:
   attributes:
     datadog:
       agent_major_version: 6
-      agent_version: 6.53.0
+      agent_version: 6.42.0
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -103,7 +103,7 @@ suites:
     dd-agent-install:
       agent_major_version: 6
       enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
-      agent_version: 6.53.0
+      agent_version: 6.42.0
       agent_install_options: >
         ADDLOCAL=NPM
     dd-agent-upgrade:
