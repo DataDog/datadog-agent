@@ -365,13 +365,14 @@ func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 
 // stop stops the libset handler. Assumes the initMutex for the main ebpfProgram is locked. To be called
 func (l *libsetHandler) stop() {
-	if l.perfHandler != nil {
-		l.perfHandler.Stop()
-	}
-
 	// The done channel might not be initialized if the program is stopped before it starts (e.g., two sequential calls to InitWithLibsets()).
 	if l.done != nil {
 		close(l.done)
+	}
+
+	// stop the perf handler after the event loop is done
+	if l.perfHandler != nil {
+		l.perfHandler.Stop()
 	}
 }
 
