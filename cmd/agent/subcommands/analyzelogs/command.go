@@ -86,7 +86,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	}
 
 	// Set up an inactivity timeout
-	inactivityTimeout := 3 * time.Second
+	inactivityTimeout := 2 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
 
 	for {

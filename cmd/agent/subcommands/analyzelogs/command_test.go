@@ -7,9 +7,11 @@ package analyzelogs
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,16 +45,41 @@ func TestRunAnalyzeLogs(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name()) // Cleanup the temp file after the test
 
+	tempFile2, err := os.CreateTemp(tempDir, "wack.log")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile2.Name())
 	// Write config content to the temp file
-	configContent := `logs:
+	configContent := fmt.Sprintf(`logs:
   - type: file
-    path: 'C:\logs\e2e_test_logs\hello-world.log'
+    path: '%s'
     service: hello
     source: custom_log
    
-`
+`, tempFile2.Name())
 
 	_, err = tempFile.Write([]byte(configContent))
+	assert.NoError(t, err)
+	tempFile.Close()
+
+	// Write config content to the temp file
+	configContent2 := `=== apm check ===
+Configuration provider: file
+Configuration source: file:/opt/datadog-agent/etc/conf.d/apm.yaml.default
+Config for instance ID: apm:1234567890abcdef
+{}
+
+=== container_image check ===
+Configuration provider: file
+Configuration source: file:/opt/datadog-agent/etc/conf.d/container_image.d/conf.yaml.default
+Config for instance ID: container_image:abcdef1234567890
+{}
+~
+Auto-discovery IDs:
+* _container_image
+===
+`
+
+	_, err = tempFile2.Write([]byte(configContent2))
 	assert.NoError(t, err)
 	tempFile.Close()
 
@@ -66,7 +93,10 @@ func TestRunAnalyzeLogs(t *testing.T) {
 		ConfigSource:   sources.GetInstance(),
 	}
 
-	// // Capture stdout
+	// Wait for code to finish running before trying to read
+	time.Sleep(3 * time.Second)
+
+	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	assert.NoError(t, err)
@@ -84,13 +114,21 @@ func TestRunAnalyzeLogs(t *testing.T) {
 	os.Stdout = oldStdout // Restore original stdout
 
 	// Assert output matches expected
-	expectedOutput :=
-		`logs:
-- type: file
-path: 'C:\logs\e2e_test_logs\hello-world.log'
-service: hello
-source: custom_log`
+	expectedOutput := `=== apm check ===
+Configuration provider: file
+Configuration source: file:/opt/datadog-agent/etc/conf.d/apm.yaml.default
+Config for instance ID: apm:1234567890abcdef
+{}
+=== container_image check ===
+Configuration provider: file
+Configuration source: file:/opt/datadog-agent/etc/conf.d/container_image.d/conf.yaml.default
+Config for instance ID: container_image:abcdef1234567890
+{}
+~
+Auto-discovery IDs:
+* _container_image
+===`
 
-	// Use contains isntead of equals since there is also debug logs sent to stdout
+	// // Use contains isntead of equals since there is also debug logs sent to stdout
 	assert.Contains(t, buf.String(), expectedOutput)
 }

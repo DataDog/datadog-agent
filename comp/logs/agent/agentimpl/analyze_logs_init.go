@@ -40,7 +40,7 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
 	fileLimits := 500
 	fileValidatePodContainer := false
-	fileScanPeriod := time.Duration(1 * float64(time.Second))
+	fileScanPeriod := time.Duration(0.5 * float64(time.Second))
 	fileWildcardSelectionMode := "by_name"
 	fileLauncher := filelauncher.NewLauncher(
 		fileLimits,
