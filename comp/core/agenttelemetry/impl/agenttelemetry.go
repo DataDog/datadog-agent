@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 
 	"golang.org/x/exp/maps"
 
@@ -40,6 +42,9 @@ type atel struct {
 
 	cancelCtx context.Context
 	cancel    context.CancelFunc
+
+	prevCounterValues   map[string]float64
+	prevCounterValuesMU sync.Mutex
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -121,13 +126,14 @@ func createAtel(
 	}
 
 	return &atel{
-		enabled: true,
-		cfgComp: cfgComp,
-		logComp: logComp,
-		telComp: telComp,
-		sender:  sender,
-		runner:  runner,
-		atelCfg: atelCfg,
+		enabled:           true,
+		cfgComp:           cfgComp,
+		logComp:           logComp,
+		telComp:           telComp,
+		sender:            sender,
+		runner:            runner,
+		atelCfg:           atelCfg,
+		prevCounterValues: make(map[string]float64),
 	}
 }
 
@@ -189,8 +195,8 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 		tagsKey := ""
 
 		// if tags are defined, we need to create a key from them by dropping not specified
-		// in configuration tags. The key is constructed by conatenating specified tag names and values
-		// if the a timeseries has tags is not specified in
+		// in configuration tags. The key is constructed by concatenating specified tag names
+		// and values if a timeseries has tags is not specified
 		origTags := m.GetLabel()
 		if len(origTags) > 0 {
 			// sort tags (to have a consistent key for the same tag set)
@@ -245,6 +251,48 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	return maps.Values(amMap)
 }
 
+// Adjust prometheus counter value to be present on each collection. Last
+// counter values need to be cached to calculate the difference. It is a
+// two phase process. First prepares, calculates and collects keys to
+// avoid memory allocations under a lock. Second phase calculates
+// difference between last stored value and cache counter value as a new value
+func (a *atel) adjustPrometheusCounterValue(metricName string, metrics []*dto.Metric) {
+	if len(metrics) > 0 {
+		keyNames := make([]string, 0, len(metrics))
+		for _, m := range metrics {
+			tags := m.GetLabel()
+			if len(tags) == 0 {
+				keyNames = append(keyNames, metricName)
+			} else {
+				// Sort tags to stability of the key
+				sortedTags := cloneLabelsSorted(tags)
+				var builder strings.Builder
+				builder.WriteString(metricName)
+				for _, tag := range sortedTags {
+					builder.WriteString(makeLabelPairKey(tag))
+				}
+				keyNames = append(keyNames, builder.String())
+			}
+		}
+
+		// Adjust the counter values (if found) and cache its current value
+		a.prevCounterValuesMU.Lock()
+		for i, m := range metrics {
+			key := keyNames[i]
+			curValue := m.GetCounter().GetValue()
+
+			// Adjust the counter value if found
+			if prevValue, ok := a.prevCounterValues[key]; ok {
+				*m.GetCounter().Value -= prevValue
+			}
+
+			// Upsert the cache of previous counter values
+			a.prevCounterValues[key] = curValue
+		}
+		defer a.prevCounterValuesMU.Unlock()
+	}
+}
+
 func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.Metric) bool {
 	// filter out zero values if specified in the profile
 	if p.excludeZeroMetric && isZeroValueMetric(mt, m) {
@@ -288,11 +336,17 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		}
 	}
 
-	amt := a.aggregateMetricTags(mCfg, mt, fm)
-
 	// nothing to report
 	if len(fm) == 0 {
 		return nil
+	}
+
+	// Aggregate the metric tags
+	amt := a.aggregateMetricTags(mCfg, mt, fm)
+
+	// Adjust Prometheus counter values
+	if mt == dto.MetricType_COUNTER {
+		a.adjustPrometheusCounterValue(mCfg.Name, amt)
 	}
 
 	return &agentmetric{
