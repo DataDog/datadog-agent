@@ -374,6 +374,8 @@ func (l *libsetHandler) stop() {
 	if l.perfHandler != nil {
 		l.perfHandler.Stop()
 	}
+
+	l.enabled = false
 }
 
 // subscribe subscribes to the shared libraries events for this libset, returns the function
