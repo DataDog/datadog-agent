@@ -791,7 +791,7 @@ def cleanup(ctx):
 def check_omnibus_branches(ctx):
     base_branch = _get_release_json_value('base_branch')
     if base_branch == get_default_branch():
-        default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6() else DEFAULT_BRANCHES
+        default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES
         omnibus_ruby_branch = default_branches['omnibus-ruby']
         omnibus_software_branch = default_branches['omnibus-software']
     else:
