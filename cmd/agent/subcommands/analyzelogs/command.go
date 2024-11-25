@@ -9,6 +9,7 @@ package analyzelogs
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -104,8 +105,11 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 				continue
 			}
 
-			// Print only the message
-			fmt.Println(parsedMessage.Message.Message)
+			// Convert literal \n to actual newlines, this happens when the config file has processing rules
+			processedMessage := strings.ReplaceAll(parsedMessage.Message.Message, `\n`, "\n")
+
+			// Print the processed message
+			fmt.Println(processedMessage)
 
 			// Reset the inactivity timer every time a message is processed
 			if !idleTimer.Stop() {
