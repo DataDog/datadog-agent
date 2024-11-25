@@ -304,6 +304,7 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Since the install location can be set by the user on Windows we use relative import
+	// MacOS runners are going to build the agent at a custom directory hence we also use relative import
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		_here, err := executable.Folder()
 		if err != nil {
