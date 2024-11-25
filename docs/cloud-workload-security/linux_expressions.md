@@ -388,6 +388,7 @@ A bind was executed
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`bind.protocol`](#bind-protocol-doc) | Socket Protocol |
 | [`bind.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `bpf`
@@ -523,6 +524,7 @@ A connect was executed
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `dns`
@@ -2480,6 +2482,13 @@ Definition: Address family
 
 
 
+### `bind.protocol` {#bind-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
+
+
+
 ### `bpf.cmd` {#bpf-cmd-doc}
 Type: int
 
@@ -2665,6 +2674,13 @@ Definition: UID argument of the syscall
 Type: int
 
 Definition: Address family
+
+
+
+### `connect.protocol` {#connect-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
 
 
 
