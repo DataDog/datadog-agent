@@ -14,7 +14,6 @@ def get_ctx():
 
 class TestWorktree(unittest.TestCase):
     def setUp(self):
-        print('SETUP')
         # Pull only once
         init_env(get_ctx(), '6.53.x')
         os.environ['AGENT_WORKTREE_NO_PULL'] = '1'
