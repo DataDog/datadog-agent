@@ -69,3 +69,12 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
 
     os.remove(os.path.join(build_context, BIN_NAME))
     os.remove(os.path.join(build_context, CFG_NAME))
+
+
+@task
+def otel_agent_integration(ctx):
+    """
+    Run the otel integration test
+    """
+    cmd = "go test -timeout 0s -tags kubelet,jmx,cri,otlp,zstd,zk,jetson,etcd,kubeapiserver,zlib,podman,netcgo,docker,oracle,python,consul,orchestrator,process,trivy,systemd,datadog.no_waf,apm,containerd,ec2,gce,test -run ^TestIntegration$ github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"
+    ctx.run(cmd)
