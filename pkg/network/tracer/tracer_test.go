@@ -1163,7 +1163,9 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 			return cs.DPort == uint16(remotePort)
 		})
 
-		assert.Len(ct, outgoing, 1)
+		if !assert.Len(ct, outgoing, 1) {
+			return
+		}
 		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 	}, 3*time.Second, 100*time.Millisecond)
 }
