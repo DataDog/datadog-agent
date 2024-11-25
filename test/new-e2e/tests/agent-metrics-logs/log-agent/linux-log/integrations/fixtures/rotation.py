@@ -14,13 +14,14 @@ class HelloCheck(AgentCheck):
         data = {}
 
         uuid_str = str(uuid.uuid4())
-        # Create a 1 MB string
-        total_size = 1024 * 256
+        # Create a 256kb string
+        total_size = 1024 * 249
         # Remove 37 characters to account for the json characters, tags, and
         # newline character the launcher adds to the log
         padding_size = total_size - len(uuid_str) - 37
         log_str = uuid_str + ('a' * padding_size)
         data['message'] = log_str
+        data['ddtags'] = "env:dev,bar:foo"
 
         self.send_log(data)
         self.monotonic_count("rotate_logs_sent", self.counter)
