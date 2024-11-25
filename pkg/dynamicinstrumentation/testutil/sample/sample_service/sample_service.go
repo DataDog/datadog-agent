@@ -35,6 +35,7 @@ func main() {
 
 	ticker := time.NewTicker(time.Second / 2)
 	for range ticker.C {
+		span := tracer.StartSpan("dynamic_instrumentation_debugging")
 		sample.ExecuteOther()
 		sample.ExecuteBasicFuncs()
 		sample.ExecuteMultiParamFuncs()
@@ -44,11 +45,13 @@ func main() {
 		sample.ExecuteStructFuncs()
 		sample.ExecuteStackAndInlining()
 		sample.ExecutePointerFuncs()
+		sample.ExecuteComplexFuncs()
 
 		// unsupported for MVP, should not cause crashes
 		sample.ExecuteGenericFuncs()
 		sample.ExecuteMapFuncs()
 		sample.ExecuteInterfaceFuncs()
 		go sample.Return_goroutine_id()
+		span.Finish()
 	}
 }
