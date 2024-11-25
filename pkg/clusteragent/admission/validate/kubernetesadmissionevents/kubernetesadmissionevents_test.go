@@ -71,11 +71,6 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Version: "v1",
 					Kind:    "Pod",
 				},
-				Resource: metav1.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "pods",
-				},
 				Operation: "CREATE",
 				UserInfo:  &authenticationv1.UserInfo{Username: "username"},
 				Object: func() []byte {
@@ -126,11 +121,6 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Group:   "",
 					Version: "v1",
 					Kind:    "Pod",
-				},
-				Resource: metav1.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "pods",
 				},
 				Operation: "UPDATE",
 				UserInfo:  &authenticationv1.UserInfo{Username: "username"},
@@ -183,11 +173,6 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Version: "v1",
 					Kind:    "Pod",
 				},
-				Resource: metav1.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "pods",
-				},
 				Operation: "DELETE",
 				UserInfo:  &authenticationv1.UserInfo{Username: "username"},
 				Object: func() []byte {
@@ -238,11 +223,6 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 					Group:   "",
 					Version: "v1",
 					Kind:    "Pod",
-				},
-				Resource: metav1.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "pods",
 				},
 				Operation: "CREATE",
 				UserInfo:  &authenticationv1.UserInfo{Username: "system:serviceaccount"},

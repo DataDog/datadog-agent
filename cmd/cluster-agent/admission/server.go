@@ -51,8 +51,6 @@ type Request struct {
 	Namespace string
 	// Kind is the kind of the object
 	Kind metav1.GroupVersionKind
-	// Resource is the resource of the object
-	Resource metav1.GroupVersionResource
 	// Operation is the operation of the request
 	Operation admissionregistrationv1.OperationType
 	// UserInfo contains information about the requesting user
@@ -205,7 +203,6 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionRequest := Request{
 			UID:           admissionReviewReq.Request.UID,
 			Kind:          admissionReviewReq.Request.Kind,
-			Resource:      admissionReviewReq.Request.Resource,
 			Name:          admissionReviewReq.Request.Name,
 			Namespace:     admissionReviewReq.Request.Namespace,
 			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
@@ -232,7 +229,6 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionRequest := Request{
 			UID:           admissionReviewReq.Request.UID,
 			Kind:          admissionReviewReq.Request.Kind,
-			Resource:      admissionReviewReq.Request.Resource,
 			Name:          admissionReviewReq.Request.Name,
 			Namespace:     admissionReviewReq.Request.Namespace,
 			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
