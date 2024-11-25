@@ -240,7 +240,7 @@ func (s *senderImpl) addMetricPayload(
 	metricType := metricFamily.GetType()
 	switch metricType {
 	case dto.MetricType_COUNTER:
-		payload.Type = "monotonic"
+		payload.Type = "counter"
 		payload.Value = metric.GetCounter().GetValue()
 	case dto.MetricType_GAUGE:
 		payload.Type = "gauge"
