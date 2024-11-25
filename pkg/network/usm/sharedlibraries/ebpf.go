@@ -164,7 +164,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 	mgr := &manager.Manager{}
 
 	// Tell the manager to load all possible maps
-	for libset := range LibsetToLibSuffixes {
+	for libset, handler := range e.libsets {
 		perfHandler := ddebpf.NewPerfHandler(100)
 		pm := &manager.PerfMap{
 			Map: manager.Map{
@@ -181,7 +181,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		e.libsets[libset].perfHandler = perfHandler
+		handler.perfHandler = perfHandler
 	}
 
 	probeIDs := getSysOpenHooksIdentifiers()
