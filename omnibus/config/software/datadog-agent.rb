@@ -83,7 +83,7 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=#{default_install_dir}/embedded --python-home-3=#{default_install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=../../embedded --python-home-3=../../embedded --flavor #{flavor_arg}", env: env
 
     if heroku_target?
       command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
