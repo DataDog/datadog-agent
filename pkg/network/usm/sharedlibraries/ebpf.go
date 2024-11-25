@@ -352,10 +352,11 @@ func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
 
 func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 	defer event.Done()
-	l.callbacksMutex.RLock()
-	defer l.callbacksMutex.RUnlock()
 
 	libpath := ToLibPath(event.Data)
+
+	l.callbacksMutex.RLock()
+	defer l.callbacksMutex.RUnlock()
 	for callback := range l.callbacks {
 		// Not using a callback runner for now, as we don't have a lot of callbacks
 		(*callback)(libpath)
