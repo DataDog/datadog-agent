@@ -59,6 +59,7 @@ func NewWebhook(datadogConfig config.Component, demultiplexer aggregator.Demulti
 			admissionregistrationv1.OperationAll,
 		},
 		// Only supported by Kubernetes 1.28+. Otherwise, filtering is done in the emitEvent() function.
+		// This is to send events only for human users and not for system users as to avoid unneeded events.
 		matchConditions: []admissionregistrationv1.MatchCondition{
 			{
 				Name:       "exclude-system-users",
@@ -126,6 +127,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 func (w *Webhook) emitEvent(request *admission.Request, _ string, _ dynamic.Interface) (bool, error) {
 	if !w.supportsMatchConditions {
 		// Manually filter out system users if match conditions are not supported.
+		// This is to send events only for human users and not for system users as to avoid unneeded events.
 		if strings.HasPrefix(request.UserInfo.Username, "system:") {
 			log.Debugf("Skipping system user: %s", request.UserInfo.Username)
 			return true, nil
