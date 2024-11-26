@@ -196,5 +196,4 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	consumer.Stop()
 
 	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
-
 }
