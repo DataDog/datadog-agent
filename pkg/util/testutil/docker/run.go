@@ -87,7 +87,7 @@ func buildCommandArgs(cfg LifecycleConfig, isStart bool) []string {
 	return args
 }
 
-// we try best effort to kill previous instances, hence ignoring any errors
+// we do best-effort to kill previous instances, hence ignoring any errors
 func killPreviousInstances(cfg LifecycleConfig) {
 	// Ensuring the following command won't block forever
 	timedContext, cancel := context.WithTimeout(context.Background(), cfg.Timeout())
