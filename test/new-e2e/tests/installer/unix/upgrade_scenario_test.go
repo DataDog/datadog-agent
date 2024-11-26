@@ -406,8 +406,9 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	state := s.host.State()
 	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", "/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
 	// Verify metadata
-	state.AssertFileExists("/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policies.metadata", 0440, "dd-agent", "dd-agent")
-	file, err := s.Env().RemoteHost.ReadFile("/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policies.metadata")
+	state.AssertFileExists("/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata", 0440, "dd-agent", "dd-agent")
+	s.Env().RemoteHost.MustExecute("sudo chmod 0444 /etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
+	file, err := s.Env().RemoteHost.ReadFile("/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
 	require.NoError(s.T(), err)
 	policiesState := &pbgo.PoliciesState{}
 	_, err = policiesState.UnmarshalMsg(file)
