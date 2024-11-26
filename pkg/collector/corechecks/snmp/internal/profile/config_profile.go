@@ -46,6 +46,7 @@ func (s *staticProvider) GetAllProfiles() ProfileConfigMap {
 	return s.configMap
 }
 
+// StaticProvider makes a provider that serves the static data from this config map.
 func StaticProvider(profiles ProfileConfigMap) Provider {
 	return &staticProvider{
 		configMap: profiles,
