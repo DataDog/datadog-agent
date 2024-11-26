@@ -38,7 +38,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.worktree import WORKTREE_DIRECTORY, agent_context
+from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -54,7 +54,6 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
-    UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
@@ -647,15 +646,7 @@ def create_and_update_release_branch(
         base_branch: Branch from which we create the release branch. Default branch if `None`.
     """
 
-    # Perform branch out in all required repositories
-    with ctx.cd(f"{base_directory}/{repo}"):
-        # Step 1 - Create a local branch out from the default branch
-
-        print(color_message(f"Working repository: {repo}", "bold"))
-        main_branch = (
-            base_branch or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
-        )
-        ctx.run(f"git checkout {main_branch}")
+    def _main():
         ctx.run("git pull")
         print(color_message(f"Branching out to {release_branch}", "bold"))
         ctx.run(f"git checkout -b {release_branch}")
@@ -673,12 +664,26 @@ def create_and_update_release_branch(
                 code=1,
             )
 
+    # Perform branch out in all required repositories
+    print(color_message(f"Working repository: {repo}", "bold"))
+    if repo == 'datadog-agent':
+        with agent_context(ctx, base_branch or get_default_branch(major=int(release_branch[0]))):
+            _main()
+    else:
+        with ctx.cd(f"{base_directory}/{repo}"):
+            # Step 1 - Create a local branch out from the default branch
+            main_branch = (
+                base_branch
+                or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
+            )
+            ctx.run(f"git checkout {main_branch}")
+
+            _main()
+
 
 # TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
 @task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
-def create_release_branches(
-    ctx, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True, use_worktree=True
-):
+def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True):
     """Create and push release branches in Agent repositories and update them.
 
     That includes:
@@ -708,7 +713,7 @@ def create_release_branches(
     # Strings with proper branch/tag names
     release_branch = current.branch()
 
-    with agent_context(ctx, release_branch):
+    with agent_context(ctx, get_default_branch(major=major_version)):
         # Step 0: checks
         ctx.run("git fetch")
 
@@ -728,10 +733,6 @@ def create_release_branches(
         base_branch = get_default_branch() if major_version == 6 else None
 
         for repo in UNFREEZE_REPOS:
-            # Use the worktree and not the main repo for the Agent
-            if use_worktree and repo == 'datadog-agent':
-                repo = WORKTREE_DIRECTORY.name
-
             create_and_update_release_branch(
                 ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
             )
@@ -745,96 +746,94 @@ def create_release_branches(
         )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
+        # Step 2.0 - Create milestone update
+        milestone_branch = f"release_milestone-{int(time.time())}"
+        ctx.run(f"git switch -c {milestone_branch}")
+        rj = load_release_json()
+        rj["current_milestone"] = f"{next}"
+        _save_release_json(rj)
+        # Commit release.json
+        ctx.run("git add release.json")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
 
-        with agent_context(ctx, release_branch) if use_worktree else ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
-            # Step 2.0 - Create milestone update
-            milestone_branch = f"release_milestone-{int(time.time())}"
-            ctx.run(f"git switch -c {milestone_branch}")
-            rj = load_release_json()
-            rj["current_milestone"] = f"{next}"
-            _save_release_json(rj)
-            # Commit release.json
-            ctx.run("git add release.json")
-            ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-            if not ok:
-                raise Exit(
-                    color_message(
-                        f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                        "red",
-                    ),
-                    code=1,
-                )
-
-            res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-            if res.exited is None or res.exited > 0:
-                raise Exit(
-                    color_message(
-                        f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                        "red",
-                    ),
-                    code=1,
-                )
-
-            create_release_pr(
-                f"[release] Update current milestone to {next}",
-                "main",
-                milestone_branch,
-                next,
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                    "red",
+                ),
+                code=1,
             )
 
-            # Step 2.1 - Update release.json
-            update_branch = f"{release_branch}-updates"
-
-            ctx.run(f"git checkout {release_branch}")
-            ctx.run(f"git checkout -b {update_branch}")
-
-            set_new_release_branch(release_branch)
-
-            # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-            for file in GITLAB_FILES_TO_UPDATE:
-                with open(file) as gl:
-                    file_content = gl.readlines()
-
-                with open(file, "w") as gl:
-                    for line in file_content:
-                        if re.search(r"compare_to: main", line):
-                            gl.write(line.replace("main", f"{release_branch}"))
-                        else:
-                            gl.write(line)
-
-            # Step 1.3 - Commit new changes
-            ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
-            ok = try_git_command(
-                ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
+        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                    "red",
+                ),
+                code=1,
             )
-            if not ok:
-                raise Exit(
-                    color_message(
-                        f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-                        "red",
-                    ),
-                    code=1,
-                )
 
-            # Step 1.4 - Push branch and create PR
-            print(color_message("Pushing new branch to the upstream repository", "bold"))
-            res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-            if res.exited is None or res.exited > 0:
-                raise Exit(
-                    color_message(
-                        f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                        "red",
-                    ),
-                    code=1,
-                )
+        create_release_pr(
+            f"[release] Update current milestone to {next}",
+            "main",
+            milestone_branch,
+            next,
+        )
 
-            create_release_pr(
-                f"[release] Update release.json and gitlab files for {release_branch} branch",
-                release_branch,
-                update_branch,
-                current,
+        # Step 2.1 - Update release.json
+        update_branch = f"{release_branch}-updates"
+
+        ctx.run(f"git checkout {release_branch}")
+        ctx.run(f"git checkout -b {update_branch}")
+
+        set_new_release_branch(release_branch)
+
+        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
+        for file in GITLAB_FILES_TO_UPDATE:
+            with open(file) as gl:
+                file_content = gl.readlines()
+
+            with open(file, "w") as gl:
+                for line in file_content:
+                    if re.search(r"compare_to: main", line):
+                        gl.write(line.replace("main", f"{release_branch}"))
+                    else:
+                        gl.write(line)
+
+        # Step 1.3 - Commit new changes
+        ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
+        ok = try_git_command(
+            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
+        )
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
+                    "red",
+                ),
+                code=1,
             )
+
+        # Step 1.4 - Push branch and create PR
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        create_release_pr(
+            f"[release] Update release.json and gitlab files for {release_branch} branch",
+            release_branch,
+            update_branch,
+            current,
+        )
 
 
 def _update_last_stable(_, version, major_version: int = 7):
