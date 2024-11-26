@@ -270,10 +270,10 @@ func GetAllSymbolsInSetByName(elfFile *safeelf.File, symbolSet common.StringSet)
 	return GetAllSymbolsByName(elfFile, filter)
 }
 
-// GetAnySymbolWithPrefix returns any one symbol with the given prefix and the
+// GetAnySymbolWithInfix returns any one symbol with the given infix and the
 // specified maximum length from the ELF file.
-func GetAnySymbolWithPrefix(elfFile *safeelf.File, prefix string, maxLength int) (*safeelf.Symbol, error) {
-	filter := newPrefixSymbolFilter(prefix, maxLength)
+func GetAnySymbolWithInfix(elfFile *safeelf.File, infix string, minLength int, maxLength int) (*safeelf.Symbol, error) {
+	filter := newInfixSymbolFilter(infix, minLength, maxLength)
 	symbols, err := GetAllSymbolsByName(elfFile, filter)
 	if err != nil {
 		return nil, err
@@ -288,10 +288,10 @@ func GetAnySymbolWithPrefix(elfFile *safeelf.File, prefix string, maxLength int)
 	return nil, errors.New("empty symbols map")
 }
 
-// GetAnySymbolWithPrefixPCLNTAB returns any one symbol with the given prefix and the
+// GetAnySymbolWithInfixPCLNTAB returns any one symbol with the given infix and the
 // specified maximum length from the pclntab section in ELF file.
-func GetAnySymbolWithPrefixPCLNTAB(elfFile *safeelf.File, prefix string, maxLength int) (*safeelf.Symbol, error) {
-	symbols, err := GetPCLNTABSymbolParser(elfFile, newPrefixSymbolFilter(prefix, maxLength))
+func GetAnySymbolWithInfixPCLNTAB(elfFile *safeelf.File, infix string, minLength int, maxLength int) (*safeelf.Symbol, error) {
+	symbols, err := GetPCLNTABSymbolParser(elfFile, newInfixSymbolFilter(infix, minLength, maxLength))
 	if err != nil {
 		return nil, err
 	}
