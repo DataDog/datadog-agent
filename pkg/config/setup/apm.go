@@ -43,6 +43,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.obfuscation.redis.remove_all_args", "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
 	config.BindEnv("apm_config.obfuscation.memcached.enabled", "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.BindEnv("apm_config.obfuscation.memcached.keep_command", "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
+	config.BindEnv("apm_config.obfuscation.cache.enabled", "DD_APM_OBFUSCATION_CACHE_ENABLED")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.filter_tags_regex.require")
