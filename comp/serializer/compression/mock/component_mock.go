@@ -5,9 +5,12 @@
 
 //go:build test
 
-package compression
+// Package mock provides the mock component for serializer/compression
+package mock
+
+import compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	compression.Component
 }
