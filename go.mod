@@ -601,7 +601,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.58.1
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/NVIDIA/go-nvml v0.12.4-0
@@ -652,7 +651,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.58.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.58.1
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.59.0
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.56.0-rc.3
@@ -679,19 +678,19 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.58.1
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.59.0
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.58.1
+	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.58.1
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.58.1
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.58.1
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.58.1
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.58.1
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.58.1
 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.58.1
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.58.1
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.58.1
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.58.1
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.59.0
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
@@ -790,8 +789,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.59.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.58.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.58.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.31.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
