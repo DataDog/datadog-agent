@@ -10,7 +10,7 @@
     - mkdir omnibus\pkg
     - >
       docker run --rm
-      -m 8192M
+      -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
