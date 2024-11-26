@@ -101,7 +101,7 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	for _, stream := range streamsForType {
 		fmt.Println("steam is ", stream)
 		fmt.Println("source is ", source)
-		fmt.Println("ADDING TO CHANNEL STREAM?")
+		fmt.Println("CHANNEL IM WRITING TO IS ", stream)
 		stream <- source
 		fmt.Println("UNGA LA BUNGA CHANNEL IS WORKING???? ", source)
 	}

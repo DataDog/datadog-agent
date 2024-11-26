@@ -111,6 +111,7 @@ func TestSubscribeAllConfig(t *testing.T) {
 	log.Debug("WACKTEST5")
 	select {
 	case added := <-addedChan:
+		fmt.Println("CHANNEL IM READING FROM IS ", addedChan)
 		// Check the type and path of the source added
 		assert.Equal(t, "file", added.Config.Type)
 	case <-time.After(10 * time.Second):
