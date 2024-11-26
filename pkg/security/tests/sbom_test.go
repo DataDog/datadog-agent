@@ -66,7 +66,7 @@ func TestSBOM(t *testing.T) {
 	}
 	defer dockerWrapper.stop()
 
-	dockerWrapper.Run(t, "package-rule", func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(dockerWrapper.containerID)

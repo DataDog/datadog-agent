@@ -222,10 +222,21 @@ func TestExtractServiceMetadata(t *testing.T) {
 			name: "node js with a broken package.json",
 			cmdline: []string{
 				"/usr/bin/node",
-				"./testdata/inner/index.js",
+				"./testdata/inner/app.js",
 			},
 			lang:                  language.Node,
-			expectedGeneratedName: "node",
+			expectedGeneratedName: "app",
+			fs:                    &subUsmTestData,
+		},
+		{
+			name: "node js with a broken package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"./testdata/inner/link",
+			},
+			lang:                  language.Node,
+			expectedGeneratedName: "link",
+			fs:                    &subUsmTestData,
 		},
 		{
 			name: "node js with a valid package.json",
@@ -534,6 +545,17 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			lang:                  language.Python,
 			expectedGeneratedName: "test",
+		},
+		{
+			name: "gunicorn simple with python",
+			cmdline: []string{
+				"/usr/bin/python3",
+				"/usr/bin/gunicorn",
+				"--workers=2",
+				"foo:create_app()",
+			},
+			lang:                  language.Python,
+			expectedGeneratedName: "foo",
 		},
 		{
 			name: "gunicorn from name",
