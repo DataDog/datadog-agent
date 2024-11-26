@@ -8,12 +8,15 @@ package teeconfig
 
 import (
 	"io"
+	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/DataDog/viper"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // teeConfig is a combination of two configs, both get written to but only baseline is read
@@ -67,14 +70,22 @@ func (t *teeConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is known
 func (t *teeConfig) IsKnown(key string) bool {
-	return t.baseline.IsKnown(key)
+	base := t.baseline.IsKnown(key)
+	compare := t.compare.IsKnown(key)
+	if base != compare {
+		log.Warnf("difference in config: IsKnown(%s) -> base: %v | compare %v", key, base, compare)
+	}
+	return base
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
 // Note that it returns the keys lowercased.
 func (t *teeConfig) GetKnownKeysLowercased() map[string]interface{} {
-	return t.baseline.GetKnownKeysLowercased()
+	base := t.baseline.GetKnownKeysLowercased()
+	compare := t.compare.GetKnownKeysLowercased()
+	compareResult("", "GetKnownKeysLowercased", base, compare)
+	return base
 }
 
 // BuildSchema constructs the default schema and marks the config as ready for use
@@ -111,91 +122,188 @@ func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 
 // IsSet wraps Viper for concurrent access
 func (t *teeConfig) IsSet(key string) bool {
-	return t.baseline.IsSet(key)
+	base := t.baseline.IsSet(key)
+	compare := t.compare.IsSet(key)
+	if base != compare {
+		log.Warnf("difference in config: IsSet(%s) -> base: %v | compare %v", key, base, compare)
+	}
+	return base
 }
 
 func (t *teeConfig) AllKeysLowercased() []string {
-	return t.baseline.AllKeysLowercased()
+	base := t.baseline.AllKeysLowercased()
+	compare := t.compare.AllKeysLowercased()
+	if !reflect.DeepEqual(base, compare) {
+		log.Warnf("difference in config: allkeyslowercased() -> base len: %d | compare len: %d", len(base), len(compare))
+
+		i := 0
+		j := 0
+		for i < len(base) && j < len(compare) {
+			if base[i] != compare[j] {
+				i++
+				j++
+				continue
+			}
+
+			log.Warnf("difference in config: allkeyslowercased() -> base[%d]: %v | compare[%d]: %v", i, base[i], j, compare[j])
+			if strings.Compare(base[i], compare[j]) == -1 {
+				i++
+			} else {
+				j++
+			}
+		}
+	}
+	return base
+}
+
+func compareResult(key, method string, base, compare interface{}) interface{} {
+	if !reflect.DeepEqual(base, compare) {
+		_, file, line, _ := runtime.Caller(2)
+		fileParts := strings.Split(file, "DataDog/datadog-agent/")
+		log.Warnf("difference in config: %s(%s) -> base: %v | compare %v from %s:%d", method, key, base, compare, fileParts[len(fileParts)-1], line)
+	}
+	return compare
 }
 
 // Get wraps Viper for concurrent access
 func (t *teeConfig) Get(key string) interface{} {
-	return t.baseline.Get(key)
+	base := t.baseline.Get(key)
+	compare := t.compare.Get(key)
+	return compareResult(key, "Get", base, compare)
 }
 
 // GetAllSources returns the value of a key for each source
 func (t *teeConfig) GetAllSources(key string) []model.ValueWithSource {
-	return t.baseline.GetAllSources(key)
+	base := t.baseline.GetAllSources(key)
+	compare := t.compare.GetAllSources(key)
+	compareResult(key, "GetAllSources", base, compare)
+	return base
 }
 
 // GetString wraps Viper for concurrent access
 func (t *teeConfig) GetString(key string) string {
-	return t.baseline.GetString(key)
+	base := t.baseline.GetString(key)
+	compare := t.compare.GetString(key)
+	compareResult(key, "GetString", base, compare)
+	return base
+
 }
 
 // GetBool wraps Viper for concurrent access
 func (t *teeConfig) GetBool(key string) bool {
-	return t.baseline.GetBool(key)
+	base := t.baseline.GetBool(key)
+	compare := t.compare.GetBool(key)
+	compareResult(key, "GetBool", base, compare)
+	return base
+
 }
 
 // GetInt wraps Viper for concurrent access
 func (t *teeConfig) GetInt(key string) int {
-	return t.baseline.GetInt(key)
+	base := t.baseline.GetInt(key)
+	compare := t.compare.GetInt(key)
+	compareResult(key, "GetInt", base, compare)
+	return base
+
 }
 
 // GetInt32 wraps Viper for concurrent access
 func (t *teeConfig) GetInt32(key string) int32 {
-	return t.baseline.GetInt32(key)
+	base := t.baseline.GetInt32(key)
+	compare := t.compare.GetInt32(key)
+	compareResult(key, "GetInt32", base, compare)
+	return base
+
 }
 
 // GetInt64 wraps Viper for concurrent access
 func (t *teeConfig) GetInt64(key string) int64 {
-	return t.baseline.GetInt64(key)
+	base := t.baseline.GetInt64(key)
+	compare := t.compare.GetInt64(key)
+	compareResult(key, "GetInt64", base, compare)
+	return base
+
 }
 
 // GetFloat64 wraps Viper for concurrent access
 func (t *teeConfig) GetFloat64(key string) float64 {
-	return t.baseline.GetFloat64(key)
+	base := t.baseline.GetFloat64(key)
+	compare := t.compare.GetFloat64(key)
+	compareResult(key, "GetFloat64", base, compare)
+	return base
+
 }
 
 // GetDuration wraps Viper for concurrent access
 func (t *teeConfig) GetDuration(key string) time.Duration {
-	return t.baseline.GetDuration(key)
+	base := t.baseline.GetDuration(key)
+	compare := t.compare.GetDuration(key)
+	compareResult(key, "GetDuration", base, compare)
+	return base
+
 }
 
 // GetStringSlice wraps Viper for concurrent access
 func (t *teeConfig) GetStringSlice(key string) []string {
-	return t.baseline.GetStringSlice(key)
+	base := t.baseline.GetStringSlice(key)
+	compare := t.compare.GetStringSlice(key)
+	compareResult(key, "GetStringSlice", base, compare)
+	return base
+
 }
 
 // GetFloat64Slice wraps Viper for concurrent access
 func (t *teeConfig) GetFloat64Slice(key string) []float64 {
-	return t.baseline.GetFloat64Slice(key)
+	base := t.baseline.GetFloat64Slice(key)
+	compare := t.compare.GetFloat64Slice(key)
+	compareResult(key, "GetFloat64Slice", base, compare)
+	return base
+
 }
 
 // GetStringMap wraps Viper for concurrent access
 func (t *teeConfig) GetStringMap(key string) map[string]interface{} {
-	return t.baseline.GetStringMap(key)
+	base := t.baseline.GetStringMap(key)
+	compare := t.compare.GetStringMap(key)
+	compareResult(key, "GetStringMap", base, compare)
+	return base
+
 }
 
 // GetStringMapString wraps Viper for concurrent access
 func (t *teeConfig) GetStringMapString(key string) map[string]string {
-	return t.baseline.GetStringMapString(key)
+	base := t.baseline.GetStringMapString(key)
+	compare := t.compare.GetStringMapString(key)
+	compareResult(key, "GetStringMapString", base, compare)
+	return base
+
 }
 
 // GetStringMapStringSlice wraps Viper for concurrent access
 func (t *teeConfig) GetStringMapStringSlice(key string) map[string][]string {
-	return t.baseline.GetStringMapStringSlice(key)
+	base := t.baseline.GetStringMapStringSlice(key)
+	compare := t.compare.GetStringMapStringSlice(key)
+	compareResult(key, "GetStringMapStringSlice", base, compare)
+	return base
+
 }
 
 // GetSizeInBytes wraps Viper for concurrent access
 func (t *teeConfig) GetSizeInBytes(key string) uint {
-	return t.baseline.GetSizeInBytes(key)
+	base := t.baseline.GetSizeInBytes(key)
+	compare := t.compare.GetSizeInBytes(key)
+	compareResult(key, "GetSizeInBytes", base, compare)
+	return base
+
 }
 
 // GetSource wraps Viper for concurrent access
 func (t *teeConfig) GetSource(key string) model.Source {
-	return t.baseline.GetSource(key)
+	base := t.baseline.GetSource(key)
+	compare := t.compare.GetSource(key)
+	compareResult(key, "GetSource", base, compare)
+	return base
+
 }
 
 // SetEnvPrefix wraps Viper for concurrent access, and keeps the envPrefix for
@@ -226,41 +334,30 @@ func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.D
 func (t *teeConfig) ReadInConfig() error {
 	err1 := t.baseline.ReadInConfig()
 	err2 := t.compare.ReadInConfig()
-	if err1 != nil {
-		return err1
+	if (err1 == nil) != (err2 == nil) {
+		log.Warnf("difference in config: ReadInConfig() -> base error: %v | compare error: %v", err1, err2)
 	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
+	return err1
 }
 
 // ReadConfig wraps Viper for concurrent access
 func (t *teeConfig) ReadConfig(in io.Reader) error {
 	err1 := t.baseline.ReadConfig(in)
 	err2 := t.compare.ReadConfig(in)
-	if err1 != nil {
-		return err1
+	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
+		log.Warnf("difference in config: ReadConfig() -> base error: %v | compare error: %v", err1, err2)
 	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
-
+	return err1
 }
 
 // MergeConfig wraps Viper for concurrent access
 func (t *teeConfig) MergeConfig(in io.Reader) error {
 	err1 := t.baseline.MergeConfig(in)
 	err2 := t.compare.MergeConfig(in)
-	if err1 != nil {
-		return err1
+	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
+		log.Warnf("difference in config: MergeConfig() -> base error: %v | compare error: %v", err1, err2)
 	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
-
+	return err1
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
@@ -271,28 +368,49 @@ func (t *teeConfig) MergeConfig(in io.Reader) error {
 func (t *teeConfig) MergeFleetPolicy(configPath string) error {
 	err1 := t.baseline.MergeFleetPolicy(configPath)
 	err2 := t.compare.MergeFleetPolicy(configPath)
-	if err1 != nil {
-		return err1
+	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
+		log.Warnf("difference in config: MergeFleetPolicy(%s) -> base error: %v | compare error: %v", configPath, err1, err2)
 	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
+	return err1
 }
 
 // AllSettings wraps Viper for concurrent access
 func (t *teeConfig) AllSettings() map[string]interface{} {
-	return t.baseline.AllSettings()
+	base := t.baseline.AllSettings()
+	compare := t.compare.AllSettings()
+	if !reflect.DeepEqual(base, compare) {
+		log.Warnf("difference in config: AllSettings() -> base len: %v | compare len: %v", len(base), len(compare))
+		for key := range base {
+			if _, ok := compare[key]; !ok {
+				log.Warnf("\titem %s missing from compare", key)
+				continue
+			}
+			if !reflect.DeepEqual(base[key], compare[key]) {
+				log.Warnf("\titem %s: %v | %v", key, base[key], compare[key])
+			}
+			log.Flush()
+		}
+	}
+	return base
+
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (t *teeConfig) AllSettingsWithoutDefault() map[string]interface{} {
-	return t.baseline.AllSettingsWithoutDefault()
+	base := t.baseline.AllSettingsWithoutDefault()
+	compare := t.compare.AllSettingsWithoutDefault()
+	compareResult("", "AllSettingsWithoutDefault", base, compare)
+	return base
+
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
-	return t.baseline.AllSettingsBySource()
+	base := t.baseline.AllSettingsBySource()
+	compare := t.compare.AllSettingsBySource()
+	compareResult("", "AllSettingsBySource", base, compare)
+	return base
+
 }
 
 // AddConfigPath wraps Viper for concurrent access
@@ -308,13 +426,10 @@ func (t *teeConfig) AddConfigPath(in string) {
 func (t *teeConfig) AddExtraConfigPaths(ins []string) error {
 	err1 := t.baseline.AddExtraConfigPaths(ins)
 	err2 := t.compare.AddExtraConfigPaths(ins)
-	if err1 != nil {
-		return err1
+	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
+		log.Warnf("difference in config: AddExtraConfigPaths(%s) -> base error: %v | compare error: %v", ins, err1, err2)
 	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
+	return err1
 }
 
 // SetConfigName wraps Viper for concurrent access
@@ -337,7 +452,11 @@ func (t *teeConfig) SetConfigType(in string) {
 
 // ConfigFileUsed wraps Viper for concurrent access
 func (t *teeConfig) ConfigFileUsed() string {
-	return t.baseline.ConfigFileUsed()
+	base := t.baseline.ConfigFileUsed()
+	compare := t.compare.ConfigFileUsed()
+	compareResult("", "ConfigFileUsed", base, compare)
+	return base
+
 }
 
 //func (t *teeConfig) SetTypeByDefaultValue(in bool) {
@@ -347,7 +466,11 @@ func (t *teeConfig) ConfigFileUsed() string {
 
 // GetEnvVars implements the Config interface
 func (t *teeConfig) GetEnvVars() []string {
-	return t.baseline.GetEnvVars()
+	base := t.baseline.GetEnvVars()
+	compare := t.compare.GetEnvVars()
+	compareResult("", "GetEnvVars", base, compare)
+	return base
+
 }
 
 // BindEnvAndSetDefault implements the Config interface
@@ -370,9 +493,15 @@ func (t *teeConfig) Stringify(source model.Source) string {
 }
 
 func (t *teeConfig) GetProxies() *model.Proxy {
-	return t.baseline.GetProxies()
+	base := t.baseline.GetProxies()
+	compare := t.compare.GetProxies()
+	compareResult("", "GetProxies", base, compare)
+	return base
 }
 
 func (t *teeConfig) ExtraConfigFilesUsed() []string {
-	return t.baseline.ExtraConfigFilesUsed()
+	base := t.baseline.ExtraConfigFilesUsed()
+	compare := t.compare.ExtraConfigFilesUsed()
+	compareResult("", "ExtraConfigFilesUsed", base, compare)
+	return base
 }

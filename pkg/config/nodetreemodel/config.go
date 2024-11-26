@@ -397,7 +397,9 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
 
-	return maps.Keys(c.knownKeys)
+	res := maps.Keys(c.knownKeys)
+	slices.Sort(res)
+	return res
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
@@ -585,9 +587,10 @@ func (c *ntmConfig) AddConfigPath(in string) {
 	defer c.Unlock()
 
 	if !filepath.IsAbs(in) {
-		in, err := filepath.Abs(in)
+		var err error
+		in, err = filepath.Abs(in)
 		if err != nil {
-			log.Errorf("could not get absolute path for configuration '%s': %s", in, err)
+			log.Errorf("could not get absolute path for configuration %q: %s", in, err)
 			return
 		}
 	}
