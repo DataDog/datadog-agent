@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -23,6 +22,8 @@ import (
 
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"golang.org/x/xerrors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -37,13 +38,14 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
+	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
-	"github.com/aquasecurity/trivy/pkg/scanner/local"
 	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
@@ -93,7 +95,7 @@ type Collector struct {
 
 var globalCollector *Collector
 
-func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Option {
+func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 	parallel := 1
 	if opts.Fast {
 		parallel = runtime.NumCPU()
@@ -106,32 +108,17 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
-		WalkOption: artifact.WalkOption{
-			ErrorCallback: func(_ string, err error) error {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
-					return nil
-				}
-				return err
-			},
-		},
+		WalkerOption:      walker.Option{},
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
-		option.OnlyDirs = []string{
+		option.WalkerOption.OnlyDirs = []string{
 			"/etc/*",
 			"/lib/apk/db/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
-		}
-		if root != "" {
-			// OnlyDirs is handled differently for image than for filesystem.
-			// This needs to be fixed properly but in the meantime, use absolute
-			// paths for fs and relative paths for images.
-			for i := range option.OnlyDirs {
-				option.OnlyDirs[i] = filepath.Join(root, option.OnlyDirs[i])
-			}
 		}
 	}
 
@@ -285,7 +272,7 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 			}
 		}
 
-		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
+		return c.scanOverlayFS(ctx, layers, fanalImage, imgMeta, scanOptions)
 	}
 
 	return nil, fmt.Errorf("unsupported graph driver: %s", fanalImage.inspect.GraphDriver.Name)
@@ -305,19 +292,117 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
-func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
-	overlayFsReader := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
+type fakeContainer struct {
+	*image
+	imgMeta *workloadmeta.ContainerImageMetadata
+	layers  []string
+}
+
+func (c *fakeContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
+	imageLayers := c.image.inspect.RootFS.Layers
+	for i, layer := range imageLayers {
+		diffID, _ := v1.NewHash(layer)
+		if diffID.String() == hash {
+			return ftypes.LayerPath{
+				DiffID: diffID.String(),
+				Path:   c.layers[i],
+				Digest: c.imgMeta.Layers[i].Digest,
+			}, nil
+		}
+	}
+	return ftypes.LayerPath{}, errors.New("not found")
+}
+
+func (c *fakeContainer) LayerByDigest(hash string) (ftypes.LayerPath, error) {
+	imageLayers := c.image.inspect.RootFS.Layers
+	for i, layer := range imageLayers {
+		diffID, _ := v1.NewHash(layer)
+		if hash == c.imgMeta.Layers[i].Digest {
+			return ftypes.LayerPath{
+				DiffID: diffID.String(),
+				Path:   c.layers[i],
+				Digest: c.imgMeta.Layers[i].Digest,
+			}, nil
+		}
+	}
+	return ftypes.LayerPath{}, errors.New("not found")
+}
+
+func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
+	imageLayers := c.image.inspect.RootFS.Layers
+	for i, layer := range imageLayers {
+		diffID, _ := v1.NewHash(layer)
+		layers = append(layers, ftypes.LayerPath{
+			DiffID: diffID.String(),
+			Path:   c.layers[i],
+			Digest: c.imgMeta.Layers[i].Digest,
+		})
+	}
+
+	return layers
+}
+
+type dirFS struct {
+	fs.StatFS
+}
+
+func (d *dirFS) Open(name string) (fs.File, error) {
+	return d.StatFS.Open(name)
+}
+
+func (d *dirFS) Stat(name string) (fs.FileInfo, error) {
+	if !strings.HasPrefix(name, "/") {
+		name = "/" + name
+	}
+	return d.StatFS.Stat(name)
+}
+
+func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, img *image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	cache, err := c.getCache()
 	if err != nil {
 		return nil, err
 	}
 
-	return report, nil
+	containerArtifact, err := local.NewArtifact(&fakeContainer{
+		image:   img,
+		layers:  layers,
+		imgMeta: imgMeta,
+	}, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
+
+	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache), imgMeta, cache, false)
+	if err != nil {
+		if imgMeta != nil {
+			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
+		}
+		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+	}
+
+	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
+	pkgCount := 0
+	for _, results := range trivyReport.Results {
+		pkgCount += len(results.Packages)
+	}
+	log.Debugf("Found %d packages", pkgCount)
+
+	return &Report{
+		Report:    trivyReport,
+		id:        imgMeta.ID,
+		marshaler: c.marshaler,
+	}, nil
 }
 
 // ScanContainerdImageFromSnapshotter scans containerd image directly from the snapshotter
 func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	// Computing duration of containerd lease
 	deadline, _ := ctx.Deadline()
 	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
@@ -347,7 +432,11 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		return nil, fmt.Errorf("unable to get a lease, err: %w", err)
 	}
 
-	report, err := c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
+	if err := done(ctx); err != nil {
+		log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
+	}
+
+	report, err := c.scanOverlayFS(ctx, layers, fanalImage, imgMeta, scanOptions)
 
 	if err := done(ctx); err != nil {
 		log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
@@ -409,7 +498,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(fsys, path, cache, getDefaultArtifactOption(".", scanOptions))
+	fsArtifact, err := local2.NewArtifact(path, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -441,6 +530,58 @@ func (c *Collector) ScanFilesystem(ctx context.Context, fsys fs.FS, path string,
 	return c.scanFilesystem(ctx, fsys, path, nil, scanOptions)
 }
 
+type driver struct {
+	applier applier.Applier
+}
+
+func (d *driver) Scan(ctx context.Context, target, artifactKey string, blobKeys []string, options types.ScanOptions) (
+	results types.Results, osFound ftypes.OS, err error) {
+
+	detail, err := d.applier.ApplyLayers(artifactKey, blobKeys)
+	switch {
+	case errors.Is(err, analyzer.ErrUnknownOS):
+		log.Debug("OS is not detected.")
+
+		// Packages may contain OS-independent binary information even though OS is not detected.
+		if len(detail.Packages) != 0 {
+			detail.OS = ftypes.OS{Family: "none"}
+		}
+
+		// If OS is not detected and repositories are detected, we'll try to use repositories as OS.
+		if detail.Repository != nil {
+			log.Debug("Package repository %s, version %s", string(detail.Repository.Family), detail.Repository.Release)
+			log.Debug("Assuming OS family %s, version %s", string(detail.Repository.Family), detail.Repository.Release)
+			detail.OS = ftypes.OS{
+				Family: detail.Repository.Family,
+				Name:   detail.Repository.Release,
+			}
+		}
+	case errors.Is(err, analyzer.ErrNoPkgsDetected):
+		log.Warn("No OS package is detected. Make sure you haven't deleted any files that contain information about the installed packages.")
+		log.Warn(`e.g. files under "/lib/apk/db/", "/var/lib/dpkg/" and "/var/lib/rpm"`)
+	case err != nil:
+		return nil, ftypes.OS{}, xerrors.Errorf("failed to apply layers: %w", err)
+	}
+
+	scanTarget := types.ScanTarget{
+		Name:       target,
+		OS:         detail.OS,
+		Repository: detail.Repository,
+		Packages:   detail.Packages,
+	}
+
+	result := types.Result{
+		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS, detail.OS.Name),
+		Class:  types.ClassOSPkg,
+		Type:   scanTarget.OS.Family,
+	}
+
+	sort.Sort(scanTarget.Packages)
+	result.Packages = scanTarget.Packages
+
+	return []types.Result{result}, detail.OS, nil
+}
+
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
 	if useCache && imgMeta != nil && cache != nil {
 		// The artifact reference is only needed to clean up the blobs after the scan.
@@ -452,11 +593,15 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
 
-	s := scanner.NewScanner(local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient), artifact)
+	s := scanner.NewScanner(&driver{applier: applier}, artifact)
+
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
-		VulnType:            []string{},
 		ScanRemovedPackages: false,
-		ListAllPackages:     true,
+		PkgTypes:            []types.PkgType{types.PkgTypeOS},
+		PkgRelationships: []ftypes.Relationship{
+			ftypes.RelationshipUnknown,
+		},
+		Scanners: types.Scanners{types.VulnerabilityScanner},
 	})
 	if err != nil {
 		return nil, err
@@ -471,7 +616,7 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, err
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption("", scanOptions))
+	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}

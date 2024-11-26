@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	defaultScanTimeout = 30 * time.Second
+	defaultScanTimeout = 60 * time.Second
 	sendTimeout        = 5 * time.Second
 )
 
