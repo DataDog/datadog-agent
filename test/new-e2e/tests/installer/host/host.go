@@ -448,7 +448,7 @@ const (
 func (h *Host) SetupProxy(config ProxyConfig) {
 	// Install Docker & the Squid Proxy
 	h.InstallDocker()
-	h.remote.MustExecute(fmt.Sprintf("sudo docker run -d --name squid-proxy -v /opt/fixtures/%s:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta", config))
+	h.remote.MustExecute(fmt.Sprintf("sudo docker run -d --name squid-proxy -v /opt/fixtures/mirror_url_rewrite.sh:/mirror_url_rewrite.sh -v /opt/fixtures/%s:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta", config))
 
 	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
 
