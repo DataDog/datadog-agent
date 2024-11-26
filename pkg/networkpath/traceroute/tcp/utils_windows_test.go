@@ -10,6 +10,7 @@ package tcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ import (
 type (
 	mockRawConn struct {
 		readTimeoutCount int
-		readDeadline     time.Time
+		readTimeout      time.Duration
 		readFromErr      error
 
 		payload []byte
@@ -36,7 +37,7 @@ type (
 )
 
 func Test_handlePackets(t *testing.T) {
-	_, tcpBytes := createMockFullTCPPacket(createMockIPv4Layer(dstIP, srcIP, layers.IPProtocolTCP), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))
+	_, tcpBytes := createMockFullTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))
 
 	tt := []struct {
 		description string
@@ -59,6 +60,7 @@ func Test_handlePackets(t *testing.T) {
 			ctxTimeout:  300 * time.Millisecond,
 			conn: &mockRawConn{
 				readTimeoutCount: 100,
+				readTimeout:      100 * time.Millisecond,
 				readFromErr:      errors.New("bad test error"),
 			},
 			errMsg: "canceled",
@@ -93,7 +95,7 @@ func Test_handlePackets(t *testing.T) {
 			description: "successful ICMP parsing returns IP, port, and type code",
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
-				payload: createMockICMPPacket(createMockIPv4Header(srcIP, dstIP, 1), createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				payload: createMockICMPPacket(createMockIPv4Header(srcIP, dstIP, layers.IPProtocolICMPv4), createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			localIP:          innerSrcIP,
 			localPort:        12345,
@@ -130,7 +132,7 @@ func Test_handlePackets(t *testing.T) {
 			actualIP, actualPort, actualTypeCode, _, err := w.handlePackets(ctx, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
 			if test.errMsg != "" {
 				require.Error(t, err)
-				assert.True(t, strings.Contains(err.Error(), test.errMsg))
+				assert.True(t, strings.Contains(err.Error(), test.errMsg), fmt.Sprintf("expected %q, got %q", test.errMsg, err.Error()))
 				return
 			}
 			require.NoError(t, err)
@@ -144,7 +146,7 @@ func Test_handlePackets(t *testing.T) {
 func (m *mockRawConn) RecvFrom(_ windows.Handle, buf []byte, _ int) (int, windows.Sockaddr, error) {
 	if m.readTimeoutCount > 0 {
 		m.readTimeoutCount--
-		time.Sleep(time.Until(m.readDeadline))
+		time.Sleep(m.readTimeout)
 		return 0, nil, windows.WSAETIMEDOUT
 	}
 	if m.readFromErr != nil {
