@@ -1,6 +1,8 @@
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.worktree import WORKTREE_DIRECTORY, agent_context, enter_env, init_env, remove_env
 
 
@@ -65,15 +67,22 @@ def run(ctx, branch: str, command: str, skip_checkout: bool = False):
 
 
 @task
-def invoke(ctx, branch: str, skip_checkout: bool = False):
+def invoke(ctx, branch: str, skip_checkout: bool = False, yes: bool = False):
     """Enters the worktree environment in order to invoke tasks in this context.
 
     Note:
-        This task should be avoided when a --version, --major-version or --agent-version argument is available in the task.
+        This task should be avoided when a --branch or --release-branch argument is available in the task.
 
     Usage:
-        > inv worktree.invoke 6.53.x modules.show-all  # Will show agent 6 modules
+        > inv worktree.invoke 6.53.x --yes modules.show-all  # Will show agent 6 modules
     """
 
-    # The tasks running after this one will be using the agent 6 environment
-    enter_env(ctx, branch, skip_checkout=skip_checkout)
+    if yes or yes_no_question(
+        'Warning: This task should be avoided, use --branch or --release-branch argument if available in the task. Want to proceed?',
+        color=Color.ORANGE,
+        default=False,
+    ):
+        # The tasks running after this one will be using the agent 6 environment
+        enter_env(ctx, branch, skip_checkout=skip_checkout)
+    else:
+        raise Exit(color_message('Aborted.', Color.RED))
