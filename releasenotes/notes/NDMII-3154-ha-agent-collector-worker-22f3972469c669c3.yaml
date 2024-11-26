@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [ha-agent] Run HA enabled integrations only on leader agent
+    [ha-agent] Run HA enabled integrations only on leader Agent
