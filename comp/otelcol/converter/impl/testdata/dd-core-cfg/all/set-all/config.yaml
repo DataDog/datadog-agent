@@ -13,8 +13,7 @@ processors:
 
 exporters:
   datadog:
-    api:
-      # key:
+    api: 
 
 extensions:
   pprof/user-defined:

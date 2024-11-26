@@ -170,6 +170,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/unset/acfg.yaml",
 		},
 		{
+			name:           "dd-core-cfg/apikey/api-set-key-not-present",
+			provided:       "dd-core-cfg/apikey/api-set-key-not-present/config.yaml",
+			expectedResult: "dd-core-cfg/apikey/api-set-key-not-present/config-result.yaml",
+			agentConfig:    "dd-core-cfg/apikey/api-set-key-not-present/acfg.yaml",
+		},
+		{
 			name:           "dd-core-cfg/apikey/no-api-key-section",
 			provided:       "dd-core-cfg/apikey/no-api-key-section/config.yaml",
 			expectedResult: "dd-core-cfg/apikey/no-api-key-section/config-result.yaml",
@@ -206,10 +212,22 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/site/unset/acfg.yaml",
 		},
 		{
-			name:           "dd-core-cfg/no-overrides",
-			provided:       "dd-core-cfg/no-overrides/config.yaml",
-			expectedResult: "dd-core-cfg/no-overrides/config.yaml",
-			agentConfig:    "dd-core-cfg/no-overrides/acfg.yaml",
+			name:           "dd-core-cfg/site/api-set-site-not-present",
+			provided:       "dd-core-cfg/site/api-set-site-not-present/config.yaml",
+			expectedResult: "dd-core-cfg/site/api-set-site-not-present/config-result.yaml",
+			agentConfig:    "dd-core-cfg/site/api-set-site-not-present/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/all/no-overrides",
+			provided:       "dd-core-cfg/all/no-overrides/config.yaml",
+			expectedResult: "dd-core-cfg/all/no-overrides/config.yaml",
+			agentConfig:    "dd-core-cfg/all/no-overrides/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/all/set-all",
+			provided:       "dd-core-cfg/all/set-all/config.yaml",
+			expectedResult: "dd-core-cfg/all/set-all/config-result.yaml",
+			agentConfig:    "dd-core-cfg/all/set-all/acfg.yaml",
 		},
 	}
 
