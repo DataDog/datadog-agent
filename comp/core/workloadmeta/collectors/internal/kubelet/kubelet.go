@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -418,21 +419,6 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractGPUVendor(gpuNamePrefix kubelet.ResourceName) string {
-	gpuVendor := ""
-	switch gpuNamePrefix {
-	case kubelet.ResourcePrefixNvidiaMIG, kubelet.ResourceGenericNvidiaGPU:
-		gpuVendor = "nvidia"
-	case kubelet.ResourcePrefixAMDGPU:
-		gpuVendor = "amd"
-	case kubelet.ResourcePrefixIntelGPU:
-		gpuVendor = "intel"
-	default:
-		gpuVendor = string(gpuNamePrefix)
-	}
-	return gpuVendor
-}
-
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
@@ -444,24 +430,14 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 
 	// extract GPU resource info from the possible GPU sources
-	uniqueGPUVendor := make(map[string]bool)
-
-	resourceKeys := make([]kubelet.ResourceName, 0, len(spec.Resources.Requests))
+	uniqueGPUVendor := make(map[string]struct{})
 	for resourceName := range spec.Resources.Requests {
-		resourceKeys = append(resourceKeys, resourceName)
-	}
-
-	for _, gpuResourceName := range kubelet.GetGPUResourceNames() {
-		for _, resourceKey := range resourceKeys {
-			if strings.HasPrefix(string(resourceKey), string(gpuResourceName)) {
-				if gpuReq, found := spec.Resources.Requests[resourceKey]; found {
-					resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-					uniqueGPUVendor[extractGPUVendor(gpuResourceName)] = true
-					break
-				}
-			}
+		gpuName, found := gpu.ExtractSimpleGPUName(gpu.ResourceGPU(resourceName))
+		if found {
+			uniqueGPUVendor[gpuName] = struct{}{}
 		}
 	}
+
 	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))
 	for GPUVendor := range uniqueGPUVendor {
 		gpuVendorList = append(gpuVendorList, GPUVendor)
