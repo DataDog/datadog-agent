@@ -79,7 +79,7 @@ func (b baseConfig) Name() string {
 	return b.name
 }
 
-// BaseConfig contains shared configurations for both Docker and Docker Compose.
+// baseConfig contains shared configurations for both Docker and Docker Compose.
 type baseConfig struct {
 	name       string         // Container name for docker or an alias for docker-compose
 	timeout    time.Duration  // Timeout for the entire operation.
