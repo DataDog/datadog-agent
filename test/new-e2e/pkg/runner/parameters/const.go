@@ -5,6 +5,8 @@
 
 package parameters
 
+import "github.com/DataDog/test-infra-definitions/components"
+
 // StoreKey alias to string
 type StoreKey string
 
@@ -20,25 +22,25 @@ const (
 	// KeyPairName aws keypairname, used to access EC2 instances
 	KeyPairName StoreKey = "key_pair_name"
 	// AWSPrivateKeyPassword private ssh key password
-	AWSPrivateKeyPassword StoreKey = "aws_private_key_password"
+	AWSPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPasswordSuffix)
 	// AWSPrivateKeyPath private ssh key path
-	AWSPrivateKeyPath StoreKey = "aws_private_key_path"
+	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
 	// Profile aws profile name
 	Profile StoreKey = "profile"
 	// PublicKeyPath public ssh key path
-	AWSPublicKeyPath StoreKey = "aws_public_key_path"
+	AWSPublicKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PublicKeyPathSuffix)
 	//AzurePrivateKeyPassword private ssh key password
-	AzurePrivateKeyPassword StoreKey = "azure_private_key_password"
+	AzurePrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPasswordSuffix)
 	//AzurePrivateKeyPath private ssh key path
-	AzurePrivateKeyPath StoreKey = "azure_private_key_path"
+	AzurePrivateKeyPath StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPathSuffix)
 	//AzurePublicKeyPath public ssh key path
-	AzurePublicKeyPath StoreKey = "azure_public_key_path"
+	AzurePublicKeyPath StoreKey = StoreKey(components.CloudProviderAzure + PublicKeyPathSuffix)
 	//GCPPrivateKeyPassword private ssh key password
-	GCPPrivateKeyPassword StoreKey = "gcp_private_key_password"
+	GCPPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPasswordSuffix)
 	//GCPPrivateKeyPath private ssh key path
-	GCPPrivateKeyPath StoreKey = "gcp_private_key_path"
+	GCPPrivateKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPathSuffix)
 	//GCPPublicKeyPath public ssh key path
-	GCPPublicKeyPath StoreKey = "gcp_public_key_path"
+	GCPPublicKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PublicKeyPathSuffix)
 	// PulumiPassword config file parameter name
 	PulumiPassword StoreKey = "pulumi_password"
 	// SkipDeleteOnFailure keep the stack on test failure
@@ -67,4 +69,10 @@ const (
 	PreInitialized StoreKey = "pre_initialized"
 	// MajorVersion config flag parameter name
 	MajorVersion StoreKey = "major_version"
+)
+
+const (
+	PrivateKeyPathSuffix     = "_private_key_path"
+	PublicKeyPathSuffix      = "_public_key_path"
+	PrivateKeyPasswordSuffix = "_private_key_password"
 )

@@ -27,7 +27,7 @@ var _ e2e.Initializable = (*RemoteHost)(nil)
 // Init is called by e2e test Suite after the component is provisioned.
 func (h *RemoteHost) Init(ctx e2e.Context) (err error) {
 	h.context = ctx
-	h.Host, err = client.NewHost(ctx, h.HostOutput, h.cloudProvider)
+	h.Host, err = client.NewHost(ctx, h.HostOutput)
 	return err
 }
 
