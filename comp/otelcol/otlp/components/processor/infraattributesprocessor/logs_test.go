@@ -130,7 +130,7 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			gc := newTestGenerateIDClient().generateID
 
 			factory := NewFactory(tc, gc)
-			flp, err := factory.CreateLogsProcessor(
+			flp, err := factory.CreateLogs(
 				context.Background(),
 				processortest.NewNopSettings(),
 				cfg,

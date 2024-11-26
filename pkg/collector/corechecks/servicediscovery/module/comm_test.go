@@ -225,3 +225,37 @@ func BenchmarkShouldIgnoreComm(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkProcCommReadFile reads content of /proc/<pid>/comm with default buffer allocation.
+func BenchmarkProcCommReadFile(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_, err := os.ReadFile("/proc/1/comm")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkProcCommReadFile reads content of /proc/<pid>/comm using pre-allocated pool of buffers.
+func BenchmarkProcCommReadLen(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		file, err := os.Open("/proc/1/comm")
+		if err != nil {
+			b.Fatal(err)
+		}
+		buf := procCommBufferPool.Get()
+
+		_, err = file.Read(*buf)
+		if err != nil {
+			b.Fatal(err)
+		}
+		file.Close()
+		procCommBufferPool.Put(buf)
+	}
+}

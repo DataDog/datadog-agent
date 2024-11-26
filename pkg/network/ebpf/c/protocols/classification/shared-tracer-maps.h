@@ -9,6 +9,12 @@
 // classification procedures on the same connection
 BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_wrapper_t, 0)
 
+static __always_inline bool is_protocol_classification_supported() {
+    __u64 val = 0;
+    LOAD_CONSTANT("protocol_classification_enabled", val);
+    return val > 0;
+}
+
 static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
     if (!wrapper) {

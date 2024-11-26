@@ -8,7 +8,7 @@ if ohai["platform"] != "windows"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
+  dependency "openssl3"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
@@ -52,6 +52,14 @@ if ohai["platform"] != "windows"
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
 
+    # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
+    # compiler we use would end up being available in the system/docker image used by customers
+    if linux_target?
+      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
+      command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
+    end
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))

@@ -15,16 +15,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// InjectionFilter encapsulates the logic for deciding whether
+// InjectionFilter is an interface to determine if a pod should be mutated.
+type InjectionFilter interface {
+	// ShouldMutatePod checks if a pod is mutable per explicit rules and
+	// the NSFilter if InjectionFilter has one.
+	ShouldMutatePod(pod *corev1.Pod) bool
+	// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
+	IsNamespaceEligible(ns string) bool
+	// InitError returns an error if the InjectionFilter failed to initialize.
+	InitError() error
+}
+
+// NewInjectionFilter creates a new InjectionFilter with the given NamespaceInjectionFilter.
+// the InjectionFilter encapsulates the logic for deciding whether
 // we can do pod mutation based on a NSFilter (NamespaceInjectionFilter).
 // See: InjectionFilter.ShouldMutatePod.
-type InjectionFilter struct {
+func NewInjectionFilter(filter NamespaceInjectionFilter) InjectionFilter {
+	return &injectionFilterImpl{NSFilter: filter}
+}
+
+type injectionFilterImpl struct {
 	NSFilter NamespaceInjectionFilter
 }
 
 // ShouldMutatePod checks if a pod is mutable per explicit rules and
 // the NSFilter if InjectionFilter has one.
-func (f InjectionFilter) ShouldMutatePod(pod *corev1.Pod) bool {
+func (f injectionFilterImpl) ShouldMutatePod(pod *corev1.Pod) bool {
 	switch getPodMutationLabelFlag(pod) {
 	case podMutationDisabled:
 		return false
@@ -37,6 +53,16 @@ func (f InjectionFilter) ShouldMutatePod(pod *corev1.Pod) bool {
 	}
 
 	return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled")
+}
+
+// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
+func (f injectionFilterImpl) IsNamespaceEligible(ns string) bool {
+	return f.NSFilter.IsNamespaceEligible(ns)
+}
+
+// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
+func (f injectionFilterImpl) InitError() error {
+	return f.NSFilter.Err()
 }
 
 type podMutationLabelFlag int
@@ -79,6 +105,6 @@ func getPodMutationLabelFlag(pod *corev1.Pod) podMutationLabelFlag {
 type NamespaceInjectionFilter interface {
 	// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
 	IsNamespaceEligible(ns string) bool
-	// Err returns an error if creation of the NamespaceInjectionFilter failed.
+	// Err returns an error if the InjectionFilter failed to initialize.
 	Err() error
 }

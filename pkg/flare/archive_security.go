@@ -20,7 +20,7 @@ var linuxKernelSymbols = getLinuxKernelSymbols
 
 // CreateSecurityAgentArchive packages up the files
 func CreateSecurityAgentArchive(local bool, logFilePath string, statusComponent status.Component) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder(local)
+	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
 	if err != nil {
 		return "", err
 	}

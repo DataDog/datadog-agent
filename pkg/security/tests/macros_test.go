@@ -55,7 +55,7 @@ func TestMacros(t *testing.T) {
 			return err
 		}
 		return os.Remove(testFile)
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "mkdir", event.GetType(), "wrong event type")
 	})
 }

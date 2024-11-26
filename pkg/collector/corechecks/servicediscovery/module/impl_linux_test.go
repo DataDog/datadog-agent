@@ -509,8 +509,12 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				"CORECLR_ENABLE_PROFILING=1",
 			},
 		},
-		"java": {
+		"java - dd-java-agent.jar": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
+		},
+		"java - datadog.jar": {
+			commandline: []string{"java", "-javaagent:/path/to/datadog-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
 		"node": {
@@ -575,11 +579,11 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	// https://github.com/shirou/gopsutil/commit/aa0b73dc6d5669de5bc9483c0655b1f9446317a9).
 	//
 	// This is due to an inherent race since the code in BootTimeWithContext
-	// substracts the uptime of the host from the current time, and there can be
+	// subtracts the uptime of the host from the current time, and there can be
 	// in theory an unbounded amount of time between the read of /proc/uptime
 	// and the retrieval of the current time. Allow a 10 second diff as a
 	// reasonable value.
-	assert.InDelta(t, uint64(createTimeMs/1000), svc.StartTimeSecs, 10)
+	assert.InDelta(t, uint64(createTimeMs), svc.StartTimeMilli, 10000)
 }
 
 func assertCPU(t *testing.T, url string, pid int) {

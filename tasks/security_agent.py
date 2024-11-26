@@ -13,7 +13,6 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
@@ -32,8 +31,10 @@ from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
+    build_libpcap,
     check_for_ninja,
     copy_ebpf_and_related_files,
+    get_libpcap_cgo_flags,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -44,7 +45,6 @@ is_windows = sys.platform == "win32"
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
-STRESS_TEST_SUITE = "stresssuite"
 
 
 @task(iterable=["build_tags"])
@@ -58,18 +58,10 @@ def build(
     go_mod="mod",
     skip_assets=False,
     static=False,
-    bundle=True,
 ):
     """
     Build the security agent
     """
-    if bundle and sys.platform != "win32":
-        return agent_build(
-            ctx,
-            install_path=install_path,
-            race=race,
-            go_mod=go_mod,
-        )
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
 
@@ -231,7 +223,7 @@ def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     ctx.run(
-        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go"
+        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go",
     )
     return syscall_tester_exe_file
 
@@ -261,47 +253,6 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
         },
     )
     return syscall_tester_exe_file
-
-
-def ninja_c_latency_common(nw, file_name, build_dir, flags=None, libs=None, static=True):
-    if flags is None:
-        flags = []
-    if libs is None:
-        libs = []
-
-    latency_c_dir = os.path.join("pkg", "security", "tests", "latency", "c")
-    latency_c_file = os.path.join(latency_c_dir, f"{file_name}.c")
-    latency_exe_file = os.path.join(build_dir, file_name)
-
-    if static:
-        flags.append("-static")
-
-    nw.build(
-        inputs=[latency_c_file],
-        outputs=[latency_exe_file],
-        rule="execlang",
-        variables={"exeflags": flags, "exelibs": libs},
-    )
-    return latency_exe_file
-
-
-def ninja_latency_tools(ctx, build_dir, static=True):
-    return ninja_c_latency_common(ctx, "bench_net_DNS", build_dir, libs=["-lpthread"], static=static)
-
-
-@task
-def build_embed_latency_tools(ctx, static=True):
-    check_for_ninja(ctx)
-    build_dir = os.path.join("pkg", "security", "tests", "latency", "bin")
-    create_dir_if_needed(build_dir)
-
-    nf_path = os.path.join(ctx.cwd, 'latency-tools.ninja')
-    with open(nf_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_exe_compiler(nw)
-        ninja_latency_tools(nw, build_dir, static=static)
-
-    ctx.run(f"ninja -f {nf_path}")
 
 
 def ninja_syscall_x86_tester(ctx, build_dir, static=True, compiler='clang'):
@@ -396,6 +347,16 @@ def build_functional_tests(
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
+        build_tags.append("pcap")
+        build_libpcap(ctx)
+        cgo_flags = get_libpcap_cgo_flags(ctx)
+        # append libpcap cgo-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
+
     if static:
         build_tags.extend(["osusergo", "netgo"])
 
@@ -426,55 +387,6 @@ def build_functional_tests(
     }
 
     ctx.run(cmd.format(**args), env=env)
-
-
-@task
-def build_stress_tests(
-    ctx,
-    output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
-    major_version='7',
-    bundle_ebpf=True,
-    skip_linters=False,
-    kernel_release=None,
-):
-    build_embed_latency_tools(ctx)
-    build_functional_tests(
-        ctx,
-        output=output,
-        major_version=major_version,
-        build_tags='stresstests',
-        bundle_ebpf=bundle_ebpf,
-        skip_linters=skip_linters,
-        kernel_release=kernel_release,
-    )
-
-
-@task
-def stress_tests(
-    ctx,
-    verbose=False,
-    major_version='7',
-    output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
-    bundle_ebpf=True,
-    testflags='',
-    skip_linters=False,
-    kernel_release=None,
-):
-    build_stress_tests(
-        ctx,
-        major_version=major_version,
-        output=output,
-        bundle_ebpf=bundle_ebpf,
-        skip_linters=skip_linters,
-        kernel_release=kernel_release,
-    )
-
-    run_functional_tests(
-        ctx,
-        testsuite=output,
-        verbose=verbose,
-        testflags=testflags,
-    )
 
 
 @task
@@ -749,7 +661,7 @@ def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
         [generate_cws_documentation],
-        [gen_mocks],
+        # [gen_mocks], TODO: re-enable this when go is bumped to 1.23 and mocker is updated to >2.46.1
         [sync_secl_win_pkg],
     ]
     failing_tasks = []
@@ -815,12 +727,23 @@ def e2e_prepare_win(ctx):
 
 
 @task
-def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
+def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     build_cws_object_files(
         ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
-    flags = '-tags ebpf_bindata'
+    env = {"CGO_ENABLED": "1"}
+
+    build_libpcap(ctx)
+    cgo_flags = get_libpcap_cgo_flags(ctx)
+    # append libpcap cgo-related environment variables to any existing ones
+    for k, v in cgo_flags.items():
+        if k in env:
+            env[k] += f" {v}"
+        else:
+            env[k] = v
+
+    flags = '-tags ebpf_bindata,cgo,pcap'
     if verbose:
         flags += " -test.v"
 
@@ -828,7 +751,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     if trace:
         args += " -trace"
 
-    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
+    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args} {testflags}", env=env)
 
 
 @task
@@ -853,10 +776,12 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
+        ("string_array_iter.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")
     ctx.run("mkdir -p pkg/security/seclwin/model")
+    ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
 
     for ffrom, fto in files_to_copy:
         if not fto:

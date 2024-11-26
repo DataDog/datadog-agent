@@ -673,6 +673,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
+	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
+	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1403,7 +1405,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 22)
+	require.Len(t, serverlessConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {

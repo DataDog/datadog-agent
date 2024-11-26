@@ -949,6 +949,11 @@ api_key:
   #
   # force_use_http: true
 
+  ## @param http_protocol - string - optional - default: auto
+  ## @env DD_LOGS_CONFIG_HTTP_PROTOCOL - string - optional - default: auto
+  ## The transport type to use for sending logs. Possible values are "auto" or "http1".
+  # http_protocol: auto
+
   ## @param force_use_tcp - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
@@ -3126,13 +3131,13 @@ api_key:
 
       ## @param cpu - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
-      ## Configures the CPU request and limit for the init containers.
+      ## Configures the CPU request that will be applied for the init container's CPU request and limit.
       #
       # cpu:
 
       ## @param memory - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
-      ## Configures the memory request and limit for the init containers.
+      ## Configures the memory request that will be applied for the init container's memory request and limit.
       #
       # memory:
 
@@ -4311,15 +4316,6 @@ api_key:
     ## are converted to Datadog conventions and set to to metric tags whether this option is enabled or not.
     #
     # resource_attributes_as_tags: false
-
-    ## Deprecated - use `instrumentation_scope_metadata_as_tags` instead in favor of
-    ## https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-    ## Both must not be set at the same time.
-    ## @param instrumentation_library_metadata_as_tags - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_LIBRARY_METADATA_AS_TAGS - boolean - optional - default: false
-    ## Set to true to add metadata about the instrumentation library that created a metric.
-    #
-    # instrumentation_library_metadata_as_tags: false
 
     ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false

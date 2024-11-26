@@ -57,7 +57,6 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
-	PlaySnapshot()
 }
 
 // EventConsumer defines a probe event consumer
@@ -95,7 +94,8 @@ type actionStatsTags struct {
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	PlatformProbe PlatformProbe
+	PlatformProbe         PlatformProbe
+	agentContainerContext *events.AgentContainerContext
 
 	// Constants and configuration
 	Opts         Opts
@@ -443,7 +443,7 @@ func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
 }
 
-// PlaySnapshot plays the snapshot
-func (p *Probe) PlaySnapshot() {
-	p.PlatformProbe.PlaySnapshot()
+// GetAgentContainerContext returns the agent container context
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.agentContainerContext
 }

@@ -218,8 +218,8 @@ type StatCounters struct {
 	// * Value 1 represents a connection that was established after system-probe started;
 	// * Values greater than 1 should be rare, but can occur when multiple connections
 	//   are established with the same tuple between two agent checks;
-	TCPEstablished uint32
-	TCPClosed      uint32
+	TCPEstablished uint16
+	TCPClosed      uint16
 }
 
 // IsZero returns whether all the stat counter values are zeroes
@@ -269,7 +269,7 @@ type ConnectionStats struct {
 	}
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
-	TCPFailures map[uint32]uint32
+	TCPFailures map[uint16]uint32
 
 	ConnectionTuple
 
