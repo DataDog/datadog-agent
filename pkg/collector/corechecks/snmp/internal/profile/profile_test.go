@@ -74,22 +74,6 @@ func Test_loadProfiles(t *testing.T) {
 			},
 			expectedProfileNames: []string(nil), // invalid profiles are skipped
 		},
-
-		// json profiles.json.gz profiles
-		{
-			name:      "OK Use json profiles.json.gz profiles",
-			mockConfd: "zipprofiles.d",
-			expectedProfileNames: []string{
-				"def-p1",
-				"my-profile-name",
-				"profile-from-ui",
-			},
-		},
-		{
-			name:        "ERROR Invalid profiles.json.gz profiles",
-			mockConfd:   "zipprofiles_err.d",
-			expectedErr: "failed to load profiles from json bundle",
-		},
 		// yaml profiles
 		{
 			name:      "OK Use yaml profiles",
