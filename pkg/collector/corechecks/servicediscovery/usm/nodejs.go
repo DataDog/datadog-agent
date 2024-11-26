@@ -26,7 +26,7 @@ func newNodeDetector(ctx DetectionContext) detector {
 }
 
 func isJs(filepath string) bool {
-	ext := path.Ext(strings.ToLower(filepath))
+	ext := strings.ToLower(path.Ext(filepath))
 	return ext == ".js" || ext == ".mjs" || ext == ".cjs"
 }
 
