@@ -34,7 +34,6 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   msgoroot = "/usr/local/msgo"
   flavor_arg = ENV['AGENT_FLAVOR']
-  fips_arg = fips_mode? ? "--fips-mode" : ""
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -91,7 +90,7 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build #{fips_arg} --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=#{default_install_dir}/embedded --python-home-3=#{default_install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=#{default_install_dir}/embedded --python-home-3=#{default_install_dir}/embedded --flavor #{flavor_arg}", env: env
 
     if heroku_target?
       command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
@@ -124,7 +123,7 @@ build do
   end
 
   platform = windows_arch_i386? ? "x86" : "x64"
-  command "invoke trace-agent.build #{fips_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -133,7 +132,7 @@ build do
   end
 
   # Process agent
-  command "invoke -e process-agent.build #{fips_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
@@ -147,7 +146,7 @@ build do
     if windows_target?
       command "invoke -e system-probe.build", env: env
     elsif linux_target?
-      command "invoke -e system-probe.build-sysprobe-binary #{fips_arg} --install-path=#{install_dir}", env: env
+      command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}", env: env
     end
 
     if windows_target?
@@ -168,7 +167,7 @@ build do
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
-    command "invoke -e security-agent.build #{fips_arg} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+    command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
     else
