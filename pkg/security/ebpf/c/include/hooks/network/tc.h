@@ -60,6 +60,11 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
+    // do not handle packet without process context
+    if (pkt->pid < 0) {
+        return ACT_OK;
+    }
+
     if (prepare_raw_packet_event(skb) != ACT_OK) {
         return ACT_OK;
     }
@@ -73,6 +78,11 @@ SEC("classifier/egress")
 int classifier_raw_packet_egress(struct __sk_buff *skb) {
     struct packet_t *pkt = parse_packet(skb, EGRESS);
     if (!pkt) {
+        return ACT_OK;
+    }
+
+    // do not handle packet without process context
+    if (pkt->pid < 0) {
         return ACT_OK;
     }
 

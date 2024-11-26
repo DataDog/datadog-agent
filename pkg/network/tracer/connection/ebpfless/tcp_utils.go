@@ -25,10 +25,14 @@ var statsTelemetry = struct {
 	missedTCPConnections telemetry.Counter
 	missingTCPFlags      telemetry.Counter
 	tcpSynAndFin         telemetry.Counter
+	tcpRstAndSyn         telemetry.Counter
+	tcpRstAndFin         telemetry.Counter
 }{
 	telemetry.NewCounter(ebpflessModuleName, "missed_tcp_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
 	telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", []string{}, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
 	telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", []string{}, "Counter measuring packets encountered with SYN+FIN together"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", []string{}, "Counter measuring packets encountered with RST+SYN together"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", []string{}, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
@@ -85,6 +89,9 @@ func isSeqBefore(prev, cur uint32) bool {
 	diff := cur - prev
 	// constrain the maximum difference to half the number space
 	return diff > 0 && diff < tcpSeqMidpoint
+}
+func isSeqBeforeEq(prev, cur uint32) bool {
+	return prev == cur || isSeqBefore(prev, cur)
 }
 
 func debugPacketDir(pktType uint8) string {

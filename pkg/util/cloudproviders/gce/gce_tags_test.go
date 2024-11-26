@@ -57,6 +57,7 @@ var (
 		"google-compute-enable-pcid:true",
 		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
 	}
+	expectedTagsWithProviderKind = append(expectedFullTags, "provider_kind:test-provider")
 )
 
 func mockMetadataRequest(t *testing.T) *httptest.Server {
@@ -145,4 +146,21 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	tags, err := GetTags(ctx)
 	require.NoError(t, err)
 	testTags(t, tags, expectedExcludedTags)
+}
+
+func TestGetHostTagsWithProviderKind(t *testing.T) {
+	ctx := context.Background()
+	mockConfig := configmock.New(t)
+	defaultProviderKind := mockConfig.GetString("provider_kind")
+	defer mockConfig.SetWithoutSource("provider_kind", defaultProviderKind)
+
+	mockConfig.SetWithoutSource("provider_kind", "test-provider")
+
+	server := mockMetadataRequest(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+
+	tags, err := GetTags(ctx)
+	require.NoError(t, err)
+	testTags(t, tags, expectedTagsWithProviderKind)
 }
