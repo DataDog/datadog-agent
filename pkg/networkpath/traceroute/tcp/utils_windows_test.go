@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/windows"
 
 	"github.com/google/gopacket/layers"
@@ -31,7 +30,6 @@ type (
 		readFromErr      error
 
 		payload []byte
-		cm      *ipv4.ControlMessage
 	}
 )
 
