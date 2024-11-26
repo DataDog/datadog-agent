@@ -188,7 +188,7 @@ var defaultProfiles = `
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
         - name: logs.processed
-		- name: logs.sender_latency
+        - name: logs.sender_latency
         - name: logs.sent
         - name: point.sent
         - name: point.dropped
