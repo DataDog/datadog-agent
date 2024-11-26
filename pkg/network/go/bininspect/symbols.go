@@ -8,7 +8,6 @@
 package bininspect
 
 import (
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 const (
@@ -32,6 +32,9 @@ const (
 // redundant allocations. We get it as a parameter and not putting it as a global, to be thread safe among concurrent
 // and parallel calls.
 func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) int {
+	if sectionReader == nil {
+		return -1
+	}
 	readBytes, err := sectionReader.ReadAt(preAllocatedBuf, int64(startPos))
 	if err != nil && err != io.EOF {
 		return -1
@@ -89,35 +92,35 @@ func getSymbolLengthBoundaries(set common.StringSet) (int, int) {
 
 // fillSymbol reads the symbol entry from the symbol section with the first 4 bytes of the name entry (which
 // we read using readSymbolEntryInStringTable).
-func fillSymbol(symbol *elf.Symbol, byteOrder binary.ByteOrder, symbolName string, allocatedBufferForRead []byte, is64Bit bool) {
+func fillSymbol(symbol *safeelf.Symbol, byteOrder binary.ByteOrder, symbolName string, allocatedBufferForRead []byte, is64Bit bool) {
 	symbol.Name = symbolName
 	if is64Bit {
 		infoAndOther := byteOrder.Uint16(allocatedBufferForRead[0:2])
 		symbol.Info = uint8(infoAndOther >> 8)
 		symbol.Other = uint8(infoAndOther)
-		symbol.Section = elf.SectionIndex(byteOrder.Uint16(allocatedBufferForRead[2:4]))
+		symbol.Section = safeelf.SectionIndex(byteOrder.Uint16(allocatedBufferForRead[2:4]))
 		symbol.Value = byteOrder.Uint64(allocatedBufferForRead[4:12])
 		symbol.Size = byteOrder.Uint64(allocatedBufferForRead[12:20])
 	} else {
 		infoAndOther := byteOrder.Uint16(allocatedBufferForRead[8:10])
 		symbol.Info = uint8(infoAndOther >> 8)
 		symbol.Other = uint8(infoAndOther)
-		symbol.Section = elf.SectionIndex(byteOrder.Uint16(allocatedBufferForRead[10:12]))
+		symbol.Section = safeelf.SectionIndex(byteOrder.Uint16(allocatedBufferForRead[10:12]))
 		symbol.Value = uint64(byteOrder.Uint32(allocatedBufferForRead[0:4]))
 		symbol.Size = uint64(byteOrder.Uint32(allocatedBufferForRead[4:8]))
 	}
 }
 
 // getSymbolsUnified extracts the given symbol list from the binary.
-func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter symbolFilter, is64Bit bool) ([]elf.Symbol, error) {
-	symbolSize := elf.Sym32Size
+func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFilter, is64Bit bool) ([]safeelf.Symbol, error) {
+	symbolSize := safeelf.Sym32Size
 	if is64Bit {
-		symbolSize = elf.Sym64Size
+		symbolSize = safeelf.Sym64Size
 	}
 	// Getting the relevant symbol section.
 	symbolSection := f.SectionByType(typ)
 	if symbolSection == nil {
-		return nil, elf.ErrNoSymbols
+		return nil, safeelf.ErrNoSymbols
 	}
 
 	// Checking the symbol section size is aligned to a multiplication of symbolSize.
@@ -129,11 +132,14 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter symbolFilter, is
 	if symbolSection.Link <= 0 || symbolSection.Link >= uint32(len(f.Sections)) {
 		return nil, errors.New("section has invalid string table link")
 	}
+	if symbolSection.ReaderAt == nil {
+		return nil, errors.New("symbol section not available in random-access form")
+	}
 
 	numWanted := filter.getNumWanted()
 
 	// Allocating entries for all wanted symbols.
-	symbols := make([]elf.Symbol, 0, numWanted)
+	symbols := make([]safeelf.Symbol, 0, numWanted)
 	// Extracting the min and max symbol length.
 	minSymbolNameSize, maxSymbolNameSize := filter.getMinMaxLength()
 	// Pre-allocating a buffer to read the symbol string into.
@@ -183,7 +189,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter symbolFilter, is
 			continue
 		}
 
-		var symbol elf.Symbol
+		var symbol safeelf.Symbol
 		// Complete the symbol reading.
 		// The symbol is composed of 4 bytes representing the symbol name in the string table, and rest is the fields
 		// of the symbols. So here we skip the first 4 bytes of the symbol, as we already processed it.
@@ -199,12 +205,12 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter symbolFilter, is
 	return symbols, nil
 }
 
-func getSymbols(f *elf.File, typ elf.SectionType, filter symbolFilter) ([]elf.Symbol, error) {
+func getSymbols(f *safeelf.File, typ safeelf.SectionType, filter symbolFilter) ([]safeelf.Symbol, error) {
 	switch f.Class {
-	case elf.ELFCLASS64:
+	case safeelf.ELFCLASS64:
 		return getSymbolsUnified(f, typ, filter, true)
 
-	case elf.ELFCLASS32:
+	case safeelf.ELFCLASS32:
 		return getSymbolsUnified(f, typ, filter, false)
 	}
 
@@ -214,31 +220,31 @@ func getSymbols(f *elf.File, typ elf.SectionType, filter symbolFilter) ([]elf.Sy
 // GetAllSymbolsByName returns all filtered symbols in the given elf file,
 // mapped by the symbol names.  In case of a missing symbol, an error is
 // returned.
-func GetAllSymbolsByName(elfFile *elf.File, filter symbolFilter) (map[string]elf.Symbol, error) {
-	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, filter)
+func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string]safeelf.Symbol, error) {
+	regularSymbols, regularSymbolsErr := getSymbols(elfFile, safeelf.SHT_SYMTAB, filter)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
-	var dynamicSymbols []elf.Symbol
+	var dynamicSymbols []safeelf.Symbol
 	var dynamicSymbolsErr error
 	numWanted := filter.getNumWanted()
 	if len(regularSymbols) != numWanted {
-		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, elf.SHT_DYNSYM, filter)
+		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, safeelf.SHT_DYNSYM, filter)
 		if dynamicSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 		}
 	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
-	if regularSymbolsErr == elf.ErrNoSymbols && dynamicSymbolsErr == elf.ErrNoSymbols {
-		return nil, elf.ErrNoSymbols
+	if regularSymbolsErr == safeelf.ErrNoSymbols && dynamicSymbolsErr == safeelf.ErrNoSymbols {
+		return nil, safeelf.ErrNoSymbols
 	}
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
 		return nil, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
 	}
 
-	symbolByName := make(map[string]elf.Symbol, len(regularSymbols)+len(dynamicSymbols))
+	symbolByName := make(map[string]safeelf.Symbol, len(regularSymbols)+len(dynamicSymbols))
 
 	for _, regularSymbol := range regularSymbols {
 		symbolByName[regularSymbol.Name] = regularSymbol
@@ -259,15 +265,15 @@ func GetAllSymbolsByName(elfFile *elf.File, filter symbolFilter) (map[string]elf
 // GetAllSymbolsInSetByName returns all symbols (from the symbolSet) in the
 // given elf file, mapped by the symbol names.  In case of a missing symbol, an
 // error is returned.
-func GetAllSymbolsInSetByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
+func GetAllSymbolsInSetByName(elfFile *safeelf.File, symbolSet common.StringSet) (map[string]safeelf.Symbol, error) {
 	filter := newStringSetSymbolFilter(symbolSet)
 	return GetAllSymbolsByName(elfFile, filter)
 }
 
-// GetAnySymbolWithPrefix returns any one symbol with the given prefix and the
+// GetAnySymbolWithInfix returns any one symbol with the given infix and the
 // specified maximum length from the ELF file.
-func GetAnySymbolWithPrefix(elfFile *elf.File, prefix string, maxLength int) (*elf.Symbol, error) {
-	filter := newPrefixSymbolFilter(prefix, maxLength)
+func GetAnySymbolWithInfix(elfFile *safeelf.File, infix string, minLength int, maxLength int) (*safeelf.Symbol, error) {
+	filter := newInfixSymbolFilter(infix, minLength, maxLength)
 	symbols, err := GetAllSymbolsByName(elfFile, filter)
 	if err != nil {
 		return nil, err
@@ -282,10 +288,10 @@ func GetAnySymbolWithPrefix(elfFile *elf.File, prefix string, maxLength int) (*e
 	return nil, errors.New("empty symbols map")
 }
 
-// GetAnySymbolWithPrefixPCLNTAB returns any one symbol with the given prefix and the
+// GetAnySymbolWithInfixPCLNTAB returns any one symbol with the given infix and the
 // specified maximum length from the pclntab section in ELF file.
-func GetAnySymbolWithPrefixPCLNTAB(elfFile *elf.File, prefix string, maxLength int) (*elf.Symbol, error) {
-	symbols, err := GetPCLNTABSymbolParser(elfFile, newPrefixSymbolFilter(prefix, maxLength))
+func GetAnySymbolWithInfixPCLNTAB(elfFile *safeelf.File, infix string, minLength int, maxLength int) (*safeelf.Symbol, error) {
+	symbols, err := GetPCLNTABSymbolParser(elfFile, newInfixSymbolFilter(infix, minLength, maxLength))
 	if err != nil {
 		return nil, err
 	}

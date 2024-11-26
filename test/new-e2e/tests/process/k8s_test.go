@@ -26,7 +26,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -122,8 +121,7 @@ func (s *K8sSuite) TestManualContainerCheck() {
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
-	// PROCS-4327: Unexpected errors trying to get agent status
-	flake.Mark(t)
+
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessDiscoveryCollection: true,
 	})
@@ -160,8 +158,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-	// PROCS-4327: Unexpected errors trying to get agent status
-	flake.Mark(t)
+
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection: true,
 		RunInCoreAgent:    true,
@@ -212,9 +209,6 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 	t := s.T()
-	// PROCS-4327: The process-agent container either fails to start or
-	// does not seem to run the connections check as expected.
-	flake.Mark(t)
 
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection:            true,

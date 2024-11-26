@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,14 +53,13 @@ type ebpfLessTracer struct {
 
 	packetSrc   *filter.AFPacketSource
 	exit        chan struct{}
-	keyBuf      []byte
 	scratchConn *network.ConnectionStats
 
 	udp *udpProcessor
-	tcp *tcpProcessor
+	tcp *ebpfless.TCPProcessor
 
 	// connection maps
-	conns        map[string]*network.ConnectionStats
+	conns        map[network.ConnectionTuple]*network.ConnectionStats
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
 
@@ -81,11 +79,10 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		config:       cfg,
 		packetSrc:    packetSrc,
 		exit:         make(chan struct{}),
-		keyBuf:       make([]byte, network.ConnectionByteKeyMaxLen),
 		scratchConn:  &network.ConnectionStats{},
 		udp:          &udpProcessor{},
-		tcp:          newTCPProcessor(),
-		conns:        make(map[string]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		tcp:          ebpfless.NewTCPProcessor(),
+		conns:        make(map[network.ConnectionTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:   ebpfless.NewBoundPorts(cfg),
 		cookieHasher: newCookieHasher(),
 	}
@@ -99,7 +96,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 }
 
 // Start begins collecting network connection data.
-func (t *ebpfLessTracer) Start(func(*network.ConnectionStats)) error {
+func (t *ebpfLessTracer) Start(_ func(*network.ConnectionStats)) error {
 	if err := t.boundPorts.Start(); err != nil {
 		return fmt.Errorf("could not update bound ports: %w", err)
 	}
@@ -153,6 +150,7 @@ func (t *ebpfLessTracer) processConnection(
 ) error {
 	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
 	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
+	t.scratchConn.TCPFailures = make(map[uint16]uint32)
 	var udpPresent, tcpPresent bool
 	for _, layerType := range decoded {
 		switch layerType {
@@ -190,8 +188,7 @@ func (t *ebpfLessTracer) processConnection(
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	key := string(t.scratchConn.ByteKey(t.keyBuf))
-	conn := t.conns[key]
+	conn := t.conns[t.scratchConn.ConnectionTuple]
 	if conn == nil {
 		conn = &network.ConnectionStats{}
 		*conn = *t.scratchConn
@@ -199,12 +196,21 @@ func (t *ebpfLessTracer) processConnection(
 		conn.Duration = time.Duration(time.Now().UnixNano())
 	}
 
+	if ip4 == nil && ip6 == nil {
+		return nil
+	}
 	var err error
 	switch conn.Type {
 	case network.UDP:
+		if (ip4 != nil && !t.config.CollectUDPv4Conns) || (ip6 != nil && !t.config.CollectUDPv6Conns) {
+			return nil
+		}
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		err = t.tcp.process(conn, pktType, ip4, ip6, tcp)
+		if (ip4 != nil && !t.config.CollectTCPv4Conns) || (ip6 != nil && !t.config.CollectTCPv6Conns) {
+			return nil
+		}
+		err = t.tcp.Process(conn, pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -219,7 +225,7 @@ func (t *ebpfLessTracer) processConnection(
 			return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 		}
 		conn.LastUpdateEpoch = uint64(ts)
-		t.conns[key] = conn
+		t.conns[t.scratchConn.ConnectionTuple] = conn
 	}
 
 	log.TraceFunc(func() string {
@@ -246,13 +252,11 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		return
 	}
 
-	if conn.Type == network.TCP {
-		switch pktType {
-		case unix.PACKET_HOST:
-			conn.Direction = network.INCOMING
-		case unix.PACKET_OUTGOING:
-			conn.Direction = network.OUTGOING
-		}
+	switch pktType {
+	case unix.PACKET_HOST:
+		conn.Direction = network.INCOMING
+	case unix.PACKET_OUTGOING:
+		conn.Direction = network.OUTGOING
 	}
 }
 
@@ -300,13 +304,13 @@ func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	delete(t.conns, string(conn.ByteKey(t.keyBuf)))
+	delete(t.conns, conn.ConnectionTuple)
 	return nil
 }
 
 // GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 // An individual ebpfLessTracer implementation may choose which maps to expose via this function.
-func (t *ebpfLessTracer) GetMap(string) *ebpf.Map { return nil }
+func (t *ebpfLessTracer) GetMap(string) (*ebpf.Map, error) { return nil, nil }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error {
@@ -332,9 +336,6 @@ func (t *ebpfLessTracer) Describe(_ chan<- *prometheus.Desc) {}
 // Collect returns the current state of all metrics of the collector
 func (t *ebpfLessTracer) Collect(_ chan<- prometheus.Metric) {}
 
-// GetFailedConnections returns the underlying map used to store failed connections
-func (t *ebpfLessTracer) GetFailedConnections() *failure.FailedConns { return nil }
-
 var _ Tracer = &ebpfLessTracer{}
 
 type udpProcessor struct {
@@ -355,68 +356,5 @@ func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, udp
 		conn.Monotonic.RecvBytes += uint64(payloadLen)
 	}
 
-	return nil
-}
-
-type tcpProcessor struct {
-	buf   []byte
-	conns map[string]struct {
-		established bool
-		closed      bool
-	}
-}
-
-func newTCPProcessor() *tcpProcessor {
-	return &tcpProcessor{
-		buf: make([]byte, network.ConnectionByteKeyMaxLen),
-		conns: map[string]struct {
-			established bool
-			closed      bool
-		}{},
-	}
-}
-
-func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
-	payloadLen, err := ebpfless.TCPPayloadLen(conn.Family, ip4, ip6, tcp)
-	if err != nil {
-		return err
-	}
-
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("tcp processor: pktType=%+v seq=%+v ack=%+v fin=%+v rst=%+v syn=%+v ack=%+v", pktType, tcp.Seq, tcp.Ack, tcp.FIN, tcp.RST, tcp.SYN, tcp.ACK)
-	})
-	key := string(conn.ByteKey(t.buf))
-	c := t.conns[key]
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("pre ack_seq=%+v", c)
-	})
-	switch pktType {
-	case unix.PACKET_OUTGOING:
-		conn.Monotonic.SentPackets++
-		conn.Monotonic.SentBytes += uint64(payloadLen)
-	case unix.PACKET_HOST:
-		conn.Monotonic.RecvPackets++
-		conn.Monotonic.RecvBytes += uint64(payloadLen)
-	}
-
-	if tcp.FIN || tcp.RST {
-		if !c.closed {
-			c.closed = true
-			conn.Monotonic.TCPClosed++
-			conn.Duration = time.Duration(time.Now().UnixNano() - int64(conn.Duration))
-		}
-		delete(t.conns, key)
-		return nil
-	}
-
-	if !tcp.SYN && !c.established {
-		c.established = true
-		conn.Monotonic.TCPEstablished++
-	}
-
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("ack_seq=%+v", c)
-	})
-	t.conns[key] = c
 	return nil
 }

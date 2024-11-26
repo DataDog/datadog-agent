@@ -120,6 +120,7 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 				return err
 			}
 			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
+				return err
 			}
 			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 				return err
@@ -158,6 +159,7 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 				return err
 			}
 			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
+				return err
 			}
 			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 				return err

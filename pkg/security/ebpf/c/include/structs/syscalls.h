@@ -206,7 +206,15 @@ struct syscall_cache_t {
             u64 addr[2];
             u16 family;
             u16 port;
+            u16 protocol;
         } bind;
+
+         struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+            u16 protocol;
+        } connect;
 
         struct {
             struct dentry *dentry;

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -56,13 +56,18 @@ const (
 	Skip
 )
 const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
+	getEventTimeout = 10 * time.Second
 )
 
 var (
 	errSkipEvent = errors.New("skip event")
 )
+
+const (
+	testActivityDumpDuration = time.Minute * 10
+)
+
+var testMod *testModule
 
 func (s *stringSlice) String() string {
 	return strings.Join(*s, " ")
@@ -315,7 +320,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleID string) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -323,7 +328,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if event.GetEventType() != eventType {
+		if event.GetEventType() != eventType || rule.ID != ruleID {
 			return
 		}
 
@@ -515,6 +520,29 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	}
 
 	return testFile, testPtr, err
+}
+
+// NewTimeoutError returns a new timeout error with the metrics collected during the test
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	tm.writePlatformSpecificTimeoutError(&msg)
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
+	}
+
+	return ErrTimeout{msg.String()}
 }
 
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
@@ -773,6 +801,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
+		"NetworkRawPacketEnabled":                    opts.networkRawPacketEnabled,
 		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
 		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,
@@ -884,4 +913,19 @@ func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *test
 	}
 
 	fnc(testMod, obj)
+}
+
+type onRuleHandler func(*model.Event, *rules.Rule)
+type onProbeEventHandler func(*model.Event)
+type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
+type onSendEventHandler func(*rules.Rule, *model.Event)
+type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
+
+type eventHandlers struct {
+	sync.RWMutex
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onSendEvent       onSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
 }

@@ -101,6 +101,9 @@ type Tracer struct {
 	timeResolver *ktime.Resolver
 
 	telemetryComp telemetryComponent.Component
+
+	// Used for connection_protocol data expiration
+	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 }
 
 // NewTracer creates a Tracer
@@ -181,6 +184,19 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 
 	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
+
+	// Set up the connection_protocol map cleaner if protocol classification is enabled
+	if cfg.ProtocolClassificationEnabled || usmconfig.IsUSMSupportedAndEnabled(cfg) {
+		connectionProtocolMap, err := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
+		if err == nil {
+			tr.connectionProtocolMapCleaner, err = setupConnectionProtocolMapCleaner(connectionProtocolMap, probes.ConnectionProtocolMap)
+			if err != nil {
+				log.Warnf("could not set up connection protocol map cleaner: %s", err)
+			}
+		} else {
+			log.Warnf("couldn't get %q map, will not be able to expire connection protocol data: %s", probes.ConnectionProtocolMap, err)
+		}
+	}
 
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
@@ -304,16 +320,15 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 		return
 	}
 
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(&cs.ConnectionTuple)
 	t.connVia(cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(cs)
+		t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
 	}
 
 	t.addProcessInfo(cs)
 
 	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
-	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 
 	t.state.StoreClosedConnection(cs)
 }
@@ -391,6 +406,7 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
+	t.connectionProtocolMapCleaner.Stop()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -537,7 +553,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	activeConnections = activeBuffer.Connections()
 	for i := range activeConnections {
-		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i])
+		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i].ConnectionTuple)
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
 		// iterating (leads to ever-increasing connections in the map,
@@ -549,9 +565,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	// get rid of stale process entries in the cache
 	t.processCache.Trim()
-
-	// remove stale failed connections from map
-	t.ebpfTracer.GetFailedConnections().RemoveExpired()
 
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {
@@ -590,7 +603,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		}
 
 		// Delete conntrack entry for this connection
-		t.conntracker.DeleteTranslation(entry)
+		t.conntracker.DeleteTranslation(&entry.ConnectionTuple)
 
 		// Append the connection key to the keys to remove from the userspace state
 		toRemove = append(toRemove, entry)
@@ -809,7 +822,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 
 	// some clients have tens of thousands of connections and we need to stop early
-	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	// if netlink takes too long. we indicate this behavior occurred early with IsTruncated
 	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
 
 	return &DebugConntrackTable{
@@ -835,8 +848,11 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 		return nil
 	}
 
-	// Shared with the USM program
-	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
+	// Shared map between NPM and USM
+	connectionProtocolMap, err := tracer.GetMap(probes.ConnectionProtocolMap)
+	if err != nil {
+		log.Warnf("couldn't get %q map: %s", probes.ConnectionProtocolMap, err)
+	}
 
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
 	if err != nil {
@@ -864,4 +880,23 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+
+const connProtoTTL = 3 * time.Minute
+const connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
+
+// setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
+// It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.
+func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name string) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024, name, "npm_tracer")
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := connProtoTTL.Nanoseconds()
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+		return (now - int64(val.Updated)) > ttl
+	})
+
+	return mapCleaner, nil
 }

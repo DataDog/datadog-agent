@@ -37,11 +37,11 @@ and which probes to attach to them. Example usage:
 		EbpfConfig:     ebpfCfg,
 	}
 
-	ua, err := NewUprobeAttacher("test", attacherCfg, &mgr, callback, &NativeBinaryInspector{})
+	ua, err := NewUprobeAttacher("test", attacherCfg, &mgr, callback, &NativeBinaryInspector{}, processMonitor)
 	ua.Start()
 
 Once started, the attacher monitors new processes and `open` calls for new
-shared libraries. For the first task it uses pkg/process/monitor/ProcessMonitor,
+shared libraries. For the first task it uses the monitor provided as argument,
 and for the second it uses the shared-libraries program in
 pkg/network/usm/sharedlibraries.
 
@@ -56,5 +56,9 @@ pkg/network/usm/sharedlibraries.
     the whole attach operation will be considered as failed, and the probes will be detached. If you want
     to control which probes are optional and which are mandatory, you can use the manager.AllOf/manager.BestEffort
     selectors in a single rule.
+
+  - The recommended way to add a process monitor is using the event stream, creating a event consumer. There is also
+    monitor.GetProcessMonitor, but that monitor is intended for use in USM only and is not recommended for use in other
+    parts of the codebase, as it will be deprecated once netlink is not needed anymore.
 */
 package uprobes

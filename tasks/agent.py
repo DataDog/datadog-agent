@@ -21,8 +21,6 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_embedded_path,
-    get_goenv,
     get_version,
     gitlab_section,
 )
@@ -36,12 +34,6 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
-
-BUNDLED_AGENTS = {
-    # system-probe requires a working compilation environment for eBPF so we do not
-    # enable it by default but we enable it in the released artifacts.
-    AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
-}
 
 if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
@@ -121,7 +113,7 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task(iterable=['bundle'])
+@task
 @run_on_devcontainer
 def build(
     ctx,
@@ -143,8 +135,6 @@ def build(
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
-    bundle=None,
-    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
@@ -178,7 +168,6 @@ def build(
         major_version=major_version,
     )
 
-    bundled_agents = ["agent"]
     if sys.platform == 'win32':
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -191,30 +180,19 @@ def build(
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
-    else:
-        bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
-        all_tags = set()
-        if bundle_ebpf and "system-probe" in bundled_agents:
-            all_tags.add("ebpf_bindata")
+        include_tags = (
+            get_default_build_tags(build="agent", flavor=flavor)
+            if build_include is None
+            else filter_incompatible_tags(build_include.split(","))
+        )
 
-        for build in bundled_agents:
-            all_tags.add("bundle_" + build.replace("-", "_"))
-            include_tags = (
-                get_default_build_tags(build=build, flavor=flavor)
-                if build_include is None
-                else filter_incompatible_tags(build_include.split(","))
-            )
-
-            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
-            build_tags = get_build_tags(include_tags, exclude_tags)
-
-            all_tags |= set(build_tags)
-        build_tags = list(all_tags)
+        exclude_tags = [] if build_exclude is None else build_exclude.split(",")
+        build_tags = get_build_tags(include_tags, exclude_tags)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -239,23 +217,6 @@ def build(
     with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
 
-    if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-
-    for build in bundled_agents:
-        if build == "agent":
-            continue
-
-        bundled_agent_dir = os.path.join(BIN_DIR, build)
-        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
-
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
-
-        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
-
     with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
             ctx,
@@ -266,22 +227,6 @@ def build(
             development=development,
             windows_sysprobe=windows_sysprobe,
         )
-
-
-def create_launcher(ctx, agent, src, dst):
-    cc = get_goenv(ctx, "CC")
-    if not cc:
-        print("Failed to find C compiler")
-        raise Exit(code=1)
-
-    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
-    args = {
-        "cc": cc,
-        "agent": agent,
-        "agent_bin": src,
-        "launcher_bin": dst,
-    }
-    ctx.run(cmd.format(**args))
 
 
 def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
@@ -505,7 +450,7 @@ def hacky_dev_image_build(
     if process_agent:
         from tasks.process_agent import build as process_agent_build
 
-        process_agent_build(ctx, bundle=False)
+        process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build
@@ -945,3 +890,12 @@ def generate_config(ctx, build_type, output_file, env=None):
     }
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
+
+
+@task()
+def build_remote_agent(ctx, env=None):
+    """
+    Builds the remote-agent example client.
+    """
+    cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
+    return ctx.run(cmd, env=env or {})

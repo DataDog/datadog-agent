@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -22,6 +21,7 @@ type structNodeImpl struct {
 }
 
 var _ Node = (*structNodeImpl)(nil)
+var _ InnerNode = (*structNodeImpl)(nil)
 
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *structNodeImpl) GetChild(key string) (Node, error) {
@@ -33,7 +33,7 @@ func (n *structNodeImpl) GetChild(key string) (Node, error) {
 	if inner.Kind() == reflect.Interface {
 		inner = inner.Elem()
 	}
-	return NewNode(inner.Interface(), model.SourceDefault)
+	return NewNodeTree(inner.Interface(), model.SourceDefault)
 }
 
 func (n *structNodeImpl) HasChild(name string) bool {
@@ -88,38 +88,8 @@ func (n *structNodeImpl) SourceGreaterOrEqual(model.Source) bool {
 	return false
 }
 
-func (n *structNodeImpl) GetAny() (interface{}, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// GetBool returns the scalar as a bool, or an error otherwise
-func (n *structNodeImpl) GetBool() (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-// GetInt returns the scalar as a int, or an error otherwise
-func (n *structNodeImpl) GetInt() (int, error) {
-	return 0, fmt.Errorf("not implemented")
-}
-
-// GetFloat returns the scalar as a float64, or an error otherwise
-func (n *structNodeImpl) GetFloat() (float64, error) {
-	return 0, fmt.Errorf("not implemented")
-}
-
-// GetString returns the scalar as a string, or an error otherwise
-func (n *structNodeImpl) GetString() (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-// GetTime returns the scalar as a time, or an error otherwise, not implemented
-func (n *structNodeImpl) GetTime() (time.Time, error) {
-	return time.Time{}, fmt.Errorf("not implemented")
-}
-
-// GetDuration returns the scalar as a duration, or an error otherwise, not implemented
-func (n *structNodeImpl) GetDuration() (time.Duration, error) {
-	return time.Duration(0), fmt.Errorf("not implemented")
+func (n *structNodeImpl) Get() interface{} {
+	return nil
 }
 
 // SetWithSource assigns a value in the config, for the given source
@@ -130,6 +100,11 @@ func (n *structNodeImpl) SetWithSource(interface{}, model.Source) error {
 // Source returns the source for this leaf
 func (n *structNodeImpl) Source() model.Source {
 	return model.SourceUnknown
+}
+
+// DumpSettings returns nil
+func (n *structNodeImpl) DumpSettings(func(model.Source) bool) map[string]interface{} {
+	return nil
 }
 
 type specifierSet map[string]struct{}

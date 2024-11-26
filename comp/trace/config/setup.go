@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -222,13 +222,19 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
 
-	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	c.PeerTagsAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerTagsAggregation {
-		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
+	/**
+	 * NOTE: PeerTagsAggregation is on by default as of Q4 2024. To get the default experience,
+	 * customers DO NOT NEED to set "apm_config.peer_service_aggregation" (deprecated) or "apm_config.peer_tags_aggregation" (previously defaulted to false, now true).
+	 * However, customers may opt out by explicitly setting "apm_config.peer_tags_aggregation" to "false".
+	 */
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
+
+	if !c.PeerTagsAggregation {
+		log.Info("peer tags aggregation is explicitly disabled. To enable it, remove `apm_config.peer_tags_aggregation: false` from your configuration")
 	}
-	c.PeerTagsAggregation = c.PeerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
+
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
+
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
@@ -390,8 +396,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
 	if core.IsSet("apm_config.obfuscation") {
+		cfg := pkgconfigsetup.Datadog()
 		var o config.ObfuscationConfig
-		err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.obfuscation", &o)
+		err := structure.UnmarshalKey(cfg, "apm_config.obfuscation", &o)
 		if err == nil {
 			c.Obfuscation = &o
 			if o.RemoveStackTraces {
@@ -530,7 +537,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		"apm_config.trace_writer": c.TraceWriter,
 		"apm_config.stats_writer": c.StatsWriter,
 	} {
-		if err := pkgconfigsetup.Datadog().UnmarshalKey(key, cfg); err != nil {
+		ddcfg := pkgconfigsetup.Datadog()
+		if err := structure.UnmarshalKey(ddcfg, key, cfg); err != nil {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
 	}
@@ -550,7 +558,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// undocumented deprecated
 	if core.IsSet("apm_config.analyzed_rate_by_service") {
 		rateByService := make(map[string]float64)
-		if err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.analyzed_rate_by_service", &rateByService); err != nil {
+		cfg := pkgconfigsetup.Datadog()
+		if err := structure.UnmarshalKey(cfg, "apm_config.analyzed_rate_by_service", &rateByService); err != nil {
 			return err
 		}
 		c.AnalyzedRateByServiceLegacy = rateByService

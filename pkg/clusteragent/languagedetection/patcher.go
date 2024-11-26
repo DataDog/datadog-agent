@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -48,11 +48,11 @@ type languagePatcher struct {
 	k8sClient dynamic.Interface
 	store     workloadmeta.Component
 	logger    log.Component
-	queue     workqueue.RateLimitingInterface
+	queue     workqueue.TypedRateLimitingInterface[langUtil.NamespacedOwnerReference]
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
-func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logger log.Component, apiCl *apiserver.APIClient) *languagePatcher {
+func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component, apiCl *apiserver.APIClient) *languagePatcher {
 
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -64,12 +64,12 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		k8sClient: k8sClient,
 		store:     store,
 		logger:    logger,
-		queue: workqueue.NewRateLimitingQueueWithConfig(
-			workqueue.NewItemExponentialFailureRateLimiter(
-				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
-				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
+				datadogConfig.GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
+				datadogConfig.GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
-			workqueue.RateLimitingQueueConfig{
+			workqueue.TypedRateLimitingQueueConfig[langUtil.NamespacedOwnerReference]{
 				Name:            subsystem,
 				MetricsProvider: queueMetricsProvider,
 			},
@@ -83,7 +83,7 @@ var (
 )
 
 // Start initializes and starts the language detection patcher
-func Start(ctx context.Context, store workloadmeta.Component, logger log.Component) error {
+func Start(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component) error {
 
 	if patcher != nil {
 		return fmt.Errorf("can't start language detection patcher twice")
@@ -101,7 +101,7 @@ func Start(ctx context.Context, store workloadmeta.Component, logger log.Compone
 
 	languagePatcherOnce.Do(func() {
 		logger.Info("Starting language detection patcher")
-		patcher = newLanguagePatcher(ctx, store, logger, apiCl)
+		patcher = newLanguagePatcher(ctx, store, logger, datadogConfig, apiCl)
 		go patcher.run(ctx)
 	})
 
@@ -204,17 +204,9 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 	}()
 	go func() {
 		for {
-			obj, shutdown := lp.queue.Get()
+			owner, shutdown := lp.queue.Get()
 			if shutdown {
 				break
-			}
-
-			owner, ok := obj.(langUtil.NamespacedOwnerReference)
-			if !ok {
-				// The item in the queue was not of the expected type. This should not happen.
-				lp.logger.Errorf("The item in the queue is not of the expected type (i.e. NamespacedOwnerReference). This should not have happened.")
-				lp.queue.Forget(obj)
-				continue
 			}
 
 			err := lp.processOwner(ctx, owner)
@@ -223,10 +215,10 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 				Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusError)
 				lp.queue.AddRateLimited(owner)
 			} else {
-				lp.queue.Forget(obj)
+				lp.queue.Forget(owner)
 			}
 
-			lp.queue.Done(obj)
+			lp.queue.Done(owner)
 		}
 	}()
 }
