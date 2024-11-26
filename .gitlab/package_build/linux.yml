@@ -70,10 +70,8 @@
 .agent_fips_build:
   variables:
     FLAVOR: fips
-    DD_GO_TOOLCHAIN: msgo
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - source /root/.bashrc
 
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
