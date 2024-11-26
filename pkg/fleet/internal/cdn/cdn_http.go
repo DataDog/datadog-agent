@@ -25,7 +25,7 @@ type fetcherHTTP struct {
 	env                 *env.Env
 }
 
-func newHTTPFetcher(env *env.Env, configDBPath string) (CDNFetcher, error) {
+func newHTTPFetcher(env *env.Env, configDBPath string) (Fetcher, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
 		env.Site,

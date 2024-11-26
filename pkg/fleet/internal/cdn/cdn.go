@@ -9,11 +9,17 @@ package cdn
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
+
+const policyMetadataFilename = "policy.metadata"
 
 var (
 	// ErrProductNotSupported is returned when the product is not supported.
@@ -22,19 +28,19 @@ var (
 
 // Config represents a configuration.
 type Config interface {
-	Version() string
+	State() *pbgo.PoliciesState
 	Write(dir string) error
 }
 
-// CDNFetcher provides access to the Remote Config CDN.
-type CDNFetcher interface {
+// Fetcher provides access to the Remote Config CDN.
+type Fetcher interface {
 	get(ctx context.Context) ([][]byte, error)
 	close() error
 }
 
-// CDN
+// CDN provides access to the Remote Config CDN.
 type CDN struct {
-	fetcher        CDNFetcher
+	fetcher        Fetcher
 	hostTagsGetter hostTagsGetter
 }
 
@@ -141,4 +147,30 @@ func (c *CDN) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 // Close closes the CDN.
 func (c *CDN) Close() error {
 	return c.fetcher.close()
+}
+
+// writePolicyMetadata writes the policy metadata to the given directory
+// and makes it readable to dd-agent
+func writePolicyMetadata(config Config, dir string) error {
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+
+	state := config.State()
+	stateBytes, err := state.MarshalMsg(nil)
+	if err != nil {
+		return fmt.Errorf("could not marshal state: %w", err)
+	}
+	err = os.WriteFile(filepath.Join(dir, policyMetadataFilename), stateBytes, 0440)
+	if err != nil {
+		return fmt.Errorf("could not write %s: %w", policyMetadataFilename, err)
+	}
+	if runtime.GOOS != "windows" {
+		err = os.Chown(filepath.Join(dir, policyMetadataFilename), ddAgentUID, ddAgentGID)
+		if err != nil {
+			return fmt.Errorf("could not chown %s: %w", policyMetadataFilename, err)
+		}
+	}
+	return nil
 }

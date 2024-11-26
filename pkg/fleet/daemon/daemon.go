@@ -556,15 +556,15 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
-func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (string, error) {
+func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (*pbgo.PoliciesState, error) {
 	if !d.env.RemotePolicies {
-		return "", nil
+		return nil, nil
 	}
 	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return config.Version(), nil
+	return config.State(), nil
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
@@ -597,13 +597,16 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		cs, hasConfig := configState[pkg]
 		if hasConfig {
-			p.StableConfigVersion = cs.Stable
-			p.ExperimentConfigVersion = cs.Experiment
+			p.StableConfigVersion = cs.Stable         // Deprecated
+			p.ExperimentConfigVersion = cs.Experiment // Deprecated
+			p.StableConfigState = cs.StablePoliciesState
+			p.ExperimentConfigState = cs.ExperimentPoliciesState
 		}
 
-		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
-		if err == nil {
-			p.RemoteConfigVersion = configVersion
+		configState, err := d.resolveRemoteConfigVersion(ctx, pkg)
+		if err == nil && configState != nil {
+			p.RemoteConfigState = configState
+			p.RemoteConfigVersion = configState.Version // Deprecated
 		} else if err != cdn.ErrProductNotSupported {
 			log.Warnf("could not get remote config version: %v", err)
 		}
