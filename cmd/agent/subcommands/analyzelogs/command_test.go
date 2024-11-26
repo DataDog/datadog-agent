@@ -34,37 +34,42 @@ func TestCommand(t *testing.T) {
 		})
 }
 
-func TestRunAnalyzeLogs(t *testing.T) {
-	tempDir := "tmp/"
-	err := os.MkdirAll(tempDir, 0755)
-	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir) // Cleanup the temp directory after the test
+func CreateTestFile(tempDir string, fileName string, fileContent string) *os.File {
+	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
+		err = os.MkdirAll(tempDir, 0755)
+		if err != nil {
+			return nil
+		}
+	}
 
-	// Create a temporary config file
-	tempFile, err := os.CreateTemp(tempDir, "config.yaml")
-	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name()) // Cleanup the temp file after the test
+	filePath := fmt.Sprintf("%s/%s", tempDir, fileName)
 
-	tempFile2, err := os.CreateTemp(tempDir, "wack.log")
-	assert.NoError(t, err)
-	defer os.Remove(tempFile2.Name())
-	// Write config content to the temp file
-	configContent := fmt.Sprintf(`logs:
-  - type: file
-    path: %s
-    log_processing_rules:
-      - type: exclude_at_match
-        name: exclude_random
-        pattern: "datadog-agent"
-      
-`, tempFile2.Name())
+	tempFile, err := os.Create(filePath)
+	if err != nil {
+		return nil
+	}
 
-	_, err = tempFile.Write([]byte(configContent))
-	assert.NoError(t, err)
+	_, err = tempFile.Write([]byte(fileContent))
+	if err != nil {
+		tempFile.Close() // Close file before returning
+		return nil
+	}
+
 	tempFile.Close()
 
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil
+	}
+	return file
+}
+
+func TestRunAnalyzeLogs(t *testing.T) {
+	tempDir := "tmp"
+	defer os.RemoveAll(tempDir)
+
 	// Write config content to the temp file
-	configContent2 := `=== apm check ===
+	logConfig := `=== apm check ===
 Configuration provider: file
 Configuration source: file:/opt/datadog-agent/etc/conf.d/apm.yaml.default
 Config for instance ID: apm:1234567890abcdef
@@ -80,18 +85,33 @@ Auto-discovery IDs:
 * _container_image
 ===
 `
+	// Create a temporary config file
+	tempLogFile := CreateTestFile(tempDir, "wack.log", logConfig)
+	assert.NotNil(t, tempLogFile)
+	defer os.Remove(tempLogFile.Name()) // Cleanup the temp file after the test
 
-	_, err = tempFile2.Write([]byte(configContent2))
-	assert.NoError(t, err)
-	tempFile.Close()
+	yamlContent := fmt.Sprintf(`logs:
+  - type: file
+    path: %s
+    log_processing_rules:
+      - type: exclude_at_match
+        name: exclude_random
+        pattern: "datadog-agent"
+      
+`, tempLogFile.Name())
+	tempConfigFile := CreateTestFile(tempDir, "config.yaml", yamlContent)
+	assert.NotNil(t, tempConfigFile)
+
+	defer os.Remove(tempConfigFile.Name())
+	// Write config content to the temp file
 
 	// Create a mock config
 	config := config.NewMock(t)
 
 	// Set CLI params
 	cliParams := &CliParams{
-		LogConfigPath:  tempFile.Name(),
-		CoreConfigPath: tempFile.Name(),
+		LogConfigPath:  tempConfigFile.Name(),
+		CoreConfigPath: tempConfigFile.Name(),
 		ConfigSource:   sources.GetInstance(),
 	}
 
