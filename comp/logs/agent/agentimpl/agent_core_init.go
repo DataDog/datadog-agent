@@ -15,7 +15,6 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compsender "github.com/DataDog/datadog-agent/comp/logs/agent/sender"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -67,7 +66,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	// it makes more sense to be able to buffer a set of payloads from processors.
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
-	mainDestinations := compsender.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, serverless, senderDoneChan, status, a.config)
+	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, serverless, senderDoneChan, status, a.config)
 	logsSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 
 	// setup the pipeline provider that provides pairs of processor and sender

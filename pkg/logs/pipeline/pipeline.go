@@ -79,7 +79,7 @@ func NewPipeline(outputChan chan *message.Payload,
     var strategy sender.Strategy
     if logsSender != nil {
     	senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
-		mainDestinations := getDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
+		mainDestinations := GetDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
         logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 	}
 
@@ -134,8 +134,8 @@ func getStrategy(inputChan chan *message.Message, outputChan chan *message.Paylo
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }
 
-// XXX(remy): code dup
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineMonitor metrics.PipelineMonitor, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
+// XXX(remy): comment
+func GetDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineMonitor metrics.PipelineMonitor, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
