@@ -34,7 +34,7 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   msgoroot = "/usr/local/msgo"
   flavor_arg = ENV['AGENT_FLAVOR']
-  fips_arg = fips_mode? ? "--fips-mode" : ""
+  fips_args = fips_mode? ? "--fips-mode" : ""
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
