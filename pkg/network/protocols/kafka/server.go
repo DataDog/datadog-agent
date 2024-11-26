@@ -40,7 +40,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 		return err
 	}
 
-	dockerCfg := dockerutils.NewComposeConfig("amqp",
+	dockerCfg := dockerutils.NewComposeConfig("kafka",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
 		regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`),
