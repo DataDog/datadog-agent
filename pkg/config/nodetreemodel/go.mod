@@ -9,7 +9,7 @@ replace (
 )
 
 // Internal deps fix version
-replace github.com/spf13/cast => github.com/DataDog/cast v1.7.0
+replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000
