@@ -64,20 +64,23 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
+				webhook := NewWebhook(mockConfig)
+				defaultSidecarTemplate := webhook.getDefaultSidecarTemplate()
+				webhook.addDefaultSidecarSecurity(defaultSidecarTemplate, agentConfigVolumeName)
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
 						InitContainers: []corev1.Container{
-							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(agentConfigVolumeName),
+							*webhook.getDefaultSidecarInitTemplate(agentConfigVolumeName),
 						},
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*NewWebhook(mockConfig).getDefaultSidecarTemplate(),
+							*defaultSidecarTemplate,
 						},
 						Volumes: []corev1.Volume{
-							*NewWebhook(mockConfig).getDefaultSidecarVolumeTemplate(),
+							*webhook.getDefaultSidecarVolumeTemplate(),
 						},
 					},
 				}
@@ -201,9 +204,11 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				webhook := NewWebhook(mockConfig)
+				sidecar := webhook.getDefaultSidecarTemplate()
+				webhook.addDefaultSidecarSecurity(sidecar, agentConfigVolumeName)
 				_, _ = withEnvOverrides(
-					&sidecar,
+					sidecar,
 					corev1.EnvVar{
 						Name:  "DD_EKS_FARGATE",
 						Value: "true",
@@ -259,7 +264,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 									},
 								},
 							},
-							sidecar,
+							*sidecar,
 						},
 						Volumes: []corev1.Volume{
 							*NewWebhook(mockConfig).getDefaultSidecarVolumeTemplate(),
@@ -306,10 +311,12 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				webhook := NewWebhook(mockConfig)
+				sidecar := webhook.getDefaultSidecarTemplate()
+				webhook.addDefaultSidecarSecurity(sidecar, agentConfigVolumeName)
 
 				_, _ = withEnvOverrides(
-					&sidecar,
+					sidecar,
 					corev1.EnvVar{
 						Name:  "DD_EKS_FARGATE",
 						Value: "true",
@@ -337,7 +344,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				)
 
-				_ = withResourceLimits(&sidecar, corev1.ResourceRequirements{
+				_ = withResourceLimits(sidecar, corev1.ResourceRequirements{
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				})
@@ -383,7 +390,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 									},
 								},
 							},
-							sidecar,
+							*sidecar,
 						},
 						Volumes: []corev1.Volume{
 							*NewWebhook(mockConfig).getDefaultSidecarVolumeTemplate(),

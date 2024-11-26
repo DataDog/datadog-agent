@@ -172,7 +172,6 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 
 	if !agentSidecarExists {
 		agentSidecarContainer := w.getDefaultSidecarTemplate()
-		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
 		if w.isReadOnlyRootFilesystem() {
 			configVolume := w.getDefaultSidecarVolumeTemplate()
 			pod.Spec.Volumes = append(pod.Spec.Volumes, *configVolume)
@@ -183,6 +182,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainer)
 			}()
 		}
+		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
 		podUpdated = true
 	}
 
