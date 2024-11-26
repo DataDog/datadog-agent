@@ -131,7 +131,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, localEnv.CommonNamer().ResourceName("kind"), params.name, localEnv.KubernetesVersion())
+	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, params.name, localEnv.KubernetesVersion())
 	if err != nil {
 		return err
 	}
