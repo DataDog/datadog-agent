@@ -184,7 +184,7 @@ func Test_parseTCP(t *testing.T) {
 	tcpLayer := createMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
 
 	// full packet
-	encodedTCPLayer, fullTCPPacket := createMockTCPPacket(ipv4Header, tcpLayer)
+	encodedTCPLayer, fullTCPPacket := createMockTCPPacket(ipv4Header, tcpLayer, false)
 
 	tt := []struct {
 		description string
@@ -246,7 +246,7 @@ func BenchmarkParseTCP(b *testing.B) {
 	tcpLayer := createMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
 
 	// full packet
-	_, fullTCPPacket := createMockTCPPacket(ipv4Header, tcpLayer)
+	_, fullTCPPacket := createMockTCPPacket(ipv4Header, tcpLayer, false)
 
 	tp := newTCPParser()
 
@@ -317,7 +317,7 @@ func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	return buf.Bytes()
 }
 
-func createMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP) (*layers.TCP, []byte) {
+func createMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP, includeHeader bool) (*layers.TCP, []byte) {
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		SrcIP:    ipHeader.Src,
@@ -329,9 +329,16 @@ func createMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP) (*layers.T
 	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-	gopacket.SerializeLayers(buf, opts,
-		tcpLayer,
-	)
+	if includeHeader {
+		gopacket.SerializeLayers(buf, opts,
+			ipLayer,
+			tcpLayer,
+		)
+	} else {
+		gopacket.SerializeLayers(buf, opts,
+			tcpLayer,
+		)
+	}
 
 	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeTCP, gopacket.Default)
 

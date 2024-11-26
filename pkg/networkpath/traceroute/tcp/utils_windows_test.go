@@ -19,7 +19,6 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/windows"
 
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ type (
 )
 
 func Test_handlePackets(t *testing.T) {
-	_, tcpBytes := createMockFullTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))
+	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true), true)
 
 	tt := []struct {
 		description string
@@ -155,27 +154,4 @@ func (m *mockRawConn) RecvFrom(_ windows.Handle, buf []byte, _ int) (int, window
 	copy(buf, m.payload)
 
 	return len(m.payload), nil, nil
-}
-
-func createMockFullTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP) (*layers.TCP, []byte) {
-	ipLayer := &layers.IPv4{
-		Version:  4,
-		SrcIP:    ipHeader.Src,
-		DstIP:    ipHeader.Dst,
-		Protocol: layers.IPProtocol(ipHeader.Protocol),
-		TTL:      64,
-		Length:   8,
-	}
-	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
-	buf := gopacket.NewSerializeBuffer()
-	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-	gopacket.SerializeLayers(buf, opts,
-		ipLayer,
-		tcpLayer,
-	)
-
-	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeTCP, gopacket.Default)
-
-	// return encoded TCP layer here
-	return pkt.Layer(layers.LayerTypeTCP).(*layers.TCP), buf.Bytes()
 }

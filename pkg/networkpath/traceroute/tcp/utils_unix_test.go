@@ -40,7 +40,7 @@ type (
 )
 
 func Test_handlePackets(t *testing.T) {
-	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))
+	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true), false)
 
 	tt := []struct {
 		description string
