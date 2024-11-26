@@ -317,8 +317,10 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 		}
 		log.Debugf("Executable folder is %v", _here)
 
-		embeddedPythonHome3 := filepath.Join(_here, "..", "embedded3")
-		if runtime.GOOS == "darwin" {
+		var embeddedPythonHome3 string
+		if runtime.GOOS == "windows" {
+			embeddedPythonHome3 = filepath.Join(_here, "..", "embedded3")
+		} else { // IIRC both macOS and Linux would have the same relative paths so it makes sense as the "default" value
 			embeddedPythonHome3 = filepath.Join(_here, "../..", "embedded")
 		}
 
