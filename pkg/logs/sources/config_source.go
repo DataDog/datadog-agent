@@ -97,9 +97,10 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 		stream <- source
 	}
 	fmt.Println("UNGA BUNGA 6")
-
+	fmt.Println("UNGA BUNGA streamsForType", streamsForType)
 	for _, stream := range streamsForType {
-
+		fmt.Println("steam is ", stream)
+		fmt.Println("source is ", source)
 		stream <- source
 	}
 	fmt.Println("UNGA BUNGA 7")
