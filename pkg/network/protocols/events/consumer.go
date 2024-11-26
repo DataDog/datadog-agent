@@ -52,6 +52,7 @@ type Consumer[V any] struct {
 	failedFlushesCount *telemetry.Counter
 	kernelDropsCount   *telemetry.Counter
 	invalidEventsCount *telemetry.Counter
+	invalidBatchCount  *telemetry.Counter
 }
 
 // NewConsumer instantiates a new event Consumer
@@ -91,6 +92,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	eventsCount := metricGroup.NewCounter("events_captured")
 	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
 	invalidEventsCount := metricGroup.NewCounter("invalid_events")
+	invalidBatchCount := metricGroup.NewCounter("invalid_batch_count")
 
 	// failedFlushesCount tracks the number of failed calls to
 	// `bpf_perf_event_output`. This is usually indicative of a slow-consumer
@@ -120,6 +122,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 		failedFlushesCount: failedFlushesCount,
 		kernelDropsCount:   kernelDropsCount,
 		invalidEventsCount: invalidEventsCount,
+		invalidBatchCount:  invalidBatchCount,
 	}, nil
 }
 
@@ -140,7 +143,7 @@ func (c *Consumer[V]) Start() {
 				b, err := batchFromEventData(dataEvent.Data)
 
 				if err != nil {
-					c.invalidEventsCount.Add(1)
+					c.invalidBatchCount.Add(1)
 					dataEvent.Done()
 					break
 				}
