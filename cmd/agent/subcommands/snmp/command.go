@@ -26,6 +26,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -100,6 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				nooptagger.Module(),
 				compressionimpl.Module(),
 				eventplatformreceiverimpl.Module(),
+				haagentfx.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -163,6 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				nooptagger.Module(),
 				compressionimpl.Module(),
 				snmpscanfx.Module(),
+				haagentfx.Module(),
 			)
 			if err != nil {
 				var ue configErr

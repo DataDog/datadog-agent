@@ -22,6 +22,7 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	eventplatformnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-noop"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -56,7 +57,7 @@ func testDemux(log log.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventplatformnoop.NewComponent(), compressionimpl.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventplatformnoop.NewComponent(), haagentmock.NewMockHaAgent(), compressionimpl.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
 	return demux
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -40,8 +41,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	taggerComponent := nooptagger.NewComponent()
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventplatformnoop.NewComponent(), compressionimpl.NewMockCompressor(), taggerComponent, "")
-
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventplatformnoop.NewComponent(), haagentmock.NewMockHaAgent(), compressionimpl.NewMockCompressor(), taggerComponent, "")
 }
 
 // NewMockSenderWithSenderManager returns a functional mocked Sender for testing
