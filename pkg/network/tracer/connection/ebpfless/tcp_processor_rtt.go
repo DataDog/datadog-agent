@@ -16,9 +16,8 @@ import (
 func absDiff(a uint64, b uint64) uint64 {
 	if a < b {
 		return b - a
-	} else {
-		return a - b
 	}
+	return a - b
 }
 
 // nanosToMicros converts nanoseconds to microseconds, rounding and converting to
