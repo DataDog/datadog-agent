@@ -40,7 +40,7 @@ func Test_handlePackets(t *testing.T) {
 		description string
 		// input
 		ctxTimeout time.Duration
-		conn       mockRawConn
+		conn       *mockRawConn
 		localIP    net.IP
 		localPort  uint16
 		remoteIP   net.IP
