@@ -13,7 +13,6 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	compsender "github.com/DataDog/datadog-agent/comp/logs/agent/sender"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -22,10 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -213,22 +209,9 @@ func (a *Agent) SetupPipeline(
 	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 
-	// TODO(remy): create a pool of senders
-	// TODO(remy): pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
-	var pipelineMonitor *metrics.TelemetryPipelineMonitor = metrics.NewTelemetryPipelineMonitor("shared_otel_sender")
-	status := NewStatusProvider()
-
-	// XXX(remy): don't we want to revisit this chan size: now that we are sharing forwarders,
-	// it makes more sense to be able to buffer a set of payloads from processors.
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
-
-	mainDestinations := compsender.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, false, nil, status, a.config)
-	logsSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"),
-	                                                             nil, nil, pipelineMonitor)
-
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, logsSender, auditor, &diagnostic.NoopMessageReceiver{},
-                                	 processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, nil, auditor, &diagnostic.NoopMessageReceiver{}, processingRules,
+	                        a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx
