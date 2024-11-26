@@ -592,7 +592,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
-		os.Chdir(commonCfgDir)
+		if err := os.Chdir(commonCfgDir); err != nil {
+			return nil, err
+		}
 	}
 
 	var proFile *os.File

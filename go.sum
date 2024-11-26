@@ -134,6 +134,8 @@ github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1 h1:17MX
 github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1/go.mod h1:5Xp66c0HGadP85lOQtb6oVuSvuL5ZSSowQM58hNtTi8=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
+github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11 h1:6vwU//TjBIghQKMgIP9UyIRhN/LWS1y8tYzvRnu8JZw=
+github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11/go.mod h1:woPHoAOfAIM7kl4GauR+qrWui7teNg44Um0verg2rzQ=
 github.com/DataDog/ebpf-manager v0.7.4 h1:fI2fJbDpykDiO/hq3IVIi+YLVVrJ97qG6O8LT7mdCnQ=
 github.com/DataDog/ebpf-manager v0.7.4/go.mod h1:QlCkGTH3koCMDG7E8o9Si6O9UXjBwQspP6z2YtKlyGU=
 github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe h1:RO40ywnX/vZLi4Pb4jRuFGgQQBYGIIoQ6u+P2MIgFOA=
@@ -463,6 +465,8 @@ github.com/circonus-labs/circonusllhist v0.1.3/go.mod h1:kMXHVDlOchFAehlya5ePtbp
 github.com/clbanning/mxj v1.8.4 h1:HuhwZtbyvyOw+3Z1AowPkU87JkJUSv751ELWaiTpj8I=
 github.com/clbanning/mxj v1.8.4/go.mod h1:BVjHeAH+rl9rs6f+QIpeRl0tfu10SXn1pUSa5PVGJng=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
+github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b h1:EgR1t4Lnq6uP6QxJQ+oIFtENOHUY3/7gMOE76vL0KcA=
+github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b/go.mod h1:X/9cHz8JVzKlvoZyKBgMgrogKZlLf+pWjmm5gSUm5dI=
 github.com/cloudflare/circl v1.3.7 h1:qlCDlTPz2n9fu58M0Nh1J/JzcFpfgkFHHX3O35r5vcU=
 github.com/cloudflare/circl v1.3.7/go.mod h1:sRTcRWXGLrKw6yIGJ+l7amYJFfAXbZG0kBSc8r4zxgA=
 github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820 h1:ixkQUDJYG6eSxgUEl6LLE2l2TD2C5AYmlm+fVhsr6Zs=
@@ -1638,8 +1642,8 @@ github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb
 github.com/ryanuber/columnize v2.1.0+incompatible/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkBk=
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
-github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b h1:cTiH46CYvPhgOlE0t82N+rgQw44b7vB39ay+P+wiVz8=
-github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b/go.mod h1:1+GWOH32bsIEAHknYja6/H1efcDs+/Q2XrtYMM200Ho=
+github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b h1:ZeznXGJOGRRGKuU7GEUmNobE4swH0PbMqukrQS3XCLE=
+github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b/go.mod h1:azfM30OkV7er0g2EIbpI+Jl4P6T5RMpsED0+7Up/Gog=
 github.com/sagikazarmark/locafero v0.4.0 h1:HApY1R9zGo4DBgr7dqsTH/JJxLTTsOt7u6keLGt6kNQ=
 github.com/sagikazarmark/locafero v0.4.0/go.mod h1:Pe1W6UlPYUk/+wc/6KFhbORCfqzgYEpgQ3O5fPuL3H4=
 github.com/sagikazarmark/slog-shim v0.1.0 h1:diDBnUNK9N/354PgrxMywXnAwEr1QZcOr6gto+ugjYE=
