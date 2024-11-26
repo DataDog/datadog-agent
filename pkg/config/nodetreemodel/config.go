@@ -87,6 +87,8 @@ type ntmConfig struct {
 	configName string
 	configFile string
 	configType string
+	// configPaths is the set of path to look for the configuration file
+	configPaths []string
 
 	// configEnvVars is the set of env vars that are consulted for
 	// any given configuration key. Multiple env vars can be associated with one key
@@ -578,10 +580,22 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 }
 
 // AddConfigPath adds another config for the given path
-func (c *ntmConfig) AddConfigPath(_in string) {
+func (c *ntmConfig) AddConfigPath(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.logErrorNotImplemented("AddConfigPath")
+
+	if !filepath.IsAbs(in) {
+		in, err := filepath.Abs(in)
+		if err != nil {
+			log.Errorf("could not get absolute path for configuration '%s': %s", in, err)
+			return
+		}
+	}
+
+	in = filepath.Clean(in)
+	if !slices.Contains(c.configPaths, in) {
+		c.configPaths = append(c.configPaths, in)
+	}
 }
 
 // AddExtraConfigPaths allows adding additional configuration files
