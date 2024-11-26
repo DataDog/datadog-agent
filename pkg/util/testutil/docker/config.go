@@ -5,7 +5,6 @@
 
 //go:build test
 
-// Package docker provides API to manage docker/docker-compose lifecycle in UTs
 package docker
 
 import (
@@ -105,6 +104,7 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 	var args []string
 	switch t {
 	case start:
+		// we want to remove the container after usage, as it is a temporary container for a particular test
 		args = []string{string(runCommand), "--rm"}
 
 		// Add mounts
