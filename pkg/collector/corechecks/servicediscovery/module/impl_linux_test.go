@@ -772,10 +772,13 @@ func TestDocker(t *testing.T) {
 	url := setupDiscoveryModule(t)
 
 	dir, _ := testutil.CurDir()
-	err := dockerutils.RunDockerServer(t, "foo-server",
-		dir+"/testdata/docker-compose.yml", []string{},
+	dockerCfg := dockerutils.NewComposeConfig("foo-server",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
 		regexp.MustCompile("Serving.*"),
-		dockerutils.DefaultTimeout, 3)
+		nil,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	err := dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
 
 	proc, err := procfs.NewDefaultFS()

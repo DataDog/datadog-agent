@@ -7,6 +7,7 @@ package mongo
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -30,5 +31,11 @@ func RunServer(t testing.TB, serverAddress, serverPort string) error {
 		"MONGO_PASSWORD=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
-	return dockerutils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), dockerutils.DefaultTimeout, 3)
+	dockerCfg := dockerutils.NewComposeConfig("mongo",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)),
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }

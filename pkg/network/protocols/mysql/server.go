@@ -45,5 +45,11 @@ func RunServer(t testing.TB, serverAddr, serverPort string, withTLS bool) error 
 		env = append(env, "MYSQL_TLS_ARGS=--require-secure-transport --ssl-cert=/mysql-test/cert.pem.0 --ssl-key=/mysql-test/server.key")
 	}
 
-	return dockerutils.RunDockerServer(t, "MYSQL", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)), dockerutils.DefaultTimeout, 3)
+	dockerCfg := dockerutils.NewComposeConfig("MYSQL",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)),
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }

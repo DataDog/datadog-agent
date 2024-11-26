@@ -11,6 +11,7 @@ package nodejs
 import (
 	"io"
 	"os"
+	"path"
 	"regexp"
 	"testing"
 
@@ -61,7 +62,14 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 		"CERTS_DIR=/v/certs",
 		"TESTDIR=" + dir + "/testdata",
 	}
-	return dockerutils.RunDockerServer(t, "nodejs-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("Server running at https.*"), dockerutils.DefaultTimeout, 3)
+
+	dockerCfg := dockerutils.NewComposeConfig("nodejs-server",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		regexp.MustCompile("Server running at https.*"),
+		env,
+		path.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }
 
 // GetNodeJSDockerPID returns the PID of the nodejs docker container.

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
@@ -41,5 +40,11 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 		return err
 	}
 
-	return dockerutils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), 1*time.Minute, 3)
+	dockerCfg := dockerutils.NewComposeConfig("amqp",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`),
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }

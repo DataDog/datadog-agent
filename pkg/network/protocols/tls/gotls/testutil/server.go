@@ -21,5 +21,12 @@ func RunServer(t testing.TB, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return dockerutils.RunDockerServer(t, "https-gotls", dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), dockerutils.DefaultTimeout, 3)
+	dockerCfg := dockerutils.NewComposeConfig("https-gotls",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"),
+		env,
+		dir+"/../testdata/docker-compose.yml")
+	return dockerutils.Run(t, dockerCfg)
+
 }
