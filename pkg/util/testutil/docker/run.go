@@ -13,6 +13,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // Run starts the container/s and ensures their successful invocation
@@ -27,7 +29,7 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 		// Ensuring no previous instances exists.
 		killPreviousInstances(cfg)
 
-		scanner := NewScanner(cfg.LogPattern(), make(chan struct{}, 1))
+		scanner := testutil.NewScanner(cfg.LogPattern(), make(chan struct{}, 1))
 		// attempt to start the container/s
 		ctx, err = run(t, cfg, scanner)
 		if err != nil {
@@ -100,7 +102,7 @@ func killPreviousInstances(cfg LifecycleConfig) {
 	_ = c.Run()
 }
 
-func run(t testing.TB, cfg LifecycleConfig, scanner *PatternScanner) (context.Context, error) {
+func run(t testing.TB, cfg LifecycleConfig, scanner *testutil.PatternScanner) (context.Context, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -126,7 +128,7 @@ func run(t testing.TB, cfg LifecycleConfig, scanner *PatternScanner) (context.Co
 	return ctx, nil
 }
 
-func checkReadiness(ctx context.Context, cfg LifecycleConfig, scanner *PatternScanner) error {
+func checkReadiness(ctx context.Context, cfg LifecycleConfig, scanner *testutil.PatternScanner) error {
 	for {
 		select {
 		case <-ctx.Done():

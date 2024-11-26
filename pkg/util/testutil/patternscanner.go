@@ -6,7 +6,7 @@
 //go:build test
 
 // Package docker provides test utilities to execute workload inside docker or docker-compose.
-package docker
+package testutil
 
 import (
 	"regexp"
