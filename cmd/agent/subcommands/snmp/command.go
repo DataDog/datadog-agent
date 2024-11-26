@@ -23,7 +23,6 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -97,7 +96,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
-				eventplatformfx.Module(eventplatform.NewDefaultParams()),
+				eventplatformfx.Module(),
 				nooptagger.Module(),
 				compressionimpl.Module(),
 				eventplatformreceiverimpl.Module(),
@@ -159,7 +158,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
-				eventplatformfx.Module(eventplatform.NewDefaultParams()),
+				eventplatformfx.Module(),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
 				compressionimpl.Module(),

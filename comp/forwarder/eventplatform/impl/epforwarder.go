@@ -481,7 +481,6 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 
 type Requires struct {
 	fx.In
-	Params                eventplatform.Params
 	Config                configcomp.Component
 	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
