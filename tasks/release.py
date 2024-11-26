@@ -85,8 +85,11 @@ GITLAB_FILES_TO_UPDATE = [
 BACKPORT_LABEL_COLOR = "5319e7"
 
 
-def deduce_and_ask_version(ctx, branch, as_str=True) -> str | Version:
+def deduce_and_ask_version(ctx, branch, as_str=True, yes=False) -> str | Version:
     release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
+
+    if yes:
+        return release_version
 
     if yes_no_question(
         f'Version {release_version} deduced from branch {branch}. Is this the version you want to use?',
@@ -162,7 +165,7 @@ def list_major_change(_, milestone):
 
 
 @task
-def update_modules(ctx, release_branch):
+def update_modules(ctx, release_branch=None, version=None, yes=False):
     """Update internal dependencies between the different Agent modules.
 
     Args:
@@ -172,14 +175,17 @@ def update_modules(ctx, release_branch):
         $ inv -e release.update-modules 7.27.x
     """
 
-    agent_version = deduce_and_ask_version(ctx, release_branch)
+    assert release_branch or version
 
-    with agent_context(ctx, release_branch):
+    agent_version = version or deduce_and_ask_version(ctx, release_branch, yes=yes)
+
+    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
         for module in modules.values():
             for dependency in module.dependencies:
                 dependency_mod = modules[dependency]
-                ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                # TODO A: ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                print(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
 def __get_force_option(force: bool) -> str:
@@ -218,7 +224,7 @@ def __tag_single_module(ctx, module, agent_version, commit, push, force_option, 
 
 
 @task
-def tag_modules(ctx, release_branch, commit="HEAD", push=True, force=False, devel=False):
+def tag_modules(ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, yes=False):
     """Create tags for Go nested modules for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
@@ -235,9 +241,11 @@ def tag_modules(ctx, release_branch, commit="HEAD", push=True, force=False, deve
         $ inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
-    agent_version = deduce_and_ask_version(ctx, release_branch)
+    assert release_branch or version
 
-    with agent_context(ctx, release_branch):
+    agent_version = version or deduce_and_ask_version(ctx, release_branch, yes=yes)
+
+    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         force_option = __get_force_option(force)
         for module in get_default_modules().values():
             # Skip main module; this is tagged at tag_version via __tag_single_module.
@@ -248,8 +256,9 @@ def tag_modules(ctx, release_branch, commit="HEAD", push=True, force=False, deve
 
 
 @task
-def tag_version(ctx, release_branch, commit="HEAD", push=True, force=False, devel=False):
+def tag_version(ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, yes=False):
     """Create tags for a given Datadog Agent version.
+
     The version should be given as an Agent 7 version.
 
     Args:
@@ -265,11 +274,13 @@ def tag_version(ctx, release_branch, commit="HEAD", push=True, force=False, deve
         $ inv -e release.tag-version 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
-    agent_version = deduce_and_ask_version(ctx, release_branch)
+    assert release_branch or version
+
+    agent_version = version or deduce_and_ask_version(ctx, release_branch, yes=yes)
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    with agent_context(ctx, release_branch):
+    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
 
@@ -277,7 +288,7 @@ def tag_version(ctx, release_branch, commit="HEAD", push=True, force=False, deve
 @task
 def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
     tag_version(ctx, release_branch, commit, push, force, devel=True)
-    tag_modules(ctx, release_branch, commit, push, force, devel=True)
+    tag_modules(ctx, release_branch, commit, push, force, devel=True, yes=True)
 
 
 @task
@@ -301,11 +312,15 @@ def finish(ctx, release_branch, upstream="origin"):
         # To support this, we'd have to support a --patch-version param in
         # release.finish
         new_version = next_final_version(ctx, major_version, False)
+        if not yes_no_question(
+            f'Do you want to finish the release with version {new_version}?', color="bold", default=False
+        ):
+            raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
 
         # Step 2: Update internal module dependencies
 
-        update_modules(ctx, str(new_version))  # TODO A: Not version but branch
+        update_modules(ctx, version=str(new_version))
 
         # Step 3: Branch out, commit change, push branch
 
@@ -353,7 +368,6 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         # Step 5: Push branch and create PR
-
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
