@@ -57,6 +57,9 @@ type LogParams struct {
 	Duration time.Duration
 }
 
+// Default duration is 60 seconds
+const defaultStreamLogsDuration = 60 * time.Second
+
 // NewComponent creates a new streamlogs component for remote config flare component
 func NewComponent(reqs Requires) (Provides, error) {
 	la, ok := reqs.LogsAgent.Get()
@@ -73,7 +76,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	provides := Provides{
-		FlareProvider: flaretypes.NewProvider(sl.fillFlare),
+		FlareProvider: flaretypes.NewProviderWithTimeout(sl.fillFlare, sl.getFlareTimeout),
 	}
 	return provides, nil
 }
@@ -112,24 +115,36 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	defer timer.Stop()
 	var wg sync.WaitGroup
 
-	time.AfterFunc(streamLogParams.Duration, func() {
-		wg.Wait()
+	go func() {
+		<-timer.C
 		close(done)
-	})
+	}()
 
 	for {
-		log, ok := <-logChan
-		if !ok {
+		select {
+		case log, ok := <-logChan:
+			if !ok {
+				logger.Error("failed to read from log channel for streamlogs")
+				return nil
+			}
+			wg.Add(1)
+			go func(log string) {
+				defer wg.Done()
+				_, err := bufWriter.WriteString(log + "\n")
+				if err != nil {
+					logger.Errorf("failed to write to file: %v", err)
+				}
+			}(log)
+		case <-done:
+			for log := range logChan {
+				_, err := bufWriter.WriteString(log + "\n")
+				if err != nil {
+					logger.Errorf("failed to write to file: %v", err)
+				}
+			}
+			wg.Wait()
 			return nil
 		}
-
-		wg.Add(1)
-		go func(log string) {
-			defer wg.Done()
-			if _, err := bufWriter.WriteString(log + "\n"); err != nil {
-				logger.Errorf("failed to write to file: %v", err)
-			}
-		}(log)
 	}
 }
 
@@ -141,7 +156,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 	if enabled {
 		streamLogParams := LogParams{
 			FilePath: streamlogsLogFilePath,
-			Duration: 60 * time.Second, // Default duration is 60 seconds
+			Duration: defaultStreamLogsDuration,
 		}
 		if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
 			return fmt.Errorf("failed to export stream logs: %w", err)
@@ -167,4 +182,16 @@ func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	}
 
 	return nil
+}
+
+// getFlareTimeout returns the timeout for the flare when streaming logs.
+func (sl *streamlogsimpl) getFlareTimeout(fb flaretypes.FlareBuilder) time.Duration {
+	// Base timeout is the default duration for streaming logs
+	baseTimeout := defaultStreamLogsDuration
+
+	// overhead is the duration for processing file operations (e.g., copying logs to the flare)
+	overhead := 10 * time.Second
+
+	// Total timeout
+	return baseTimeout + overhead
 }
