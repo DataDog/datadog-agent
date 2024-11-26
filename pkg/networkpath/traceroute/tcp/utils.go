@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
@@ -55,12 +54,6 @@ type (
 		SrcIP       net.IP
 		DstIP       net.IP
 		TCPResponse layers.TCP
-	}
-
-	rawConnWrapper interface {
-		SetReadDeadline(t time.Time) error
-		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
-		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
 	}
 )
 

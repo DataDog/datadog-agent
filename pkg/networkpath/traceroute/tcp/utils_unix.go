@@ -18,6 +18,14 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+type (
+	rawConnWrapper interface {
+		SetReadDeadline(t time.Time) error
+		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
+		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
+	}
+)
+
 // sendPacket sends a raw IPv4 packet using the passed connection
 func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error {
 	if err := rawConn.WriteTo(header, payload, nil); err != nil {

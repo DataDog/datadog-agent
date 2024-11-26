@@ -23,7 +23,7 @@ type winrawsocket struct {
 
 func (w *winrawsocket) close() {
 	if w.s != windows.InvalidHandle {
-		windows.Closesocket(w.s)
+		windows.Closesocket(w.s) // nolint: errcheck
 	}
 	w.s = windows.InvalidHandle
 }
@@ -49,13 +49,13 @@ func createRawSocket() (*winrawsocket, error) {
 	on := int(1)
 	err = windows.SetsockoptInt(s, windows.IPPROTO_IP, windows.IP_HDRINCL, on)
 	if err != nil {
-		windows.Closesocket(s)
+		windows.Closesocket(s) // nolint: errcheck
 		return nil, fmt.Errorf("failed to set IP_HDRINCL: %w", err)
 	}
 
 	err = windows.SetsockoptInt(s, windows.SOL_SOCKET, windows.SO_RCVTIMEO, 100)
 	if err != nil {
-		windows.Closesocket(s)
+		windows.Closesocket(s) // nolint: errcheck
 		return nil, fmt.Errorf("failed to set SO_RCVTIMEO: %w", err)
 	}
 	return &winrawsocket{s: s}, nil
@@ -107,8 +107,6 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		DstPort:    t.DestPort,
 		Hops:       hops,
 	}, nil
-
-	return nil, nil
 }
 
 func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
