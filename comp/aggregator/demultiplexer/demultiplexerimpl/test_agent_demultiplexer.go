@@ -67,7 +67,7 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Component, error) {
+func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() eventplatform.Component {
 	return a.AgentDemultiplexer.GetEventPlatformForwarder()
 }
 

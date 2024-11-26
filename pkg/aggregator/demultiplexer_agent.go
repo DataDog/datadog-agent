@@ -38,7 +38,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
-	GetEventPlatformForwarder() (eventplatform.Component, error)
+	GetEventPlatformForwarder() eventplatform.Component
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -469,7 +469,7 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 }
 
 // GetEventPlatformForwarder returns underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Component, error) {
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() eventplatform.Component {
 	return d.aggregator.GetEventPlatformForwarder()
 }
 

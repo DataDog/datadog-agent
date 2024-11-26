@@ -406,8 +406,8 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Component, error) {
-	return agg.eventPlatformForwarder, nil
+func (agg *BufferedAggregator) GetEventPlatformForwarder() eventplatform.Component {
+	return agg.eventPlatformForwarder
 }
 
 func (agg *BufferedAggregator) registerSender(id checkid.ID) error {

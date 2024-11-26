@@ -30,7 +30,7 @@ type Provides struct {
 
 // NewComponent creates a new snmpscan component
 func NewComponent(reqs Requires) (Provides, error) {
-	forwarder, _ := reqs.Demultiplexer.GetEventPlatformForwarder()
+	forwarder := reqs.Demultiplexer.GetEventPlatformForwarder()
 	scanner := snmpScannerImpl{
 		log:         reqs.Logger,
 		epforwarder: forwarder,
