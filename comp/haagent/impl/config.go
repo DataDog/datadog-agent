@@ -14,7 +14,8 @@ import (
 // At the moment, the list of HA Integrations is hardcoded here, but we might provide
 // more dynamic way to configure which integration should be considered HA Integration.
 var validHaIntegrations = map[string]bool{
-	"snmp": true,
+	"snmp":         true,
+	"network_path": true,
 }
 
 type haAgentConfigs struct {

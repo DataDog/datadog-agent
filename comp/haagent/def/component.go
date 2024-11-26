@@ -23,6 +23,6 @@ type Component interface {
 	// the isLeader state is set to true, otherwise false.
 	SetLeader(leaderAgentHostname string)
 
-	// IsHaIntegration returns true if the integration type is an HA Integration
-	IsHaIntegration(checkType string) bool
+	// ShouldRunIntegration returns true if the integration should be run
+	ShouldRunIntegration(integrationName string) bool
 }

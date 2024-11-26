@@ -44,7 +44,7 @@ func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
 }
 
-func (m *mockHaAgent) IsHaIntegration(_ string) bool {
+func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
 	return false
 }
 

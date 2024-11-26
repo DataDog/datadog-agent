@@ -141,16 +141,14 @@ func (w *Worker) Run() {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
 
-		// Add check to tracker if it's not already running
-		if !w.checksTracker.AddCheck(check) {
-			checkLogger.Debug("Check is already running, skipping execution...")
+		if !w.haAgent.ShouldRunIntegration(check.String()) {
+			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
 			continue
 		}
 
-		if !w.shouldRunIntegrationInstance(check) {
-			checkLogger.Debug("HA Integration skipped")
-			// Remove the check from the running list
-			w.checksTracker.DeleteCheck(check.ID())
+		// Add check to tracker if it's not already running
+		if !w.checksTracker.AddCheck(check) {
+			checkLogger.Debug("Check is already running, skipping execution...")
 			continue
 		}
 
@@ -223,13 +221,6 @@ func (w *Worker) Run() {
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
-}
-
-func (w *Worker) shouldRunIntegrationInstance(check check.Check) bool {
-	if w.haAgent.Enabled() && w.haAgent.IsHaIntegration(check.String()) {
-		return w.haAgent.IsLeader()
-	}
-	return true
 }
 
 func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {

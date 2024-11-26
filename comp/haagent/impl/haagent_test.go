@@ -69,19 +69,6 @@ func Test_IsLeader_SetLeader(t *testing.T) {
 	assert.True(t, haAgent.IsLeader())
 }
 
-func Test_IsHaIntegration(t *testing.T) {
-	agentConfigs := map[string]interface{}{
-		"hostname":         "my-agent-hostname",
-		"ha_agent.enabled": true,
-		"ha_agent.group":   testGroup,
-	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs)
-
-	assert.True(t, haAgent.Comp.IsHaIntegration("snmp"))
-	assert.False(t, haAgent.Comp.IsHaIntegration("unknown_integration"))
-	assert.False(t, haAgent.Comp.IsHaIntegration("cpu"))
-}
-
 func Test_RCListener(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -179,6 +166,72 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			h.onHaAgentUpdate(tt.updates, applyFunc)
 			assert.Equal(t, tt.expectedApplyID, applyID)
 			assert.Equal(t, tt.expectedApplyStatus, applyStatus)
+		})
+	}
+}
+
+func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
+	testAgentHostname := "my-agent-hostname"
+	tests := []struct {
+		name                       string
+		leader                     string
+		agentConfigs               map[string]interface{}
+		expectShouldRunIntegration map[string]bool
+	}{
+		{
+			name: "should run: for HA integration",
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader: testAgentHostname,
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                true,
+				"network_path":        true,
+				"unknown_integration": false,
+				"cpu":                 false,
+			},
+		},
+		{
+			name: "should not run: current agent is not leader",
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader: "another-agent-is-leader",
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                false,
+				"network_path":        false,
+				"unknown_integration": false,
+				"cpu":                 false,
+			},
+		},
+		{
+			name: "should not run: HA Agent not enabled",
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": false,
+				"ha_agent.group":   testGroup,
+			},
+			leader: testAgentHostname,
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                false,
+				"network_path":        false,
+				"unknown_integration": false,
+				"cpu":                 false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
+			haAgent.Comp.SetLeader(tt.leader)
+
+			for integrationName, shouldRun := range tt.expectShouldRunIntegration {
+				assert.Equal(t, shouldRun, haAgent.Comp.ShouldRunIntegration(integrationName))
+			}
 		})
 	}
 }
