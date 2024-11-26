@@ -11,23 +11,25 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, settings settings.Component) error {
-	conn, err := net.NewSystemProbeListener(cfg.SocketAddress)
+	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
 	}
@@ -53,8 +55,12 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
+	if runtime.GOOS == "linux" {
+		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
+	}
+
 	go func() {
-		err = http.Serve(conn.GetListener(), mux)
+		err = http.Serve(conn, mux)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorf("error creating HTTP server: %s", err)
 		}

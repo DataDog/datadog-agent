@@ -21,6 +21,20 @@ struct bind_event_t {
     u64 addr[2];
     u16 family;
     u16 port;
+    u16 protocol;
+};
+
+struct connect_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+
+    u64 addr[2];
+    u16 family;
+    u16 port;
+    u16 protocol;
 };
 
 struct bpf_event_t {

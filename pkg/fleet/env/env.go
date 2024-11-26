@@ -7,13 +7,16 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 const (
@@ -32,6 +35,19 @@ const (
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
+	envCDNEnabled            = "DD_INSTALLER_CDN_ENABLED"
+	envAgentUserName         = "DD_AGENT_USER_NAME"
+	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
+	envAgentUserNameCompat = "DDAGENTUSER_NAME"
+	envTags                = "DD_TAGS"
+	envExtraTags           = "DD_EXTRA_TAGS"
+	envHostname            = "DD_HOSTNAME"
+	envDDHTTPProxy         = "DD_PROXY_HTTP"
+	envHTTPProxy           = "HTTP_PROXY"
+	envDDHTTPSProxy        = "DD_PROXY_HTTPS"
+	envHTTPSProxy          = "HTTPS_PROXY"
+	envDDNoProxy           = "DD_PROXY_NO_PROXY"
+	envNoProxy             = "NO_PROXY"
 )
 
 var defaultEnv = Env{
@@ -85,14 +101,27 @@ type Env struct {
 
 	AgentMajorVersion string
 	AgentMinorVersion string
+	AgentUserName     string // windows only
 
 	InstallScript InstallScriptEnv
 
+	CDNEnabled      bool
 	CDNLocalDirPath string
+
+	Tags     []string
+	Hostname string
+
+	HTTPProxy  string
+	HTTPSProxy string
+	NoProxy    string
 }
 
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
+	splitFunc := func(c rune) bool {
+		return c == ','
+	}
+
 	return &Env{
 		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
 		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
@@ -115,15 +144,33 @@ func FromEnv() *Env {
 
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
+		AgentUserName:     getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
 
 		InstallScript: installScriptEnvFromEnv(),
 
+		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
 		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
+
+		Tags: append(
+			strings.FieldsFunc(os.Getenv(envTags), splitFunc),
+			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
+		),
+		Hostname: os.Getenv(envHostname),
+
+		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
+		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
+		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
 	}
 }
 
 // FromConfig returns an Env struct with values from the configuration.
 func FromConfig(config model.Reader) *Env {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	hostname, err := hostname.Get(ctx)
+	if err != nil {
+		hostname = "unknown"
+	}
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
@@ -133,6 +180,11 @@ func FromConfig(config model.Reader) *Env {
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 		RegistryUsername:     config.GetString("installer.registry.username"),
 		RegistryPassword:     config.GetString("installer.registry.password"),
+		Tags:                 utils.GetConfiguredTags(config, false),
+		Hostname:             hostname,
+		HTTPProxy:            config.GetString("proxy.http"),
+		HTTPSProxy:           config.GetString("proxy.https"),
+		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 	}
 }
 
@@ -174,6 +226,21 @@ func (e *Env) ToEnv() []string {
 		}
 		slices.Sort(libraries)
 		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
+	}
+	if len(e.Tags) > 0 {
+		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
+	}
+	if len(e.Hostname) > 0 {
+		env = append(env, envHostname+"="+e.Hostname)
+	}
+	if e.HTTPProxy != "" {
+		env = append(env, envHTTPProxy+"="+e.HTTPProxy)
+	}
+	if e.HTTPSProxy != "" {
+		env = append(env, envHTTPSProxy+"="+e.HTTPSProxy)
+	}
+	if e.NoProxy != "" {
+		env = append(env, envNoProxy+"="+e.NoProxy)
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
@@ -247,4 +314,14 @@ func getEnvOrDefault(env string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func getProxySetting(ddEnv string, env string) string {
+	return getEnvOrDefault(
+		ddEnv,
+		getEnvOrDefault(
+			env,
+			os.Getenv(strings.ToLower(env)),
+		),
+	)
 }

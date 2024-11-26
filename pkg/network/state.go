@@ -6,7 +6,6 @@
 package network
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
 	"sync"
@@ -285,28 +284,22 @@ type networkState struct {
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
 
-	mergeStatsBuffers [2][]byte
-
 	localResolver LocalResolver
 }
 
 // NewState creates a new network state
 func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
-		clients:                map[string]*client{},
-		clientExpiry:           clientExpiry,
-		maxClosedConns:         maxClosedConns,
-		maxClientStats:         maxClientStats,
-		maxDNSStats:            maxDNSStats,
-		maxHTTPStats:           maxHTTPStats,
-		maxKafkaStats:          maxKafkaStats,
-		maxPostgresStats:       maxPostgresStats,
-		maxRedisStats:          maxRedisStats,
-		enableConnectionRollup: enableConnectionRollup,
-		mergeStatsBuffers: [2][]byte{
-			make([]byte, ConnectionByteKeyMaxLen),
-			make([]byte, ConnectionByteKeyMaxLen),
-		},
+		clients:                     map[string]*client{},
+		clientExpiry:                clientExpiry,
+		maxClosedConns:              maxClosedConns,
+		maxClientStats:              maxClientStats,
+		maxDNSStats:                 maxDNSStats,
+		maxHTTPStats:                maxHTTPStats,
+		maxKafkaStats:               maxKafkaStats,
+		maxPostgresStats:            maxPostgresStats,
+		maxRedisStats:               maxRedisStats,
+		enableConnectionRollup:      enableConnectionRollup,
 		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
@@ -1222,8 +1215,7 @@ type aggregateConnection struct {
 }
 
 type aggregationKey struct {
-	// connKey is the key returned by ConnectionStats.ByteKey()
-	connKey    string
+	connKey    ConnectionTuple
 	direction  ConnectionDirection
 	containers struct {
 		source, dest *intern.Value
@@ -1232,7 +1224,6 @@ type aggregationKey struct {
 
 type connectionAggregator struct {
 	conns                       map[aggregationKey][]*aggregateConnection
-	buf                         []byte
 	dnsStats                    dns.StatsByKeyByNameByType
 	enablePortRollups           bool
 	processEventConsumerEnabled bool
@@ -1241,7 +1232,6 @@ type connectionAggregator struct {
 func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
 	return &connectionAggregator{
 		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
-		buf:                         make([]byte, ConnectionByteKeyMaxLen),
 		dnsStats:                    dnsStats,
 		enablePortRollups:           enablePortRollups,
 		processEventConsumerEnabled: processEventConsumerEnabled,
@@ -1249,7 +1239,7 @@ func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEn
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
-	key.connKey = string(c.ByteKey(a.buf))
+	key.connKey = c.ConnectionTuple
 	key.direction = c.Direction
 	if a.processEventConsumerEnabled {
 		key.containers.source = c.ContainerID.Source
@@ -1297,7 +1287,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		}()
 	}
 
-	key.connKey = string(c.ByteKey(a.buf))
+	key.connKey = c.ConnectionTuple
 	return key, sportRolledUp, dportRolledUp
 }
 
@@ -1477,7 +1467,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		return false
 	}
 
-	if !bytes.Equal(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) {
+	if a.ConnectionTuple != b.ConnectionTuple {
 		log.Debugf("cookie collision for connections %+v and %+v", a, b)
 		// cookie collision
 		return true

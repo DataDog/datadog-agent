@@ -10,6 +10,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -51,6 +52,15 @@ func adjustUSM(cfg model.Config) {
 		applyDefault(cfg, spNS("process_service_inference", "enabled"), true)
 	} else {
 		applyDefault(cfg, spNS("process_service_inference", "enabled"), false)
+	}
+
+	// Similar to the checkin in adjustNPM(). The process event data stream and USM have the same
+	// minimum kernel version requirement, but USM's check for that is done
+	// later.  This check here prevents the EventMonitorModule from getting
+	// enabled on unsupported kernels by load() in config.go.
+	if cfg.GetBool(smNS("enable_event_stream")) && !ProcessEventDataStreamSupported() {
+		log.Warn("disabling USM event stream as it is not supported for this kernel version")
+		cfg.Set(smNS("enable_event_stream"), false, model.SourceAgentRuntime)
 	}
 
 	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)

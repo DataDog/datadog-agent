@@ -226,7 +226,7 @@ type PlanDefinition struct {
 	PlanStepId       int64   `json:"id"`
 	ParentId         int64   `json:"parent_id"`
 	Depth            int64   `json:"depth"`
-	Position         int64   `json:"position"`
+	Position         uint64  `json:"position"`
 	SearchColumns    int64   `json:"search_columns,omitempty"`
 	Cost             float64 `json:"cost"`
 	Cardinality      float64 `json:"cardinality,omitempty"`
@@ -299,7 +299,7 @@ type PlanStepRows struct {
 	PlanStepId       sql.NullInt64   `db:"ID"`
 	ParentId         sql.NullInt64   `db:"PARENT_ID"`
 	Depth            sql.NullInt64   `db:"DEPTH"`
-	Position         sql.NullInt64   `db:"POSITION"`
+	Position         *uint64         `db:"POSITION"`
 	SearchColumns    sql.NullInt64   `db:"SEARCH_COLUMNS"`
 	Cost             sql.NullFloat64 `db:"COST"`
 	Cardinality      sql.NullFloat64 `db:"CARDINALITY"`
@@ -701,8 +701,8 @@ func (c *Check) StatementMetrics() (int, error) {
 								if stepRow.Depth.Valid {
 									stepPayload.Depth = stepRow.Depth.Int64
 								}
-								if stepRow.Position.Valid {
-									stepPayload.Position = stepRow.Position.Int64
+								if stepRow.Position != nil {
+									stepPayload.Position = *stepRow.Position
 								}
 								if stepRow.SearchColumns.Valid {
 									stepPayload.SearchColumns = stepRow.SearchColumns.Int64
@@ -871,7 +871,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	TlmOracleStatementMetricsLatency.Observe(float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
 		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
-		TlmOracleStatementMetricsErrorCount.Add(float64(planErrors))
+		TlmOracleStatementMetricsErrorCount.Set(float64(planErrors))
 	}
 	sender.Commit()
 

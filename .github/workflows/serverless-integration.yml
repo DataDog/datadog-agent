@@ -28,6 +28,7 @@ jobs:
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           path: go/src/github.com/DataDog/datadog-agent
+          persist-credentials: false
 
       - name: Set up Node 20
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
@@ -42,6 +43,7 @@ jobs:
         with:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
+          persist-credentials: false
 
       - name: Set up QEMU
         id: qemu

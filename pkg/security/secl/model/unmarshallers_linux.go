@@ -19,11 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -1254,7 +1255,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 20 {
+	if len(data)-read < 22 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1262,6 +1263,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	SliceToArray(data[read:read+16], ipRaw[:])
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1271,7 +1273,35 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
-	return read + 20, nil
+	return read + 22, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 22 {
+		return 0, ErrNotEnoughData
+	}
+
+	var ipRaw [16]byte
+	SliceToArray(data[read:read+16], ipRaw[:])
+	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
+	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
+
+	// readjust IP size depending on the protocol
+	switch e.AddrFamily {
+	case 0x2: // unix.AF_INET
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
+	case 0xa: // unix.AF_INET6
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
+	}
+
+	return read + 22, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1314,6 +1344,10 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = binary.NativeEndian.Uint32(data)
 	data = data[4:]
+	e.Data = data
+	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
+	e.CaptureInfo.Length = int(e.NetworkContext.Size)
+	e.CaptureInfo.CaptureLength = len(data)
 
 	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
 	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {

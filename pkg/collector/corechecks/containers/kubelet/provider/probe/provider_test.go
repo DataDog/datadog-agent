@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -273,7 +273,7 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			fakeTagger := taggerMock.SetupFakeTagger(t)
 
 			for entity, tags := range probeTags {
 				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
