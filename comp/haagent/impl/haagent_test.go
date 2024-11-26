@@ -71,16 +71,15 @@ func Test_IsLeader_SetLeader(t *testing.T) {
 
 func Test_IsHaIntegration(t *testing.T) {
 	agentConfigs := map[string]interface{}{
-		"ha_agent.integrations": []integrationConfig{
-			{Name: "snmp"},
-			{Name: "mysql"},
-		},
+		"hostname":         "my-agent-hostname",
+		"ha_agent.enabled": true,
+		"ha_agent.group":   testGroup,
 	}
 	haAgent := newTestHaAgentComponent(t, agentConfigs)
 
-	assert.True(t, haAgent.IsHaIntegration("snmp"))
-	assert.True(t, haAgent.IsHaIntegration("mysql"))
-	assert.False(t, haAgent.IsHaIntegration("cpu"))
+	assert.True(t, haAgent.Comp.IsHaIntegration("snmp"))
+	assert.False(t, haAgent.Comp.IsHaIntegration("unknown_integration"))
+	assert.False(t, haAgent.Comp.IsHaIntegration("cpu"))
 }
 
 func Test_RCListener(t *testing.T) {
