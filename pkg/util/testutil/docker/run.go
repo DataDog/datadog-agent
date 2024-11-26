@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+// Run starts the container/s and ensures their successful invocation
+// LifecycleConfig is an interface that abstracts the configuration of the container/s
+// Use NewRunConfig to run a single docker container or NewComposeConfig to spin docker-compose
+// This method is using testing.TB interface to handle cleanup and logging during UTs execution
 func Run(t testing.TB, cfg LifecycleConfig) error {
 	var err error
 	var ctx context.Context
