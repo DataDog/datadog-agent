@@ -31,7 +31,7 @@ def status(ctx):
 
 
 @task
-def switch(ctx, ref):
+def checkout(ctx, ref):
     """Changes the worktree environment to the specified ref.
 
     Note:

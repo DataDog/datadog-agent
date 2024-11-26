@@ -72,7 +72,7 @@ def enter_env(ctx, branch: str | None, skip_checkout=False):
         current_branch = get_current_branch(ctx)
         assert (
             current_branch == branch
-        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should switch branch before using this command, this can be safely done with `inv worktree.switch {branch}`."
+        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `inv worktree.checkout {branch}`."
 
 
 def exit_env():
@@ -87,7 +87,7 @@ def agent_context(ctx, branch: str | None, skip_checkout=False):
 
     Args:
         branch: The branch to switch to. If None, will enter the worktree environment without switching branch (ensures that skip_checkout is True).
-        skip_checkout: If True, the branch will not be switched (no pull will be performed too).
+        skip_checkout: If True, the branch will not be checked out (no pull will be performed too).
 
     Usage:
         > with agent_context(ctx, branch):
