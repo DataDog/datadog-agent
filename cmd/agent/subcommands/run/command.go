@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -541,9 +542,6 @@ func startAgent(
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
-
-		// Subscribe to `APM_TRACING` product
-		rcclient.SubscribeApmTracing()
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
