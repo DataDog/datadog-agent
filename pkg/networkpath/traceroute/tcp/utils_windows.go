@@ -20,6 +20,10 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+var (
+	recvFrom = windows.Recvfrom
+)
+
 // listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
 // and TCP responses based on the passed in trace information. If neither listener
 // receives a matching packet within the timeout, a blank response is returned.
@@ -77,7 +81,7 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		// the receive timeout is set to 100ms in the constructor, to match the
 		// linux side. This is a workaround for the lack of a deadline for sockets.
 		//err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-		n, _, err := windows.Recvfrom(w.s, buf, 0)
+		n, _, err := recvFrom(w.s, buf, 0)
 		if err != nil {
 			if err == windows.WSAETIMEDOUT {
 				continue

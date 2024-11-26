@@ -17,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	sendTo = windows.Sendto
+)
+
 type winrawsocket struct {
 	s windows.Handle
 }
@@ -35,7 +39,7 @@ func (t *TCPv4) sendRawPacket(w *winrawsocket, payload []byte) error {
 		Port: int(t.DestPort),
 		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
 	}
-	if err := windows.Sendto(w.s, payload, 0, sa); err != nil {
+	if err := sendTo(w.s, payload, 0, sa); err != nil {
 		return fmt.Errorf("failed to send packet: %w", err)
 	}
 	return nil
