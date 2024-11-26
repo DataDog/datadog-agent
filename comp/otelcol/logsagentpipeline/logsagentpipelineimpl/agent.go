@@ -211,7 +211,7 @@ func (a *Agent) SetupPipeline(
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, nil, auditor, &diagnostic.NoopMessageReceiver{}, processingRules,
-	                        a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+		a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx

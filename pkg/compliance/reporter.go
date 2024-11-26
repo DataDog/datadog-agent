@@ -45,7 +45,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, nil, auditor, &diagnostic.NoopMessageReceiver{}, nil,
-	             endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog())
+		endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog())
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(

@@ -44,7 +44,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
-	auditor     auditor.Auditor,
+	auditor auditor.Auditor,
 	logsSender *sender.Sender,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
@@ -54,7 +54,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 
 	var flushWg *sync.WaitGroup
-    var senderDoneChan chan *sync.WaitGroup
+	var senderDoneChan chan *sync.WaitGroup
 	if serverless {
 		// XXX(remy): restore serverless mode
 		senderDoneChan = make(chan *sync.WaitGroup)
@@ -76,11 +76,11 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-    var strategy sender.Strategy
-    if logsSender != nil {
-    	senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
+	var strategy sender.Strategy
+	if logsSender != nil {
+		senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
 		mainDestinations := GetDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
-        logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
+		logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 	}
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))

@@ -47,7 +47,7 @@ type Sender struct {
 
 // NewSender returns a new sender.
 func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
-                senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *Sender {
+	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *Sender {
 	return &Sender{
 		auditor:        auditor,
 		config:         config,
