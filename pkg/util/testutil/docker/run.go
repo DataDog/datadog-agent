@@ -44,7 +44,7 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 			t.Logf("%s command succeeded. %s container is running", cfg.command(), cfg.Name())
 			return nil
 		}
-		t.Logf("[Attempt #%v] failed to start %s server: %v", i, cfg.Name(), err)
+		t.Logf("[Attempt #%v] failed to start %s server: %v", i+1, cfg.Name(), err)
 		scanner.PrintLogs(t)
 		time.Sleep(5 * time.Second)
 	}
