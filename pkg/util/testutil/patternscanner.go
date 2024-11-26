@@ -60,7 +60,7 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 
 	// Process all complete lines.
 	for _, line := range lines[:len(lines)-1] {
-		ps.buffers = append(ps.buffers, line) // Save the log line.
+		ps.buffers = append(ps.buffers, line, "\n") // Save the log line.
 		if !ps.stopped && ps.pattern.MatchString(line) {
 			ps.stopOnce.Do(func() {
 				ps.stopped = true
