@@ -65,6 +65,15 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
+		if haAgentMsg.Group != h.GetGroup() {
+			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected group %s, got %s",
+				configPath, h.GetGroup(), haAgentMsg.Group)
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: "group does not match",
+			})
+			continue
+		}
 
 		h.SetLeader(haAgentMsg.Leader)
 

@@ -17,6 +17,7 @@ import (
 )
 
 var testConfigID = "datadog/2/HA_AGENT/group-62345762794c0c0b/65f17d667fb50f8ae28a3c858bdb1be9ea994f20249c119e007c520ac115c807"
+var testGroup = "testGroup01"
 
 func Test_Enabled(t *testing.T) {
 	tests := []struct {
@@ -112,7 +113,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 		{
 			name: "successful update",
 			updates: map[string]state.RawConfig{
-				testConfigID: {Config: []byte(`{"group":"group01","leader":"ha-agent1"}`)},
+				testConfigID: {Config: []byte(`{"group":"testGroup01","leader":"ha-agent1"}`)},
 			},
 			expectedApplyID: testConfigID,
 			expectedApplyStatus: state.ApplyStatus{
@@ -130,11 +131,24 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				Error: "error unmarshalling payload",
 			},
 		},
+		{
+			name: "invalid group",
+			updates: map[string]state.RawConfig{
+				testConfigID: {Config: []byte(`{"group":"invalidGroup","leader":"ha-agent1"}`)},
+			},
+			expectedApplyID: testConfigID,
+			expectedApplyStatus: state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: "group does not match",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agentConfigs := map[string]interface{}{
-				"hostname": "my-agent-hostname",
+				"hostname":         "my-agent-hostname",
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
 			}
 			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
 				config.MockModule(),
