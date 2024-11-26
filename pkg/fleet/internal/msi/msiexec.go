@@ -137,7 +137,9 @@ func (m *Msiexec) openAndProcessLogFile() ([]byte, error) {
 		}
 		return nil, err
 	}
-	return m.processLogFile(logfile)
+	result, err := m.processLogFile(logfile)
+	_ = logfile.Close()
+	return result, err
 }
 
 // processLogFile takes an open file and processes it with a series of processors to obtain
