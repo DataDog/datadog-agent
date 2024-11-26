@@ -102,7 +102,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.sender,
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.auditor, p.sender,
 			p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
