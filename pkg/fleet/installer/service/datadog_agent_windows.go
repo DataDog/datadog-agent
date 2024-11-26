@@ -112,6 +112,7 @@ func installAgentPackage(target string, args []string) error {
 	if err != nil {
 		return err
 	}
+	logFile := path.Join(tempDir, "msi.log")
 
 	cmd, err := msi.Cmd(
 		msi.Install(),
@@ -125,7 +126,7 @@ func installAgentPackage(target string, args []string) error {
 		output, err = cmd.Run()
 	}
 	if err != nil {
-		return fmt.Errorf("failed to install Agent %s: %w\n%s", target, err, string(output))
+		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s\n", target, err, logFile, string(output))
 	}
 	return nil
 }
