@@ -59,7 +59,7 @@ func killPreviousInstances(cfg LifecycleConfig) {
 	args := cfg.commandArgs(kill)
 
 	// Ensuring no previous instances exists.
-	c := exec.CommandContext(timedContext, "docker", args...)
+	c := exec.CommandContext(timedContext, cfg.command(), args...)
 	c.Env = append(c.Env, cfg.Env()...)
 
 	// run synchronously to ensure all instances are killed
