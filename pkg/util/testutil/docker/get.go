@@ -32,8 +32,8 @@ func GetMainPID(dockerName string) (int64, error) {
 	return pid, err
 }
 
-// GetID returns the ID of a docker container.
-func GetID(dockerName string) (string, error) {
+// GetContainerID returns the ID of a docker container.
+func GetContainerID(dockerName string) (string, error) {
 	// Ensuring no previous instances exists.
 	c := exec.Command("docker", "inspect", "-f", "{{.Id}}", dockerName)
 	var stdout, stderr bytes.Buffer
