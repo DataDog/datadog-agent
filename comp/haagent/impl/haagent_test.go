@@ -117,7 +117,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			},
 			expectedApplyID: testConfigID,
 			expectedApplyStatus: state.ApplyStatus{
-				State: state.ApplyStateUnacknowledged,
+				State: state.ApplyStateAcknowledged,
 			},
 		},
 		{
