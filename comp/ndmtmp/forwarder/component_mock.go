@@ -12,5 +12,5 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 // It is a gomock-generated mock of EventPlatformForwarder.
 type MockComponent interface {
 	Component
-	EXPECT() *mock.MockEventPlatformForwarderMockRecorder
+	EXPECT() *mock.MockComponentMockRecorder
 }

@@ -91,7 +91,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	stats := &teststatsd.Client{}
 
-	mockEpForwarder := eventplatformmock.NewMockEventPlatformForwarder(gomock.NewController(t))
+	mockEpForwarder := eventplatformmock.NewMockComponent(gomock.NewController(t))
 	npCollector.epForwarder = mockEpForwarder
 
 	app.RequireStart()

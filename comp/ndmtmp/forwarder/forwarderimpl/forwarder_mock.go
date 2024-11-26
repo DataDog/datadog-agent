@@ -20,7 +20,7 @@ import (
 
 func getMockForwarder(t testing.TB) forwarder.MockComponent {
 	ctrl := gomock.NewController(t)
-	return eventplatformmock.NewMockEventPlatformForwarder(ctrl)
+	return eventplatformmock.NewMockComponent(ctrl)
 }
 
 // MockModule defines a component with a mock forwarder

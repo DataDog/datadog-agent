@@ -36,7 +36,7 @@ const (
 	EventTypeServiceDiscovery = "service-discovery"
 )
 
-//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=../mock/epforwarder_mockgen.go
+//go:generate mockgen -source=../def/$GOFILE -package=mock -destination=../mock/epforwarder_mockgen.go
 
 // Component is the interface of the event platform forwarder component.
 type Component interface {
