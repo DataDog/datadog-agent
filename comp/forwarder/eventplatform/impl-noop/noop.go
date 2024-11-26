@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package implnoop contains the logic for the noop forwarding component
-package implnoop
+// Package eventplatformimpl contains the logic for the noop forwarding component
+package eventplatformimpl
 
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"

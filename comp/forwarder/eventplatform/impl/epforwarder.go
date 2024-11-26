@@ -13,10 +13,9 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/fx"
-
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -481,9 +480,9 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 
 // Requires defined the eventplatform requirements
 type Requires struct {
-	fx.In
+	compdef.In
 	Config                configcomp.Component
-	Lc                    fx.Lifecycle
+	Lc                    compdef.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 }
@@ -492,7 +491,7 @@ type Requires struct {
 func NewComponent(reqs Requires) eventplatform.Component {
 	forwarder := newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver)
 
-	reqs.Lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			forwarder.start()
 			return nil
