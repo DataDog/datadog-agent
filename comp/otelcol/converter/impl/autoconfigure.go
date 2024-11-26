@@ -129,43 +129,54 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 	if !ok {
 		return
 	}
-	datadog, ok := exporterMap["datadog"]
-	if !ok {
-		return
-	}
-	datadogMap, ok := datadog.(map[string]any)
-	if !ok {
-		return
-	}
-	api, ok := datadogMap["api"]
-	if !ok {
-		return
-	}
-	apiMap, ok := api.(map[string]any)
-	if !ok {
-		return
-	}
-
-	apiKey, ok := apiMap["key"]
-	if ok {
-		key, ok := apiKey.(string)
-		if ok && key != "" {
-			match, _ := regexp.MatchString(secretRegex, apiKey.(string))
-			if !match {
+	for exporter, _ := range exporterMap {
+		if componentName(exporter) == "datadog" {
+			datadog, ok := exporterMap[exporter]
+			if !ok {
 				return
+			}
+			datadogMap, ok := datadog.(map[string]any)
+			if !ok {
+				exporterMap[exporter] = map[string]any{}
+				datadogMap = exporterMap[exporter].(map[string]any)
+			}
+			api, ok := datadogMap["api"]
+			if !ok {
+				datadogMap["api"] = map[string]any{}
+				api = datadogMap["api"]
+			}
+			apiMap, ok := api.(map[string]any)
+			if !ok {
+				return
+			}
+
+			apiKey, ok := apiMap["key"]
+			if ok {
+				key, ok := apiKey.(string)
+				if ok && key != "" {
+					match, _ := regexp.MatchString(secretRegex, apiKey.(string))
+					if !match {
+						return
+					}
+				}
+			}
+			// this is the only reference to Requires.Conf
+			// TODO: add logic to either fail or log message if api key not found
+			if coreCfg != nil {
+				if apiKey == nil || apiKey == "" {
+					apiMap["key"] = coreCfg.Get("api_key")
+				}
+				apiSite, _ := apiMap["site"]
+				coreSite := coreCfg.Get("site")
+				if (apiSite == nil || apiSite == "") && coreSite != nil {
+					apiMap["site"] = ""
+					apiSite = apiMap["site"]
+				}
+				if apiSite == "" {
+					apiMap["site"] = coreCfg.Get("site")
+				}
 			}
 		}
 	}
-	// this is the only reference to Requires.Conf
-	// TODO: add logic to either fail or log message if api key not found
-	if coreCfg != nil {
-		apiMap["key"] = coreCfg.Get("api_key")
-
-		apiSite, ok := apiMap["site"]
-		if ok && apiSite == "" {
-			apiMap["site"] = coreCfg.Get("site")
-		}
-	}
-
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
