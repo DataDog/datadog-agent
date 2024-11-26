@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -85,6 +86,7 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
+		haagentmock.Module(),
 		fx.Provide(func() sender.SenderManager {
 			return suite.SenderManagerMock
 		}),

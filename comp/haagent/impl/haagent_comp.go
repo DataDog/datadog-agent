@@ -28,7 +28,7 @@ type Provides struct {
 
 // NewComponent creates a new haagent component
 func NewComponent(reqs Requires) (Provides, error) {
-	haAgentConfigs := newHaAgentConfigs(reqs.AgentConfig)
+	haAgentConfigs := newHaAgentConfigs(reqs.AgentConfig, reqs.Logger)
 	haAgent := newHaAgentImpl(reqs.Logger, haAgentConfigs)
 	var rcListener rctypes.ListenerProvider
 	if haAgent.Enabled() {

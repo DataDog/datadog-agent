@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -122,16 +123,16 @@ func TestWorkerInit(t *testing.T) {
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	senderManager := aggregator.NewNoOpSenderManager()
-	_, err := NewWorker(senderManager, 1, 2, nil, checksTracker, mockShouldAddStatsFunc)
+	_, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, nil, checksTracker, mockShouldAddStatsFunc)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(senderManager, 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc)
+	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(senderManager, 1, 2, pendingChecksChan, checksTracker, nil)
+	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, pendingChecksChan, checksTracker, nil)
 	require.NotNil(t, err)
 
-	worker, err := NewWorker(senderManager, 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	assert.Nil(t, err)
 	assert.NotNil(t, worker)
 }
@@ -150,7 +151,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 			assert.Nil(t, err)
 
 			worker.Run()
@@ -172,7 +173,7 @@ func TestWorkerName(t *testing.T) {
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
-		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 		assert.Nil(t, err)
 		assert.NotNil(t, worker)
 
@@ -224,7 +225,7 @@ func TestWorker(t *testing.T) {
 	pendingChecksChan <- testCheck1
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 
 	wg.Add(1)
@@ -284,6 +285,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		checksTracker,
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) { return nil, nil },
+		haagentmock.NewMockHaAgent(),
 		100*time.Millisecond,
 	)
 	require.Nil(t, err)
@@ -354,7 +356,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	}
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -399,7 +401,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	pendingChecksChan <- testCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 
 	worker.Run()
@@ -453,7 +455,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	pendingChecksChan <- squelchedStatsCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc)
 	require.Nil(t, err)
 
 	worker.Run()
@@ -505,6 +507,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		func() (sender.Sender, error) {
 			return mockSender, nil
 		},
+		haagentmock.NewMockHaAgent(),
 		pollingInterval,
 	)
 	require.Nil(t, err)
@@ -575,6 +578,7 @@ func TestWorkerSenderNil(t *testing.T) {
 		func() (sender.Sender, error) {
 			return nil, fmt.Errorf("testerr")
 		},
+		haagentmock.NewMockHaAgent(),
 		pollingInterval,
 	)
 	require.Nil(t, err)
@@ -615,6 +619,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 		func() (sender.Sender, error) {
 			return mockSender, nil
 		},
+		haagentmock.NewMockHaAgent(),
 		pollingInterval,
 	)
 	require.Nil(t, err)

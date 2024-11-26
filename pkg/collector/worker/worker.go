@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -53,11 +54,13 @@ type Worker struct {
 	runnerID                int
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
+	haAgent                 haagent.Component
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	senderManager sender.SenderManager,
+	haAgent haagent.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -84,6 +87,7 @@ func NewWorker(
 		checksTracker,
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
+		haAgent,
 		pollingInterval,
 	)
 }
@@ -98,6 +102,7 @@ func newWorkerWithOptions(
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
+	haAgent haagent.Component,
 	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 
@@ -115,6 +120,7 @@ func newWorkerWithOptions(
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
+		haAgent:                 haAgent,
 		utilizationTickInterval: utilizationTickInterval,
 	}, nil
 }
@@ -138,6 +144,14 @@ func (w *Worker) Run() {
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {
 			checkLogger.Debug("Check is already running, skipping execution...")
+			continue
+		}
+
+		if !w.shouldRunIntegrationInstance(check) {
+			// TODO: TEST ME
+			checkLogger.Debug("HA Integration skipped")
+			// Remove the check from the running list
+			w.checksTracker.DeleteCheck(check.ID())
 			continue
 		}
 
@@ -210,6 +224,13 @@ func (w *Worker) Run() {
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
+}
+
+func (w *Worker) shouldRunIntegrationInstance(check check.Check) bool {
+	if w.haAgent.Enabled() && w.haAgent.IsHaIntegration(check.String()) {
+		return w.haAgent.IsLeader()
+	}
+	return true
 }
 
 func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {

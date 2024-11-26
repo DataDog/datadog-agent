@@ -22,4 +22,7 @@ type Component interface {
 	// SetLeader takes the leader agent hostname as input, if it matches the current agent hostname,
 	// the isLeader state is set to true, otherwise false.
 	SetLeader(leaderAgentHostname string)
+
+	// IsHaIntegration returns true if the integration type is an HA Integration
+	IsHaIntegration(checkType string) bool
 }

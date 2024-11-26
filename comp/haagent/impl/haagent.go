@@ -50,6 +50,10 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 	h.isLeader.Store(agentHostname == leaderAgentHostname)
 }
 
+func (h *haAgentImpl) IsHaIntegration(integrationName string) bool {
+	return h.haAgentConfigs.isHaIntegrationMap[integrationName]
+}
+
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	h.log.Debugf("Updates received: count=%d", len(updates))
 
