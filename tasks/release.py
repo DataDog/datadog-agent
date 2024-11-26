@@ -100,23 +100,6 @@ def deduce_and_ask_version(ctx, branch, as_str=True, yes=False) -> str | Version
     raise Exit(color_message("Aborting.", "red"), code=1)
 
 
-# TODO A
-# def verify_version(version: str) -> None:
-#     assert VERSION_RE.match(version), f"Invalid version: {version}"
-
-
-# TODO A
-# def verify_version_nonrc(version: str) -> None:
-#     assert VERSION_RE.match(version), f"Invalid version: {version}"
-
-
-# TODO A
-# def get_branch_from_version(version: str) -> str:
-#     verify_version(version)
-
-#     return version.removesuffix('.0') + '.x'
-
-
 def get_all_version_tags(ctx) -> list[str]:
     """Returns the tags for all the versions of the Agent in git."""
 
@@ -183,8 +166,7 @@ def update_modules(ctx, release_branch=None, version=None, yes=False):
         for module in modules.values():
             for dependency in module.dependencies:
                 dependency_mod = modules[dependency]
-                # TODO A: ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
-                print(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
 def __get_force_option(force: bool) -> str:
