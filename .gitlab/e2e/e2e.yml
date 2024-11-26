@@ -413,16 +413,16 @@ new-e2e-installer-windows:
   parallel:
     matrix:
       # agent-package
-      - EXTRA_PARAMS: --run TestAgentInstallsWithAgentUser
-      - EXTRA_PARAMS: --run TestAgentInstalls
-      - EXTRA_PARAMS: --run TestAgentUpgrades
+      - EXTRA_PARAMS: --run "TestAgentInstallsWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$"
       # install-script
-      - EXTRA_PARAMS: --run TestInstallScriptWithAgentUser
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
-      - EXTRA_PARAMS: --run TestInstaller
-      - EXTRA_PARAMS: --run TestInstallerRollback
-      - EXTRA_PARAMS: --run TestInstallerSystemIntegrity
-      - EXTRA_PARAMS: --run TestInstallerUpgrades
+      - EXTRA_PARAMS: --run "TestInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
+      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
 
 
 new-e2e-installer-ansible:
