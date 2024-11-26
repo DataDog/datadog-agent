@@ -327,12 +327,6 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// are not present for cases like running unit tests, fall back to the compile
 	// time values.
 	if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
-		// Support empty or relative pythonHome provided at compile time
-		if pythonHome3 == "" {
-			pythonHome3 = _here
-		} else if !filepath.IsAbs(pythonHome3) {
-			pythonHome3 = filepath.join(_here, pythonHome3)
-		}
 		log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
 	} else {
 		pythonHome3 = embeddedPythonHome3
