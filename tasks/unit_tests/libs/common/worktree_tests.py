@@ -14,7 +14,6 @@ def get_ctx():
 
 class TestWorktree(unittest.TestCase):
     def setUp(self):
-        print('SETUP')
         # Pull only once
         init_env(get_ctx(), '6.53.x')
         os.environ['AGENT_WORKTREE_NO_PULL'] = '1'
@@ -24,8 +23,7 @@ class TestWorktree(unittest.TestCase):
             self.assertTrue(is_worktree())
 
     def test_context_is_worktree_false(self):
-        with agent_context(get_ctx(), None):
-            self.assertFalse(is_worktree())
+        self.assertFalse(is_worktree())
 
     def test_context_nested(self):
         with agent_context(get_ctx(), '6.53.x'):
@@ -36,13 +34,17 @@ class TestWorktree(unittest.TestCase):
     def test_context_pwd(self):
         ctx = get_ctx()
 
-        with agent_context(ctx, None):
-            pwdlocal = ctx.run('pwd').stdout
+        with agent_context(ctx, None, skip_checkout=True):
+            pwdnone = ctx.run('pwd').stdout
 
         with agent_context(ctx, '6.53.x'):
             pwd6 = ctx.run('pwd').stdout
 
-        self.assertNotEqual(pwd6, pwdlocal)
+        with agent_context(ctx, 'main'):
+            pwdmain = ctx.run('pwd').stdout
+
+        self.assertEqual(pwd6, pwdnone)
+        self.assertEqual(pwd6, pwdmain)
 
     def test_context_modules(self):
         ctx = get_ctx()
@@ -66,7 +68,7 @@ class TestWorktree(unittest.TestCase):
 
         self.assertNotEqual(branch6, branch7)
 
-    def test_context_no_switch(self):
+    def test_context_no_checkout(self):
         ctx = get_ctx()
 
         with agent_context(ctx, '6.53.x'):
@@ -75,8 +77,21 @@ class TestWorktree(unittest.TestCase):
         with agent_context(ctx, 'main'):
             branch7 = get_default_branch()
 
-        with agent_context(ctx, 'main', no_checkout=True):
-            branch_noswitch = get_default_branch()
+        with agent_context(ctx, 'main', skip_checkout=True):
+            branch_no_checkout = get_default_branch()
 
         self.assertNotEqual(branch6, branch7)
-        self.assertEqual(branch7, branch_noswitch)
+        self.assertEqual(branch7, branch_no_checkout)
+
+    def test_context_no_checkout_error(self):
+        ctx = get_ctx()
+
+        with agent_context(ctx, '6.53.x'):
+            pass
+
+        def switch_context():
+            # The current branch is not main
+            with agent_context(ctx, 'main', skip_checkout=True):
+                pass
+
+        self.assertRaises(AssertionError, switch_context)

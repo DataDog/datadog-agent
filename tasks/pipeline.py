@@ -831,16 +831,16 @@ def test_merge_queue(ctx):
     # Create a new main and push it
     print("Creating a new main branch")
     timestamp = int(datetime.now(timezone.utc).timestamp())
-    test_main = f"mq/test_{timestamp}"
+    test_default = f"mq/test_{timestamp}"
     current_branch = get_current_branch(ctx)
     ctx.run(f"git checkout {get_default_branch()}", hide=True)
     ctx.run("git pull", hide=True)
-    ctx.run(f"git checkout -b {test_main}", hide=True)
-    ctx.run(f"git push origin {test_main}", hide=True)
+    ctx.run(f"git checkout -b {test_default}", hide=True)
+    ctx.run(f"git push origin {test_default}", hide=True)
     # Create a PR towards this new branch and adds it to the merge queue
     print("Creating a PR and adding it to the merge queue")
     gh = GithubAPI()
-    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_main, current_branch)
+    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_default, current_branch)
     pr.create_issue_comment("/merge")
     # Search for the generated pipeline
     print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
@@ -850,7 +850,7 @@ def test_merge_queue(ctx):
         time.sleep(30)
         pipelines = agent.pipelines.list(per_page=100)
         try:
-            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_main}"))
+            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_default}"))
             print(f"Pipeline found: {pipeline.web_url}")
             break
         except StopIteration as e:
@@ -868,8 +868,8 @@ def test_merge_queue(ctx):
         pipeline.cancel()
     pr.edit(state="closed")
     ctx.run(f"git checkout {current_branch}", hide=True)
-    ctx.run(f"git branch -D {test_main}", hide=True)
-    ctx.run(f"git push origin :{test_main}", hide=True)
+    ctx.run(f"git branch -D {test_default}", hide=True)
+    ctx.run(f"git push origin :{test_default}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
 

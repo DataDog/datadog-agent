@@ -53,6 +53,7 @@ from tasks.libs.releasing.documentation import (
 )
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
+    DEFAULT_BRANCHES_AGENT6,
     UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
@@ -894,8 +895,9 @@ def check_omnibus_branches(ctx, release_branch):
     with agent_context(ctx, release_branch):
         base_branch = _get_release_json_value('base_branch')
         if base_branch == get_default_branch():
-            omnibus_ruby_branch = DEFAULT_BRANCHES['omnibus-ruby']
-            omnibus_software_branch = DEFAULT_BRANCHES['omnibus-software']
+            default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES
+            omnibus_ruby_branch = default_branches['omnibus-ruby']
+            omnibus_software_branch = default_branches['omnibus-software']
         else:
             omnibus_ruby_branch = base_branch
             omnibus_software_branch = base_branch

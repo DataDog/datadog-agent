@@ -11,6 +11,7 @@ from pathlib import Path
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_current_branch
 
 WORKTREE_DIRECTORY = Path.cwd().parent / "datadog-agent-worktree"
 LOCAL_DIRECTORY = Path.cwd().resolve()
@@ -52,18 +53,26 @@ def remove_env(ctx):
 def is_worktree():
     """Will return True if the current environment is a worktree environment."""
 
-    return Path.cwd() != LOCAL_DIRECTORY
+    return Path.cwd() == WORKTREE_DIRECTORY
 
 
-def enter_env(ctx, branch: str, no_checkout=False):
+def enter_env(ctx, branch: str | None, skip_checkout=False):
     """Enters the worktree environment."""
 
-    if not no_checkout:
+    if not branch:
+        assert skip_checkout, 'skip_checkout must be set to True if branch is None'
+
+    if not skip_checkout:
         init_env(ctx, branch)
     else:
-        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_switch is set to True"
+        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and skip_checkout is set to True"
 
     os.chdir(WORKTREE_DIRECTORY)
+    if skip_checkout and branch:
+        current_branch = get_current_branch(ctx)
+        assert (
+            current_branch == branch
+        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `inv worktree.checkout {branch}`."
 
 
 def exit_env():
@@ -73,34 +82,28 @@ def exit_env():
 
 
 @contextmanager
-def agent_context(ctx, branch: str | None, no_checkout=False):
-    """Applies code to the worktree environment if the version is not None.
+def agent_context(ctx, branch: str | None, skip_checkout=False):
+    """Applies code to the worktree environment if the branch is not None.
 
     Args:
-        branch: The branch to switch to.
-        no_checkout: If True, the branch will not be switched (no pull will be performed too).
+        branch: The branch to switch to. If None, will enter the worktree environment without switching branch (ensures that skip_checkout is True).
+        skip_checkout: If True, the branch will not be checked out (no pull will be performed too).
 
     Usage:
         > with agent_context(ctx, branch):
         >    ctx.run("head CHANGELOG.rst")  # Displays the changelog of the target branch
     """
 
-    if branch is not None:
-        # Do not stack two environments
-        if is_worktree():
-            yield
-            return
+    # Do not stack two environments
+    if is_worktree():
+        yield
+        return
 
-        try:
-            # Enter
-            enter_env(ctx, branch, no_checkout=no_checkout)
-
-            yield
-        finally:
-            # Exit
-            exit_env()
-    else:
-        # NOTE: This ensures that we don't push local context from a worktree context (context might be switched within inner functions)
-        assert not is_worktree(), 'Local context cannot be used within a worktree context'
+    try:
+        # Enter
+        enter_env(ctx, branch, skip_checkout=skip_checkout)
 
         yield
+    finally:
+        # Exit
+        exit_env()
