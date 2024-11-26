@@ -336,7 +336,7 @@ def set_new_release_branch(branch):
     _save_release_json(rj)
 
 
-def generate_repo_data(warning_mode, next_version, release_branch):
+def generate_repo_data(ctx, warning_mode, next_version, release_branch):
     repos = ["integrations-core"] if warning_mode else ALL_REPOS
     previous_tags = find_previous_tags("release-a7", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
@@ -346,7 +346,7 @@ def generate_repo_data(warning_mode, next_version, release_branch):
             branch = (
                 next_version.branch()
                 if repo == "integrations-core"
-                else (DEFAULT_BRANCHES_AGENT6 if is_agent6() else DEFAULT_BRANCHES).get(repo, get_default_branch())
+                else (DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES).get(repo, get_default_branch())
             )
         data[repo] = {
             'branch': branch,

@@ -1173,7 +1173,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     with agent_context(ctx, release_branch):
         major_version = int(release_branch.split('.')[0])
         next_version = next_rc_version(ctx, major_version)
-        repo_data = generate_repo_data(warning_mode, next_version, release_branch)
+        repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])

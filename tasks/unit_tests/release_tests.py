@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-from invoke import MockContext, Result
+from invoke import Context, MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks import release
@@ -634,7 +634,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_integrations_core_only_main(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(True, next_version, "main")
+        repo_data = generate_repo_data(Context(), True, next_version, "main")
         self.assertEqual(len(repo_data), 1)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
@@ -645,7 +645,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_integrations_core_only_release(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(True, next_version, "9.1.x")
+        repo_data = generate_repo_data(Context(), True, next_version, "9.1.x")
         self.assertEqual(len(repo_data), 1)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
@@ -664,7 +664,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_all_repos_default_branch(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(False, next_version, "main")
+        repo_data = generate_repo_data(Context(), False, next_version, "main")
         self.assertEqual(len(repo_data), 5)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
@@ -691,7 +691,7 @@ class TestGenerateRepoData(unittest.TestCase):
     def test_all_repos_release(self):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
-        repo_data = generate_repo_data(False, next_version, "9.1.x")
+        repo_data = generate_repo_data(Context(), False, next_version, "9.1.x")
         self.assertEqual(len(repo_data), 5)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.x", repo_data["omnibus-software"]["branch"])
