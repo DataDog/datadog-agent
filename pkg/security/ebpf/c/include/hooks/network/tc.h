@@ -52,9 +52,18 @@ __attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *sk
     return ACT_OK;
 }
  
+__attribute__((always_inline)) int is_raw_packet_enabled() {
+    u32 key = 0;
+    u32 *enabled = bpf_map_lookup_elem(&raw_packet_enabled, &key);
+    return enabled && *enabled;
+}
 
 SEC("classifier/ingress")
 int classifier_raw_packet_ingress(struct __sk_buff *skb) {
+    if (!is_raw_packet_enabled()) {
+        return ACT_OK;
+    }
+
     struct packet_t *pkt = parse_packet(skb, INGRESS);
     if (!pkt) {
         return ACT_OK;
@@ -76,6 +85,10 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
 
 SEC("classifier/egress")
 int classifier_raw_packet_egress(struct __sk_buff *skb) {
+    if (!is_raw_packet_enabled()) {
+        return ACT_OK;
+    }
+
     struct packet_t *pkt = parse_packet(skb, EGRESS);
     if (!pkt) {
         return ACT_OK;

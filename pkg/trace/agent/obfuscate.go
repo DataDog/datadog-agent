@@ -6,6 +6,9 @@
 package agent
 
 import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -26,7 +29,7 @@ const (
 )
 
 func (a *Agent) obfuscateSpan(span *pb.Span) {
-	o := a.obfuscator
+	o := a.lazyInitObfuscator()
 
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		for k, v := range span.Meta {
@@ -108,7 +111,8 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 }
 
 func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
-	o := a.obfuscator
+	o := a.lazyInitObfuscator()
+
 	switch b.Type {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLString(b.Resource)
@@ -121,4 +125,24 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	case "redis":
 		b.Resource = o.QuantizeRedisString(b.Resource)
 	}
+}
+
+var (
+	obfuscatorLock sync.Mutex
+)
+
+func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
+	// Ensure thread safe initialization
+	obfuscatorLock.Lock()
+	defer obfuscatorLock.Unlock()
+
+	if a.obfuscator == nil {
+		if a.obfuscatorConf != nil {
+			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
+		} else {
+			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
+		}
+	}
+
+	return a.obfuscator
 }
