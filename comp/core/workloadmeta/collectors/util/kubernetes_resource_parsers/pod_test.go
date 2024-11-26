@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -50,6 +51,28 @@ func TestPodParser_Parse(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: "pvcName",
+						},
+					},
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name: "gpuContainer1",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							"nvidia.com/gpu": resource.Quantity{
+								Format: "1",
+							},
+						},
+					},
+				},
+				{
+					Name: "gpuContainer2",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							"gpu.intel.com/xe": resource.Quantity{
+								Format: "2",
+							},
 						},
 					},
 				},
@@ -97,6 +120,7 @@ func TestPodParser_Parse(t *testing.T) {
 		Ready:                      true,
 		IP:                         "127.0.0.1",
 		PriorityClass:              "priorityClass",
+		GPUVendorList:              []string{"nvidia", "intel"},
 		QOSClass:                   "Guaranteed",
 	}
 
