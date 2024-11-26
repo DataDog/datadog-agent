@@ -119,14 +119,14 @@ func Test_parseICMP(t *testing.T) {
 		{
 			description: "missing inner layers should return an error",
 			inHeader:    ipv4Header,
-			inPayload:   createMockICMPPacket(icmpLayer, nil, nil, false),
+			inPayload:   createMockICMPPacket(nil, icmpLayer, nil, nil, false),
 			expected:    nil,
 			errMsg:      "failed to decode inner ICMP payload",
 		},
 		{
 			description: "ICMP packet with partial TCP header should create icmpResponse",
 			inHeader:    ipv4Header,
-			inPayload:   createMockICMPPacket(icmpLayer, innerIPv4Layer, innerTCPLayer, true),
+			inPayload:   createMockICMPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
 			expected: &icmpResponse{
 				SrcIP:        srcIP,
 				DstIP:        dstIP,
@@ -141,7 +141,7 @@ func Test_parseICMP(t *testing.T) {
 		{
 			description: "full ICMP packet should create icmpResponse",
 			inHeader:    ipv4Header,
-			inPayload:   createMockICMPPacket(icmpLayer, innerIPv4Layer, innerTCPLayer, true),
+			inPayload:   createMockICMPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
 			expected: &icmpResponse{
 				SrcIP:        srcIP,
 				DstIP:        dstIP,
@@ -270,7 +270,7 @@ func createMockIPv4Header(srcIP, dstIP net.IP, protocol int) *ipv4.Header {
 	}
 }
 
-func createMockICMPPacket(icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) []byte {
+func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) []byte {
 	innerBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
@@ -301,6 +301,17 @@ func createMockICMPPacket(icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerT
 	gopacket.SerializeLayers(buf, opts,
 		icmpLayer,
 		gopacket.Payload(payload),
+	)
+
+	icmpBytes := buf.Bytes()
+	if ipLayer == nil {
+		return icmpBytes
+	}
+
+	buf = gopacket.NewSerializeBuffer()
+	gopacket.SerializeLayers(buf, opts,
+		ipLayer,
+		gopacket.Payload(icmpBytes),
 	)
 
 	return buf.Bytes()
