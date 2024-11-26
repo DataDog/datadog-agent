@@ -26,6 +26,33 @@ int classifier_egress(struct __sk_buff *skb) {
     return route_pkt(skb, pkt, EGRESS);
 };
 
+__attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *skb) {
+    struct raw_packet_event_t *evt = get_raw_packet_event();
+    if (evt == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    bpf_skb_pull_data(skb, 0);
+
+    u32 len = *(u32 *)(skb + offsetof(struct __sk_buff, len));
+    if (len > sizeof(evt->data)) {
+        len = sizeof(evt->data);
+    }
+
+    if (len > 1) {
+        if (bpf_skb_load_bytes(skb, 0, evt->data, len) < 0) {
+            return ACT_OK;
+        }
+        evt->len = skb->len;
+    } else {
+        evt->len = 0;
+    }
+
+    return ACT_OK;
+}
+ 
+
 SEC("classifier/ingress")
 int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     struct packet_t *pkt = parse_packet(skb, INGRESS);
@@ -33,7 +60,16 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    tail_call_to_classifier(skb, RAW_PACKET_FILTER);
+    // do not handle packet without process context
+    if (pkt->pid < 0) {
+        return ACT_OK;
+    }
+
+    if (prepare_raw_packet_event(skb) != ACT_OK) {
+        return ACT_OK;
+    }
+
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return ACT_OK;
 };
@@ -45,7 +81,16 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    tail_call_to_classifier(skb, RAW_PACKET_FILTER);
+    // do not handle packet without process context
+    if (pkt->pid < 0) {
+        return ACT_OK;
+    }
+
+    if (prepare_raw_packet_event(skb) != ACT_OK) {
+        return ACT_OK;
+    }
+
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return ACT_OK;
 };

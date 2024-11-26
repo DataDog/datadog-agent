@@ -387,9 +387,9 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
 			if test.enabled {
-				assert.NotNil(suite.T(), provides.FlareProvider.Callback)
+				assert.NotNil(suite.T(), provides.FlareProvider.FlareFiller.Callback)
 			} else {
-				assert.Nil(suite.T(), provides.FlareProvider.Callback)
+				assert.Nil(suite.T(), provides.FlareProvider.FlareFiller)
 			}
 		})
 	}

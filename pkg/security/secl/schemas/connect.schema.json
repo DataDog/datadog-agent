@@ -22,7 +22,8 @@
                 "connect": {
                     "type": "object",
                     "required": [
-                        "addr"
+                        "addr",
+                        "protocol"
                     ],
                     "properties": {
                         "addr": {
@@ -43,6 +44,9 @@
                                     "type": "integer"
                                 }
                             }
+                        },
+                        "protocol": {
+                            "type": "string"
                         }
                     }
                 }
