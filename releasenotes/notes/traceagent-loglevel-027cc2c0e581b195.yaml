@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: The trace agent endpoint for changing the configured log level now requires authentication so it is only accessible to other agent processes.
+    APM: The trace agent endpoint for changing the configured log level now requires authentication so it is only accessible to other Agent processes.
