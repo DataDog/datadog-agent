@@ -182,7 +182,7 @@ func RunSampleInDockerWithArgs(t *testing.T, name SampleName, image DockerImage,
 	}, 1*time.Second, 100*time.Millisecond, "failed to get docker PID")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerContainerID, err = dockerutils.GetID(containerName)
+		dockerContainerID, err = dockerutils.GetContainerID(containerName)
 		assert.NoError(c, err)
 	}, 1*time.Second, 100*time.Millisecond, "failed to get docker container ID")
 
