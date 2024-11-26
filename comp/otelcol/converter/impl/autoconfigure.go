@@ -137,17 +137,21 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			}
 			datadogMap, ok := datadog.(map[string]any)
 			if !ok {
-				exporterMap[exporter] = map[string]any{}
+				// datadog section is there, but there is nothing in it. We 
+				// need to add it so we can add to it.
+				exporterMap[exporter] = make(map[string]any)
 				datadogMap = exporterMap[exporter].(map[string]any)
 			}
 			api, ok := datadogMap["api"]
+			// ok can be true if api section is there but contains nothing (api == nil).
+			// In which case, we need to add it so we can add to it.
 			if !ok || api == nil {
-				datadogMap["api"] = map[string]any{}
+				datadogMap["api"] = make(map[string]any, 2)
 				api = datadogMap["api"]
 			}
 			apiMap, ok := api.(map[string]any)
 			if !ok {
-				apiMap = map[string]any{}
+				return
 			}
 			apiKey, ok := apiMap["key"]
 			if ok {
