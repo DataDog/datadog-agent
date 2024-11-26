@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package docker provides test utilities to execute workload inside docker or docker-compose.
+// Package testutil provides general test utilities
 package testutil
 
 import (
