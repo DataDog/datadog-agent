@@ -52,7 +52,7 @@ func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 	return s
 }
 
-func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplexer {
+func testDemux(log log.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
@@ -83,7 +83,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -103,7 +103,7 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -133,7 +133,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -156,7 +156,7 @@ func TestDestroySender(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -186,7 +186,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 
 	itemChan := make(chan senderItem, 10)
 	serviceCheckChan := make(chan servicecheck.ServiceCheck, 10)
@@ -209,7 +209,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 

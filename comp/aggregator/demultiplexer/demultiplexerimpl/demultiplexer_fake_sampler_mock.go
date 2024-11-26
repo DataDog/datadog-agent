@@ -14,7 +14,6 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -35,7 +34,6 @@ type fakeSamplerMockDependencies struct {
 	fx.In
 	Lc         fx.Lifecycle
 	Log        log.Component
-	Hostname   hostname.Component
 	Compressor compression.Component
 }
 
@@ -56,7 +54,7 @@ func (f *fakeSamplerMock) Stop(flush bool) {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.Compressor, time.Hour)
+	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Compressor, time.Hour)
 	mock := &fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}

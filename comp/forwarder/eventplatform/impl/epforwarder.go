@@ -479,6 +479,7 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	}
 }
 
+// Requires defined the eventplatform requirements
 type Requires struct {
 	fx.In
 	Config                configcomp.Component
@@ -489,8 +490,7 @@ type Requires struct {
 
 // NewComponent creates a new EventPlatformForwarder
 func NewComponent(reqs Requires) eventplatform.Component {
-	var forwarder *defaultEventPlatformForwarder
-	forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver)
+	forwarder := newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver)
 
 	reqs.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
