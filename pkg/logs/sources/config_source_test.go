@@ -109,15 +109,19 @@ func TestSubscribeAllConfig(t *testing.T) {
 	addedChan, _ := configSource.SubscribeAll()
 	fmt.Println("wack5")
 	log.Debug("WACKTEST5")
-	select {
-	case added := <-addedChan:
-		fmt.Println("CHANNEL IM READING FROM IS ", addedChan)
-		// Check the type and path of the source added
-		assert.Equal(t, "file", added.Config.Type)
-	case <-time.After(10 * time.Second):
-		fmt.Println("ERROR TIME OUT")
-		log.Debug("ERROR TIME OUT 2")
-		t.Fatal("Timeout waiting for source addition")
+	for {
+		select {
+		case added := <-addedChan:
+			fmt.Println("CHANNEL IM READING FROM IS ", addedChan)
+			// Check the type and path of the source added
+			assert.Equal(t, "file", added.Config.Type)
+			return
+		case <-time.After(10 * time.Second):
+			fmt.Println("ERROR TIME OUT")
+			log.Debug("ERROR TIME OUT 2")
+			t.Fatal("Timeout waiting for source addition")
+			return
+		}
 	}
 }
 
