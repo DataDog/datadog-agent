@@ -21,7 +21,7 @@ retract (
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
-	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
+	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
@@ -603,6 +603,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
+	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/containerd/containerd/api v1.8.0
@@ -641,7 +642,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.135
+	github.com/DataDog/agent-payload/v5 v5.0.137
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.59.0

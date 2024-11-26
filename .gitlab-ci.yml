@@ -786,6 +786,7 @@ workflow:
     when: never
 
 .system_probe_change_paths: &system_probe_change_paths
+  - cmd/system-probe/**/*
   - pkg/collector/corechecks/ebpf/**/*
   - pkg/collector/corechecks/servicediscovery/module/*
   - pkg/ebpf/**/*
