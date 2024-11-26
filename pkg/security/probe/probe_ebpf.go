@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -113,6 +114,7 @@ type EBPFProbe struct {
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -491,7 +493,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		}
 		entry.Retain()
 
-		event := newEBPFEventFromPCE(entry, p.fieldHandlers)
+		event := p.newEBPFPooledEventFromPCE(entry)
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -503,6 +505,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
+		p.eventPool.Put(event)
 	}
 }
 
@@ -702,7 +705,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				return
 			}
 
-			relatedEvent := newEBPFEventFromPCE(entry, p.fieldHandlers)
+			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
 
 			if err != nil {
 				var errResolution *path.ErrPathResolution
@@ -1186,6 +1189,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// send related events
 	for _, relatedEvent := range relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
+		p.eventPool.Put(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
 
@@ -2112,6 +2116,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	}
 	p.fieldHandlers = fh
 
+	p.eventPool = ddsync.NewTypedPool(func() *model.Event {
+		return newEBPFEvent(p.fieldHandlers)
+	})
+
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
 		p.managerOptions.SkipRingbufferReaderStartup = map[string]bool{
@@ -2452,3 +2460,23 @@ func (p *EBPFProbe) GetAgentContainerContext() *events.AgentContainerContext {
 var newPlaceholderProcessCacheEntryPTraceMe = sync.OnceValue(func() *model.ProcessCacheEntry {
 	return model.NewPlaceholderProcessCacheEntry(0, 0, false)
 })
+
+// newEBPFPooledEventFromPCE returns a new event from a process cache entry
+func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *model.Event {
+	eventType := model.ExecEventType
+	if !entry.IsExec {
+		eventType = model.ForkEventType
+	}
+
+	event := p.eventPool.Get()
+
+	event.Type = uint32(eventType)
+	event.TimestampRaw = uint64(time.Now().UnixNano())
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.Exec.Process = &entry.Process
+	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.CGroup = entry.CGroup
+
+	return event
+}
