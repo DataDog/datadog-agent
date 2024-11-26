@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package docker provides API to manage docker/docker-compose lifecycle in UTs
 package docker
 
 import (
