@@ -47,15 +47,16 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	generatedName      string
-	ddServiceName      string
-	ddServiceInjected  bool
-	language           language.Language
-	apmInstrumentation apm.Instrumentation
-	cmdLine            []string
-	startTimeMilli     uint64
-	cpuTime            uint64
-	cpuUsage           float64
+	generatedName       string
+	generatedNameSource string
+	ddServiceName       string
+	ddServiceInjected   bool
+	language            language.Language
+	apmInstrumentation  apm.Instrumentation
+	cmdLine             []string
+	startTimeMilli      uint64
+	cpuTime             uint64
+	cpuUsage            float64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -413,13 +414,14 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	apmInstrumentation := apm.Detect(lang, ctx)
 
 	return &serviceInfo{
-		generatedName:      nameMeta.Name,
-		ddServiceName:      nameMeta.DDService,
-		language:           lang,
-		apmInstrumentation: apmInstrumentation,
-		ddServiceInjected:  nameMeta.DDServiceInjected,
-		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeMilli:     uint64(createTime),
+		generatedName:       nameMeta.Name,
+		generatedNameSource: string(nameMeta.Source),
+		ddServiceName:       nameMeta.DDService,
+		language:            lang,
+		apmInstrumentation:  apmInstrumentation,
+		ddServiceInjected:   nameMeta.DDServiceInjected,
+		cmdLine:             sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeMilli:      uint64(createTime),
 	}, nil
 }
 
@@ -546,18 +548,19 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:                int(pid),
-		Name:               name,
-		GeneratedName:      info.generatedName,
-		DDService:          info.ddServiceName,
-		DDServiceInjected:  info.ddServiceInjected,
-		Ports:              ports,
-		APMInstrumentation: string(info.apmInstrumentation),
-		Language:           string(info.language),
-		RSS:                rss,
-		CommandLine:        info.cmdLine,
-		StartTimeMilli:     info.startTimeMilli,
-		CPUCores:           info.cpuUsage,
+		PID:                 int(pid),
+		Name:                name,
+		GeneratedName:       info.generatedName,
+		GeneratedNameSource: info.generatedNameSource,
+		DDService:           info.ddServiceName,
+		DDServiceInjected:   info.ddServiceInjected,
+		Ports:               ports,
+		APMInstrumentation:  string(info.apmInstrumentation),
+		Language:            string(info.language),
+		RSS:                 rss,
+		CommandLine:         info.cmdLine,
+		StartTimeMilli:      info.startTimeMilli,
+		CPUCores:            info.cpuUsage,
 	}
 }
 

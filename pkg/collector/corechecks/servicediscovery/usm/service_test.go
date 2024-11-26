@@ -56,6 +56,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		expectedGeneratedName      string
 		expectedDDService          string
 		expectedAdditionalServices []string
+		expectedSource             ServiceNameSource
 		ddServiceInjected          bool
 		fs                         *SubDirFS
 		skipOnWindows              bool
@@ -251,6 +252,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			lang:                  language.Node,
 			expectedGeneratedName: "my-awesome-package",
 			fs:                    &subUsmTestData,
+			expectedSource:        Nodejs,
 		},
 		{
 			name: "node js with a symlink to a .js file and valid package.json",
@@ -323,6 +325,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
 			fs:                         &sub,
 			envs:                       map[string]string{"PWD": "/sibiling"},
+			expectedSource:             JBoss,
 		},
 		{
 			name: "wildfly 18 domain",
@@ -666,6 +669,10 @@ func TestExtractServiceMetadata(t *testing.T) {
 				require.Equal(t, tt.expectedGeneratedName, meta.Name)
 				require.Equal(t, tt.expectedAdditionalServices, meta.AdditionalNames)
 				require.Equal(t, tt.ddServiceInjected, meta.DDServiceInjected)
+				require.NotEmpty(t, meta.Source)
+				if len(tt.expectedSource) != 0 {
+					require.Equal(t, tt.expectedSource, meta.Source)
+				}
 			}
 		})
 	}

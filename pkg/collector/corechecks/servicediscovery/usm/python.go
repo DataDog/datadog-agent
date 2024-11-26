@@ -56,7 +56,7 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || isEnvVariable
 
 		if moduleFlag {
-			return NewServiceMetadata(a), true
+			return NewServiceMetadata(a, CommandLine), true
 		}
 
 		if !shouldSkipArg {
@@ -72,13 +72,13 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 				stripped, filename = path.Split(stripped)
 				// If the path is a root level file, return the filename
 				if stripped == "" {
-					return NewServiceMetadata(p.findNearestTopLevel(filename)), true
+					return NewServiceMetadata(p.findNearestTopLevel(filename), CommandLine), true
 				}
 			}
 			if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
-				return NewServiceMetadata(value), true
+				return NewServiceMetadata(value, Python), true
 			}
-			return NewServiceMetadata(p.findNearestTopLevel(stripped)), true
+			return NewServiceMetadata(p.findNearestTopLevel(stripped), Python), true
 		}
 
 		if hasFlagPrefix && a == "-m" {
@@ -133,20 +133,20 @@ func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
 	if fromEnv, ok := extractEnvVar(g.ctx.Envs, gunicornEnvCmdArgs); ok {
 		name, ok := extractGunicornNameFrom(strings.Split(fromEnv, " "))
 		if ok {
-			return NewServiceMetadata(name), true
+			return NewServiceMetadata(name, Gunicorn), true
 		}
 	}
 	if wsgiApp, ok := extractEnvVar(g.ctx.Envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
-		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp)), true
+		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp), Gunicorn), true
 	}
 
 	if name, ok := extractGunicornNameFrom(args); ok {
 		// gunicorn replaces the cmdline with something like "gunicorn: master
 		// [package]", so strip out the square brackets.
 		name = strings.Trim(name, "[]")
-		return NewServiceMetadata(name), true
+		return NewServiceMetadata(name, CommandLine), true
 	}
-	return NewServiceMetadata("gunicorn"), true
+	return NewServiceMetadata("gunicorn", CommandLine), true
 }
 
 func extractGunicornNameFrom(args []string) (string, bool) {
