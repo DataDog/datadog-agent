@@ -357,7 +357,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
-	config.BindEnvAndSetDefault("flare.rc_profiling_runtime", 60*time.Second)
+	config.BindEnvAndSetDefault("flare.rc_profiling_runtime", 30*time.Second)
+	config.BindEnvAndSetDefault("flare.profile_overhead_runtime", 10*time.Second)
+	config.BindEnvAndSetDefault("flare.rc_profiling_blockrate", 0)
+	config.BindEnvAndSetDefault("flare.rc_profiling_mutexfrac", 0)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
