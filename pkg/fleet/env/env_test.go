@@ -264,7 +264,7 @@ func TestToEnv(t *testing.T) {
 				"DD_SITE=datadoghq.eu",
 				"DD_REMOTE_UPDATES=true",
 				"DD_REMOTE_POLICIES=true",
-				"DD_MIRROR=https://mirror.example.com",
+				"DD_INSTALLER_MIRROR=https://mirror.example.com",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
 				"DD_INSTALLER_REGISTRY_USERNAME=username",

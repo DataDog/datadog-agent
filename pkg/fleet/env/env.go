@@ -24,7 +24,7 @@ const (
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envRemotePolicies        = "DD_REMOTE_POLICIES"
-	envMirror                = "DD_MIRROR"
+	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envRegistryUsername      = "DD_INSTALLER_REGISTRY_USERNAME"
@@ -180,6 +180,7 @@ func FromConfig(config model.Reader) *Env {
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
 		RemotePolicies:       config.GetBool("remote_policies"),
+		Mirror:               config.GetString("installer.mirror"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 		RegistryUsername:     config.GetString("installer.registry.username"),
