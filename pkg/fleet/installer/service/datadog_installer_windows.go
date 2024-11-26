@@ -11,6 +11,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"os"
+	"path"
 )
 
 const (
@@ -18,8 +21,13 @@ const (
 )
 
 // SetupInstaller installs and starts the installer
-func SetupInstaller(_ context.Context) (err error) {
-	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller))
+func SetupInstaller(_ context.Context) error {
+	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-installer")
+	if err != nil {
+		return err
+	}
+
+	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "setup_installer.log")))
 	if err != nil {
 		return fmt.Errorf("failed to setup installer: %w", err)
 	}
@@ -31,13 +39,18 @@ func SetupInstaller(_ context.Context) (err error) {
 }
 
 // RemoveInstaller removes the installer
-func RemoveInstaller(_ context.Context) (err error) {
+func RemoveInstaller(_ context.Context) error {
 	return msi.RemoveProduct("Datadog Installer")
 }
 
 // StartInstallerExperiment starts the installer experiment
-func StartInstallerExperiment(_ context.Context) (err error) {
-	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("experiment", datadogInstaller))
+func StartInstallerExperiment(_ context.Context) error {
+	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-installer")
+	if err != nil {
+		return err
+	}
+
+	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("experiment", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "start_installer_experiment.log")))
 	if err != nil {
 		return fmt.Errorf("failed to start installer experiment: %w", err)
 	}
@@ -46,8 +59,13 @@ func StartInstallerExperiment(_ context.Context) (err error) {
 }
 
 // StopInstallerExperiment stops the installer experiment
-func StopInstallerExperiment(_ context.Context) (err error) {
-	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller))
+func StopInstallerExperiment(_ context.Context) error {
+	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-installer")
+	if err != nil {
+		return err
+	}
+
+	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "stop_installer_experiment.log")))
 	if err != nil {
 		return fmt.Errorf("failed to stop installer experiment: %w", err)
 	}

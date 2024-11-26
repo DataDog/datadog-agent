@@ -12,8 +12,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"os"
+	"path"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -104,11 +107,18 @@ func installAgentPackage(target string, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get Agent user: %w", err)
 	}
+
+	tempDir, err := os.MkdirTemp(paths.RootTmpDir, "datadog-agent")
+	if err != nil {
+		return err
+	}
+
 	cmd, err := msi.Cmd(
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
 		msi.WithDdAgentUserName(agentUser),
 		msi.WithAdditionalArgs(args),
+		msi.WithLogFile(path.Join(tempDir, "msi.log")),
 	)
 	var output []byte
 	if err == nil {
