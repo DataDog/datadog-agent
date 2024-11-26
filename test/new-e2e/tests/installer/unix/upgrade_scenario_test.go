@@ -611,7 +611,7 @@ func (s *upgradeScenarioSuite) TestUpgradeWithMirror() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 
 	// Set mirror config
-	s.Env().RemoteHost.MustExecute(`sudo printf "installer: { mirror: http://localhost:3128 }\n" >> /etc/datadog-agent/datadog.yaml`)
+	s.Env().RemoteHost.MustExecute(`printf "installer: { mirror: http://localhost:3128 }\n" | tee -a /etc/datadog-agent/datadog.yaml`)
 	defer func() {
 		s.Env().RemoteHost.MustExecute(`sudo sed -i '/installer: { mirror: http:\/\/localhost:3128 }/d' /etc/datadog-agent/datadog.yaml`)
 	}()
