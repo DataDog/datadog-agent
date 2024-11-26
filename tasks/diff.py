@@ -52,7 +52,7 @@ BINARIES: dict[str, dict] = {
     },
     "security-agent": {
         "entrypoint": "cmd/security-agent",
-        "platforms": ["linux/x64", "linux/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
     },
     "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},

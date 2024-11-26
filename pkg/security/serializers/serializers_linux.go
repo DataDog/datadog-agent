@@ -427,13 +427,15 @@ type SpliceEventSerializer struct {
 // easyjson:json
 type BindEventSerializer struct {
 	// Bound address (if any)
-	Addr IPPortFamilySerializer `json:"addr"`
+	Addr     IPPortFamilySerializer `json:"addr"`
+	Protocol string                 `json:"protocol"`
 }
 
 // ConnectEventSerializer serializes a connect event to JSON
 // easyjson:json
 type ConnectEventSerializer struct {
-	Addr IPPortFamilySerializer `json:"addr"`
+	Addr     IPPortFamilySerializer `json:"addr"`
+	Protocol string                 `json:"protocol"`
 }
 
 // MountEventSerializer serializes a mount event to JSON
@@ -937,6 +939,7 @@ func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
 			model.AddressFamily(e.Bind.AddrFamily).String()),
+		Protocol: model.L4Protocol(e.Connect.Protocol).String(),
 	}
 	return bes
 }
@@ -945,6 +948,7 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 	ces := &ConnectEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
 			model.AddressFamily(e.Connect.AddrFamily).String()),
+		Protocol: model.L4Protocol(e.Connect.Protocol).String(),
 	}
 	return ces
 }

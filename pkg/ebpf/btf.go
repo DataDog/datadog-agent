@@ -94,7 +94,7 @@ type returnBTF struct {
 	moduleLoadFunc kernelModuleBTFLoadFunc
 }
 
-type BTFResultMetadata struct {
+type BTFResultMetadata struct { //nolint:revive // TODO
 	// numLoadAttempts is how many times the loader has been invoked (doesn't include cached requests)
 	numLoadAttempts int
 	// loaderUsed the name of the loader that was used to get the BTF data

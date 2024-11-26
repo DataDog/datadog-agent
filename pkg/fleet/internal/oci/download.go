@@ -10,11 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
@@ -73,8 +76,6 @@ var (
 	defaultRegistriesProd = []string{
 		"install.datadoghq.com",
 		"gcr.io/datadoghq",
-		"public.ecr.aws/datadog",
-		"docker.io/datadog",
 	}
 )
 
@@ -174,12 +175,17 @@ type urlWithKeychain struct {
 
 // getRefAndKeychains returns the references and their keychains to try in order to download an OCI at the given URL
 func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
-	refAndKeychains := []urlWithKeychain{getRefAndKeychain(mainEnv, url)}
+	mainRefAndKeyChain := getRefAndKeychain(mainEnv, url)
+	refAndKeychains := []urlWithKeychain{mainRefAndKeyChain}
+	if mainRefAndKeyChain.ref != url || mainRefAndKeyChain.keychain != authn.DefaultKeychain {
+		// Override: we don't need to try the default registries
+		return refAndKeychains
+	}
+
 	defaultRegistries := defaultRegistriesProd
 	if mainEnv.Site == "datad0g.com" {
 		defaultRegistries = defaultRegistriesStaging
 	}
-
 	for _, additionalDefaultRegistry := range defaultRegistries {
 		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
 		// Deduplicate
@@ -210,7 +216,8 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 	}
 	ref := url
-	if registryOverride != "" {
+	// public.ecr.aws/datadog is ignored for now as there are issues with it
+	if registryOverride != "" && registryOverride != "public.ecr.aws/datadog" {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
@@ -316,10 +323,10 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				uncompressedLayer.Close()
 				if err != nil {
-					if !isStreamResetError(err) {
+					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
 						return fmt.Errorf("could not extract layer: %w", err)
 					}
-					log.Warnf("stream error while extracting layer, retrying")
+					log.Warnf("network error while extracting layer, retrying")
 					// Clean up the directory before retrying to avoid partial extraction
 					err = tar.Clean(dir)
 					if err != nil {
@@ -373,6 +380,18 @@ func isStreamResetError(err error) bool {
 	serrp := &http2.StreamError{}
 	if errors.As(err, &serrp) {
 		return serrp.Code == http2.ErrCodeInternal
+	}
+	return false
+}
+
+// isConnectionResetByPeer returns true if the error is a connection reset by peer error
+func isConnectionResetByPeerError(err error) bool {
+	if netErr, ok := err.(*net.OpError); ok {
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				return errno == syscall.ECONNRESET
+			}
+		}
 	}
 	return false
 }

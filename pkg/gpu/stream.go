@@ -31,6 +31,7 @@ type StreamHandler struct {
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
+	containerID    string
 }
 
 // enrichedKernelLaunch is a kernel launch event with the kernel data attached.
@@ -43,13 +44,14 @@ type enrichedKernelLaunch struct {
 
 // streamKey is a unique identifier for a CUDA stream
 type streamKey struct {
-	pid    uint32
-	stream uint64
+	pid     uint32
+	stream  uint64
+	gpuUUID string
 }
 
 // streamData contains kernel spans and allocations for a stream
 type streamData struct {
-	key         streamKey
+	key         streamKey //nolint:unused // TODO
 	spans       []*kernelSpan
 	allocations []*memoryAllocation
 }
@@ -110,11 +112,12 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(pid uint32, sysCtx *systemContext) *StreamHandler {
+func newStreamHandler(pid uint32, containerID string, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		pid:            pid,
 		sysCtx:         sysCtx,
+		containerID:    containerID,
 	}
 }
 

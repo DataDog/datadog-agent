@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -65,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -112,13 +114,16 @@ type EBPFProbe struct {
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
 
-	// TC Classifier
-	newTCNetDevices chan model.NetDevice
+	// TC Classifier & raw packets
+	newTCNetDevices           chan model.NetDevice
+	rawPacketFilterCollection *lib.Collection
 
 	// Ring
 	eventStream EventStream
@@ -197,6 +202,14 @@ func (p *EBPFProbe) selectFentryMode() {
 	p.useFentry = supported
 }
 
+func (p *EBPFProbe) isNetworkNotSupported() bool {
+	return p.kernelVersion.IsRH7Kernel()
+}
+
+func (p *EBPFProbe) isRawPacketNotSupported() bool {
+	return p.isNetworkNotSupported() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_15)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -207,9 +220,14 @@ func (p *EBPFProbe) sanityChecks() error {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
-	if p.config.Probe.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
-		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting event_monitoring_config.network.enabled to false")
+	if p.config.Probe.NetworkEnabled && p.isNetworkNotSupported() {
+		seclog.Warnf("the network feature of CWS isn't supported on this kernel version")
 		p.config.Probe.NetworkEnabled = false
+	}
+
+	if p.config.Probe.NetworkRawPacketEnabled && p.isRawPacketNotSupported() {
+		seclog.Warnf("the raw packet feature of CWS isn't supported on this kernel version")
+		p.config.Probe.NetworkRawPacketEnabled = false
 	}
 
 	return nil
@@ -350,39 +368,111 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 	return p.runtimeCompiled
 }
 
-func (p *EBPFProbe) setupRawPacketProgs() error {
-	packetsMap, _, err := p.Manager.GetMap("packets")
+func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
+	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
 	if err != nil {
 		return err
 	}
-	routerMap, _, err := p.Manager.GetMap("classifier_router")
+	if rawPacketEventMap == nil {
+		return errors.New("unable to find `rawpacket_event` map")
+	}
+
+	routerMap, _, err := p.Manager.GetMap("raw_packet_classifier_router")
+	if err != nil {
+		return err
+	}
+	if routerMap == nil {
+		return errors.New("unable to find `classifier_router` map")
+	}
+
+	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
+	if err != nil {
+		return err
+	}
+	if enabledMap == nil {
+		return errors.New("unable to find `raw_packet_enabled` map")
+	}
+
+	var rawPacketFilters []rawpacket.Filter
+	for id, rule := range rs.GetRules() {
+		for _, field := range rule.GetFieldValues("packet.filter") {
+			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
+				RuleID:    id,
+				BPFFilter: field.Value.(string),
+			})
+		}
+	}
+
+	// enable raw packet or not
+	enabled := make([]uint32, p.numCPU)
+	if len(rawPacketFilters) > 0 {
+		for i := range enabled {
+			enabled[i] = 1
+		}
+	}
+	if err = enabledMap.Put(uint32(0), enabled); err != nil {
+		seclog.Errorf("couldn't push raw_packet_enabled entry to kernel space: %s", err)
+	}
+
+	// unload the previews one
+	if p.rawPacketFilterCollection != nil {
+		p.rawPacketFilterCollection.Close()
+		ddebpf.RemoveNameMappingsCollection(p.rawPacketFilterCollection)
+	}
+
+	// not enabled
+	if enabled[0] == 0 {
+		return nil
+	}
+
+	// adapt max instruction limits depending of the kernel version
+	opts := rawpacket.DefaultProgOpts
+	if p.kernelVersion.Code >= kernel.Kernel5_2 {
+		opts.MaxProgSize = 1_000_000
+	}
+
+	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
+
+	// compile the filters
+	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
 	if err != nil {
 		return err
 	}
 
-	progSpec, err := probes.GetRawPacketTCFilterProg(packetsMap.FD(), routerMap.FD())
-	if err != nil {
-		return err
+	if len(progSpecs) == 0 {
+		return nil
 	}
 
 	colSpec := lib.CollectionSpec{
-		Programs: map[string]*lib.ProgramSpec{
-			progSpec.Name: progSpec,
-		},
+		Programs: make(map[string]*lib.ProgramSpec),
+	}
+	for _, progSpec := range progSpecs {
+		colSpec.Programs[progSpec.Name] = progSpec
 	}
 
 	col, err := lib.NewCollection(&colSpec)
 	if err != nil {
 		return fmt.Errorf("failed to load program: %w", err)
 	}
+	p.rawPacketFilterCollection = col
 
-	return p.Manager.UpdateTailCallRoutes(
-		manager.TailCallRoute{
+	// check that the sender program is not overridden. The default opts should avoid this.
+	if probes.TCRawPacketFilterKey+uint32(len(progSpecs)) >= probes.TCRawPacketParserSenderKey {
+		return fmt.Errorf("sender program overridden")
+	}
+
+	// setup tail calls
+	for i, progSpec := range progSpecs {
+		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
 			Program:       col.Programs[progSpec.Name],
-			Key:           probes.TCRawPacketFilterKey,
-			ProgArrayName: "classifier_router",
-		},
-	)
+			Key:           probes.TCRawPacketFilterKey + uint32(i),
+			ProgArrayName: "raw_packet_classifier_router",
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Setup the probe
@@ -402,12 +492,6 @@ func (p *EBPFProbe) Setup() error {
 
 	p.profileManagers.Start(p.ctx, &p.wg)
 
-	if p.probe.IsNetworkRawPacketEnabled() {
-		if err := p.setupRawPacketProgs(); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -425,22 +509,16 @@ func (p *EBPFProbe) Start() error {
 // PlaySnapshot plays a snapshot
 func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
-	// Get the snapshotted data
+
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromSnapshot && !entry.IsExec {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
 		entry.Retain()
-		event := NewEBPFEvent(p.fieldHandlers)
-		event.Type = uint32(model.ExecEventType)
-		event.TimestampRaw = uint64(time.Now().UnixNano())
-		event.ProcessCacheEntry = entry
-		event.ProcessContext = &entry.ProcessContext
-		event.Exec.Process = &entry.Process
-		event.ProcessContext.Process.ContainerID = entry.ContainerID
-		event.ProcessContext.Process.CGroup = entry.CGroup
+
+		event := p.newEBPFPooledEventFromPCE(entry)
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -452,6 +530,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
+		p.eventPool.Put(event)
 	}
 }
 
@@ -586,13 +665,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	return n, nil
 }
 
-func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-		p.probe.DispatchCustomEvent(
-			NewEventLostWriteEvent(perfMapName, perEvent),
-		)
-	}
-
+func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 		p.profileManagers.SnapshotTracedCgroups()
@@ -600,8 +673,8 @@ func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) 
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
-func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event) bool {
-	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -646,10 +719,31 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.playSnapshot(false)
 	}
 
-	offset := 0
-	event := p.zeroEvent()
+	var (
+		offset        = 0
+		event         = p.zeroEvent()
+		dataLen       = uint64(len(data))
+		relatedEvents []*model.Event
+		newEntryCb    = func(entry *model.ProcessCacheEntry, err error) {
+			// all Execs will be forwarded since used by AD. Forks will be forwarded all if there are consumers
+			if !entry.IsExec && p.probe.eventConsumers[model.ForkEventType] == nil {
+				return
+			}
 
-	dataLen := uint64(len(data))
+			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
+
+			if err != nil {
+				var errResolution *path.ErrPathResolution
+				if errors.As(err, &errResolution) {
+					relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
+				} else {
+					return
+				}
+			}
+
+			relatedEvents = append(relatedEvents, relatedEvent)
+		}
+	)
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
@@ -710,7 +804,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false)
+
+		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
 			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
 			if err == nil && path != "" {
@@ -770,7 +865,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.Resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
 		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
-		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, newEntryCb)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -792,7 +887,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	}
 
-	if !p.setProcessContext(eventType, event) {
+	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
 
@@ -902,7 +997,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event)
+		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event, newEntryCb)
 		if !exists {
 			// no need to dispatch an exit event that don't have the corresponding cache entry
 			return
@@ -983,7 +1078,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
 			pce = newPlaceholderProcessCacheEntryPTraceMe()
 		} else {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
+			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false, newEntryCb)
 			if pce == nil {
 				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
 			}
@@ -1028,7 +1123,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
 		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
+			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
 		}
 		if pce == nil {
 			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
@@ -1115,6 +1210,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+
+	// send related events
+	for _, relatedEvent := range relatedEvents {
+		p.DispatchEvent(relatedEvent, true)
+		p.eventPool.Put(relatedEvent)
+	}
+	relatedEvents = relatedEvents[0:0]
 
 	p.DispatchEvent(event, true)
 
@@ -1484,6 +1586,10 @@ func (p *EBPFProbe) Close() error {
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
+	if p.rawPacketFilterCollection != nil {
+		p.rawPacketFilterCollection.Close()
+	}
+
 	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
@@ -1704,6 +1810,12 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	if p.probe.IsNetworkRawPacketEnabled() {
+		if err := p.setupRawPacketProgs(rs); err != nil {
+			seclog.Errorf("unable to load raw packet filter programs: %v", err)
+		}
+	}
+
 	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
 	if p.ruleSetVersion != 0 {
 		p.playSnapShotState.Store(true)
@@ -1721,7 +1833,7 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 
 // NewEvent returns a new event
 func (p *EBPFProbe) NewEvent() *model.Event {
-	return NewEBPFEvent(p.fieldHandlers)
+	return newEBPFEvent(p.fieldHandlers)
 }
 
 // GetFieldHandlers returns the field handlers
@@ -1807,12 +1919,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 
 	p.monitors = NewEBPFMonitors(p)
 
-	numCPU, err := utils.NumCPU()
+	p.numCPU, err = utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
 		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:          useRingBuffers,
 		UseMmapableMaps:         useMmapableMaps,
@@ -1974,15 +2086,17 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
 
-	if !config.Probe.NetworkEnabled {
-		// prevent all TC classifiers from loading
+	// prevent some TC classifiers from loading
+	if !p.config.Probe.NetworkEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
+	} else if !p.config.Probe.NetworkRawPacketEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
 	}
 
 	if p.useFentry {
@@ -1997,7 +2111,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
 		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
-		TagsResolver:             probe.Opts.TagsResolver,
+		Tagger:                   probe.Opts.Tagger,
 		UseRingBuffer:            useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
@@ -2021,7 +2135,15 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		}
 	}
 
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}
+	fh, err := NewEBPFFieldHandlers(config, p.Resolvers, hostname, p.onDemandManager)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
+
+	p.eventPool = ddsync.NewTypedPool(func() *model.Event {
+		return newEBPFEvent(p.fieldHandlers)
+	})
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -2353,8 +2475,33 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	}
 }
 
+// GetAgentContainerContext returns the agent container context
+func (p *EBPFProbe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.probe.GetAgentContainerContext()
+}
+
 // newPlaceholderProcessCacheEntryPTraceMe returns a new empty process cache entry for PTRACE_TRACEME calls,
 // it's similar to model.NewPlaceholderProcessCacheEntry with pid = tid = 0, and isKworker = false
 var newPlaceholderProcessCacheEntryPTraceMe = sync.OnceValue(func() *model.ProcessCacheEntry {
 	return model.NewPlaceholderProcessCacheEntry(0, 0, false)
 })
+
+// newEBPFPooledEventFromPCE returns a new event from a process cache entry
+func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *model.Event {
+	eventType := model.ExecEventType
+	if !entry.IsExec {
+		eventType = model.ForkEventType
+	}
+
+	event := p.eventPool.Get()
+
+	event.Type = uint32(eventType)
+	event.TimestampRaw = uint64(time.Now().UnixNano())
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.Exec.Process = &entry.Process
+	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.CGroup = entry.CGroup
+
+	return event
+}

@@ -60,8 +60,8 @@ const (
 
 	// SourceRuntime represents entities detected by the container runtime
 	// running on the node, collecting lower level information about
-	// containers. `docker`, `containerd`, `podman` and `ecs_fargate` use
-	// this source.
+	// containers. `docker`, `containerd`, 'crio', `podman` and `ecs_fargate`
+	// use this source.
 	SourceRuntime Source = "runtime"
 
 	// SourceNodeOrchestrator represents entities detected by the node
@@ -535,7 +535,8 @@ type Container struct {
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath string
+	CgroupPath   string
+	RestartCount int
 }
 
 // GetID implements Entity#GetID.

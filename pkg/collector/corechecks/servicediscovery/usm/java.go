@@ -39,7 +39,7 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				// do JEE detection to see if we can extract additional service names from context roots.
 				additionalNames = jeeExtractor(jd).extractServiceNamesForJEEServer()
-				if strings.HasSuffix(arg, javaJarExtension) {
+				if strings.HasSuffix(arg, javaJarExtension) || strings.HasSuffix(arg, javaWarExtension) {
 					// try to see if the application is a spring boot archive and extract its application name
 					if len(additionalNames) == 0 {
 						if springAppName, ok := newSpringBootParser(jd.ctx).GetSpringBootAppName(a); ok {
