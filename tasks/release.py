@@ -437,7 +437,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # milestone to target, as well as decide which tags from dependency repositories
         # can be used.
         new_final_version = next_final_version(ctx, major_version, patch_version)
-
         print(color_message(f"Preparing RC for agent version {major_version}", "bold"))
 
         # Step 0: checks
@@ -461,12 +460,19 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
+        if not yes_no_question(
+            f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
+            color="bold",
+            default=False,
+        ):
+            raise Exit(color_message("Aborting.", "red"), code=1)
+
         update_release_json(new_version, new_final_version)
 
         # Step 2: Update internal module dependencies
 
         print(color_message("Updating Go modules", "bold"))
-        update_modules(ctx, release_branch)
+        update_modules(ctx, version=str(new_highest_version))
 
         # Step 3: branch out, commit change, push branch
 
