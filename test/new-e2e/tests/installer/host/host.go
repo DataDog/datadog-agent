@@ -435,9 +435,11 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 	return oldmask
 }
 
+// ProxyConfig is the configuration of a proxy.
 type ProxyConfig string
 
 const (
+	// ProxyConfigDefault is a mirror proxy configuration.
 	ProxyConfigMirror = "mirror_squid.conf"
 )
 
