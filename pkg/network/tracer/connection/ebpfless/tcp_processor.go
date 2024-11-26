@@ -13,9 +13,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/google/gopacket/layers"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 )
 
 type connectionState struct {
