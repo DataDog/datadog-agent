@@ -4,6 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 
 import os
 import pathlib
+import re
 from collections import namedtuple
 from collections.abc import Iterable
 from string import Template
@@ -96,8 +97,6 @@ components_classic_style = [
     'comp/core/configsync/configsyncimpl',
     'comp/core/gui/guiimpl',
     'comp/core/hostname/hostnameimpl',
-    'comp/core/log/logimpl',
-    'comp/core/log/tracelogimpl',
     'comp/core/pid/pidimpl',
     'comp/core/secrets/secretsimpl',
     'comp/core/settings/settingsimpl',
@@ -166,7 +165,6 @@ components_classic_style = [
 # Please do not add a new component to this list.
 components_missing_implementation_folder = [
     "comp/dogstatsd/statsd",
-    "comp/core/tagger",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
 ]
@@ -234,6 +232,12 @@ def check_component_contents_and_file_hiearchy(comp):
         for src_file in locate_nontest_source_files(impl_folders):
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'impl'
+
+            for part in src_file.parts:
+                if "impl-" in part:
+                    name = re.findall('impl-(.*)', part)
+                    expectname = name[0] + 'impl'
+
             if pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
             if comp.path in ignore_fx_import:
