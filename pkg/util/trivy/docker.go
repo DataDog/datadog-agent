@@ -52,9 +52,12 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 		_ = os.Remove(f.Name())
 	}
 
-	return &image{
+	img := &image{
 		opener:  imageOpener(ctx, DockerCollector, imageID, f, client.ImageSave),
 		inspect: inspect,
 		history: configHistory(history),
-	}, cleanup, nil
+	}
+	img.Image = img
+
+	return img, cleanup, nil
 }

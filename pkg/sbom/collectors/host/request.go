@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 )
 
@@ -51,10 +50,11 @@ func NewScanRequest(path string, fs fs.FS) types.ScanRequest {
 // NewHostScanRequest creates a new scan request for the root filesystem
 func NewHostScanRequest() types.ScanRequest {
 	scanPath := "/"
-	if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
+	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
+		// if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
 		scanPath = hostRoot
 	}
-	return NewScanRequest(scanPath, newFS("/"))
+	return NewScanRequest("/", newFS(scanPath))
 }
 
 // Collector returns the collector name
