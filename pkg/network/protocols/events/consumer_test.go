@@ -18,10 +18,12 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -168,4 +170,31 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 
 	return m, nil
+}
+
+func TestInvalidBatchCountMetric(t *testing.T) {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+		t.Skipf("package not supported by kernels < %s", minVersion)
+	}
+
+	program, err := newEBPFProgram(config.New())
+	require.NoError(t, err)
+
+	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
+	ringBufferHandler.RecordHandler(&ringbuf.Record{
+		RawSample: []byte("test"),
+	}, nil, nil)
+
+	consumer, err := NewConsumer("test", program, func(events []uint64) {})
+	require.NoError(t, err)
+	consumer.handler = ringBufferHandler
+
+	consumer.Start()
+	program.Stop(manager.CleanAll)
+	consumer.Stop()
+
+	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
+
 }
