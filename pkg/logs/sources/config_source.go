@@ -78,24 +78,31 @@ func (s *ConfigSources) AddFileSource(path string) error {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
+	fmt.Println("UNGA BUNGA 1")
 	configSource := GetInstance()
 	configSource.mu.Lock()
+	fmt.Println("UNGA BUNGA 2")
 	configSource.sources = append(configSource.sources, source)
+	fmt.Println("UNGA BUNGA 3")
 	if source.Config == nil || source.Config.Validate() != nil {
 		configSource.mu.Unlock()
 		return
 	}
+	fmt.Println("UNGA BUNGA 4")
 	streams := configSource.added
 	streamsForType := configSource.addedByType[source.Config.Type]
 	configSource.mu.Unlock()
+	fmt.Println("UNGA BUNGA 5")
 	for _, stream := range streams {
 		stream <- source
 	}
+	fmt.Println("UNGA BUNGA 6")
 
 	for _, stream := range streamsForType {
 
 		stream <- source
 	}
+	fmt.Println("UNGA BUNGA 7")
 }
 
 // SubscribeAll returns a channel carrying notifications of all added sources.
