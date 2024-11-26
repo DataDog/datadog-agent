@@ -50,49 +50,12 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 	return err
 }
 
-// isStart is true if command is to start the container, false if to stop the container
-func buildCommandArgs(cfg LifecycleConfig, isStart bool) []string {
-	var args []string
-	switch concreteCfg := cfg.(type) {
-	case runConfig:
-		if isStart {
-			args = []string{string(runCommand), "--rm"}
-
-			// Add mounts
-			for hostPath, containerPath := range concreteCfg.Mounts {
-				args = append(args, "-v", fmt.Sprintf("%s:%s", hostPath, containerPath))
-			}
-
-			// Pass environment variables to the container as docker args
-			for _, env := range concreteCfg.Env() {
-				args = append(args, "-e", env)
-			}
-
-			//append container name and container image name
-			args = append(args, "--name", concreteCfg.Name(), concreteCfg.ImageName)
-
-			//provide main binary and binary arguments to run inside the docker container
-			args = append(args, concreteCfg.Binary)
-			args = append(args, concreteCfg.BinaryArgs...)
-		} else {
-			args = []string{string(removeCommand), "-f", concreteCfg.Name(), "--volumes"}
-		}
-	case composeConfig:
-		if isStart {
-			args = []string{string(composeCommand), "-f", concreteCfg.File, "up", "--remove-orphans", "-V"}
-		} else {
-			args = []string{string(composeCommand), "-f", concreteCfg.File, "down", "--remove-orphans", "--volumes"}
-		}
-	}
-	return args
-}
-
 // we do best-effort to kill previous instances, hence ignoring any errors
 func killPreviousInstances(cfg LifecycleConfig) {
 	// Ensuring the following command won't block forever
 	timedContext, cancel := context.WithTimeout(context.Background(), cfg.Timeout())
 	defer cancel()
-	args := buildCommandArgs(cfg, false)
+	args := cfg.commandArgs(kill)
 
 	// Ensuring no previous instances exists.
 	c := exec.CommandContext(timedContext, "docker", args...)
@@ -106,10 +69,10 @@ func run(t testing.TB, cfg LifecycleConfig, scanner *testutil.PatternScanner) (c
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	args := buildCommandArgs(cfg, true)
+	args := cfg.commandArgs(start)
 
 	//prepare the command
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := exec.CommandContext(ctx, cfg.command(), args...)
 	cmd.Env = append(cmd.Env, cfg.Env()...)
 	cmd.Stdout = scanner
 	cmd.Stderr = scanner

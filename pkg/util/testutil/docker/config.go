@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"fmt"
 	"regexp"
 	"time"
 )
@@ -23,9 +24,18 @@ const (
 type commandType string
 
 const (
-	composeCommand commandType = "compose"
+	dockerCommand commandType = "docker"
+	// we are using old v1 docker-compose command because our CI doesn't support docker cli v2 yet
+	composeCommand commandType = "docker-compose"
 	runCommand     commandType = "run"
 	removeCommand  commandType = "rm"
+)
+
+type subCommandType int
+
+const (
+	start = iota
+	kill
 )
 
 // Compile-time interface compliance check
@@ -39,6 +49,8 @@ type LifecycleConfig interface {
 	LogPattern() *regexp.Regexp
 	Env() []string
 	Name() string
+	command() string
+	commandArgs(t subCommandType) []string
 }
 
 // Timeout returns the timeout to be used when running a container/s
@@ -84,10 +96,57 @@ type runConfig struct {
 	Mounts     map[string]string // Mounts (host path -> container path).
 }
 
+func (r runConfig) command() string {
+	return string(dockerCommand)
+}
+
+func (r runConfig) commandArgs(t subCommandType) []string {
+	var args []string
+	switch t {
+	case start:
+		args = []string{string(runCommand), "--rm"}
+
+		// Add mounts
+		for hostPath, containerPath := range r.Mounts {
+			args = append(args, "-v", fmt.Sprintf("%s:%s", hostPath, containerPath))
+		}
+
+		// Pass environment variables to the container as docker args
+		for _, env := range r.Env() {
+			args = append(args, "-e", env)
+		}
+
+		//append container name and container image name
+		args = append(args, "--name", r.Name(), r.ImageName)
+
+		//provide main binary and binary arguments to run inside the docker container
+		args = append(args, r.Binary)
+		args = append(args, r.BinaryArgs...)
+	case kill:
+		args = []string{string(removeCommand), "-f", r.Name(), "--volumes"}
+	}
+	return args
+}
+
 // composeConfig contains specific configurations for Docker Compose, embedding BaseConfig.
 type composeConfig struct {
 	baseConfig        // Embed general configuration.
 	File       string // Path to the docker-compose file.
+}
+
+func (c composeConfig) command() string {
+	return string(composeCommand)
+}
+
+func (c composeConfig) commandArgs(t subCommandType) []string {
+	switch t {
+	case start:
+		return []string{string(composeCommand), "-f", c.File, "up", "--remove-orphans", "-V"}
+	case kill:
+		return []string{string(composeCommand), "-f", c.File, "down", "--remove-orphans", "--volumes"}
+	default:
+		return nil
+	}
 }
 
 // NewRunConfig creates a new runConfig instance for a single docker container.
