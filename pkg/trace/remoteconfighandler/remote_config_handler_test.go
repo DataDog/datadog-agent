@@ -195,7 +195,7 @@ func TestLogLevel(t *testing.T) {
 
 	pkglog.SetupLogger(seelog.Default, "debug")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.NotEmpty(t, r.Header.Get("Authorization"))
+		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
@@ -206,6 +206,9 @@ func TestLogLevel(t *testing.T) {
 		DefaultEnv:         "agent-env",
 		ReceiverHost:       "127.0.0.1",
 		ReceiverPort:       port,
+		GetAgentAuthToken: func() string {
+			return "fakeToken"
+		},
 	}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 

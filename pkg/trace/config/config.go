@@ -454,6 +454,10 @@ type AgentConfig struct {
 	// Azure container apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
+
+	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
+	// Function will be nil if in an environment without an auth token
+	GetAgentAuthToken func() string `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

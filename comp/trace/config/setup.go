@@ -19,6 +19,7 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
@@ -121,6 +122,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
+	cfg.GetAgentAuthToken = apiutil.GetAuthToken
 	return cfg, nil
 }
 
