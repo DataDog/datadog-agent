@@ -23,6 +23,8 @@ func adjustUSM(cfg model.Config) {
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)
 		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
 		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
+
+		applyDefault(cfg, discoveryNS("enabled"), true)
 	}
 
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))

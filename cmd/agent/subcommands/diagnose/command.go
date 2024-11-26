@@ -28,6 +28,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -106,6 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				autodiscoveryimpl.Module(),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
+				haagentfx.Module(),
 			)
 		},
 	}
