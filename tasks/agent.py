@@ -135,7 +135,6 @@ def build(
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
-    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):

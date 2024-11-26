@@ -804,6 +804,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 
+	config.BindEnv("provider_kind")
+
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
 	// enabling/disabling the environment variables & command scrubbing from the container specs
@@ -1517,6 +1519,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
+
+	// Transport protocol for log payloads
+	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")

@@ -1344,7 +1344,8 @@ func TestUSMEventStream(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.True(t, cfg.EnableUSMEventStream)
+		expected := sysconfig.ProcessEventDataStreamSupported()
+		assert.Equal(t, expected, cfg.EnableUSMEventStream)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
