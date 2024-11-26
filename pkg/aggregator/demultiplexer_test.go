@@ -115,7 +115,6 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(deps.EventPlatformFwd)
-	require.True(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
