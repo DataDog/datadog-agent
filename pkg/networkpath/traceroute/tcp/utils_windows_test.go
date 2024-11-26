@@ -27,7 +27,7 @@ import (
 type (
 	mockRawConn struct {
 		readTimeoutCount int
-		readTimeout      time.Duration
+		readDeadline     time.Time
 		readFromErr      error
 
 		payload []byte
