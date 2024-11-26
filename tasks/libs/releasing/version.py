@@ -13,7 +13,7 @@ from tasks.libs.common.constants import (
     REPO_NAME,
     TAG_FOUND_TEMPLATE,
 )
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch, is_agent6
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.releasing.documentation import release_entry_for
 from tasks.libs.types.version import Version
@@ -61,10 +61,10 @@ def _create_version_from_match(match):
     return version
 
 
-def check_version(agent_version, agent6=False):
+def check_version(ctx, agent_version):
     """Check Agent version to see if it is valid."""
 
-    major = '6' if agent6 else '7'
+    major = '6' if is_agent6(ctx) else '7'
     version_re = re.compile(rf'{major}[.](\d+)[.](\d+)(-rc\.(\d+))?')
     if not version_re.match(agent_version):
         raise Exit(message=f"Version should be of the form {major}.Y.Z or {major}.Y.Z-rc.t")

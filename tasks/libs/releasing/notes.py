@@ -2,14 +2,15 @@ from datetime import date
 
 from invoke import Failure
 
-from tasks.libs.common.constants import DEFAULT_AGENT6_BRANCH, DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
 
 
 def _add_prelude(ctx, version):
     res = ctx.run(f"reno new prelude-release-{version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
-    branch = DEFAULT_AGENT6_BRANCH if version.startswith('6.') else 'master'
+    branch = DEFAULT_INTEGRATIONS_CORE_BRANCH
 
     with open(new_releasenote, "w") as f:
         f.write(
@@ -29,7 +30,7 @@ def _add_prelude(ctx, version):
 def _add_dca_prelude(ctx, version=None):
     """Release of the Cluster Agent should be pinned to a version of the Agent."""
 
-    branch = DEFAULT_AGENT6_BRANCH if version.startswith('6.') else DEFAULT_BRANCH
+    branch = get_default_branch()
 
     res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
