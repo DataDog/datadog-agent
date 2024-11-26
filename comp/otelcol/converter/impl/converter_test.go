@@ -52,106 +52,111 @@ func TestConvert(t *testing.T) {
 		expectedResult string
 		agentConfig    string
 	}{
-		// {
-		// 	name:           "connectors/no-dd-connector",
-		// 	provided:       "connectors/no-dd-connector/config.yaml",
-		// 	expectedResult: "connectors/no-dd-connector/config.yaml",
-		// },
-		// {
-		// 	name:           "connectors/already-set",
-		// 	provided:       "connectors/already-set/config.yaml",
-		// 	expectedResult: "connectors/already-set/config.yaml",
-		// },
-		// {
-		// 	name:           "connectors/set-default",
-		// 	provided:       "connectors/set-default/config.yaml",
-		// 	expectedResult: "connectors/set-default/config-result.yaml",
-		// },
-		// {
-		// 	name:           "extensions/no-extensions",
-		// 	provided:       "extensions/no-extensions/config.yaml",
-		// 	expectedResult: "extensions/no-extensions/config-result.yaml",
-		// },
-		// {
-		// 	name:           "extensions/other-extensions",
-		// 	provided:       "extensions/other-extensions/config.yaml",
-		// 	expectedResult: "extensions/other-extensions/config-result.yaml",
-		// },
-		// {
-		// 	name:           "extensions/no-changes",
-		// 	provided:       "extensions/no-changes/config.yaml",
-		// 	expectedResult: "extensions/no-changes/config.yaml",
-		// },
-		// {
-		// 	name:           "processors/no-processors",
-		// 	provided:       "processors/no-processors/config.yaml",
-		// 	expectedResult: "processors/no-processors/config-result.yaml",
-		// },
-		// {
-		// 	name:           "processors/other-processors",
-		// 	provided:       "processors/other-processors/config.yaml",
-		// 	expectedResult: "processors/other-processors/config-result.yaml",
-		// },
-		// {
-		// 	name:           "processors/no-processor-partial",
-		// 	provided:       "processors/no-processor-partial/config.yaml",
-		// 	expectedResult: "processors/no-processor-partial/config-result.yaml",
-		// },
-		// {
-		// 	name:           "processors/no-changes",
-		// 	provided:       "processors/no-changes/config.yaml",
-		// 	expectedResult: "processors/no-changes/config.yaml",
-		// },
-		// {
-		// 	name:           "receivers/job-name-change",
-		// 	provided:       "receivers/job-name-change/config.yaml",
-		// 	expectedResult: "receivers/job-name-change/config-result.yaml",
-		// },
-		// {
-		// 	name:           "receivers/no-changes",
-		// 	provided:       "receivers/no-changes/config.yaml",
-		// 	expectedResult: "receivers/no-changes/config.yaml",
-		// },
-		// {
-		// 	name:           "receivers/no-changes-multiple-dd",
-		// 	provided:       "receivers/no-changes-multiple-dd/config.yaml",
-		// 	expectedResult: "receivers/no-changes-multiple-dd/config.yaml",
-		// },
-		// {
-		// 	name:           "receivers/no-prometheus-receiver",
-		// 	provided:       "receivers/no-prometheus-receiver/config.yaml",
-		// 	expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
-		// },
-		// {
-		// 	name:           "receivers/no-prom-multi-dd",
-		// 	provided:       "receivers/no-prom-multi-dd/config.yaml",
-		// 	expectedResult: "receivers/no-prom-multi-dd/config-result.yaml",
-		// },
-		// {
-		// 	name:           "receivers/no-prom-not-default-addr",
-		// 	provided:       "receivers/no-prom-not-default-addr/config.yaml",
-		// 	expectedResult: "receivers/no-prom-not-default-addr/config-result.yaml",
-		// },
-		// {
-		// 	name:           "receivers/multi-dd-partial-prom",
-		// 	provided:       "receivers/multi-dd-partial-prom/config.yaml",
-		// 	expectedResult: "receivers/multi-dd-partial-prom/config-result.yaml",
-		// },
-		// {
-		// 	name:           "receivers/no-receivers-defined",
-		// 	provided:       "receivers/no-receivers-defined/config.yaml",
-		// 	expectedResult: "receivers/no-receivers-defined/config-result.yaml",
-		// },
-		// {
-		// 	name:           "processors/dd-connector",
-		// 	provided:       "processors/dd-connector/config.yaml",
-		// 	expectedResult: "processors/dd-connector/config-result.yaml",
-		// },
-		// {
-		// 	name:           "processors/dd-connector-multi-pipelines",
-		// 	provided:       "processors/dd-connector-multi-pipelines/config.yaml",
-		// 	expectedResult: "processors/dd-connector-multi-pipelines/config-result.yaml",
-		// },
+		{
+			name:           "connectors/no-dd-connector",
+			provided:       "connectors/no-dd-connector/config.yaml",
+			expectedResult: "connectors/no-dd-connector/config.yaml",
+		},
+		{
+			name:           "connectors/already-set",
+			provided:       "connectors/already-set/config.yaml",
+			expectedResult: "connectors/already-set/config.yaml",
+		},
+		{
+			name:           "connectors/set-default",
+			provided:       "connectors/set-default/config.yaml",
+			expectedResult: "connectors/set-default/config-result.yaml",
+		},
+		{
+			name:           "extensions/no-extensions",
+			provided:       "extensions/no-extensions/config.yaml",
+			expectedResult: "extensions/no-extensions/config-result.yaml",
+		},
+		{
+			name:           "extensions/other-extensions",
+			provided:       "extensions/other-extensions/config.yaml",
+			expectedResult: "extensions/other-extensions/config-result.yaml",
+		},
+		{
+			name:           "extensions/no-changes",
+			provided:       "extensions/no-changes/config.yaml",
+			expectedResult: "extensions/no-changes/config.yaml",
+		},
+		{
+			name:           "processors/no-processors",
+			provided:       "processors/no-processors/config.yaml",
+			expectedResult: "processors/no-processors/config-result.yaml",
+		},
+		{
+			name:           "processors/other-processors",
+			provided:       "processors/other-processors/config.yaml",
+			expectedResult: "processors/other-processors/config-result.yaml",
+		},
+		{
+			name:           "processors/no-processor-partial",
+			provided:       "processors/no-processor-partial/config.yaml",
+			expectedResult: "processors/no-processor-partial/config-result.yaml",
+		},
+		{
+			name:           "processors/no-changes",
+			provided:       "processors/no-changes/config.yaml",
+			expectedResult: "processors/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/job-name-change",
+			provided:       "receivers/job-name-change/config.yaml",
+			expectedResult: "receivers/job-name-change/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-changes",
+			provided:       "receivers/no-changes/config.yaml",
+			expectedResult: "receivers/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/no-changes-multiple-dd",
+			provided:       "receivers/no-changes-multiple-dd/config.yaml",
+			expectedResult: "receivers/no-changes-multiple-dd/config.yaml",
+		},
+		{
+			name:           "receivers/no-changes-multiple-dd-same-pipeline",
+			provided:       "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
+			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
+		},
+		{
+			name:           "receivers/no-prometheus-receiver",
+			provided:       "receivers/no-prometheus-receiver/config.yaml",
+			expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-prom-multi-dd",
+			provided:       "receivers/no-prom-multi-dd/config.yaml",
+			expectedResult: "receivers/no-prom-multi-dd/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-prom-not-default-addr",
+			provided:       "receivers/no-prom-not-default-addr/config.yaml",
+			expectedResult: "receivers/no-prom-not-default-addr/config-result.yaml",
+		},
+		{
+			name:           "receivers/multi-dd-partial-prom",
+			provided:       "receivers/multi-dd-partial-prom/config.yaml",
+			expectedResult: "receivers/multi-dd-partial-prom/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-receivers-defined",
+			provided:       "receivers/no-receivers-defined/config.yaml",
+			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
+		},
+		{
+			name:           "processors/dd-connector",
+			provided:       "processors/dd-connector/config.yaml",
+			expectedResult: "processors/dd-connector/config-result.yaml",
+		},
+		{
+			name:           "processors/dd-connector-multi-pipelines",
+			provided:       "processors/dd-connector-multi-pipelines/config.yaml",
+			expectedResult: "processors/dd-connector-multi-pipelines/config-result.yaml",
+		},
 		{
 			name:           "dd-core-cfg/apikey/empty-string",
 			provided:       "dd-core-cfg/apikey/empty-string/config.yaml",
