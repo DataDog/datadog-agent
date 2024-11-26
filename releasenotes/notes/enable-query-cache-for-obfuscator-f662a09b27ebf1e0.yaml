@@ -6,6 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
+deprecations:
+  - |
+    Deprecates the `apm_config.obfuscation.sql.cache` option in favor of `apm_config.obfuscation.cache`.
 enhancements:
   - |
     Enables a cache for SQL and MongoDB obfuscation. This cache is enabled by default but can be disabled by setting `apm_config.obfuscation.cache.enabled` to `false`.

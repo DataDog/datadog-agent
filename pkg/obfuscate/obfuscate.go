@@ -104,7 +104,7 @@ type Config struct {
 	// If unset, no logs will be outputted.
 	Logger Logger
 
-	// Cache enables the query cache for obfuscation for .
+	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
 	Cache CacheConfig
 }
 
