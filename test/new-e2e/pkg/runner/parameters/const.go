@@ -27,7 +27,7 @@ const (
 	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
 	// Profile aws profile name
 	Profile StoreKey = "profile"
-	// PublicKeyPath public ssh key path
+	// AWSPublicKeyPath public ssh key path
 	AWSPublicKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PublicKeyPathSuffix)
 	//AzurePrivateKeyPassword private ssh key password
 	AzurePrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPasswordSuffix)
@@ -72,7 +72,10 @@ const (
 )
 
 const (
-	PrivateKeyPathSuffix     = "_private_key_path"
-	PublicKeyPathSuffix      = "_public_key_path"
+	// PrivateKeyPathSuffix private ssh key path suffix
+	PrivateKeyPathSuffix = "_private_key_path"
+	// PublicKeyPathSuffix public ssh key path suffix
+	PublicKeyPathSuffix = "_public_key_path"
+	// PrivateKeyPasswordSuffix private ssh key password suffix
 	PrivateKeyPasswordSuffix = "_private_key_password"
 )

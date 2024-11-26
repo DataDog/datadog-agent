@@ -16,7 +16,6 @@ import (
 // RemoteHost represents a remote host
 type RemoteHost struct {
 	remote.HostOutput
-	cloudProvider e2e.CloudProviderIdentifier
 
 	*client.Host
 	context e2e.Context
