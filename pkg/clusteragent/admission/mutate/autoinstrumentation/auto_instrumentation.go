@@ -528,7 +528,7 @@ func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...inje
 	}
 
 	return newInjector(startTime, w.config.containerRegistry, w.config.injectorImageTag, opts...).
-		podMutator(w.config.version)
+		podMutator(w.config.version, w.config.csiEnabled)
 }
 
 func initContainerIsSidecar(container *corev1.Container) bool {
@@ -726,7 +726,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
 			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
-		}).mutatePod(pod); err != nil {
+		}, w.config.csiEnabled).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
 			continue

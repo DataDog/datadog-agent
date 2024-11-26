@@ -12,6 +12,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	admiv1 "k8s.io/api/admission/v1"
@@ -29,6 +30,8 @@ import (
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type CSIVolumeType string
 
 const (
 	// Env vars
@@ -61,6 +64,12 @@ const (
 	DogstatsdSocketVolumeName = "datadog-dogstatsd"
 
 	webhookName = "agent_config"
+
+	// represents a host path directory
+	localCSIVolume = CSIVolumeType("local")
+
+	// represents a socket path on the host
+	socketCSIVolume = CSIVolumeType("socket")
 )
 
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
@@ -76,11 +85,13 @@ type Webhook struct {
 	// These fields store datadog agent config parameters
 	// to avoid calling the config resolution each time the webhook
 	// receives requests because the resolution is CPU expensive.
-	mode              string
-	localServiceName  string
-	traceAgentSocket  string
-	dogStatsDSocket   string
-	socketPath        string
+	mode             string
+	localServiceName string
+	traceAgentSocket string
+	dogStatsDSocket  string
+	socketPath       string
+	csiEnabled       bool
+
 	typeSocketVolumes bool
 }
 
@@ -101,6 +112,7 @@ func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.Injec
 		dogStatsDSocket:   datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
 		socketPath:        datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 		typeSocketVolumes: datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
+		csiEnabled:        datadogConfig.GetBool("csi_driver.enabled"),
 	}
 }
 
@@ -267,7 +279,41 @@ func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
 	return
 }
 
-func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
+func buildCSIVolume(volumeName, path string, volumeType CSIVolumeType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
+	if volumeType != socketCSIVolume && volumeType != localCSIVolume {
+		panic(fmt.Errorf("unsupported csi volume type %q. Supported types are 'local' and 'socket'", volumeType))
+	}
+
+	volume := corev1.Volume{
+		Name: volumeName,
+		VolumeSource: corev1.VolumeSource{
+			CSI: &corev1.CSIVolumeSource{
+				Driver: "datadog.poc.csi.driver",
+				VolumeAttributes: map[string]string{
+					"type": string(volumeType),
+					"path": path,
+				},
+			},
+		},
+	}
+
+	var mountPath string
+	if volumeType == socketCSIVolume {
+		mountPath, _ = filepath.Split(path)
+	} else {
+		mountPath = path
+	}
+
+	volumeMount := corev1.VolumeMount{
+		Name:      volumeName,
+		MountPath: mountPath,
+		ReadOnly:  readOnly,
+	}
+
+	return volume, volumeMount
+}
+
+func buildHostPathVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -310,19 +356,30 @@ func (w *Webhook) injectSocketVolumes(pod *corev1.Pod) bool {
 		}
 
 		for volumeName, volumePath := range volumes {
-			volume, volumeMount := buildVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+			var volume corev1.Volume
+			var volumeMount corev1.VolumeMount
+
+			if w.csiEnabled {
+				volume, volumeMount = buildCSIVolume(volumeName, volumePath, socketCSIVolume, true)
+			} else {
+				volume, volumeMount = buildHostPathVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+			}
+
 			injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 			if injectedVol {
 				injectedVolNames = append(injectedVolNames, volumeName)
 			}
 		}
 	} else {
-		volume, volumeMount := buildVolume(
-			DatadogVolumeName,
-			w.socketPath,
-			corev1.HostPathDirectoryOrCreate,
-			true,
-		)
+		var volume corev1.Volume
+		var volumeMount corev1.VolumeMount
+
+		if w.csiEnabled {
+			volume, volumeMount = buildCSIVolume(DatadogVolumeName, w.socketPath, localCSIVolume, true)
+		} else {
+			volume, volumeMount = buildHostPathVolume(DatadogVolumeName, w.socketPath, corev1.HostPathDirectoryOrCreate, true)
+		}
+
 		injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 		if injectedVol {
 			injectedVolNames = append(injectedVolNames, DatadogVolumeName)

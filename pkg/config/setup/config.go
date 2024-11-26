@@ -620,6 +620,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// We use a long timeout here since the metadata and token API can be very slow sometimes.
 	config.BindEnvAndSetDefault("ibm_metadata_timeout", 5) // value in seconds
 
+	// CSI Driver Config
+	config.BindEnvAndSetDefault("csi_driver.enabled", false)
+
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)

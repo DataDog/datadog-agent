@@ -35,6 +35,7 @@ type webhookConfig struct {
 	languageDetectionEnabled          bool
 	languageDetectionReportingEnabled bool
 	injectAutoDetectedLibraries       bool
+	csiEnabled                        bool
 	// keep pointers to bool to differentiate between unset and false
 	// for backward compatibility with the previous implementation.
 	// TODO: remove the pointers when the backward compatibility is not needed anymore.
@@ -64,6 +65,7 @@ func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon
 		languageDetectionEnabled:          datadogConfig.GetBool("language_detection.enabled"),
 		languageDetectionReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
 		injectAutoDetectedLibraries:       datadogConfig.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
+		csiEnabled:                        datadogConfig.GetBool("csi_driver.enabled"),
 
 		asmEnabled:       getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled"),
 		iastEnabled:      getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled"),
