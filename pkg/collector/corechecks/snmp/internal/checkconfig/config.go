@@ -93,6 +93,7 @@ type InitConfig struct {
 	PingConfig                   snmpintegration.PackedPingConfig  `yaml:"ping"`
 	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
+	ReverseDNSEnrichment         snmpintegration.RDNSConfig        `yaml:"reverse_dns_enrichment"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -214,6 +215,8 @@ type CheckConfig struct {
 
 	PingEnabled bool
 	PingConfig  pinger.Config
+
+	ReverseDNSEnrichment snmpintegration.RDNSConfig
 }
 
 // SetProfile refreshes config based on profile
@@ -599,6 +602,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.PingConfig.UseRawSocket = bool(*initConfig.PingConfig.Linux.UseRawSocket)
 	}
 
+	c.ReverseDNSEnrichment = initConfig.ReverseDNSEnrichment
+
 	c.UpdateDeviceIDAndTags()
 
 	c.ResolvedSubnetName = c.getResolvedSubnetName()
@@ -714,6 +719,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.PingConfig.Timeout = c.PingConfig.Timeout
 	newConfig.PingConfig.Count = c.PingConfig.Count
 	newConfig.PingConfig.UseRawSocket = c.PingConfig.UseRawSocket
+	newConfig.ReverseDNSEnrichment = c.ReverseDNSEnrichment
 
 	return &newConfig
 }

@@ -6,6 +6,7 @@
 package report
 
 import (
+	"context"
 	json "encoding/json"
 	"net"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -50,15 +52,36 @@ var supportedDeviceTypes = map[string]bool{
 	"wlc":           true,
 }
 
+func hostnameEnrichment(metadata []devicemetadata.DeviceMetadata, rdnsquerier rdnsquerier.Component, timeout time.Duration) []devicemetadata.DeviceMetadata {
+	enrichedMetadata := make([]devicemetadata.DeviceMetadata, len(metadata))
+
+	for i, device := range metadata {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		hostname, err := rdnsquerier.GetHostname(ctx, device.IPAddress)
+		if err != nil {
+			log.Errorf("Error getting hostname for device %s: %s", device.ID, err)
+			hostname = ""
+		}
+
+		device.DNSHostname = hostname
+		enrichedMetadata[i] = device
+	}
+
+	return enrichedMetadata
+}
+
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata, rdnsquerier rdnsquerier.Component) {
 	tags := utils.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
-
 	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus, pingStatus)}
-
+	if config.ReverseDNSEnrichment.Enabled {
+		devices = hostnameEnrichment(devices, rdnsquerier, config.ReverseDNSEnrichment.Timeout)
+	}
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
@@ -238,6 +261,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
+		DNSHostname:    "",
 	}
 }
 

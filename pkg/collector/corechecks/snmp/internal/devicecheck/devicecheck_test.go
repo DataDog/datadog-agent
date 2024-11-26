@@ -17,6 +17,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -28,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
@@ -35,7 +38,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type deps struct {
+	fx.In
+	RDNSQuerier rdnsquerier.Component
+}
+
+func createDeps(t *testing.T) deps {
+	return fxutil.Test[deps](t, rdnsquerierfx.MockModule())
+}
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
@@ -43,6 +57,7 @@ func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+	deps := createDeps(t)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -62,7 +77,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -178,6 +193,7 @@ func TestProfileDetectionPreservesGlobals(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+	deps := createDeps(t)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -202,7 +218,7 @@ global_metrics:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -248,6 +264,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+	deps := createDeps(t)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -263,7 +280,7 @@ collect_topology: false
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -400,6 +417,7 @@ func TestDetectMetricsToCollect_detectMetricsToMonitor_nextAutodetectMetrics(t *
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+	deps := createDeps(t)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -418,7 +436,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	deviceCk.session, err = sessionFactory(config)
@@ -466,11 +484,12 @@ community_string: public
 	// language=yaml
 	rawInitConfig := []byte(`
 `)
+	deps := createDeps(t)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -497,11 +516,12 @@ community_string: public
 	// language=yaml
 	rawInitConfig := []byte(`
 `)
+	deps := createDeps(t)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	hostname, err := deviceCk.GetDeviceHostname()
@@ -563,11 +583,12 @@ profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
 `)
+	deps := createDeps(t)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
@@ -868,11 +889,11 @@ profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
 `)
-
+	deps := createDeps(t)
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -908,11 +929,12 @@ community_string: public
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
+	deps := createDeps(t)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	deviceCk.session, err = sessionFactory(config)
@@ -1002,11 +1024,12 @@ profiles:
  another-profile:
    definition_file: another_profile.yaml
 `)
+	deps := createDeps(t)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -1153,11 +1176,12 @@ profiles:
  another-profile:
    definition_file: another_profile.yaml
 `)
+	deps := createDeps(t)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, deps.RDNSQuerier)
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger

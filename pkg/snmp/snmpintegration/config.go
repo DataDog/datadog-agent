@@ -9,6 +9,7 @@ package snmpintegration
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // InterfaceConfig interface related configs (e.g. interface speed override)
@@ -54,4 +55,9 @@ func (pc *PackedPingConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 
 	*pc = PackedPingConfig(pingCfg)
 	return nil
+}
+
+type RDNSConfig struct {
+	Enabled bool          `mapstructure:"enabled" yaml:"enabled" json:"enabled"`
+	Timeout time.Duration `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }

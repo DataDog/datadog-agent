@@ -36,6 +36,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
@@ -49,10 +51,11 @@ import (
 type deps struct {
 	fx.In
 	Demultiplexer demultiplexer.Mock
+	RDNSQuerier   rdnsquerier.Component
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, compressionimpl.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, compressionimpl.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle(), rdnsquerierfx.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -65,7 +68,11 @@ func Test_Run_simpleCase(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
+
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -572,7 +579,10 @@ func TestProfile(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -996,10 +1006,13 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck()
-	check2 := newCheck()
-	check3 := newCheck()
-	checkSubnet := newCheck()
+
+	deps := createDeps(t)
+
+	check1 := newCheck(deps.RDNSQuerier)
+	check2 := newCheck(deps.RDNSQuerier)
+	check3 := newCheck(deps.RDNSQuerier)
+	checkSubnet := newCheck(deps.RDNSQuerier)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1317,7 +1330,10 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -1629,7 +1645,10 @@ func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.5
@@ -1740,7 +1759,10 @@ func TestDiscovery(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -1763,6 +1785,12 @@ metric_tags:
     tag: snmp_host
 `)
 
+	// language=yaml
+	rawInitConfig := []byte(`
+reverse_dns_enrichment:
+  enabled: true
+  timeout: 5000
+`)
 	discoveryPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -1776,7 +1804,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
 	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
@@ -2014,7 +2042,8 @@ metric_tags:
       "name": "foo_sys_name",
       "subnet": "10.10.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "dns_hostname": "hostname-%s"
     }
   ],
   "interfaces": [
@@ -2062,7 +2091,7 @@ metric_tags:
   ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -2165,7 +2194,10 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
 	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
@@ -2358,7 +2390,10 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
@@ -2563,7 +2598,10 @@ func TestCheckCancel(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 
 	senderManager := deps.Demultiplexer
 
@@ -2597,5 +2635,146 @@ func waitForDiscoveredDevices(discovery *discovery.Discovery, expectedDeviceCoun
 				return devices, nil
 			}
 		}
+	}
+}
+
+func TestRDNSHostnameEnrichment(t *testing.T) {
+	deps := createDeps(t)
+	testDir := t.TempDir()
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	testCases := []struct {
+		name           string
+		timeout        int
+		ipAddress      string
+		enabled        string
+		expectHostname bool // Whether dns_hostname should be present in the JSON
+	}{
+		{name: "Valid Reverse DNS", timeout: 5000, ipAddress: "10.2.3.4", enabled: "true", expectHostname: true},
+		{name: "Invalid Reverse DNS (Public IP)", timeout: 5000, ipAddress: "1.3.4.5", enabled: "true", expectHostname: false},
+		{name: "Disabled Reverse DNS", timeout: 5000, ipAddress: "10.2.3.4", enabled: "false", expectHostname: false},
+		{name: "No Timeout", timeout: 0, ipAddress: "10.3.4.5", enabled: "true", expectHostname: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			chk := Check{
+				sessionFactory: sessionFactory,
+				rdnsquerier:    deps.RDNSQuerier,
+			}
+
+			rawInstanceConfig := []byte(fmt.Sprintf(`
+ip_address: %s
+community_string: public
+profile: f5-big-ip
+oid_batch_size: 20
+namespace: profile-metadata
+collect_topology: false
+`, tc.ipAddress))
+			rawInitConfig := []byte(fmt.Sprintf(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+reverse_dns_enrichment:
+  enabled: %s
+  timeout: %d
+`, tc.enabled, tc.timeout))
+
+			senderManager := mocksender.CreateDefaultDemultiplexer()
+			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+			assert.NoError(t, err)
+			sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
+
+			// Mock sender methods
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+			sender.On("Commit").Return()
+
+			// Mock SNMP session methods
+			packet := gosnmp.SnmpPacket{
+				Variables: []gosnmp.SnmpPDU{
+					{
+						Name:  "1.3.6.1.2.1.1.1.0",
+						Type:  gosnmp.OctetString,
+						Value: []byte("BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11"),
+					},
+				},
+			}
+			sess.On("Get", mock.Anything).Return(&packet, nil)
+			sess.On("GetNext", mock.Anything).Return(&packet, nil)
+			sess.On("GetBulk", mock.Anything, mock.Anything).Return(&packet, nil)
+
+			// Run the check
+			err = chk.Run()
+			assert.Nil(t, err, "Expected no error during check execution")
+
+			// Generate expected JSON event
+			event := []byte(fmt.Sprintf(`
+{
+  "namespace": "profile-metadata",
+  "devices": [
+    {
+      "id": "profile-metadata:%s",
+      "id_tags": [
+        "device_namespace:profile-metadata",
+        "snmp_device:%s"
+      ],
+      "tags": [
+        "agent_version:%s",
+        "device_id:profile-metadata:%s",
+        "device_ip:%s",
+        "device_namespace:profile-metadata",
+        "device_vendor:f5",
+        "snmp_device:%s",
+        "snmp_profile:f5-big-ip",
+        "static_tag:from_base_profile",
+        "static_tag:from_profile_root"
+      ],
+      "ip_address": "%s",
+      "status": 1,
+      "description": "BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "integration": "snmp",
+      "device_type": "load_balancer"%s
+    }
+  ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "profile-metadata:%s",
+      "diagnoses": null
+    }
+  ],
+  "collect_timestamp": 946684800
+}
+`, tc.ipAddress, tc.ipAddress, version.AgentVersion, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress,
+				func() string {
+					if tc.expectHostname {
+						return fmt.Sprintf(`, "dns_hostname": "hostname-%s"`, tc.ipAddress)
+					}
+					return ""
+				}(),
+				tc.ipAddress))
+
+			compactEvent := new(bytes.Buffer)
+			err = json.Compact(compactEvent, event)
+			assert.NoError(t, err)
+
+			// Validate that `dns_hostname` presence matches expectation. Should not be present if `dns_hostname` is disabled or not found
+			if tc.expectHostname {
+				assert.Contains(t, compactEvent.String(), "dns_hostname", "Expected `dns_hostname` to be present")
+			} else {
+				assert.NotContains(t, compactEvent.String(), "dns_hostname", "Expected `dns_hostname` to be absent")
+			}
+			sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+		})
 	}
 }
