@@ -776,7 +776,7 @@ func TestDocker(t *testing.T) {
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
 		regexp.MustCompile("Serving.*"),
-		nil,
+		dockerutils.EmptyEnv,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	err := dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)

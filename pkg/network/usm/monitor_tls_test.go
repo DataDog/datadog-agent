@@ -115,7 +115,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 					dockerutils.DefaultTimeout,
 					dockerutils.DefaultRetries,
 					regexp.MustCompile("started"),
-					nil,
+					dockerutils.EmptyEnv,
 					path.Join(dir, "/docker-compose.yml"))
 				err = dockerutils.Run(t, dockerCfg)
 				require.NoError(t, err)

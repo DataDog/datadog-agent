@@ -21,6 +21,9 @@ const (
 	DefaultRetries = 3
 )
 
+// EmptyEnv is a sugar syntax for empty environment variables
+var EmptyEnv []string
+
 type commandType string
 
 const (
