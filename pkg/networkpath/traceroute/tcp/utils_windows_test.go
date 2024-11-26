@@ -95,7 +95,7 @@ func Test_handlePackets(t *testing.T) {
 			description: "successful ICMP parsing returns IP, port, and type code",
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
-				payload: createMockICMPPacket(createMockIPv4Header(srcIP, dstIP, layers.IPProtocolICMPv4), createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				payload: createMockICMPPacket(createMockIPv4Layer(srcIP, dstIP, layers.IPProtocolICMPv4), createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			localIP:          innerSrcIP,
 			localPort:        12345,
