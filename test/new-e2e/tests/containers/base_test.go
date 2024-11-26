@@ -88,7 +88,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
-		var optionalTags []*regexp.Regexp
+		optionalTags := []*regexp.Regexp{regexp.MustCompile("stackid:.*")} // The stackid tag is added by the framework itself to allow filtering on the stack id
 		if args.Optional.Tags != nil {
 			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
