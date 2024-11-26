@@ -37,7 +37,7 @@ const (
 	MetricSourceContainerd
 	MetricSourceCri
 	MetricSourceDocker
-	MetricSourceNtp
+	MetricSourceNTP
 	MetricSourceSystemd
 	MetricSourceHelm
 	MetricSourceKubernetesAPIServer
@@ -60,6 +60,8 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+	MetricSourceCloudFoundry
+	MetricSourceJenkins
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -131,6 +133,9 @@ const (
 	MetricSourceAwsPricing
 	MetricSourceAqua
 	MetricSourceKubernetesClusterAutoscaler
+	MetricSourceKubeVirtAPI
+	MetricSourceKubeVirtController
+	MetricSourceKubeVirtHandler
 	MetricSourceTraefikMesh
 	MetricSourceWeaviate
 	MetricSourceTorchserve
@@ -344,7 +349,7 @@ func (ms MetricSource) String() string {
 		return "cri"
 	case MetricSourceDocker:
 		return "docker"
-	case MetricSourceNtp:
+	case MetricSourceNTP:
 		return "ntp"
 	case MetricSourceSystemd:
 		return "systemd"
@@ -436,6 +441,8 @@ func (ms MetricSource) String() string {
 		return "citrix_hypervisor"
 	case MetricSourceClickhouse:
 		return "clickhouse"
+	case MetricSourceCloudFoundry:
+		return "cloudfoundry"
 	case MetricSourceCloudFoundryAPI:
 		return "cloud_foundry_api"
 	case MetricSourceCockroachdb:
@@ -516,6 +523,8 @@ func (ms MetricSource) String() string {
 		return "impala"
 	case MetricSourceIstio:
 		return "istio"
+	case MetricSourceJenkins:
+		return "jenkins"
 	case MetricSourceKafkaConsumer:
 		return "kafka_consumer"
 	case MetricSourceKong:
@@ -869,7 +878,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "docker":
 		return MetricSourceDocker
 	case "ntp":
-		return MetricSourceNtp
+		return MetricSourceNTP
 	case "systemd":
 		return MetricSourceSystemd
 	case "helm":
@@ -1056,6 +1065,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
+	case "kubevirt_api":
+		return MetricSourceKubeVirtAPI
+	case "kubevirt_controller":
+		return MetricSourceKubeVirtController
+	case "kubevirt_handler":
+		return MetricSourceKubeVirtHandler
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
