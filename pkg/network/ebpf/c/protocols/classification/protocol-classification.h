@@ -179,10 +179,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    if(is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
-        return;
-    }
-
     if (app_layer_proto != PROTOCOL_UNKNOWN && app_layer_proto != PROTOCOL_HTTP2) {
         goto next_program;
     }
