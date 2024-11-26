@@ -41,6 +41,7 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 		//check container logs for successful start
 		if err = checkReadiness(ctx, cfg, scanner); err == nil {
 			// target container/s started successfully, we can stop the retries loop and finish here
+			t.Logf("%s command succeeded. %s container is running", cfg.command(), cfg.Name())
 			return nil
 		}
 		scanner.PrintLogs(t)
@@ -101,7 +102,7 @@ func checkReadiness(ctx context.Context, cfg LifecycleConfig, scanner *testutil.
 		case <-scanner.DoneChan:
 			return nil
 		case <-time.After(cfg.Timeout()):
-			return fmt.Errorf("failed to start the container %s, after %v timeout", cfg.Name(), cfg.Timeout())
+			return fmt.Errorf("failed to start the container %s, reached timeout of %v", cfg.Name(), cfg.Timeout())
 		}
 	}
 }
