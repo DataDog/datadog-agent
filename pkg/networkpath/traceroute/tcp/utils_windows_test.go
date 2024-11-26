@@ -15,11 +15,13 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/windows"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/ipv4"
 )
 
 type (
