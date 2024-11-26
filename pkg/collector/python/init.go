@@ -318,7 +318,7 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	var embeddedPythonHome3 string
 	if runtime.GOOS == "windows" {
 		embeddedPythonHome3 = filepath.Join(_here, "..", "embedded3")
-	} else { // IIRC both macOS and Linux would have the same relative paths so it makes sense as the "default" value
+	} else { // Both macOS and Linux have the same relative paths
 		embeddedPythonHome3 = filepath.Join(_here, "../..", "embedded")
 	}
 
