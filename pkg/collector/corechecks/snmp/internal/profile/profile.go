@@ -15,10 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// GetProfiles returns a Provider depending on various sources:
-//   - If initConfigProfiles are provided, they'll be used statically
-//   - If not, but a JSON gzip is present, we parse that and provide them statically
-//   - Otherwise, we parse any YAML profiles and provide them statically
+// GetProfiles returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
 func GetProfiles(initConfigProfiles ProfileConfigMap) (Provider, error) {
 	profiles, err := loadProfiles(initConfigProfiles)
 	if err != nil {
@@ -37,12 +34,6 @@ func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error)
 			return nil, fmt.Errorf("failed to load profiles from initConfig: %w", err)
 		}
 		profiles = customProfiles
-	} else if bundlePath := findProfileBundleFilePath(); bundlePath != "" {
-		defaultProfiles, err := loadBundleJSONProfiles(bundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load profiles from json bundle %q: %w", bundlePath, err)
-		}
-		profiles = defaultProfiles
 	} else {
 		defaultProfiles, err := loadYamlProfiles()
 		if err != nil {
