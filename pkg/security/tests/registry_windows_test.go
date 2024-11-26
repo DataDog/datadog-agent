@@ -68,7 +68,7 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 			// we will ignore any error
 			_ = cmd.Run()
 			return nil
-		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "open.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
@@ -116,7 +116,7 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 			// we will ignore any error
 			_ = cmd.Run()
 			return nil
-		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
@@ -154,7 +154,7 @@ func TestBasicRegistryTestAPI(t *testing.T) {
 			}
 			return nil
 
-		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})

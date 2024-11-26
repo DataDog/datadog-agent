@@ -223,8 +223,8 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 # Copy BouncyCastle Java FIPS provider binaries and configuration
 COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
-COPY bouncycastle-fips/java.security /opt/bouncycastle-fips/
-COPY bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
+COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
 RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
 
 # Update if optional OTel Agent process should not run
@@ -252,13 +252,11 @@ COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
-COPY entrypoint.sh /bin/entrypoint.sh
-COPY entrypoint.d /opt/entrypoints
-RUN chmod 755 /bin/entrypoint.sh \
-  && chmod 755 -R /opt/entrypoints
+COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
+COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
 
 FROM release AS test
-COPY test_image_contents.py /tmp/test_image_contents.py
+COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
 RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py

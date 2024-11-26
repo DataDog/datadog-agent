@@ -22,8 +22,8 @@ const (
 
 // Config is the top-level config for agent telemetry
 type Config struct {
-	Enabled  bool      `yaml:"enabled"`
-	Profiles []Profile `yaml:"profiles"`
+	Enabled  bool       `yaml:"enabled"`
+	Profiles []*Profile `yaml:"profiles"`
 
 	// compiled
 	schedule map[Schedule][]*Profile
@@ -127,7 +127,7 @@ type Schedule struct {
 // configured payloads willbe generated and emitted on the following schedule (the details
 // are described in the comments below.
 //
-//    (legend - 300s=5m, 900s=15m, 1800s=30m, 3600s=1h, 86400s=1d)
+//    (legend - 300s=5m, 900s=15m, 1800s=30m, 3600s=1h, 14400s=4h, 86400s=1d)
 //
 //        schedule:
 //          start_after: 30
@@ -155,7 +155,7 @@ type Schedule struct {
 // Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
 var defaultProfiles = `
   profiles:
-  - name: core-metrics
+  - name: checks
     metric:
       exclude:
         zero_metric: true
@@ -171,37 +171,53 @@ var defaultProfiles = `
           aggregate_tags:
             - check_name
         - name: pymem.inuse
-        - name: pymem.alloc
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: logs-and-metrics
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: dogstatsd.udp_packets_bytes
+        - name: dogstatsd.uds_packets_bytes
+        - name: logs.bytes_missed
+        - name: logs.bytes_sent
         - name: logs.decoded
+        - name: logs.dropped
+        - name: logs.encoded_bytes_sent
         - name: logs.processed
         - name: logs.sent
-        - name: logs.dropped
-        - name: logs.sender_latency
-        - name: logs.bytes_sent
-        - name: logs.encoded_bytes_sent
-        - name: logs.bytes_missed
         - name: point.sent
         - name: point.dropped
+        - name: transactions.input_count
+        - name: transactions.requeued
+        - name: transactions.retries
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: database
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
         - name: oracle.activity_samples_count
         - name: oracle.activity_latency
         - name: oracle.statement_metrics
         - name: oracle.statement_plan_errors
-        - name: postgres.schema_tables_elapsed_ms
-        - name: postgres.schema_tables_count
-        - name: postgres.collect_relations_autodiscovery_ms
-        - name: postgres.collect_stat_autodiscovery_ms
-        - name: postgres.get_new_pg_stat_activity_ms
-        - name: postgres.get_new_pg_stat_activity_count
-        - name: postgres.get_active_connections_ms
-        - name: postgres.get_active_connections_count
         - name: postgres.collect_activity_snapshot_ms
+        - name: postgres.collect_relations_autodiscovery_ms
         - name: postgres.collect_statement_samples_ms
         - name: postgres.collect_statement_samples_count
-        - name: transactions.input_count
-        - name: transactions.requeued
-        - name: transactions.retries
-        - name: dogstatsd.udp_packets_bytes
-        - name: dogstatsd.uds_packets_bytes
+        - name: postgres.collect_stat_autodiscovery_ms
+        - name: postgres.get_active_connections_ms
+        - name: postgres.get_active_connections_count
+        - name: postgres.get_new_pg_stat_activity_count
+        - name: postgres.get_new_pg_stat_activity_ms
+        - name: postgres.schema_tables_elapsed_ms
+        - name: postgres.schema_tables_count
     schedule:
       start_after: 30
       iterations: 0
@@ -337,7 +353,7 @@ func compileSchedules(cfg *Config) error {
 	cfg.schedule = make(map[Schedule][]*Profile)
 
 	for i := 0; i < len(cfg.Profiles); i++ {
-		p := &cfg.Profiles[i]
+		p := cfg.Profiles[i]
 
 		// Setup default schedule if it is not specified partially or at all
 		if p.Schedule == nil {
@@ -374,7 +390,7 @@ func compileSchedules(cfg *Config) error {
 // Compile agent telemetry config
 func compileConfig(cfg *Config) error {
 	for i := 0; i < len(cfg.Profiles); i++ {
-		err := compileProfile(&cfg.Profiles[i])
+		err := compileProfile(cfg.Profiles[i])
 		if err != nil {
 			return err
 		}
