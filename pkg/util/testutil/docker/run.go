@@ -11,85 +11,128 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"regexp"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 )
 
-const (
-	// DefaultTimeout is the default timeout for running a server.
-	DefaultTimeout = time.Minute
-)
-
-// RunDockerServer is a template for running a protocols server in a docker.
-// - serverName is a friendly name of the server we are setting (AMQP, mongo, etc.).
-// - dockerPath is the path for the docker-compose.
-// - env is any environment variable required for running the server.
-// - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
-func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration, retryCount int) error {
+func Run(t testing.TB, cfg LifecycleConfig) error {
 	var err error
-	for i := 0; i < retryCount; i++ {
-		err = runDockerServer(t, serverName, dockerPath, env, serverStartRegex, timeout)
-		if err == nil {
+	var ctx context.Context
+	for i := 0; i < cfg.Retries(); i++ {
+		t.Helper()
+		// Ensuring no previous instances exists.
+		killPreviousInstances(cfg)
+
+		scanner := NewScanner(cfg.LogPattern(), make(chan struct{}, 1))
+		// attempt to start the container/s
+		ctx, err = run(t, cfg, scanner)
+		if err != nil {
+			t.Logf("could not start %s: %v", cfg.Name(), err)
+			//this iteration failed, retry
+			continue
+		}
+
+		//check container logs for successful start
+		if err = checkReadiness(ctx, cfg, scanner); err == nil {
+			// target container/s started successfully, we can stop the retries loop and finish here
 			return nil
 		}
-		t.Logf("failed to start %s server, retrying: %v", serverName, err)
+		scanner.PrintLogs(t)
+		t.Logf("failed to start %s server, retrying: %v", cfg.Name(), err)
 		time.Sleep(5 * time.Second)
 	}
 	return err
 }
 
-func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
-	t.Helper()
-	// Ensuring the following command won't block for ever
-	timedContext, cancel := context.WithTimeout(context.Background(), timeout)
-	t.Cleanup(cancel)
-	// Ensuring no previous instances exists.
-	c := exec.CommandContext(timedContext, "docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
-	c.Env = append(c.Env, env...)
-	_ = c.Run()
-	cancel()
+// isStart is true if command is to start the container, false if to stop the container
+func buildCommandArgs(cfg LifecycleConfig, isStart bool) []string {
+	var args []string
+	switch concreteCfg := cfg.(type) {
+	case runConfig:
+		if isStart {
+			args = []string{string(runCommand), "--rm"}
 
+			// Add mounts
+			for hostPath, containerPath := range concreteCfg.Mounts {
+				args = append(args, "-v", fmt.Sprintf("%s:%s", hostPath, containerPath))
+			}
+
+			// Pass environment variables to the container as docker args
+			for _, env := range concreteCfg.Env() {
+				args = append(args, "-e", env)
+			}
+
+			//append container name and container image name
+			args = append(args, "--name", concreteCfg.Name(), concreteCfg.ImageName)
+
+			//provide main binary and binary arguments to run inside the docker container
+			args = append(args, concreteCfg.Binary)
+			args = append(args, concreteCfg.BinaryArgs...)
+		} else {
+			args = []string{string(removeCommand), "-f", concreteCfg.Name(), "--volumes"}
+		}
+	case composeConfig:
+		if isStart {
+			args = []string{string(composeCommand), "-f", concreteCfg.File, "up", "--remove-orphans", "-V"}
+		} else {
+			args = []string{string(composeCommand), "-f", concreteCfg.File, "down", "--remove-orphans", "--volumes"}
+		}
+	}
+	return args
+}
+
+// we try best effort to kill previous instances, hence ignoring any errors
+func killPreviousInstances(cfg LifecycleConfig) {
+	// Ensuring the following command won't block forever
+	timedContext, cancel := context.WithTimeout(context.Background(), cfg.Timeout())
+	defer cancel()
+	args := buildCommandArgs(cfg, false)
+
+	// Ensuring no previous instances exists.
+	c := exec.CommandContext(timedContext, "docker", args...)
+	c.Env = append(c.Env, cfg.Env()...)
+
+	// run synchronously to ensure all instances are killed
+	_ = c.Run()
+}
+
+func run(t testing.TB, cfg LifecycleConfig, scanner *PatternScanner) (context.Context, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up", "--remove-orphans", "-V")
-	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
+	args := buildCommandArgs(cfg, true)
 
-	cmd.Stdout = patternScanner
-	cmd.Stderr = patternScanner
-	cmd.Env = append(cmd.Env, env...)
-	err := cmd.Start()
-	require.NoErrorf(t, err, "could not start %s with docker-compose", serverName)
+	//prepare the command
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Env = append(cmd.Env, cfg.Env()...)
+	cmd.Stdout = scanner
+	cmd.Stderr = scanner
 
+	// run asynchronously and don't wait for the command to finish
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	//register cleanup function to kill the instances upon finishing the test
 	t.Cleanup(func() {
 		cancel()
 		_ = cmd.Wait()
-		timedContext, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		c := exec.CommandContext(timedContext, "docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
-		c.Env = append(c.Env, env...)
-		_ = c.Run() // We need to wait for the command to finish so that the docker containers get cleaned up properly before another docker-compose up call
+		killPreviousInstances(cfg)
 	})
 
+	return ctx, nil
+}
+
+func checkReadiness(ctx context.Context, cfg LifecycleConfig, scanner *PatternScanner) error {
 	for {
 		select {
 		case <-ctx.Done():
 			if err := ctx.Err(); err != nil {
-				patternScanner.PrintLogs(t)
-				return fmt.Errorf("failed to start %s pid %d server: %s", serverName, cmd.Process.Pid, err)
+				return fmt.Errorf("failed to start the container %s due to: %w", cfg.Name(), err)
 			}
-		case <-patternScanner.DoneChan:
-			t.Logf("%s server pid (docker) %d is ready", serverName, cmd.Process.Pid)
-
+		case <-scanner.DoneChan:
 			return nil
-		case <-time.After(timeout):
-			patternScanner.PrintLogs(t)
-			// please don't use t.Fatalf() here as we could test if it failed later
-			return fmt.Errorf("failed to start %s server pid %d: timed out after %s", serverName, cmd.Process.Pid, timeout.String())
+		case <-time.After(cfg.Timeout()):
+			return fmt.Errorf("failed to start the container %s, after %v timeout", cfg.Name(), cfg.Timeout())
 		}
 	}
 }
