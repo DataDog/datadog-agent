@@ -585,8 +585,8 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
         # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-        tag_version(ctx, release_branch, force=False)
-        tag_modules(ctx, release_branch, force=False)
+        tag_version(ctx, version=str(new_version), force=False)
+        tag_modules(ctx, version=str(new_version), force=False)
 
         print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
         gitlab_tag = None
