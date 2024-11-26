@@ -25,8 +25,9 @@ func newNodeDetector(ctx DetectionContext) detector {
 	return &nodeDetector{ctx: ctx}
 }
 
-func isJs(path string) bool {
-	return strings.HasSuffix(strings.ToLower(path), ".js")
+func isJs(filepath string) bool {
+	ext := path.Ext(strings.ToLower(filepath))
+	return ext == ".js" || ext == ".mjs" || ext == ".cjs"
 }
 
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
