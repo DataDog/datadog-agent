@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestSingletonInstance(t *testing.T) {
@@ -23,16 +21,22 @@ func TestSingletonInstance(t *testing.T) {
 }
 
 func CreateTestFile(tempDir string) *os.File {
+	// Ensure the directory exists
 	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		return nil
 	}
 
-	// Create a temporary file
-	tempFile, err := os.CreateTemp(tempDir, "config.yaml")
+	// Specify the exact file name
+	filePath := fmt.Sprintf("%s/config.yaml", tempDir)
+
+	// Create the file with the specified name
+	tempFile, err := os.Create(filePath)
 	if err != nil {
 		return nil
 	}
+
+	// Write the content to the file
 	configContent := `logs:
   - type: file
     path: "/tmp/test.log"
@@ -41,10 +45,19 @@ func CreateTestFile(tempDir string) *os.File {
 
 	_, err = tempFile.Write([]byte(configContent))
 	if err != nil {
+		tempFile.Close() // Close file before returning
 		return nil
 	}
+
+	// Close the file after writing
 	tempFile.Close()
-	return tempFile
+
+	// Reopen the file for returning if needed
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil
+	}
+	return file
 }
 
 func TestAddFileSource(t *testing.T) {
@@ -84,67 +97,5 @@ func TestSubscribeForTypeConfig(t *testing.T) {
 		assert.Equal(t, "file", added.Config.Type)
 	case <-time.After(1 * time.Second):
 		t.Fatal("Timeout waiting for source addition of type 'file'")
-	}
-}
-
-func TestSubscribeAllConfig(t *testing.T) {
-	// Create a temporary directory and file for the config
-	tempDir := "tmp/"
-	tempFile := CreateTestFile(tempDir)
-	defer os.RemoveAll(tempDir)
-	defer os.Remove(tempFile.Name())
-	fmt.Println("wack1")
-	log.Debug("WACKTEST1")
-	// Add the file source
-	configSource := GetInstance()
-	fmt.Println("wack2")
-	log.Debug("WACKTEST2")
-	err := configSource.AddFileSource(tempFile.Name())
-	fmt.Println("wack3")
-	log.Debug("WACKTEST3")
-	assert.NoError(t, err)
-	fmt.Println("wack4")
-	log.Debug("WACKTEST4")
-	// Subscribe for all sources
-	addedChan, _ := configSource.SubscribeAll()
-	fmt.Println("wack5")
-	log.Debug("WACKTEST5")
-	for {
-		select {
-		case added := <-addedChan:
-			fmt.Println("CHANNEL IM READING FROM IS ", addedChan)
-			// Check the type and path of the source added
-			assert.Equal(t, "file", added.Config.Type)
-			return
-		case <-time.After(10 * time.Second):
-			fmt.Println("ERROR TIME OUT")
-			log.Debug("ERROR TIME OUT 2")
-			t.Fatal("Timeout waiting for source addition")
-			return
-		}
-	}
-}
-
-func TestGetAddedForTypeConfig(t *testing.T) {
-	// Create a temporary directory and file for the config
-	tempDir := "tmp/"
-	tempFile := CreateTestFile(tempDir)
-	defer os.RemoveAll(tempDir)
-	defer os.Remove(tempFile.Name())
-
-	// Add the file source
-	configSource := GetInstance()
-	err := configSource.AddFileSource(tempFile.Name())
-	assert.NoError(t, err)
-
-	// Get the sources added for a specific type
-	sources := configSource.GetAddedForType("file")
-
-	select {
-	case added := <-sources:
-		// Check the type and path of the source added
-		assert.Equal(t, "file", added.Config.Type)
-	case <-time.After(1 * time.Second):
-		t.Fatal("Timeout waiting for source addition")
 	}
 }

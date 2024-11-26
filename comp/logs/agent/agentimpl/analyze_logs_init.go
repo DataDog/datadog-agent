@@ -55,7 +55,7 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 	DefaultAuditorTTL := 23
 	defaultRunPath := "/opt/datadog-agent/run"
 	health := health.RegisterLiveness("logs-agent")
-
+	// No op auditor
 	auditorTTL := time.Duration(DefaultAuditorTTL) * time.Hour
 	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
 
