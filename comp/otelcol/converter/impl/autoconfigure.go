@@ -149,7 +149,6 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			if !ok {
 				return
 			}
-
 			apiKey, ok := apiMap["key"]
 			if ok {
 				key, ok := apiKey.(string)
@@ -166,7 +165,7 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 				if apiKey == nil || apiKey == "" {
 					apiMap["key"] = coreCfg.Get("api_key")
 				}
-				apiSite, _ := apiMap["site"]
+				apiSite := apiMap["site"]
 				coreSite := coreCfg.Get("site")
 				if (apiSite == nil || apiSite == "") && coreSite != nil {
 					apiMap["site"] = ""
