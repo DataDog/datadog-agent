@@ -47,6 +47,7 @@ type Fatbin struct {
 	kernelNames map[string]struct{}
 }
 
+// NewFatbin creates a new Fatbin instance
 func NewFatbin() *Fatbin {
 	return &Fatbin{
 		kernels:     make(map[CubinKernelKey]*CubinKernel),
@@ -69,6 +70,7 @@ func (fb *Fatbin) HasKernelWithName(name string) bool {
 	return ok
 }
 
+// AddKernel adds a kernel to the fatbin and updates internal indexes
 func (fb *Fatbin) AddKernel(key CubinKernelKey, kernel *CubinKernel) {
 	fb.kernels[key] = kernel
 	fb.kernelNames[kernel.Name] = struct{}{}
