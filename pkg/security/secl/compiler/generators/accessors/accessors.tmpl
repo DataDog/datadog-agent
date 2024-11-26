@@ -131,14 +131,25 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return results
 					}
 
-					{{if and $Field.Iterator.IsOrigTypePtr (not $Field.GetArrayPrefix) $Field.Handler }}
-					results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) {{$Field.ReturnType}} {
+					{{$Event := "nil"}}
+					{{if $Field.Handler }}
+						{{$Event = "ev"}}
+					{{end}}
+					{{$AncestorFunc := "newAncestorsIterator"}}
+					{{if $Field.GetArrayPrefix}}
+						{{$AncestorFunc = "newAncestorsIteratorArray"}}
+					{{end}}
+					results = {{$AncestorFunc}}(iterator, ctx, {{$Event}}, func(ev *Event, pce *ProcessCacheEntry) {{$Field.GetArrayPrefix}}{{$Field.ReturnType}} {
 						{{range $Check := $Checks}}
 							{{if $Field.Iterator.Name | HasPrefix $Check}}
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "pce%s"}}
 								if !{{$Check}}() {
+									{{if $Field.GetArrayPrefix}}
+									return nil
+									{{else}}
 									return {{$Field.GetDefaultScalarReturnValue}}
+									{{end}}
 								}
 							{{end}}
 						{{end}}
@@ -146,9 +157,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
 
 						{{$Return := $SubName | printf "pce%s"}}
-						{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
-						{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-						{{$Return = print "ev.FieldHandlers." $Handler "(ev, &pce" $SubName ")"}}
+						{{if $Field.Handler }}
+							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &pce" $SubName ")"}}
+						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
 							{{if $Field.IsLength}}
@@ -160,56 +173,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							return {{$Return}}
 						{{end}}
 					})
-
-					{{else}}
-					value := iterator.Front(ctx)
-					for value != nil {
-						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := value
-						{{else}}
-							element := *value
-						{{end}}
-
-						{{range $Check := $Checks}}
-							{{if $Field.Iterator.Name | HasPrefix $Check}}
-								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
-								{{$Check = $SubName | printf "element%s"}}
-								if !{{$Check}}() {
-									results = append(results, {{$Field.GetDefaultScalarReturnValue}})
-									value = iterator.Next()
-									continue
-								}
-							{{end}}
-						{{end}}
-
-						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
-
-						{{$Return := $SubName | printf "element%s"}}
-						{{if $Field.Handler }}
-							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
-							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
-						{{end}}
-
-						{{if eq $Field.ReturnType "int"}}
-							{{if $Field.IsLength}}
-								result := len({{".length" | TrimSuffix $Return}})
-							{{else}}
-								result := int({{$Return}})
-							{{end}}
-						{{else}}
-							result := {{$Return}}
-						{{end}}
-
-						{{if not $Field.GetArrayPrefix}}
-						results = append(results, result)
-						{{else}}
-						results = append(results, result...)
-						{{end}}
-
-						value = iterator.Next()
-					}
-					{{end}}
 
 					ctx.{{$Field.GetCacheName}}[field] = results
 

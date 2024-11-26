@@ -23,6 +23,7 @@ import (
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -35,7 +36,6 @@ const (
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
-	maximumNumberOfPayloads = 50
 )
 
 // ---------------
@@ -43,7 +43,7 @@ const (
 type sender interface {
 	startSession(cancelCtx context.Context) *senderSession
 	flushSession(ss *senderSession) error
-	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error
+	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 }
 
 type client interface {
@@ -103,10 +103,11 @@ type payloadInfo struct {
 	payload     interface{}
 }
 
-// senderSession is also use to batch payloads
+// senderSession store and seriaizes one or more payloads
 type senderSession struct {
-	cancelCtx context.Context
-	payloads  []payloadInfo
+	cancelCtx       context.Context
+	payloadTemplate Payload
+	metricPayloads  []*AgentMetricsPayload
 }
 
 // BatchPayloadWrapper exported so it can be turned into json
@@ -268,53 +269,65 @@ func (s *senderImpl) addMetricPayload(
 
 func (s *senderImpl) startSession(cancelCtx context.Context) *senderSession {
 	return &senderSession{
-		cancelCtx: cancelCtx,
+		cancelCtx:       cancelCtx,
+		payloadTemplate: s.payloadTemplate,
 	}
+}
+
+func (ss *senderSession) flush() Payload {
+	defer func() {
+		// Clear the payloads
+		ss.metricPayloads = nil
+	}()
+
+	// Create a payload with a single message or batch of messages
+	payload := ss.payloadTemplate
+	payload.EventTime = time.Now().Unix()
+	if len(ss.metricPayloads) == 1 {
+		// Single payload will be sent directly using the request type of the payload
+		mp := ss.metricPayloads[0]
+		payload.RequestType = "agent-metrics"
+		payload.Payload = payloadInfo{"agent-metrics", mp}.payload
+		return payload
+	}
+
+	// Batch up multiple payloads into single "batch" payload type
+	batch := make([]BatchPayloadWrapper, 0)
+	for _, mp := range ss.metricPayloads {
+		batch = append(batch,
+			BatchPayloadWrapper{
+				RequestType: "agent-metrics",
+				Payload:     payloadInfo{"agent-metrics", mp}.payload,
+			})
+	}
+	payload.RequestType = "message-batch"
+	payload.Payload = batch
+	return payload
 }
 
 func (s *senderImpl) flushSession(ss *senderSession) error {
 	// There is nothing to do if there are no payloads
-	if len(ss.payloads) == 0 {
+	if len(ss.metricPayloads) == 0 {
 		return nil
 	}
 
-	s.logComp.Infof("Flushing Agent Telemetery session with %d payloads", len(ss.payloads))
+	s.logComp.Infof("Flushing Agent Telemetery session with %d payloads", len(ss.metricPayloads))
 
-	// Defer cleanup of payloads. Even if there is an error, we want to cleanup
-	// but in future we may want to add retry logic.
-	defer func() {
-		ss.payloads = nil
-	}()
-
-	// Create a payload with a single message or batch of messages
-	payload := s.payloadTemplate
-	payload.EventTime = time.Now().Unix()
-	if len(ss.payloads) == 1 {
-		// Single payload will be sent directly using the request type of the payload
-		payload.RequestType = ss.payloads[0].requestType
-		payload.Payload = ss.payloads[0].payload
-	} else {
-		// Batch up multiple payloads into single "batch" payload type
-		payload.RequestType = "message-batch"
-		payloadWrappers := make([]BatchPayloadWrapper, 0)
-		for _, p := range ss.payloads {
-			payloadWrappers = append(payloadWrappers,
-				BatchPayloadWrapper{
-					RequestType: p.requestType,
-					Payload:     p.payload,
-				})
-		}
-		payload.Payload = payloadWrappers
+	payloads := ss.flush()
+	payloadJSON, err := json.Marshal(payloads)
+	if err != nil {
+		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
 	}
 
-	// Marshal the payload to a byte array
-	reqBody, err := json.Marshal(payload)
+	reqBody, err := scrubber.ScrubBytes(payloadJSON)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to scrubl agent telemetry payload: %w", err)
 	}
 
 	// Send the payload to all endpoints
 	var errs error
+	reqType := payloads.RequestType
+	bodyLen := strconv.Itoa(len(reqBody))
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
 		req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
@@ -322,7 +335,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 			errs = errors.Join(errs, err)
 			continue
 		}
-		s.addHeaders(req, payload.RequestType, ep.GetAPIKey(), strconv.Itoa(len(reqBody)))
+		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen)
 		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
 		if err != nil {
 			errs = errors.Join(errs, err)
@@ -345,12 +358,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	return errs
 }
 
-func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error {
-	// Are there any metrics
-	if len(metrics) == 0 {
-		return nil
-	}
-
+func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) {
 	// Create one or more metric payloads batching different metrics into a single payload,
 	// but the same metric (with multiple tag sets) into different payloads. This is needed
 	// to avoid creating JSON payloads which contains arrays (otherwise we could not
@@ -360,44 +368,21 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 	// message/payload contains multiples metrics for a single index of tag set. Essentially
 	// the number of message/payloads is equal to the maximum number of tag sets for a single
 	// metric.
-	var payloads []*AgentMetricsPayload
 	for _, am := range metrics {
 		for idx, m := range am.metrics {
 			var payload *AgentMetricsPayload
 
 			// reuse or add a payload
-			if idx+1 > len(payloads) {
+			if idx+1 > len(ss.metricPayloads) {
 				newPayload := s.agentMetricsPayloadTemplate
 				newPayload.Metrics = make(map[string]interface{}, 0)
 				newPayload.Metrics["agent_metadata"] = s.metadataPayloadTemplate
-				payloads = append(payloads, &newPayload)
+				ss.metricPayloads = append(ss.metricPayloads, &newPayload)
 			}
-			payload = payloads[idx]
+			payload = ss.metricPayloads[idx]
 			s.addMetricPayload(am.name, am.family, m, payload)
 		}
 	}
-
-	// We will batch multiples metrics payloads into single "batch" payload type
-	// but for now send it one by one
-	for _, payload := range payloads {
-		if err := s.sendPayload(ss, "agent-metrics", payload); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *senderImpl) sendPayload(ss *senderSession, requestType string, payload interface{}) error {
-	// Add payload to session
-	ss.payloads = append(ss.payloads, payloadInfo{requestType, payload})
-
-	// Flush session if it is full
-	if len(ss.payloads) >= maximumNumberOfPayloads {
-		return s.flushSession(ss)
-	}
-
-	return nil
 }
 
 func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string) {
