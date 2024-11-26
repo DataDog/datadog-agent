@@ -142,9 +142,9 @@ func (c composeConfig) command() string {
 func (c composeConfig) commandArgs(t subCommandType) []string {
 	switch t {
 	case start:
-		return []string{string(composeCommand), "-f", c.File, "up", "--remove-orphans", "-V"}
+		return []string{"-f", c.File, "up", "--remove-orphans", "-V"}
 	case kill:
-		return []string{string(composeCommand), "-f", c.File, "down", "--remove-orphans", "--volumes"}
+		return []string{"-f", c.File, "down", "--remove-orphans", "--volumes"}
 	default:
 		return nil
 	}
