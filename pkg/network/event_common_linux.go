@@ -136,20 +136,18 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments
 func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
-	if c.Type != TCP {
+	if c.Type != TCP || tcpStats == nil {
 		return
 	}
 
-	if tcpStats != nil {
-		c.Monotonic.Retransmits = tcpStats.Retransmits
-		c.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
-		c.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
-		c.RTT = tcpStats.Rtt
-		c.RTTVar = tcpStats.Rtt_var
-		if tcpStats.Failure_reason > 0 {
-			c.TCPFailures = map[uint16]uint32{
-				tcpStats.Failure_reason: 1,
-			}
+	c.Monotonic.Retransmits = tcpStats.Retransmits
+	c.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
+	c.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
+	c.RTT = tcpStats.Rtt
+	c.RTTVar = tcpStats.Rtt_var
+	if tcpStats.Failure_reason > 0 {
+		c.TCPFailures = map[uint16]uint32{
+			tcpStats.Failure_reason: 1,
 		}
 	}
 }

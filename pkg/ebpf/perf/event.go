@@ -41,11 +41,17 @@ type EventHandler struct {
 // EventHandlerOptions are the options controlling the EventHandler.
 // MapName and Handler are required options.
 type EventHandlerOptions struct {
+	// MapName specifies the name of the map. This field is required.
 	MapName string
+	// Handler is the callback for data received from the perf/ring buffer. This field is required.
 	Handler func([]byte)
 
-	TelemetryEnabled  bool
-	UseRingBuffer     bool
+	// TelemetryEnabled specifies whether to collect usage telemetry from the perf/ring buffer.
+	TelemetryEnabled bool
+	// UseRingBuffer specifies whether to use a ring buffer
+	UseRingBuffer bool
+	// UpgradePerfBuffer specifies if you wish to upgrade a perf buffer to a ring buffer.
+	// This only takes effect if UseRingBuffer is true.
 	UpgradePerfBuffer bool
 
 	PerfOptions    PerfBufferOptions
@@ -58,7 +64,7 @@ type EventHandlerOptions struct {
 type PerfBufferOptions struct {
 	BufferSize int
 
-	// Watermark - The reader will start processing samples once their sizes in the perf ring buffer
+	// Watermark - The reader will start processing samples once their sizes in the perf buffer
 	// exceed this value. Must be smaller than PerfRingBufferSize. Defaults to the manager value if not set.
 	Watermark int
 
@@ -94,14 +100,17 @@ func (e *EventHandler) Init(mgr *manager.Manager, mgrOpts *manager.Options) erro
 		return fmt.Errorf("unable to find map spec %q", e.opts.MapName)
 	}
 
-	if e.opts.UseRingBuffer && features.HaveMapType(ebpf.RingBuf) == nil {
+	ringBuffersAvailable := features.HaveMapType(ebpf.RingBuf) == nil
+	if e.opts.UseRingBuffer && ringBuffersAvailable {
 		if e.opts.UpgradePerfBuffer {
 			if ms.Type != ebpf.PerfEventArray {
 				return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.opts.MapName, ms.Type.String())
 			}
 			UpgradePerfBuffer(mgr, mgrOpts, e.opts.MapName)
-		} else if ms.Type != ebpf.RingBuf {
-			return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.opts.MapName, ms.Type.String())
+		} else {
+			if ms.Type != ebpf.RingBuf {
+				return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.opts.MapName, ms.Type.String())
+			}
 		}
 
 		if ms.MaxEntries != uint32(e.opts.RingBufOptions.BufferSize) {
@@ -148,6 +157,7 @@ func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) 
 }
 
 func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
+	// remove any existing perf buffers from manager
 	mgr.PerfMaps = slices.DeleteFunc(mgr.PerfMaps, func(perfMap *manager.PerfMap) bool {
 		return perfMap.Name == e.opts.MapName
 	})
@@ -174,6 +184,7 @@ func (e *EventHandler) perfRecordHandler(record *perf.Record, _ *manager.PerfMap
 }
 
 func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
+	// remove any existing matching ring buffers from manager
 	mgr.RingBuffers = slices.DeleteFunc(mgr.RingBuffers, func(ringBuf *manager.RingBuffer) bool {
 		return ringBuf.Name == e.opts.MapName
 	})
@@ -207,6 +218,7 @@ func UpgradePerfBuffer(mgr *manager.Manager, mgrOpts *manager.Options, mapName s
 	specEditor.EditorFlag |= manager.EditType | manager.EditKeyValue
 	mgrOpts.MapSpecEditors[mapName] = specEditor
 
+	// remove map from perf maps because it has been upgraded
 	mgr.PerfMaps = slices.DeleteFunc(mgr.PerfMaps, func(perfMap *manager.PerfMap) bool {
 		return perfMap.Name == mapName
 	})
