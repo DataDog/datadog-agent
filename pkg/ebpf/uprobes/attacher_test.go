@@ -18,6 +18,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -473,8 +474,13 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	require.NoError(t, err)
 	mockMan.AssertExpectations(t)
 
+	// FileRegistry calls the detach callback without host path. Replicate that here.
+	detachPath := utils.FilePath{
+		ID: target.ID,
+	}
+
 	mockMan.On("DetachHook", expectedProbe.ProbeIdentificationPair).Return(nil)
-	err = ua.detachFromBinary(target)
+	err = ua.detachFromBinary(detachPath)
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
@@ -735,6 +741,18 @@ func TestUprobeAttacher(t *testing.T) {
 
 	require.NotNil(t, mainProbe)
 	require.Equal(t, uint32(cmd.Process.Pid), mainProbe.fpath.PID)
+
+	require.True(t, connectProbe.probe.IsRunning())
+	require.True(t, mainProbe.probe.IsRunning())
+
+	// Kill the process to trigger the detach
+	cmd.Process.Kill()
+
+	// Ensure probes are correctly detached
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.False(c, connectProbe.probe.IsRunning())
+		assert.False(c, mainProbe.probe.IsRunning())
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
 func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMonitor {
