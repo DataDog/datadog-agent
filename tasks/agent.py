@@ -127,7 +127,6 @@ def build(
     install_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
     exclude_rtloader=False,
@@ -164,7 +163,6 @@ def build(
         install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )
