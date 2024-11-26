@@ -103,16 +103,19 @@ func (e *EventHandler) Init(mgr *manager.Manager, mgrOpts *manager.Options) erro
 	ringBuffersAvailable := features.HaveMapType(ebpf.RingBuf) == nil
 	if e.opts.UseRingBuffer && ringBuffersAvailable {
 		if e.opts.UpgradePerfBuffer {
+			// using ring buffers and upgrading from perf buffer
 			if ms.Type != ebpf.PerfEventArray {
 				return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.opts.MapName, ms.Type.String())
 			}
 			UpgradePerfBuffer(mgr, mgrOpts, e.opts.MapName)
 		} else {
+			// using ring buffers, but not upgrading from a perf buffer
 			if ms.Type != ebpf.RingBuf {
 				return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.opts.MapName, ms.Type.String())
 			}
 		}
 
+		// resize if necessary
 		if ms.MaxEntries != uint32(e.opts.RingBufOptions.BufferSize) {
 			ResizeRingBuffer(mgrOpts, e.opts.MapName, e.opts.RingBufOptions.BufferSize)
 		}
