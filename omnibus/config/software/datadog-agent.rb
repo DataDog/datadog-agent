@@ -34,6 +34,7 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   msgoroot = "/usr/local/msgo"
   flavor_arg = ENV['AGENT_FLAVOR']
+  fips_arg = fips_mode? ? "--fips-mode" : ""
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -146,7 +147,7 @@ build do
     if windows_target?
       command "invoke -e system-probe.build", env: env
     elsif linux_target?
-      command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}", env: env
+      command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
     end
 
     if windows_target?
@@ -167,7 +168,7 @@ build do
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
-    command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+    command "invoke -e security-agent.build #{fips_args} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
     else
