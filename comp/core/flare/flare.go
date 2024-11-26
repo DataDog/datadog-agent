@@ -54,6 +54,7 @@ type dependencies struct {
 	Secrets               secrets.Component
 	AC                    autodiscovery.Component
 	Tagger                tagger.Component
+	FBFactory             types.FlareBuilderFactory
 }
 
 type provides struct {
@@ -70,6 +71,7 @@ type flare struct {
 	params       Params
 	providers    []*types.FlareFiller
 	diagnoseDeps diagnose.SuitesDeps
+	fbFactory    types.FlareBuilderFactory
 }
 
 func newFlare(deps dependencies) provides {
@@ -80,6 +82,7 @@ func newFlare(deps dependencies) provides {
 		params:       deps.Params,
 		providers:    fxutil.GetAndFilterGroup(deps.Providers),
 		diagnoseDeps: diagnoseDeps,
+		fbFactory:    deps.FBFactory,
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
@@ -117,8 +120,18 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	}
 
 	flareArgs := types.FlareArgs{}
-	// flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling_runtime") will be utilized here on completion
-	// of AMLII-2127
+
+	enableProfiling, found := task.Config.TaskArgs["enable_profiling"]
+	if !found {
+		f.log.Debug("enable_profiling arg not found, creating flare without profiling enabled")
+	} else if enableProfiling == "true" {
+		// RC expects the agent task operation to provide reasonable default flare args
+		flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling.profile_duration")
+		flareArgs.ProfileBlockingRate = f.config.GetInt("flare.rc_profiling.blocking_rate")
+		flareArgs.ProfileMutexFraction = f.config.GetInt("flare.rc_profiling.mutex_fraction")
+	} else if enableProfiling != "false" {
+		f.log.Infof("Unrecognized value passed via enable_profiling, creating flare without profiling enabled: %q", enableProfiling)
+	}
 
 	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
 	if err != nil {
@@ -204,7 +217,7 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := helpers.NewFlareBuilder(f.params.local, flareArgs)
+	fb, err := f.fbFactory(f.params.local, flareArgs)
 	if err != nil {
 		return "", err
 	}
@@ -262,7 +275,7 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 				<-timer.C
 			}
 		case <-timer.C:
-			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, providerTimeout)
+			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, timeout)
 			_ = fb.Logf("%s", err.Error())
 		}
 	}
