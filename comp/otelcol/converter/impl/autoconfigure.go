@@ -162,18 +162,14 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			// this is the only reference to Requires.Conf
 			// TODO: add logic to either fail or log message if api key not found
 			if coreCfg != nil {
-				// Set api key if current API key is unset, empty string AND core config
-				// has an API key set.
+				// Set api key if current API key is [(unset OR empty string) AND core config
+				// has an API key set].
 				if (apiKey == nil || apiKey == "") && coreCfg.Get("api_key") != nil {
 					apiMap["key"] = coreCfg.Get("api_key")
 				}
 
 				apiSite := apiMap["site"]
 				if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
-					apiMap["site"] = ""
-					apiSite = apiMap["site"]
-				}
-				if apiSite == "" {
 					apiMap["site"] = coreCfg.Get("site")
 				}
 			}
