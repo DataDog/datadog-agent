@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -39,6 +40,7 @@ type dependencies struct {
 	Hostname   hostname.Component
 	Compressor compression.Component
 	Tagger     tagger.Component
+	HaAgent    haagent.Component
 }
 
 type diagnoseSenderManager struct {
@@ -69,6 +71,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 
 	log := sender.deps.Log
 	config := sender.deps.Config
+	haAgent := sender.deps.HaAgent
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
 	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname))
@@ -78,6 +81,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		orchestratorForwarder,
 		opts,
 		eventPlatformForwarder,
+		haAgent,
 		sender.deps.Compressor,
 		sender.deps.Tagger,
 		hostnameDetected)

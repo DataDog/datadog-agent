@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -212,6 +213,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
+				haagentfx.Module(),
 			)
 		},
 	}

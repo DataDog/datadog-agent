@@ -26,6 +26,9 @@ type PatternScanner struct {
 
 	// keep the stdout/err in case of failure
 	buffers []string
+
+	//Buffer for accumulating partial lines
+	lineBuf string
 }
 
 // NewScanner returns a new instance of PatternScanner.
@@ -41,18 +44,30 @@ func NewScanner(pattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner 
 // Write implemented io.Writer to be used as a callback for log/string writing.
 // Once we find a match in for the given pattern, we notify the caller.
 func (ps *PatternScanner) Write(p []byte) (n int, err error) {
-	ps.buffers = append(ps.buffers, string(p))
-	n = len(p)
-	err = nil
-
-	if !ps.stopped && ps.pattern.Match(p) {
-		ps.stopOnce.Do(func() {
-			ps.DoneChan <- struct{}{}
-			ps.stopped = true
-		})
+	// Ignore writes after the pattern has been matched.
+	if ps.stopped {
+		return len(p), nil
 	}
 
-	return
+	// Append new data to the line buffer.
+	ps.lineBuf += string(p)
+
+	// Split the buffer into lines.
+	lines := strings.Split(ps.lineBuf, "\n")
+	ps.lineBuf = lines[len(lines)-1] // Save the last (possibly incomplete) line.
+
+	// Process all complete lines.
+	for _, line := range lines[:len(lines)-1] {
+		ps.buffers = append(ps.buffers, line) // Save the log line.
+		if !ps.stopped && ps.pattern.MatchString(line) {
+			ps.stopOnce.Do(func() {
+				ps.stopped = true
+				close(ps.DoneChan) // Notify the caller about the match.
+			})
+		}
+	}
+
+	return len(p), nil
 }
 
 // PrintLogs writes the captured logs into the test logger.

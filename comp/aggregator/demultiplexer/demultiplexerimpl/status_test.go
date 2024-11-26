@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -61,6 +62,7 @@ func TestStatusOutPut(t *testing.T) {
 		core.MockBundle(),
 		compressionmock.MockModule(),
 		defaultforwarder.MockModule(),
+		haagentmock.Module(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		fx.Provide(func() tagger.Component {

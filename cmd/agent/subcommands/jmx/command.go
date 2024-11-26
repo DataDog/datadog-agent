@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
@@ -166,6 +167,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				proccontainers.InitSharedContainerProvider(wmeta, tagger)
 			}),
 			fx.Provide(func() remoteagentregistry.Component { return nil }),
+			haagentfx.Module(),
 		)
 	}
 

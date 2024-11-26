@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -173,7 +174,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.Compressor, nooptagger.NewComponent(), "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -295,12 +296,13 @@ func createDemuxDepsWithOrchestratorFwd(
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		compressionmock.MockModule(),
+		haagentmock.Module(),
 	)
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{
 		TestDeps:         deps.TestDeps,
-		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.Compressor, nooptagger.NewComponent(), ""),
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
 		EventPlatformFwd: deps.Eventplatform,
 	}
