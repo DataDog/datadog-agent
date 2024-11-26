@@ -14,8 +14,16 @@
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
+    # SSH Key retrieval for AWS
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AWS_PRIVATE_KEY_PATH && chmod 600 $E2E_AWS_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AWS_PRIVATE_KEY_PATH || exit $?
+    # SSH Key retrieval for Azure
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AZURE_SSH_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AZURE_SSH_PRIVATE_KEY_PATH && chmod 600 $E2E_AZURE_SSH_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AZURE_SSH_PRIVATE_KEY_PATH || exit $?
+    # SSH Key retrieval for GCP
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_GCP_SSH_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_GCP_SSH_PRIVATE_KEY_PATH && chmod 600 $E2E_GCP_SSH_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_GCP_SSH_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
@@ -35,9 +43,16 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
-    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
-    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    # AWS SSH Key configuration  
+    E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
+    E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
+    E2E_AWS_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    # Azure SSH Key configuration
+    E2E_AZURE_SSH_PUBLIC_KEY_PATH: /tmp/agent-qa-azure-ssh-key.pub
+    E2E_AZURE_SSH_PRIVATE_KEY_PATH: /tmp/agent-qa-azure-ssh-key
+    # GCP SSH Key configuration
+    E2E_GCP_SSH_PUBLIC_KEY_PATH: /tmp/agent-qa-gcp-ssh-key.pub
+    E2E_GCP_SSH_PRIVATE_KEY_PATH: /tmp/agent-qa-gcp-ssh-key
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
