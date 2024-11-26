@@ -101,7 +101,9 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	for _, stream := range streamsForType {
 		fmt.Println("steam is ", stream)
 		fmt.Println("source is ", source)
+		fmt.Println("ADDING TO CHANNEL STREAM?")
 		stream <- source
+		fmt.Println("UNGA LA BUNGA CHANNEL IS WORKING???? ", source)
 	}
 	fmt.Println("UNGA BUNGA 7")
 }
@@ -140,14 +142,20 @@ func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSour
 	if _, exists := configSource.addedByType[sourceType]; !exists {
 		configSource.addedByType[sourceType] = []chan *LogSource{}
 	}
+	fmt.Println("THE WACKEST OF TESTS 1")
 	configSource.addedByType[sourceType] = append(configSource.addedByType[sourceType], added)
-
+	fmt.Println("THE WACKEST OF TESTS 2", configSource.addedByType[sourceType])
 	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
+	fmt.Println("THE WACKEST OF TESTS 3, existingSources", existingSources)
 	go func() {
+		fmt.Println("THE WACKEST OF TESTS 4")
 		for _, source := range existingSources {
+			fmt.Println("THE WACKEST OF TESTS 5, source", source)
 			if source.Config.Type == sourceType {
+				fmt.Println("THE WACKEST OF TESTS 6")
 				added <- source
 			}
+			fmt.Println("THE WACKEST OF TESTS 7")
 		}
 	}()
 
