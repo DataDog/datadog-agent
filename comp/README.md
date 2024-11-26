@@ -167,6 +167,10 @@ Package lsof provides a flare file with data about files opened by the agent pro
 Package pid writes the current PID to a file, ensuring that the file
 doesn't exist or doesn't contain a PID for a running process.
 
+### [comp/core/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/profiler)
+
+Package profiler provides a flare folder containing the output of various agent's pprof servers
+
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
 
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their

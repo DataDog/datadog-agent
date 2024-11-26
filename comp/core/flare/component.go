@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,7 +33,10 @@ type Component interface {
 
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
+	var fbf types.FlareBuilderFactory = helpers.NewFlareBuilder
+
 	return fxutil.Component(
 		fx.Provide(newFlare),
-		fx.Supply(params))
+		fx.Supply(params),
+		fx.Supply(fbf))
 }
