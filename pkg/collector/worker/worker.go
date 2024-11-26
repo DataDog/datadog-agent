@@ -148,7 +148,6 @@ func (w *Worker) Run() {
 		}
 
 		if !w.shouldRunIntegrationInstance(check) {
-			// TODO: TEST ME
 			checkLogger.Debug("HA Integration skipped")
 			// Remove the check from the running list
 			w.checksTracker.DeleteCheck(check.ID())
