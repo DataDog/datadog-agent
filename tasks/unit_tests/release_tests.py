@@ -701,6 +701,7 @@ class TestGenerateRepoData(unittest.TestCase):
 
 
 class TestCheckForChanges(unittest.TestCase):
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -715,7 +716,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    def test_no_changes(self, version_mock, print_mock):
+    def test_no_changes(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -757,6 +758,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main")
         print_mock.assert_called_with("false")
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -772,7 +774,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_first_repo(self, version_mock, print_mock):
+    def test_changes_new_commit_first_repo(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
@@ -835,6 +837,7 @@ class TestCheckForChanges(unittest.TestCase):
             print_mock.assert_has_calls(calls)
             self.assertEqual(print_mock.call_count, 3)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -850,7 +853,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_all_repo(self, version_mock, print_mock):
+    def test_changes_new_commit_all_repo(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
@@ -919,6 +922,7 @@ class TestCheckForChanges(unittest.TestCase):
             print_mock.assert_has_calls(calls)
             self.assertEqual(print_mock.call_count, 9)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -933,7 +937,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    def test_changes_new_release_one_repo(self, version_mock, print_mock):
+    def test_changes_new_release_one_repo(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -983,6 +987,7 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls, any_order=True)
         self.assertEqual(print_mock.call_count, 2)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -998,7 +1003,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock):
+    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
@@ -1062,6 +1067,7 @@ class TestCheckForChanges(unittest.TestCase):
             self.assertEqual(print_mock.call_count, 3)
 
     # def test_no_changes_warning(self, print_mock):
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1072,7 +1078,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    def test_no_changes_warning(self, version_mock, print_mock):
+    def test_no_changes_warning(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1090,6 +1096,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main", True)
         print_mock.assert_called_with("false")
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1102,7 +1109,7 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('tasks.release.release_manager', new=MagicMock(return_value="release_manager"))
     @patch('tasks.release.warn_new_commits', new=MagicMock())
-    def test_changes_other_repo_warning(self, version_mock, print_mock):
+    def test_changes_other_repo_warning(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1120,6 +1127,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main", True)
         print_mock.assert_called_with("false")
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1132,7 +1140,7 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('tasks.release.release_manager', new=MagicMock(return_value="release_manager"))
     @patch('tasks.release.warn_new_commits', new=MagicMock())
-    def test_changes_integrations_core_warning(self, version_mock, print_mock):
+    def test_changes_integrations_core_warning(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"
@@ -1155,6 +1163,7 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls)
         self.assertEqual(print_mock.call_count, 2)
 
+    @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -1167,7 +1176,7 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('tasks.release.release_manager', new=MagicMock(return_value="release_manager"))
     @patch('tasks.release.warn_new_commits', new=MagicMock())
-    def test_changes_integrations_core_warning_branch_out(self, version_mock, print_mock):
+    def test_changes_integrations_core_warning_branch_out(self, version_mock, print_mock, _):
         next = MagicMock()
         next.tag_pattern.return_value = "7.55.0*"
         next.__str__.return_value = "7.55.0-rc.2"

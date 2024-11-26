@@ -100,6 +100,12 @@ def deduce_and_ask_version(ctx, branch, as_str=True, yes=False) -> str | Version
     raise Exit(color_message("Aborting.", "red"), code=1)
 
 
+def get_version_major(branch: str) -> int:
+    """Get the major version from a branch name."""
+
+    return 7 if branch == 'main' else int(branch.split('.')[0])
+
+
 def get_all_version_tags(ctx) -> list[str]:
     """Returns the tags for all the versions of the Agent in git."""
 
@@ -281,7 +287,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
     # Step 1: Preparation
 
-    major_version = int(release_branch.split('.')[0])
+    major_version = get_version_major(release_branch)
     print(f"Finishing release for major version {major_version}")
 
     with agent_context(ctx, release_branch):
@@ -406,7 +412,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
 
-    major_version = int(release_branch.split('.')[0])
+    major_version = get_version_major(release_branch)
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
@@ -519,7 +525,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
     """
 
-    major_version = int(release_branch.split('.')[0])
+    major_version = get_version_major(release_branch)
 
     with agent_context(ctx, release_branch):
         datadog_agent = get_gitlab_repo()
@@ -846,7 +852,7 @@ def cleanup(ctx, release_branch):
 
     with agent_context(ctx, release_branch):
         gh = GithubAPI()
-        major_version = int(release_branch.split('.')[0])
+        major_version = get_version_major(release_branch)
         if major_version == 6:
             latest_release = _get_agent6_latest_release(gh)
         else:
@@ -1153,7 +1159,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     Check if there was any modification on the release repositories since last release candidate.
     """
     with agent_context(ctx, release_branch):
-        major_version = int(release_branch.split('.')[0])
+        major_version = get_version_major(release_branch)
         next_version = next_rc_version(ctx, major_version)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
