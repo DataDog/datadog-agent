@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
@@ -33,10 +34,7 @@ import (
 func TestNetworkCIDR(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -78,14 +76,15 @@ func TestNetworkCIDR(t *testing.T) {
 	})
 }
 
+func isRawPacketNotSupported(kv *kernel.Version) bool {
+	// OpenSUSE distributions are missing the dummy kernel module
+	return probe.IsRawPacketNotSupported(kv) || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+}
+
 func TestRawPacket(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		// OpenSUSE distributions are missing the dummy kernel module
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || (kv.IsAmazonLinuxKernel() && kv.Code < kernel.Kernel4_15)
-	})
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -155,11 +154,7 @@ func TestRawPacket(t *testing.T) {
 func TestRawPacketFilter(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		// OpenSUSE distributions are missing the dummy kernel module
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || (kv.IsAmazonLinuxKernel() && kv.Code < kernel.Kernel4_15)
-	})
+	checkKernelCompatibility(t, "RHEL, SLES, SUSE, AWS, Ubuntu and Oracle kernels", isRawPacketNotSupported)
 
 	colSpecForMaps := ebpf.CollectionSpec{
 		Maps: map[string]*ebpf.MapSpec{
