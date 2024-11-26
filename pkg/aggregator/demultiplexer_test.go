@@ -63,32 +63,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
-	require.NotNil(deps.SharedForwarder)
+	require.NotNil(deps.EventPlatformFwd)
 	_, found := deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
-	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
-
-	// options no event platform forwarder
-
-	opts = demuxTestOptions()
-	deps = createDemuxDeps(t, opts)
-	demux = deps.Demultiplexer
-	require.NotNil(demux)
-	require.NotNil(deps.SharedForwarder)
-	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
-	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
-
-	// options noop event platform forwarder
-
-	opts = demuxTestOptions()
-	deps = createDemuxDeps(t, opts)
-	demux = deps.Demultiplexer
-	require.NotNil(demux)
-	require.NotNil(deps.SharedForwarder)
-	_, found = deps.OrchestratorFwd.Get()
 	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
