@@ -56,7 +56,7 @@ type ebpfLessTracer struct {
 	scratchConn *network.ConnectionStats
 
 	udp *udpProcessor
-	tcp *tcpProcessor
+	tcp *ebpfless.TCPProcessor
 
 	// connection maps
 	conns        map[network.ConnectionTuple]*network.ConnectionStats
@@ -81,7 +81,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		exit:         make(chan struct{}),
 		scratchConn:  &network.ConnectionStats{},
 		udp:          &udpProcessor{},
-		tcp:          newTCPProcessor(),
+		tcp:          ebpfless.NewTCPProcessor(),
 		conns:        make(map[network.ConnectionTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:   ebpfless.NewBoundPorts(cfg),
 		cookieHasher: newCookieHasher(),
@@ -150,6 +150,7 @@ func (t *ebpfLessTracer) processConnection(
 ) error {
 	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
 	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
+	t.scratchConn.TCPFailures = make(map[uint16]uint32)
 	var udpPresent, tcpPresent bool
 	for _, layerType := range decoded {
 		switch layerType {
@@ -195,12 +196,21 @@ func (t *ebpfLessTracer) processConnection(
 		conn.Duration = time.Duration(time.Now().UnixNano())
 	}
 
+	if ip4 == nil && ip6 == nil {
+		return nil
+	}
 	var err error
 	switch conn.Type {
 	case network.UDP:
+		if (ip4 != nil && !t.config.CollectUDPv4Conns) || (ip6 != nil && !t.config.CollectUDPv6Conns) {
+			return nil
+		}
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		err = t.tcp.process(conn, pktType, ip4, ip6, tcp)
+		if (ip4 != nil && !t.config.CollectTCPv4Conns) || (ip6 != nil && !t.config.CollectTCPv6Conns) {
+			return nil
+		}
+		err = t.tcp.Process(conn, pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -242,13 +252,11 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		return
 	}
 
-	if conn.Type == network.TCP {
-		switch pktType {
-		case unix.PACKET_HOST:
-			conn.Direction = network.INCOMING
-		case unix.PACKET_OUTGOING:
-			conn.Direction = network.OUTGOING
-		}
+	switch pktType {
+	case unix.PACKET_HOST:
+		conn.Direction = network.INCOMING
+	case unix.PACKET_OUTGOING:
+		conn.Direction = network.OUTGOING
 	}
 }
 
@@ -348,65 +356,5 @@ func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, udp
 		conn.Monotonic.RecvBytes += uint64(payloadLen)
 	}
 
-	return nil
-}
-
-type tcpProcessor struct {
-	conns map[network.ConnectionTuple]struct {
-		established bool
-		closed      bool
-	}
-}
-
-func newTCPProcessor() *tcpProcessor {
-	return &tcpProcessor{
-		conns: map[network.ConnectionTuple]struct {
-			established bool
-			closed      bool
-		}{},
-	}
-}
-
-func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
-	payloadLen, err := ebpfless.TCPPayloadLen(conn.Family, ip4, ip6, tcp)
-	if err != nil {
-		return err
-	}
-
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("tcp processor: pktType=%+v seq=%+v ack=%+v fin=%+v rst=%+v syn=%+v ack=%+v", pktType, tcp.Seq, tcp.Ack, tcp.FIN, tcp.RST, tcp.SYN, tcp.ACK)
-	})
-	c := t.conns[conn.ConnectionTuple]
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("pre ack_seq=%+v", c)
-	})
-	switch pktType {
-	case unix.PACKET_OUTGOING:
-		conn.Monotonic.SentPackets++
-		conn.Monotonic.SentBytes += uint64(payloadLen)
-	case unix.PACKET_HOST:
-		conn.Monotonic.RecvPackets++
-		conn.Monotonic.RecvBytes += uint64(payloadLen)
-	}
-
-	if tcp.FIN || tcp.RST {
-		if !c.closed {
-			c.closed = true
-			conn.Monotonic.TCPClosed++
-			conn.Duration = time.Duration(time.Now().UnixNano() - int64(conn.Duration))
-		}
-		delete(t.conns, conn.ConnectionTuple)
-		return nil
-	}
-
-	if !tcp.SYN && !c.established {
-		c.established = true
-		conn.Monotonic.TCPEstablished++
-	}
-
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("ack_seq=%+v", c)
-	})
-	t.conns[conn.ConnectionTuple] = c
 	return nil
 }

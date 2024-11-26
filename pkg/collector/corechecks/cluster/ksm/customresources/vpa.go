@@ -19,12 +19,10 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
-	"k8s.io/client-go/dynamic"
+	vpav1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
+	"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
@@ -32,6 +30,8 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var (
@@ -43,14 +43,14 @@ var (
 )
 
 // NewVerticalPodAutoscalerFactory returns a new VerticalPodAutoscalers metric family generator factory.
-func NewVerticalPodAutoscalerFactory(client *dynamic.DynamicClient) customresource.RegistryFactory {
+func NewVerticalPodAutoscalerFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &vpaFactory{
-		client: client,
+		client: client.VPAInformerClient,
 	}
 }
 
 type vpaFactory struct {
-	client *dynamic.DynamicClient
+	client versioned.Interface
 }
 
 func (f *vpaFactory) Name() string {
@@ -58,11 +58,7 @@ func (f *vpaFactory) Name() string {
 }
 
 func (f *vpaFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client.Resource(schema.GroupVersionResource{
-		Group:    v1.SchemeGroupVersion.Group,
-		Version:  v1.SchemeGroupVersion.Version,
-		Resource: "verticalpodautoscalers",
-	}), nil
+	return f.client, nil
 }
 
 func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -73,7 +69,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", a.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
@@ -92,7 +88,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				labelKeys, labelValues := kubeMapToPrometheusLabels("label", a.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
@@ -111,7 +107,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 
 				if a.Spec.UpdatePolicy == nil || a.Spec.UpdatePolicy.UpdateMode == nil {
@@ -120,11 +116,11 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 					}
 				}
 
-				for _, mode := range []v1.UpdateMode{
-					v1.UpdateModeOff,
-					v1.UpdateModeInitial,
-					v1.UpdateModeRecreate,
-					v1.UpdateModeAuto,
+				for _, mode := range []vpav1beta2.UpdateMode{
+					vpav1beta2.UpdateModeOff,
+					vpav1beta2.UpdateModeInitial,
+					vpav1beta2.UpdateModeRecreate,
+					vpav1beta2.UpdateModeAuto,
 				} {
 					var v float64
 					if *a.Spec.UpdatePolicy.UpdateMode == mode {
@@ -150,7 +146,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 				if a.Spec.ResourcePolicy == nil || a.Spec.ResourcePolicy.ContainerPolicies == nil {
 					return &metric.Family{
@@ -173,7 +169,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 				if a.Spec.ResourcePolicy == nil || a.Spec.ResourcePolicy.ContainerPolicies == nil {
 					return &metric.Family{
@@ -195,7 +191,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 				if a.Status.Recommendation == nil || a.Status.Recommendation.ContainerRecommendations == nil {
 					return &metric.Family{
@@ -217,7 +213,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 				if a.Status.Recommendation == nil || a.Status.Recommendation.ContainerRecommendations == nil {
 					return &metric.Family{
@@ -239,7 +235,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 				if a.Status.Recommendation == nil || a.Status.Recommendation.ContainerRecommendations == nil {
 					return &metric.Family{
@@ -260,7 +256,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapVPAFunc(func(a *v1.VerticalPodAutoscaler) *metric.Family {
+			wrapVPAFunc(func(a *vpav1beta2.VerticalPodAutoscaler) *metric.Family {
 				ms := []*metric.Metric{}
 				if a.Status.Recommendation == nil || a.Status.Recommendation.ContainerRecommendations == nil {
 					return &metric.Family{
@@ -279,9 +275,12 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 }
 
 func (f *vpaFactory) ExpectedType() interface{} {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("VerticalPodAutoscaler"))
-	return &u
+	return &vpav1beta2.VerticalPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "VerticalPodAutoscaler",
+			APIVersion: vpav1beta2.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func vpaResourcesToMetrics(containerName string, resources corev1.ResourceList) []*metric.Metric {
@@ -310,9 +309,9 @@ func vpaResourcesToMetrics(containerName string, resources corev1.ResourceList) 
 	return ms
 }
 
-func wrapVPAFunc(f func(*v1.VerticalPodAutoscaler) *metric.Family) func(interface{}) *metric.Family {
+func wrapVPAFunc(f func(*vpav1beta2.VerticalPodAutoscaler) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		vpa := obj.(*v1.VerticalPodAutoscaler)
+		vpa := obj.(*vpav1beta2.VerticalPodAutoscaler)
 
 		metricFamily := f(vpa)
 		targetRef := vpa.Spec.TargetRef
@@ -334,16 +333,16 @@ func wrapVPAFunc(f func(*v1.VerticalPodAutoscaler) *metric.Family) func(interfac
 }
 
 func (f *vpaFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(dynamic.NamespaceableResourceInterface).Namespace(ns)
+	vpaClient := customResourceClient.(versioned.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.List(ctx, opts)
+			return vpaClient.AutoscalingV1beta2().VerticalPodAutoscalers(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.Watch(ctx, opts)
+			return vpaClient.AutoscalingV1beta2().VerticalPodAutoscalers(ns).Watch(ctx, opts)
 		},
 	}
 }

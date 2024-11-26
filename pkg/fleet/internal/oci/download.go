@@ -10,11 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
@@ -237,6 +240,14 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 // If they are specified, the registry and authentication overrides are applied first.
 // Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
+	transport := httptrace.WrapRoundTripper(d.client.Transport)
+	var err error
+	if d.env.Mirror != "" {
+		transport, err = newMirrorTransport(transport, d.env.Mirror)
+		if err != nil {
+			return nil, fmt.Errorf("could not create mirror transport: %w", err)
+		}
+	}
 	var multiErr error
 	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
 		log.Debugf("Downloading index from %s", refAndKeychain.ref)
@@ -250,7 +261,7 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			ref,
 			remote.WithContext(ctx),
 			remote.WithAuthFromKeychain(refAndKeychain.keychain),
-			remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)),
+			remote.WithTransport(transport),
 		)
 		if err != nil {
 			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
@@ -320,10 +331,10 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				uncompressedLayer.Close()
 				if err != nil {
-					if !isStreamResetError(err) {
+					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
 						return fmt.Errorf("could not extract layer: %w", err)
 					}
-					log.Warnf("stream error while extracting layer, retrying")
+					log.Warnf("network error while extracting layer, retrying")
 					// Clean up the directory before retrying to avoid partial extraction
 					err = tar.Clean(dir)
 					if err != nil {
@@ -377,6 +388,18 @@ func isStreamResetError(err error) bool {
 	serrp := &http2.StreamError{}
 	if errors.As(err, &serrp) {
 		return serrp.Code == http2.ErrCodeInternal
+	}
+	return false
+}
+
+// isConnectionResetByPeer returns true if the error is a connection reset by peer error
+func isConnectionResetByPeerError(err error) bool {
+	if netErr, ok := err.(*net.OpError); ok {
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				return errno == syscall.ECONNRESET
+			}
+		}
 	}
 	return false
 }

@@ -13,6 +13,9 @@ create_release_qa_cards              @DataDog/agent-devx-infra
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
+# Deps fetch
+fetch_openjdk                        @DataDog/agent-metrics-logs
+
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
@@ -24,8 +27,6 @@ prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-shared-components
-# Golang test dependecies diff
-golang_deps_test                     @DataDog/agent-shared-components
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/ebpf-platform
 golang_deps_commenter                @DataDog/ebpf-platform
@@ -132,6 +133,7 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-agent
 integration_tests_otel        @DataDog/opentelemetry
 docker_image_build_otel       @DataDog/opentelemetry
+ddflare_extension_ocb_build   @DataDog/opentelemetry
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
 

@@ -9,24 +9,25 @@ package bininspect
 
 import (
 	"debug/dwarf"
-	"debug/elf"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/go-delve/delve/pkg/goversion"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	ddversion "github.com/DataDog/datadog-agent/pkg/network/go/goversion"
-	"github.com/go-delve/delve/pkg/goversion"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // GetArchitecture returns the `runtime.GOARCH`-compatible names of the architecture.
 // Only returns a value for supported architectures.
-func GetArchitecture(elfFile *elf.File) (GoArch, error) {
+func GetArchitecture(elfFile *safeelf.File) (GoArch, error) {
 	switch elfFile.FileHeader.Machine {
-	case elf.EM_X86_64:
+	case safeelf.EM_X86_64:
 		return GoArchX86_64, nil
-	case elf.EM_AARCH64:
+	case safeelf.EM_AARCH64:
 		return GoArchARM64, nil
 	}
 
@@ -36,7 +37,7 @@ func GetArchitecture(elfFile *elf.File) (GoArch, error) {
 // HasDwarfInfo attempts to parse the DWARF data and look for any records.
 // If it cannot be parsed or if there are no DWARF info records,
 // then it assumes that the binary has been stripped.
-func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
+func HasDwarfInfo(elfFile *safeelf.File) (*dwarf.Data, bool) {
 	dwarfData, err := elfFile.DWARF()
 	if err != nil {
 		return nil, false
@@ -55,7 +56,7 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 // The implementation is available in src/cmd/go/internal/version/version.go:
 // https://cs.opensource.google/go/go/+/refs/tags/go1.17.2:src/cmd/go/internal/version/version.go
 // The main logic was pulled out to a sub-package, `binversion`
-func FindGoVersion(elfFile *elf.File) (ddversion.GoVersion, error) {
+func FindGoVersion(elfFile *safeelf.File) (ddversion.GoVersion, error) {
 	version, err := binversion.ReadElfBuildInfo(elfFile)
 	if err != nil {
 		return ddversion.GoVersion{}, fmt.Errorf("could not get Go toolchain version from ELF binary file: %w", err)
@@ -90,7 +91,7 @@ func FindABI(version ddversion.GoVersion, arch GoArch) (GoABI, error) {
 // - https://github.com/go-delve/delve/pull/2704/files#diff-fb7b7a020e32bf8bf477c052ac2d2857e7e587478be6039aebc7135c658417b2R769
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/breakpoints.go#L86-L95
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/breakpoints.go#L374
-func FindReturnLocations(elfFile *elf.File, sym elf.Symbol, functionOffset uint64) ([]uint64, error) {
+func FindReturnLocations(elfFile *safeelf.File, sym safeelf.Symbol, functionOffset uint64) ([]uint64, error) {
 	arch, err := GetArchitecture(elfFile)
 	if err != nil {
 		return nil, err
@@ -112,15 +113,15 @@ func FindReturnLocations(elfFile *elf.File, sym elf.Symbol, functionOffset uint6
 }
 
 // SymbolToOffset returns the offset of the given symbol name in the given elf file.
-func SymbolToOffset(f *elf.File, symbol elf.Symbol) (uint32, error) {
+func SymbolToOffset(f *safeelf.File, symbol safeelf.Symbol) (uint32, error) {
 	if f == nil {
 		return 0, errors.New("got nil elf file")
 	}
 
-	var sectionsToSearchForSymbol []*elf.Section
+	var sectionsToSearchForSymbol []*safeelf.Section
 
 	for i := range f.Sections {
-		if f.Sections[i].Flags == elf.SHF_ALLOC+elf.SHF_EXECINSTR {
+		if f.Sections[i].Flags == safeelf.SHF_ALLOC+safeelf.SHF_EXECINSTR {
 			sectionsToSearchForSymbol = append(sectionsToSearchForSymbol, f.Sections[i])
 		}
 	}
@@ -129,7 +130,7 @@ func SymbolToOffset(f *elf.File, symbol elf.Symbol) (uint32, error) {
 		return 0, fmt.Errorf("symbol %q not found in file - no sections to search", symbol)
 	}
 
-	var executableSection *elf.Section
+	var executableSection *safeelf.Section
 
 	// Find what section the symbol is in by checking the executable section's
 	// addr space.

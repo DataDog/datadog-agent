@@ -40,7 +40,6 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
@@ -66,6 +65,14 @@ var extendedCollectors = map[string]string{
 	"jobs":  "batch/v1, Resource=jobs_extended",
 	"nodes": "core/v1, Resource=nodes_extended",
 	"pods":  "core/v1, Resource=pods_extended",
+}
+
+// collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
+// their new collector name would be. For backwards compatibility.
+var collectorNameReplacement = map[string]string{
+	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
+	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
+	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -279,31 +286,46 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	builder := kubestatemetrics.New()
 	builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
 
-	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
-	// So we are waiting for a reasonable amount of time here in case.
-	// We cannot wait forever as there's no way to be notified of shutdown
-	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-	defer apiCancel()
-	c, err := apiserver.WaitForAPIClient(apiCtx)
-	if err != nil {
-		return err
-	}
+	k.configurePodCollection(builder, k.instance.Collectors)
 
-	// Discover resources that are currently available
-	resources, err := discoverResources(c.Cl.Discovery())
-	if err != nil {
-		return err
-	}
+	var collectors []string
+	var apiServerClient *apiserver.APIClient
+	var resources []*v1.APIResourceList
 
-	// Prepare the collectors for the resources specified in the configuration file.
-	collectors, err := filterUnknownCollectors(k.instance.Collectors, resources)
-	if err != nil {
-		return err
-	}
+	switch k.instance.PodCollectionMode {
+	case nodeKubeletPodCollection:
+		// In this case we don't need to set up anything related to the API
+		// server.
+		collectors = []string{"pods"}
+	case defaultPodCollection, clusterUnassignedPodCollection:
+		// Due to how init is done, we cannot use GetAPIClient in `Run()` method
+		// So we are waiting for a reasonable amount of time here in case.
+		// We cannot wait forever as there's no way to be notified of shutdown
+		apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+		defer apiCancel()
+		apiServerClient, err = apiserver.WaitForAPIClient(apiCtx)
+		if err != nil {
+			return err
+		}
 
-	// Enable the KSM default collectors if the config collectors list is empty.
-	if len(collectors) == 0 {
-		collectors = options.DefaultResources.AsSlice()
+		// Discover resources that are currently available
+		resources, err = discoverResources(apiServerClient.Cl.Discovery())
+		if err != nil {
+			return err
+		}
+
+		// Prepare the collectors for the resources specified in the configuration file.
+		collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
+		if err != nil {
+			return err
+		}
+
+		// Enable the KSM default collectors if the config collectors list is empty.
+		if len(collectors) == 0 {
+			collectors = options.DefaultResources.AsSlice()
+		}
+
+		builder.WithKubeClient(apiServerClient.InformerCl)
 	}
 
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
@@ -336,8 +358,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
-	builder.WithKubeClient(c.InformerCl)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 	builder.WithContext(ctx)
@@ -353,10 +373,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// configure custom resources required for extended features and
 	// compatibility across deprecated/removed versions of APIs
-	cr, err := k.discoverCustomResources(collectors, resources)
-	if err != nil {
-		return err
-	}
+	cr := k.discoverCustomResources(apiServerClient, collectors, resources)
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
@@ -376,8 +393,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err := builder.WithEnabledResources(cr.collectors); err != nil {
 		return err
 	}
-
-	k.configurePodCollection(builder, collectors)
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
@@ -410,7 +425,11 @@ func filterUnknownCollectors(collectors []string, resources []*v1.APIResourceLis
 	filteredCollectors := make([]string, 0, len(collectors))
 	for i := range collectors {
 		if _, ok := resourcesSet[collectors[i]]; ok {
-			filteredCollectors = append(filteredCollectors, collectors[i])
+			if _, okRepl := collectorNameReplacement[collectors[i]]; okRepl {
+				filteredCollectors = append(filteredCollectors, collectorNameReplacement[collectors[i]])
+			} else {
+				filteredCollectors = append(filteredCollectors, collectors[i])
+			}
 		} else {
 			log.Warnf("resource %v is unknown and will not be collected", collectors[i])
 		}
@@ -428,7 +447,7 @@ type customResources struct {
 	clients    map[string]interface{}
 }
 
-func (k *KSMCheck) discoverCustomResources(collectors []string, resources []*v1.APIResourceList) (customResources, error) {
+func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []string, resources []*v1.APIResourceList) customResources {
 	// automatically add extended collectors if their standard ones are
 	// enabled
 	for _, c := range collectors {
@@ -437,14 +456,13 @@ func (k *KSMCheck) discoverCustomResources(collectors []string, resources []*v1.
 		}
 	}
 
-	clientConfig, err := apiserver.GetClientConfig(time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second)
-	if err != nil {
-		return customResources{}, fmt.Errorf("Failed to get API server client config: %w", err)
-	}
-
-	c, err := dynamic.NewForConfig(clientConfig)
-	if err != nil {
-		return customResources{}, fmt.Errorf("Failed to get dynamic client: %w", err)
+	if k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		return customResources{
+			collectors: collectors,
+			factories: []customresource.RegistryFactory{
+				customresources.NewExtendedPodFactoryForKubelet(),
+			},
+		}
 	}
 
 	// extended resource collectors always have a factory registered
@@ -461,10 +479,7 @@ func (k *KSMCheck) discoverCustomResources(collectors []string, resources []*v1.
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		client, err := f.CreateClient(clientConfig)
-		if err != nil {
-			return customResources{}, err
-		}
+		client, _ := f.CreateClient(nil)
 		clients[f.Name()] = client
 	}
 
@@ -472,14 +487,14 @@ func (k *KSMCheck) discoverCustomResources(collectors []string, resources []*v1.
 		collectors: collectors,
 		clients:    clients,
 		factories:  factories,
-	}, nil
+	}
 }
 
-func manageResourcesReplacement(c *dynamic.DynamicClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
+func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
 	// backwards/forwards compatibility resource factories are only
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm
-	resourceReplacements := map[string]map[string]func(c *dynamic.DynamicClient) customresource.RegistryFactory{
+	resourceReplacements := map[string]map[string]func(c *apiserver.APIClient) customresource.RegistryFactory{
 		// support for older k8s versions where the resources are no
 		// longer supported in KSM
 		"batch/v1": {

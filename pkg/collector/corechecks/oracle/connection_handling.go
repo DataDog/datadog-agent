@@ -17,7 +17,7 @@ import (
 )
 
 func buildGoOraURL(c *Check) string {
-	connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+	connectionOptions := map[string]string{"TIMEOUT": c.config.QueryTimeoutString()}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
 		if c.config.Wallet != "" {

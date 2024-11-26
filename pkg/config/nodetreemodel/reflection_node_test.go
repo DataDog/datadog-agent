@@ -34,15 +34,13 @@ func TestNewReflectionNode(t *testing.T) {
 	assert.NoError(t, err)
 
 	firstLeaf := first.(LeafNode)
-	str, err := firstLeaf.GetString()
-	assert.NoError(t, err)
+	str := firstLeaf.Get()
 	assert.Equal(t, str, "test")
 
 	second, err := n.GetChild("num")
 	assert.NoError(t, err)
 
 	secondLeaf := second.(LeafNode)
-	num, err := secondLeaf.GetInt()
-	assert.NoError(t, err)
+	num := secondLeaf.Get()
 	assert.Equal(t, num, 7)
 }

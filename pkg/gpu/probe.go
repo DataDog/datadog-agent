@@ -9,12 +9,13 @@ package gpu
 
 import (
 	"fmt"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"io"
 	"math"
 	"os"
 	"regexp"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -23,14 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	gpuAttacherName = "gpu"
+	gpuModuleName   = gpuAttacherName
 
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -48,9 +51,10 @@ var (
 type bpfMapName = string
 
 const (
-	cudaEventsMap     bpfMapName = "cuda_events"
-	cudaAllocCacheMap bpfMapName = "cuda_alloc_cache"
-	cudaSyncCacheMap  bpfMapName = "cuda_sync_cache"
+	cudaEventsRingbuf     bpfMapName = "cuda_events"
+	cudaAllocCacheMap     bpfMapName = "cuda_alloc_cache"
+	cudaSyncCacheMap      bpfMapName = "cuda_sync_cache"
+	cudaSetDeviceCacheMap bpfMapName = "cuda_set_device_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
@@ -63,6 +67,8 @@ const (
 	cudaStreamSyncProbe    probeFuncName = "uprobe__cudaStreamSynchronize"
 	cudaStreamSyncRetProbe probeFuncName = "uretprobe__cudaStreamSynchronize"
 	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
+	cudaSetDeviceProbe     probeFuncName = "uprobe__cudaSetDevice"
+	cudaSetDeviceRetProbe  probeFuncName = "uretprobe__cudaSetDevice"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -72,6 +78,9 @@ type ProbeDependencies struct {
 
 	// NvmlLib is the NVML library interface
 	NvmlLib nvml.Interface
+
+	// ProcessMonitor is the process monitor interface
+	ProcessMonitor uprobes.ProcessMonitor
 }
 
 // Probe represents the GPU monitoring probe
@@ -83,7 +92,6 @@ type Probe struct {
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
 	sysCtx         *systemContext
-	procMon        *monitor.ProcessMonitor
 	eventHandler   ddebpf.EventHandler
 }
 
@@ -101,22 +109,15 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
-	procMon := monitor.GetProcessMonitor()
-	if err := procMon.Initialize(false); err != nil {
-		return nil, fmt.Errorf("error initializing process monitor: %w", err)
-	}
-
 	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
 	p := &Probe{
-		cfg:     cfg,
-		deps:    deps,
-		procMon: procMon,
-		sysCtx:  sysCtx,
+		cfg:    cfg,
+		deps:   deps,
+		sysCtx: sysCtx,
 	}
 
 	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
@@ -143,7 +144,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
-	p.attacher, err = uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, procMon)
+	p.attacher, err = uprobes.NewUprobeAttacher(gpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -176,7 +177,6 @@ func (p *Probe) start() error {
 
 // Close stops the probe
 func (p *Probe) Close() {
-	p.procMon.Stop()
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
 	p.consumer.Stop()
@@ -212,7 +212,7 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 
 func (p *Probe) initCOREGPU(cfg *config.Config) error {
 	asset := getAssetName("gpu", cfg.BPFDebug)
-	var err error
+	var err error //nolint:gosimple // TODO
 	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
@@ -238,13 +238,10 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		*/
 
 		Maps: []*manager.Map{
-			{
-				Name: cudaAllocCacheMap,
-			},
-			{
-				Name: cudaSyncCacheMap,
-			},
-		}})
+			{Name: cudaAllocCacheMap},
+			{Name: cudaSyncCacheMap},
+			{Name: cudaSetDeviceCacheMap},
+		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
@@ -264,7 +261,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	rb := &manager.RingBuffer{
-		Map: manager.Map{Name: cudaEventsMap},
+		Map: manager.Map{Name: cudaEventsRingbuf},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler: rbHandler.RecordHandler,
 			RecordGetter:  rbHandler.RecordGetter,
@@ -273,7 +270,7 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 
 	ringBufferSize := toPowerOf2(defaultRingBufferSize)
 
-	o.MapSpecEditors[cudaEventsMap] = manager.MapSpecEditor{
+	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
 		MaxEntries: uint32(ringBufferSize),
 		KeySize:    0,
@@ -300,6 +297,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
 						},
 					},
 				},
@@ -307,6 +306,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		},
 		EbpfConfig:         &cfg.Config,
 		PerformInitialScan: cfg.InitialProcessSync,
+		SharedLibsLibset:   sharedlibraries.LibsetGPU,
 	}
 }
 
