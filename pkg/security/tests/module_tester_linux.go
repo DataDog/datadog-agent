@@ -592,7 +592,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
-		os.Chdir(commonCfgDir)
+		if err := os.Chdir(commonCfgDir); err != nil {
+			return nil, err
+		}
 	}
 
 	var proFile *os.File
@@ -1114,6 +1116,13 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	if skipCheck(kv) {
 		tb.Skipf("kernel version not supported: %s", why)
 	}
+}
+
+func checkNetworkCompatibility(tb testing.TB) {
+	checkKernelCompatibility(tb, "network feature", func(kv *kernel.Version) bool {
+		// OpenSUSE distributions are missing the dummy kernel module
+		return sprobe.IsNetworkNotSupported(kv) || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+	})
 }
 
 func (tm *testModule) StopActivityDump(name, containerID string) error {

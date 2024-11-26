@@ -600,6 +600,37 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	s.mustStopExperiment(datadogAgent)
 }
 
+func (s *upgradeScenarioSuite) TestUpgradeWithProxy() {
+	if s.Env().RemoteHost.OSFlavor == e2eos.Fedora || s.Env().RemoteHost.OSFlavor == e2eos.RedHat {
+		s.T().Skip("Fedora & RedHat can't start the Squid proxy")
+	}
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true") // No proxy during install, to avoid setting up the APT proxy
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+
+	// Set proxy config
+	s.Env().RemoteHost.MustExecute(`printf "proxy:\n  http: http://localhost:3128\n  https: http://localhost:3128" | sudo tee -a /etc/datadog-agent/datadog.yaml`)
+	defer func() {
+		s.Env().RemoteHost.MustExecute(`sudo sed -i '/proxy:/,/https:/d' /etc/datadog-agent/datadog.yaml`)
+	}()
+	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent.service datadog-installer.service`)
+
+	// Set catalog
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	s.setCatalog(testCatalog)
+
+	// Set host proxy setup
+	defer s.host.RemoveProxy()
+	s.host.SetupProxy()
+
+	s.executeAgentGoldenPath()
+}
+
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
