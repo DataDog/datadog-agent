@@ -29,6 +29,7 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -356,6 +357,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("flare.rc_profiling_runtime", 60*time.Second)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -801,6 +803,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("config_providers")
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
+
+	config.BindEnv("provider_kind")
 
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
@@ -1708,8 +1712,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
 	if isSet = config.IsSet("proxy"); isSet {
-		// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
-		if err := config.UnmarshalKey("proxy", p); err != nil {
+		if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 		}
@@ -2470,8 +2473,7 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	var cps []ConfigurationProviders
-	// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
-	if err := config.UnmarshalKey("config_providers", &cps); err != nil {
+	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
 		return false
 	}
 

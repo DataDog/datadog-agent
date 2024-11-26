@@ -220,7 +220,6 @@
 /cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
-/cmd/serverless/dependencies*.txt       @DataDog/serverless @DataDog/agent-shared-components
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
 /cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
@@ -373,6 +372,7 @@
 /pkg/clusteragent/autoscaling/          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
+/pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-metrics-logs

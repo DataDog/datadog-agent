@@ -30,7 +30,7 @@ type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
 func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, statusComponent status.Component) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder(local)
+	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
 	if err != nil {
 		return "", err
 	}
