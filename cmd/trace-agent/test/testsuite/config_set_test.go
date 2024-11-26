@@ -41,7 +41,6 @@ func TestConfigSetHandlerUnauthenticated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	logstr = r.AgentLog()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	resp.Body.Close()
 }
