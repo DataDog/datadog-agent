@@ -23,7 +23,7 @@ rc_kubernetes_deploy:
     OPTION_AUTOMATIC_ROLLOUT: "true"
     SKIP_PLAN_CHECK: "true"
     EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
-    AGENT_IMAGE_TAG: "${CI_COMMIT_REF_NAME}-otel-beta"
+    AGENT_IMAGE_TAG: "${CI_COMMIT_REF_NAME}-ot-beta"
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
