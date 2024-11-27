@@ -909,8 +909,8 @@ def cleanup(ctx, release_branch):
 
 
 @task
-def check_omnibus_branches(ctx, release_branch):
-    with agent_context(ctx, release_branch):
+def check_omnibus_branches(ctx, release_branch=None, worktree=True):
+    def _main():
         base_branch = _get_release_json_value('base_branch')
         if base_branch == get_default_branch():
             default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES
@@ -943,6 +943,12 @@ def check_omnibus_branches(ctx, release_branch):
         _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
 
         return True
+
+    if worktree:
+        with agent_context(ctx, release_branch):
+            return _main()
+    else:
+        return _main()
 
 
 @task
