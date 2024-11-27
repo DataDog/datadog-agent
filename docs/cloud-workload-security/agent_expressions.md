@@ -40,7 +40,7 @@ SECL operators are used to combine event attributes together into a full express
 | `>=`                  | File             | Greater or equal                         | 7.27          |
 | `<`                   | File             | Lesser                                   | 7.27          |
 | `<=`                  | File             | Lesser or equal                          | 7.27          |
-| `!`                   | File             | Not                                      | 7.27          |
+| `!` or `not`          | File             | Not                                      | 7.27          |
 | `^`                   | File             | Binary not                               | 7.27          |
 | `in [elem1, ...]`     | File             | Element is contained in list             | 7.27          |
 | `not in [elem1, ...]` | File             | Element is not contained in list         | 7.27          |
