@@ -8,7 +8,6 @@
 package kernel
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,7 +19,7 @@ import (
 
 // MountInfoPidPath returns the path to the mountinfo file of a pid in /proc
 func MountInfoPidPath(pid int32) string {
-	return filepath.Join(ProcFSRoot(), fmt.Sprintf("/%d/mountinfo", pid))
+	return filepath.Join(ProcFSRoot(), strconv.FormatInt(int64(pid), 10), "mountinfo")
 }
 
 // ParseMountInfoFile collects the mounts for a specific process ID.

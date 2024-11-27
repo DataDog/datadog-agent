@@ -20,7 +20,6 @@ from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
-    DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
 )
 from tasks.libs.common.git import (
@@ -28,8 +27,10 @@ from tasks.libs.common.git import (
     check_clean_branch_state,
     clone,
     get_current_branch,
+    get_default_branch,
     get_last_commit,
     get_last_release_tag,
+    is_agent6,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
@@ -47,6 +48,8 @@ from tasks.libs.releasing.documentation import (
     release_manager,
 )
 from tasks.libs.releasing.json import (
+    DEFAULT_BRANCHES,
+    DEFAULT_BRANCHES_AGENT6,
     UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
@@ -371,7 +374,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     if not check_base_branch(current_branch, new_highest_version):
         raise Exit(
             color_message(
-                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_highest_version.branch()}). Aborting.",
                 "red",
             ),
             code=1,
@@ -472,7 +475,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if not check_base_branch(current_branch, new_version):
         raise Exit(
             color_message(
-                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_version.branch()}). Aborting.",
+                f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_version.branch()}). Aborting.",
                 "red",
             ),
             code=1,
@@ -663,7 +666,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
         create_release_pr(
             f"[release] Update current milestone to {next}",
-            "main",
+            get_default_branch(),
             milestone_branch,
             next,
         )
@@ -683,8 +686,8 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
             with open(file, "w") as gl:
                 for line in file_content:
-                    if re.search(r"compare_to: main", line):
-                        gl.write(line.replace("main", f"{release_branch}"))
+                    if re.search(rf"compare_to: {get_default_branch()}", line):
+                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
                     else:
                         gl.write(line)
 
@@ -754,7 +757,7 @@ def cleanup(ctx):
     current_milestone = _update_last_stable(ctx, version)
 
     # create pull request to update last stable version
-    main_branch = "main"
+    main_branch = get_default_branch()
     cleanup_branch = f"release/{version}-cleanup"
     ctx.run(f"git checkout -b {cleanup_branch}")
     ctx.run("git add release.json")
@@ -787,9 +790,10 @@ def cleanup(ctx):
 @task
 def check_omnibus_branches(ctx):
     base_branch = _get_release_json_value('base_branch')
-    if base_branch == 'main':
-        omnibus_ruby_branch = 'datadog-5.5.0'
-        omnibus_software_branch = 'master'
+    if base_branch == get_default_branch():
+        default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES
+        omnibus_ruby_branch = default_branches['omnibus-ruby']
+        omnibus_software_branch = default_branches['omnibus-software']
     else:
         omnibus_ruby_branch = base_branch
         omnibus_software_branch = base_branch
@@ -913,7 +917,7 @@ def get_active_release_branch(_):
     if release_branch:
         print(f"{release_branch.name}")
     else:
-        print("main")
+        print(get_default_branch())
 
 
 @task

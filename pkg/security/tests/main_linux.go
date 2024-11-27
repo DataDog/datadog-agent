@@ -26,6 +26,7 @@ const (
 	fakeGroupPath  = "/tmp/fake_group"
 )
 
+// SkipIfNotAvailable skips the test if not available for this platform
 func SkipIfNotAvailable(t *testing.T) {
 	match := func(list []string) bool {
 		var match bool
