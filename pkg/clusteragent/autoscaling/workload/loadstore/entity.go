@@ -16,7 +16,7 @@ import (
 // EntityType defines the type of entity.
 type EntityType int
 
-// ValueType defines the datatype of metric value.
+// ValueType defines the datatype of workload value.
 type ValueType float64
 
 // Enumeration of entity types.
@@ -41,7 +41,7 @@ type Entity struct {
 	Host       string // serie.Host
 	EntityName string // display_container_name
 	Namespace  string
-	MetricName string
+	LoadName   string
 }
 
 // String returns a string representation of the Entity.
@@ -49,20 +49,20 @@ func (e *Entity) String() string {
 	return fmt.Sprintf(
 		"  Key: %d,"+
 			"  SourceID: %s,"+
-			"  MetricName: %s"+
+			"  LoadName: %s"+
 			"  EntityName: %s,"+
 			"  EntityType: %d,"+
 			"  Host: %s,"+
 			"  Namespace: %s",
-		hashEntityToUInt64(e), e.SourceID, e.MetricName, e.EntityName, e.EntityType, e.Host, e.Namespace)
+		hashEntityToUInt64(e), e.SourceID, e.LoadName, e.EntityName, e.EntityType, e.Host, e.Namespace)
 }
 
 // MemoryUsage returns the memory usage of the entity in bytes.
 func (e *Entity) MemoryUsage() uint32 {
-	return uint32(len(e.SourceID)) + uint32(len(e.Host)) + uint32(len(e.EntityName)) + uint32(len(e.Namespace)) + uint32(len(e.MetricName)) + uint32(unsafe.Sizeof(e.EntityType))
+	return uint32(len(e.SourceID)) + uint32(len(e.Host)) + uint32(len(e.EntityName)) + uint32(len(e.Namespace)) + uint32(len(e.LoadName)) + uint32(unsafe.Sizeof(e.EntityType))
 }
 
-// EntityValue represents a metric value with a timestamp.
+// EntityValue represents a value with a timestamp.
 type EntityValue struct {
 	value     ValueType
 	timestamp Timestamp

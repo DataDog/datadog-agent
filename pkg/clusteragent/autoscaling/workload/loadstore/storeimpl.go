@@ -8,11 +8,12 @@
 package loadstore
 
 import (
-	"container/heap"
 	"context"
+	"fmt"
+	"math"
+	"sort"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,58 +21,79 @@ import (
 // Enumeration of filter types.
 type filterType int
 
-const (
-	namespaceFilter filterType = iota
-	metricFilter
-)
-
-// EntityValueHeap is a min-heap of EntityValues based on timestamp.
-type EntityValueHeap []*EntityValue
-
-func (h EntityValueHeap) Len() int           { return len(h) }
-func (h EntityValueHeap) Less(i, j int) bool { return h[i].timestamp < h[j].timestamp }
-func (h EntityValueHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-// Push a new value to the heap.
-func (h *EntityValueHeap) Push(x interface{}) {
-	*h = append(*h, x.(*EntityValue))
+// EntityValueQueue represents a queue with a fixed capacity that removes the front element when full
+type EntityValueQueue struct {
+	data     []ValueType
+	head     int
+	tail     int
+	size     int
+	capacity int
 }
 
-// Pop the earliest value from the heap.
-func (h *EntityValueHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
+// pushBack adds an element to the back of the queue.
+// If the queue is full, it removes the front element first.
+func (q *EntityValueQueue) pushBack(value ValueType) bool {
+	if q.size == q.capacity {
+		// Remove the front element
+		q.head = (q.head + 1) % q.capacity
+		q.size--
+	}
+
+	// Add the new element at the back
+	q.data[q.tail] = value
+	q.tail = (q.tail + 1) % q.capacity
+	q.size++
+	return true
+}
+
+// len returns the number of elements in the queue
+func (q *EntityValueQueue) len() int {
+	return q.size
+}
+
+// average calculates the average value of the queue.
+func (q *EntityValueQueue) average() ValueType {
+	if q.size == 0 {
+		return 0
+	}
+	sum := ValueType(0)
+	for i := 0; i < q.size; i++ {
+		index := (q.head + i) % q.capacity
+		sum += q.data[index]
+	}
+	return sum / ValueType(q.size)
+}
+
+// top returns the latest element of the queue
+func (q *EntityValueQueue) top() (ValueType, error) {
+	if q.size == 0 {
+		return 0, fmt.Errorf("queue is empty")
+	}
+	return q.data[(q.tail-1+q.capacity)%q.capacity], nil
 }
 
 var _ Store = (*EntityStore)(nil)
 
 type dataItem struct {
 	entity       *Entity
-	valuesWithTs *EntityValueHeap // values with timestamp
+	valueQue     EntityValueQueue // value queue
 	lastActiveTs Timestamp
-}
-
-func (d *dataItem) memoryUsage() uint32 {
-	return d.entity.MemoryUsage() + uint32(unsafe.Sizeof(EntityValue{}))*uint32(len(*d.valuesWithTs)) + uint32(unsafe.Sizeof(d.lastActiveTs))
 }
 
 // EntityStore stores entities to values, hash keys to entities mapping.
 type EntityStore struct {
-	key2ValuesMap     map[uint64]*dataItem           // Maps hash key to a entity and its values
-	metric2KeysMap    map[string]map[uint64]struct{} // Maps metric name to a set of keys
-	namespace2KeysMap map[string]map[uint64]struct{} // Maps namespace to a set of keys
-	lock              sync.RWMutex                   // Protects access to store and entityMap
+	key2ValuesMap map[uint64]*dataItem // Maps hash key to a entity and its values
+	lock          sync.RWMutex         // Protects access to store and entityMap
+	namespaces    map[string]struct{}  // Set of namespaces
+	loadNames     map[string]struct{}  // Set of load names
 }
 
 // NewEntityStore creates a new EntityStore.
 func NewEntityStore(ctx context.Context) *EntityStore {
 	store := EntityStore{
-		key2ValuesMap:     make(map[uint64]*dataItem),
-		metric2KeysMap:    make(map[string]map[uint64]struct{}),
-		namespace2KeysMap: make(map[string]map[uint64]struct{}),
+		key2ValuesMap: make(map[uint64]*dataItem),
+		namespaces:    make(map[string]struct{}),
+		loadNames:     make(map[string]struct{}),
 	}
 	store.startCleanupInBackground(ctx)
 	return &store
@@ -82,112 +104,95 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 	es.lock.Lock() // Lock for writing
 	defer es.lock.Unlock()
 	for entity, value := range entities {
+		es.namespaces[entity.Namespace] = struct{}{}
+		es.loadNames[entity.LoadName] = struct{}{}
 		hash := hashEntityToUInt64(entity)
-		if _, exists := es.key2ValuesMap[hash]; !exists {
-			valueHeap := &EntityValueHeap{}
-			heap.Init(valueHeap)
-			es.key2ValuesMap[hash] = &dataItem{
-				entity:       entity,
-				valuesWithTs: valueHeap,
+		data, exists := es.key2ValuesMap[hash]
+		if !exists {
+			data = &dataItem{
+				entity: entity,
+				valueQue: EntityValueQueue{
+					data:     make([]ValueType, maxDataPoints),
+					head:     0,
+					tail:     0,
+					size:     0,
+					capacity: maxDataPoints,
+				},
 				lastActiveTs: value.timestamp,
 			}
-			heap.Push(es.key2ValuesMap[hash].valuesWithTs, value)
+			data.valueQue.pushBack(value.value)
+			es.key2ValuesMap[hash] = data
 		} else {
-			if value.timestamp > es.key2ValuesMap[hash].lastActiveTs {
-				es.key2ValuesMap[hash].lastActiveTs = value.timestamp
+			if data.lastActiveTs < value.timestamp {
+				// Update the last active timestamp
+				data.lastActiveTs = value.timestamp
+				data.valueQue.pushBack(value.value)
 			}
-			heap.Push(es.key2ValuesMap[hash].valuesWithTs, value)
 		}
-		if es.key2ValuesMap[hash].valuesWithTs.Len() > maxDataPoints {
-			heap.Pop(es.key2ValuesMap[hash].valuesWithTs) // Pop the earliest value if more than maxDataPoints
-		}
-
-		if _, exists := es.metric2KeysMap[entity.MetricName]; !exists {
-			es.metric2KeysMap[entity.MetricName] = make(map[uint64]struct{})
-		}
-		es.metric2KeysMap[entity.MetricName][hash] = struct{}{}
-		if _, exists := es.namespace2KeysMap[entity.Namespace]; !exists {
-			es.namespace2KeysMap[entity.Namespace] = make(map[uint64]struct{})
-		}
-		es.namespace2KeysMap[entity.Namespace][hash] = struct{}{}
 	}
 }
 
-func (es *EntityStore) getEntityByHashKeyInternal(hash uint64) (*Entity, *EntityValue) {
-	entityValues, exists := es.key2ValuesMap[hash]
-	if !exists || entityValues.entity == nil || entityValues.valuesWithTs.Len() == 0 {
-		return nil, nil
-	}
-	for _, v := range *entityValues.valuesWithTs {
-		if v.timestamp == entityValues.lastActiveTs {
-			return entityValues.entity, v
-		}
-	}
-	return nil, nil
-}
-
-// GetEntityByHashKey to get entity and latest value by hash key
-func (es *EntityStore) GetEntityByHashKey(hash uint64) (*Entity, *EntityValue) {
+// GetEntitiesByLoadName to get all entities by load name
+func (es *EntityStore) GetEntitiesStatsByLoadName(loadName string) StatsResult {
 	es.lock.RLock() // Lock for writing
 	defer es.lock.RUnlock()
-	return es.getEntityByHashKeyInternal(hash)
-}
-
-// GetEntitiesByMetricName to get all entities by metric name
-func (es *EntityStore) GetEntitiesStatsByMetricName(metricName string) StatsResult {
-	es.lock.RLock() // Lock for writing
-	defer es.lock.RUnlock()
-	entityData := es.getEntitiesByFilter(metricFilter, metricName)
-	return calculateStats(entityData)
+	filter := loadNameFilter{loadName: loadName}
+	return es.calculateStatsByFilter(newANDEntityFilter(&filter))
 }
 
 // GetEntitiesByNamespace to get all entities by namespace
 func (es *EntityStore) GetEntitiesStatsByNamespace(namespace string) StatsResult {
 	es.lock.RLock() // Lock for writing
 	defer es.lock.RUnlock()
-	entityData := es.getEntitiesByFilter(namespaceFilter, namespace)
-	return calculateStats(entityData)
+	filter := namespaceFilter{namespace: namespace}
+	return es.calculateStatsByFilter(newANDEntityFilter(&filter))
 }
 
-// getEntitiesByFilter is an internal function. Caller should acquire lock. It gets entities by filtertype
-func (es *EntityStore) getEntitiesByFilter(filtertype filterType, filter string) map[*Entity]*EntityValue {
-	result := make(map[*Entity]*EntityValue)
-	keys := make(map[uint64]struct{})
-	exists := false
-	switch filtertype {
-	case namespaceFilter:
-		keys, exists = es.namespace2KeysMap[filter]
-	case metricFilter:
-		keys, exists = es.metric2KeysMap[filter]
-	}
-	if !exists {
-		return result
-	}
-	for key := range keys {
-		entity, value := es.getEntityByHashKeyInternal(key)
-		result[entity] = value
-	}
-	return result
-}
-
-func calculateStats(entityData map[*Entity]*EntityValue) StatsResult {
-	result := StatsResult{}
-	for _, value := range entityData {
-		if value == nil {
+// calculateStatsByFilter is an internal function. Caller should acquire lock.
+func (es *EntityStore) calculateStatsByFilter(filter *ANDEntityFilter) StatsResult {
+	rawData := make([]ValueType, 0, len(es.key2ValuesMap))
+	sum := ValueType(0)
+	for _, dataItem := range es.key2ValuesMap {
+		entity := dataItem.entity
+		if !filter.IsIncluded(entity) {
 			continue
 		}
+		entityValue := dataItem.valueQue.average()
+		rawData = append(rawData, entityValue)
+		sum += entityValue
 	}
-	return result
+	count := uint64(len(rawData))
+	if count == 0 {
+		return StatsResult{
+			Count:  count,
+			Min:    0,
+			Max:    0,
+			Avg:    0,
+			Medium: 0,
+			P10:    0,
+			P95:    0,
+			P99:    0,
+		}
+	}
+	sort.Slice(rawData, func(i, j int) bool { return rawData[i] < rawData[j] })
+	percentileIndexFunc := func(percentile float64) int {
+		return int(math.Floor(float64(len(rawData)-1) * percentile))
+	}
+	statsResult := StatsResult{
+		Count:  count,
+		Min:    rawData[0],
+		Max:    rawData[len(rawData)-1],
+		Avg:    sum / ValueType(count),
+		Medium: rawData[percentileIndexFunc(0.5)],
+		P10:    rawData[percentileIndexFunc(0.1)],
+		P95:    rawData[percentileIndexFunc(0.95)],
+		P99:    rawData[percentileIndexFunc(0.99)],
+	}
+	return statsResult
 }
 
 func (es *EntityStore) deleteInternal(hash uint64) {
-	entityValueBlob, exists := es.key2ValuesMap[hash]
-	if !exists || entityValueBlob == nil || entityValueBlob.entity == nil {
-		return
-	}
 	delete(es.key2ValuesMap, hash)
-	delete(es.metric2KeysMap[entityValueBlob.entity.MetricName], hash)
-	delete(es.namespace2KeysMap[entityValueBlob.entity.Namespace], hash)
 }
 
 // DeleteEntityByHashKey deltes an entity from the store.
@@ -227,53 +232,26 @@ func (es *EntityStore) startCleanupInBackground(ctx context.Context) {
 	}()
 }
 
-// GetAllMetricNamesWithCount returns all metric names.
-func (es *EntityStore) GetAllMetricNamesWithCount() map[string]int64 {
-	es.lock.RLock()
-	defer es.lock.RUnlock()
-	metricNames := make(map[string]int64)
-	for metric, keys := range es.metric2KeysMap {
-		metricNames[metric] = int64(len(keys))
-	}
-	return metricNames
-}
-
-// GetAllNamespaceNamesWithCount returns all namespace names.
-func (es *EntityStore) GetAllNamespaceNamesWithCount() map[string]int64 {
-	es.lock.RLock()
-	defer es.lock.RUnlock()
-	namespaceNames := make(map[string]int64)
-	for namespace, keys := range es.namespace2KeysMap {
-		namespaceNames[namespace] = int64(len(keys))
-	}
-	return namespaceNames
-}
-
 // GetStoreInfo returns the store information.
 func (es *EntityStore) GetStoreInfo() StoreInfo {
 	es.lock.RLock()
 	defer es.lock.RUnlock()
 	storeInfo := StoreInfo{
-		TotalMemoryUsage:       0,
 		TotalEntityCount:       0,
 		currentTime:            getCurrentTime(),
-		EntityCountByMetric:    make(map[string]uint64),
-		EntityCountByNamespace: make(map[string]uint64),
+		EntityStatsByLoadName:  make(map[string]StatsResult),
+		EntityStatsByNamespace: make(map[string]StatsResult),
 	}
 	// Constructing the information string
-	totalMemoryUsage := uint64(0)
-	for _, entityValues := range es.key2ValuesMap {
-		totalMemoryUsage += uint64(entityValues.memoryUsage())
-	}
-	for e, keys := range es.metric2KeysMap {
-		storeInfo.EntityCountByMetric[e] = uint64(len(keys))
-		totalMemoryUsage += uint64(len(keys)) * uint64(unsafe.Sizeof(uint64(0)))
-	}
-	for e, keys := range es.namespace2KeysMap {
-		storeInfo.EntityCountByNamespace[e] = uint64(len(keys))
-		totalMemoryUsage += uint64(len(keys)) * uint64(unsafe.Sizeof(uint64(0)))
-	}
-	storeInfo.TotalMemoryUsage = totalMemoryUsage / 1024 // Convert to KB
 	storeInfo.TotalEntityCount = uint64(len(es.key2ValuesMap))
+
+	for namespace := range es.namespaces {
+		namespaceFilter := namespaceFilter{namespace: namespace}
+		storeInfo.EntityStatsByNamespace[namespace] = es.calculateStatsByFilter(newANDEntityFilter(&namespaceFilter))
+	}
+	for loadName := range es.loadNames {
+		loadNameFilter := loadNameFilter{loadName: loadName}
+		storeInfo.EntityStatsByLoadName[loadName] = es.calculateStatsByFilter(newANDEntityFilter(&loadNameFilter))
+	}
 	return storeInfo
 }
