@@ -18,7 +18,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.git import get_default_branch
@@ -546,3 +546,36 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
             print(
                 "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
             )
+
+
+@task
+def get_required_checks(_, branch: str = "main"):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (read).
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    required_checks = gh.get_branch_required_checks(branch)
+    print(required_checks)
+
+
+@task(iterable=['check'])
+def add_required_checks(_, branch: str, check: str, force: bool = False):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (write).
+
+    Use it like this:
+    inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not check:
+        raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
+
+    gh = GithubAPI()
+    gh.add_branch_required_check(branch, check, force)
