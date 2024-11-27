@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     int device = atoi(argv[2]);
 
     // This string is used by PatternScanner to validate a proper start of this sample program inside the container
-    fprintf(stderr, "Starting CudaSample program\n")
+    fprintf(stderr, "Starting CudaSample program\n");
     fprintf(stderr, "Waiting for %d seconds before starting\n", waitStart);
 
     // Give time for the eBPF program to load
