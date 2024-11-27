@@ -166,7 +166,7 @@ func Test_handlePackets(t *testing.T) {
 		t.Run(test.description, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), test.ctxTimeout)
 			defer cancel()
-			actualIP, actualPort, actualTypeCode, _, err := handlePackets(ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			actualIP, actualPort, actualTypeCode, _, _, _, err := handlePackets(ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg))
