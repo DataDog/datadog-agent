@@ -192,7 +192,7 @@ class GithubAPI:
         )
         print(color_message(f"Current required checks: {sorted(current_required_checks)}", Color.GREY))
         if force or yes_no_question("Are you sure?", default=False):
-            # We're crafting the request and not using PyGithub becasue it doesn't support passing the checks variable instead of contexts.
+            # We're crafting the request and not using PyGithub because it doesn't support passing the checks variable instead of contexts.
             protection_url = f"{self.repo.url}/branches/{branch_name}/protection"
             headers = {
                 "Accept": "application/vnd.github+json",
