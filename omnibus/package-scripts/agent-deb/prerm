@@ -167,18 +167,10 @@ remove_persist_integration_files()
     fi
 }
 
-remove_apm_remote_config()
-{
-    if [ -f "$INSTALL_DIR/run/inject_config.yaml" ]; then
-        echo "Removing APM remote configuration file"
-        rm "$INSTALL_DIR/run/inject_config.yaml" || true
-    fi
-}
-
 case "$1" in #this can't be merged with the later case block because running 'remove_custom_integrations' would defeat the persisting integrations feature
     upgrade)
         # We're upgrading.
-        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
+        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
             ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
         fi
     ;;

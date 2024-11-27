@@ -109,7 +109,7 @@ func TestActionKill(t *testing.T) {
 				t.Error("signal timeout")
 			}
 			return nil
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "kill_action_usr2")
 		if err != nil {
@@ -123,7 +123,7 @@ func TestActionKill(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGUSR2')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
@@ -163,7 +163,7 @@ func TestActionKill(t *testing.T) {
 				t.Error("signal timeout")
 			}
 			return nil
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*5, "kill_action_kill")
 
@@ -178,7 +178,7 @@ func TestActionKill(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
@@ -239,7 +239,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 		}()
 
 		return nil
-	}, func(rule *rules.Rule, event *model.Event) bool {
+	}, func(_ *rules.Rule, _ *model.Event) bool {
 		return true
 	}, time.Second*5, "kill_action_kill_exclude")
 
@@ -315,7 +315,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 			t.Error("signal timeout")
 		}
 		return nil
-	}, func(rule *rules.Rule, event *model.Event) bool {
+	}, func(_ *rules.Rule, _ *model.Event) bool {
 		return true
 	}, time.Second*5, "kill_action_kill")
 
@@ -330,7 +330,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		}
 		validateMessageSchema(t, string(msg.Data))
 
-		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 				t.Errorf("element not found %s => %v", string(msg.Data), err)
 			}
@@ -353,7 +353,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		}
 		validateMessageSchema(t, string(msg.Data))
 
-		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 			if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
 				t.Errorf("unexpected rule action %s", string(msg.Data))
 			}
@@ -728,7 +728,7 @@ func TestActionHash(t *testing.T) {
 				done <- true
 			}()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action")
 		})
 
@@ -739,7 +739,7 @@ func TestActionHash(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
@@ -776,7 +776,7 @@ func TestActionHash(t *testing.T) {
 				done <- true
 			}()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action")
 		})
 
@@ -787,7 +787,7 @@ func TestActionHash(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}

@@ -109,3 +109,47 @@ func TestIdleWaits(t *testing.T) {
 		assert.NotEqual(t, r.WaitEventClass, "Idle", "Idle wait class not sampled")
 	}
 }
+
+func TestActiveSessionHistory(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	var count uint64
+	getWrapper(&c, &count, "SELECT BANNER FROM V$VERSION WHERE BANNER LIKE '%Enterprise%Edition%'")
+	if count == 0 {
+		t.Skip("Active Session History is only available in Oracle Enterprise Edition")
+	}
+	c.dbmEnabled = true
+	c.config.QuerySamples.ActiveSessionHistory = true
+
+	err := c.Run()
+	assert.NoError(t, err, "check run")
+
+	err = c.SampleSession()
+	require.NoError(t, err, "activity sample failed")
+	prevSamplId := c.lastSampleID
+
+	conn, err := getSysConnection(t)
+	require.NoError(t, err)
+
+	tx, err := conn.Begin()
+	require.NoError(t, err)
+	_, err = tx.Exec("INSERT INTO t VALUES (1)")
+	require.NoError(t, err)
+
+	longRunningStatement := `DECLARE
+  PRAGMA AUTONOMOUS_TRANSACTION;
+  l NUMBER;
+BEGIN
+  execute immediate 'ALTER SESSION SET DDL_LOCK_TIMEOUT = 3';
+  execute immediate 'alter table t add n2 number';
+  ROLLBACK;
+END;`
+	_, err = tx.Exec(longRunningStatement)
+	require.Error(t, err)
+
+	err = c.SampleSession()
+	require.NoError(t, err, "activity sample failed")
+
+	assert.Greater(t, c.lastSampleID, prevSamplId, "sample id should have increased")
+}

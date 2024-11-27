@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"slices"
 	"unicode"
 	"unicode/utf8"
@@ -63,16 +64,26 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 	// type-check the input argument to the constructor
 	ctorFuncType := reflect.TypeOf(compCtorFunc)
 	if ctorFuncType.Kind() != reflect.Func || ctorFuncType.NumIn() > 1 || ctorFuncType.NumOut() == 0 || ctorFuncType.NumOut() > 2 {
-		return fx.Error(errors.New("argument must be a function with 0 or 1 arguments, and 1 or 2 return values"))
+		// Caller(1) is the caller of *this* function, which should be a fx.go source file.
+		// This info lets us show better error messages to developers
+		_, file, line, _ := runtime.Caller(1)
+		errtext := fmt.Sprintf("%s:%d: argument must be a function with 0 or 1 arguments, and 1 or 2 return values", file, line)
+		return fx.Error(errors.New(errtext))
 	}
 	if ctorFuncType.NumIn() > 0 && ctorFuncType.In(0).Kind() != reflect.Struct {
-		return fx.Error(errors.New(`constructor must either take 0 arguments, or 1 "requires" struct`))
+		// Once we know the Kind == reflect.Func, we can get extra info like the function's name
+		funcname := runtime.FuncForPC(reflect.ValueOf(compCtorFunc).Pointer()).Name()
+		_, file, line, _ := runtime.Caller(1)
+		errmsg := fmt.Sprintf(`constructor %s must either take 0 arguments, or 1 "requires" struct`, funcname)
+		errtext := fmt.Sprintf("%s:%d: %s", file, line, errmsg)
+		return fx.Error(errors.New(errtext))
 	}
 	hasZeroArg := ctorFuncType.NumIn() == 0
 
 	ctorTypes, err := getConstructorTypes(ctorFuncType)
 	if err != nil {
-		return fx.Error(err)
+		_, file, line, _ := runtime.Caller(1)
+		return fx.Error(fmt.Errorf("%s:%d: %s", file, line, err))
 	}
 
 	// build reflect.Type of the constructor function that will be provided to `fx.Provide`
