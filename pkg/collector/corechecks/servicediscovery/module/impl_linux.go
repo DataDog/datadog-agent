@@ -553,19 +553,19 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:                            int(pid),
-		Name:                           name,
-		GeneratedName:                  info.generatedName,
-		DDService:                      info.ddServiceName,
-		DDServiceInjected:              info.ddServiceInjected,
-		GeneratedNameFromContainerTags: info.generatedNameFromContainerTags,
-		Ports:                          ports,
-		APMInstrumentation:             string(info.apmInstrumentation),
-		Language:                       string(info.language),
-		RSS:                            rss,
-		CommandLine:                    info.cmdLine,
-		StartTimeMilli:                 info.startTimeMilli,
-		CPUCores:                       info.cpuUsage,
+		PID:                  int(pid),
+		Name:                 name,
+		GeneratedName:        info.generatedName,
+		DDService:            info.ddServiceName,
+		DDServiceInjected:    info.ddServiceInjected,
+		CheckedContainerData: info.generatedNameFromContainerTags,
+		Ports:                ports,
+		APMInstrumentation:   string(info.apmInstrumentation),
+		Language:             string(info.language),
+		RSS:                  rss,
+		CommandLine:          info.cmdLine,
+		StartTimeMilli:       info.startTimeMilli,
+		CPUCores:             info.cpuUsage,
 	}
 }
 
@@ -640,7 +640,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	log.Debugf("Found container id for %v: %v", service.Name, id)
 
 	// We got the service name from container tags before, no need to do it again.
-	if service.GeneratedNameFromContainerTags {
+	if service.CheckedContainerData {
 		return
 	}
 
@@ -691,10 +691,10 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		}
 
 		service.GeneratedName = serviceName
-		service.GeneratedNameFromContainerTags = true
 		serviceInfo.generatedName = serviceName
 		serviceInfo.generatedNameFromContainerTags = true
 	}
+	service.CheckedContainerData = true
 }
 
 // getStatus returns the list of currently running services.
