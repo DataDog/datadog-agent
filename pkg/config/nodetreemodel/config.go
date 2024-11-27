@@ -498,10 +498,21 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 }
 
 // MergeConfig merges in another config
-func (c *ntmConfig) MergeConfig(_in io.Reader) error {
+func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.logErrorNotImplemented("MergeConfig")
+
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
