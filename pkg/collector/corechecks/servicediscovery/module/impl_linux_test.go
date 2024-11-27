@@ -204,7 +204,7 @@ func TestBasic(t *testing.T) {
 	var unexpectedPIDs []int
 	expectedPorts := make(map[int]int)
 
-	var startTCP = func(proto string) {
+	startTCP := func(proto string) {
 		f, server := startTCPServer(t, proto, "")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
@@ -215,7 +215,7 @@ func TestBasic(t *testing.T) {
 		unexpectedPIDs = append(unexpectedPIDs, cmd.Process.Pid)
 	}
 
-	var startUDP = func(proto string) {
+	startUDP := func(proto string) {
 		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
@@ -257,7 +257,7 @@ func TestPorts(t *testing.T) {
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
 
-	var startTCP = func(proto string) {
+	startTCP := func(proto string) {
 		serverf, server := startTCPServer(t, proto, "")
 		t.Cleanup(func() { serverf.Close() })
 		clientf, client := startTCPClient(t, proto, server)
@@ -267,7 +267,7 @@ func TestPorts(t *testing.T) {
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 	}
 
-	var startUDP = func(proto string) {
+	startUDP := func(proto string) {
 		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
@@ -303,7 +303,7 @@ func TestPortsLimits(t *testing.T) {
 
 	var expectedPorts []int
 
-	var openPort = func(address string) {
+	openPort := func(address string) {
 		serverf, server := startTCPServer(t, "tcp4", address)
 		t.Cleanup(func() { serverf.Close() })
 
@@ -465,7 +465,7 @@ func TestPythonFromBashScript(t *testing.T) {
 
 func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
 	// Changing permissions
-	require.NoError(t, os.Chmod(script, 0755))
+	require.NoError(t, os.Chmod(script, 0o755))
 
 	commandLineArgs := append(commandWrapper, script)
 	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
@@ -909,6 +909,113 @@ func TestCache(t *testing.T) {
 	require.Empty(t, discovery.cache)
 }
 
+func TestTagsPriority(t *testing.T) {
+	cases := []struct {
+		name                string
+		tags                []string
+		expectedServiceName string
+	}{
+		{
+			"nil tag list",
+			nil,
+			"",
+		},
+		{
+			"empty tag list",
+			[]string{},
+			"",
+		},
+		{
+			"no useful tags",
+			[]string{"foo:bar"},
+			"",
+		},
+		{
+			"malformed tag",
+			[]string{"foobar"},
+			"",
+		},
+		{
+			"service tag",
+			[]string{"service:foo"},
+			"foo",
+		},
+		{
+			"app tag",
+			[]string{"app:foo"},
+			"foo",
+		},
+		{
+			"short_image tag",
+			[]string{"short_image:foo"},
+			"foo",
+		},
+		{
+			"kube_container_name tag",
+			[]string{"kube_container_name:foo"},
+			"foo",
+		},
+		{
+			"kube_deployment tag",
+			[]string{"kube_deployment:foo"},
+			"foo",
+		},
+		{
+			"kube_service tag",
+			[]string{"kube_service:foo"},
+			"foo",
+		},
+		{
+			"multiple tags",
+			[]string{
+				"foo:bar",
+				"baz:biz",
+				"service:my_service",
+				"malformed",
+			},
+			"my_service",
+		},
+		{
+			"empty value",
+			[]string{
+				"service:",
+				"app:foo",
+			},
+			"foo",
+		},
+		{
+			"multiple tags with priority",
+			[]string{
+				"foo:bar",
+				"short_image:my_image",
+				"baz:biz",
+				"service:my_service",
+				"malformed",
+			},
+			"my_service",
+		},
+		{
+			"all priority tags",
+			[]string{
+				"kube_service:my_kube_service",
+				"kube_deployment:my_kube_deployment",
+				"kube_container_name:my_kube_container_name",
+				"short_iamge:my_short_image",
+				"app:my_app",
+				"service:my_service",
+			},
+			"my_service",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			name := getServiceNameFromContainerTags(c.tags)
+			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
+		})
+	}
+}
+
 func BenchmarkOldProcess(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1012,7 +1119,8 @@ func BenchmarkOldGetSockets(b *testing.B) {
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
 func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
-	family network.ConnectionFamily, ctype network.ConnectionType, state uint64) {
+	family network.ConnectionFamily, ctype network.ConnectionType, state uint64,
+) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue

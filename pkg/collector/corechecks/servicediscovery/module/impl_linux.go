@@ -616,12 +616,7 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
-func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
-	id, ok := pidToCid[service.PID]
-	if !ok {
-		return
-	}
-
+func getServiceNameFromContainerTags(tags []string) string {
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -636,22 +631,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		{"kube_service", nil},
 	}
 
-	service.ContainerID = id
-	log.Debugf("Found container id for %v: %v", service.Name, id)
-
-	// We got the service name from container tags before, no need to do it again.
-	if service.CheckedContainerData {
-		return
-	}
-
-	container, ok := containers[id]
-	if !ok {
-		return
-	}
-
-	var serviceName string
-
-	for _, tag := range container.Tags {
+	for _, tag := range tags {
 		// Get index of separator between name and value
 		sepIndex := strings.IndexRune(tag, ':')
 		if sepIndex < 0 || sepIndex >= len(tag)-1 {
@@ -676,10 +656,33 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 			continue
 		}
 
-		serviceName = *tag.tagValue
 		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		break
+		return *tag.tagValue
 	}
+
+	return ""
+}
+
+func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
+	id, ok := pidToCid[service.PID]
+	if !ok {
+		return
+	}
+
+	service.ContainerID = id
+	log.Debugf("Found container id for %v: %v", service.Name, id)
+
+	// We got the service name from container tags before, no need to do it again.
+	if service.CheckedContainerData {
+		return
+	}
+
+	container, ok := containers[id]
+	if !ok {
+		return
+	}
+
+	serviceName := getServiceNameFromContainerTags(container.Tags)
 
 	if serviceName != "" {
 		service.GeneratedName = serviceName
