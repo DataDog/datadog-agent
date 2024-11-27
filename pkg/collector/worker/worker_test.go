@@ -660,7 +660,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			expectedRunCount: 0,
 		},
 		{
-			// when ha-agent is disabled, the agent behaviour as before and will always run all integrations
+			// When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
 			name:             "should run: ha-agent disabled",
 			haAgentEnabled:   false,
 			setLeaderValue:   "",
