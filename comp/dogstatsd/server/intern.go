@@ -22,6 +22,7 @@ import (
 
 // Once this is available, the interner design should be re-visited to
 // take advantage of the new "Unique" api that is proposed below.
+// Hello world
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
 	strings map[string]string
