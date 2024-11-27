@@ -40,6 +40,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
+// When logsSender is not provided, this func creates a sender for the created pipeline.
 func NewPipeline(outputChan chan *message.Payload,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -56,7 +57,6 @@ func NewPipeline(outputChan chan *message.Payload,
 	var flushWg *sync.WaitGroup
 	var senderDoneChan chan *sync.WaitGroup
 	if serverless {
-		// XXX(remy): restore serverless mode
 		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
@@ -76,6 +76,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
+	// if not provided, create a sender for this pipeline
 	senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
 	if logsSender != nil {
 		mainDestinations := GetDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)

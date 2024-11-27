@@ -50,27 +50,19 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// TODO(remy): create a pool of senders
-	// TODO(remy): pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 	var pipelineMonitor *metrics.TelemetryPipelineMonitor = metrics.NewTelemetryPipelineMonitor("shared_sender")
 	status := NewStatusProvider()
 
-	serverless := false // XXX
-	var flushWg *sync.WaitGroup
-	var senderDoneChan chan *sync.WaitGroup
-	if serverless {
-		senderDoneChan = make(chan *sync.WaitGroup)
-		flushWg = &sync.WaitGroup{}
-	}
+    // buffer 2 payloads per pipeline max
+	senderInput := make(chan *message.Payload, config.NumberOfPipelines*2)
 
-	// XXX(remy): don't we want to revisit this chan size: now that we are sharing forwarders,
-	// it makes more sense to be able to buffer a set of payloads from processors.
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
-
-	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, serverless, senderDoneChan, status, a.config)
-	logsSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
+    // create a shared sender
+    // * it doesn't support serverless but the serverless pipeline creates its own sender
+	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, false, nil, status, a.config)
+	sharedSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"), nil, nil, pipelineMonitor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, logsSender, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, sharedSender, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
