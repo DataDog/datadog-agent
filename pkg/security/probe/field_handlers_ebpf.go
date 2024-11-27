@@ -577,8 +577,9 @@ func (fh *EBPFFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model
 
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
-	if len(e.Tags) == 0 && e.ContainerID != "" {
+	if (!e.TagsResolved || len(e.Tags) == 0) && e.ContainerID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(string(e.ContainerID))
+		e.TagsResolved = true
 	}
 	return e.Tags
 }

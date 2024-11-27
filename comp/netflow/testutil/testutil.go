@@ -25,7 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )

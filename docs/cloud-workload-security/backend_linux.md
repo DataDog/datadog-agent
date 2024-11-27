@@ -174,12 +174,16 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "addr": {
                     "$ref": "#/$defs/IPPortFamily",
                     "description": "Bound address (if any)"
+                },
+                "protocol": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "addr"
+                "addr",
+                "protocol"
             ],
             "description": "BindEventSerializer serializes a bind event to JSON"
         },
@@ -202,12 +206,16 @@ CSM Threats event for Linux systems have the following JSON schema:
             "properties": {
                 "addr": {
                     "$ref": "#/$defs/IPPortFamily"
+                },
+                "protocol": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "addr"
+                "addr",
+                "protocol"
             ],
             "description": "ConnectEventSerializer serializes a connect event to JSON"
         },
@@ -2069,12 +2077,16 @@ CSM Threats event for Linux systems have the following JSON schema:
         "addr": {
             "$ref": "#/$defs/IPPortFamily",
             "description": "Bound address (if any)"
+        },
+        "protocol": {
+            "type": "string"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "addr"
+        "addr",
+        "protocol"
     ],
     "description": "BindEventSerializer serializes a bind event to JSON"
 }
@@ -2125,12 +2137,16 @@ CSM Threats event for Linux systems have the following JSON schema:
     "properties": {
         "addr": {
             "$ref": "#/$defs/IPPortFamily"
+        },
+        "protocol": {
+            "type": "string"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "addr"
+        "addr",
+        "protocol"
     ],
     "description": "ConnectEventSerializer serializes a connect event to JSON"
 }

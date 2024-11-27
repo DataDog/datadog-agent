@@ -152,7 +152,6 @@ func (s *Sender) run() {
 		destSender.Stop()
 	}
 	close(sink)
-	s.utilization.Cancel()
 	s.done <- struct{}{}
 }
 
