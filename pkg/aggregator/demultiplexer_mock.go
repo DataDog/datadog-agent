@@ -12,11 +12,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -27,11 +27,11 @@ type TestDeps struct {
 	Hostname        hostname.Component
 	SharedForwarder defaultforwarder.Component
 	Compressor      compression.Component
+	HaAgent         haagent.Component
 }
 
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.Compressor, nooptagger.NewTaggerClient(), hostname)
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventplatformock.NewMock(), deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), hostname)
 }

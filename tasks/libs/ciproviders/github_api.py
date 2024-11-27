@@ -13,6 +13,7 @@ import requests
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch
 
 try:
     import semver
@@ -451,13 +452,13 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(version)
+    milestone_name = milestone or str(version)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -491,11 +492,10 @@ Make sure that milestone is open before trying again.""",
         "qa/no-code-change",
         "team/agent-delivery",
         "team/agent-release-management",
-        "category/release_operations",
     ]
 
     if changelog_pr:
-        labels.append("backport/main")
+        labels.append(f"backport/{get_default_branch()}")
 
     updated_pr = github.update_pr(
         pull_number=pr.number,

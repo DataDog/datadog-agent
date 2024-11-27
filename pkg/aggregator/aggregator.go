@@ -7,15 +7,15 @@
 package aggregator
 
 import (
-	"errors"
 	"expvar"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -252,6 +252,7 @@ type BufferedAggregator struct {
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
+	haAgent                haagent.Component
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -283,7 +284,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -326,6 +327,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
+		haAgent:                     haAgent,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -407,12 +409,8 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
-	forwarder, found := agg.eventPlatformForwarder.Get()
-	if !found {
-		return nil, errors.New("event platform forwarder not initialized")
-	}
-	return forwarder, nil
+func (agg *BufferedAggregator) GetEventPlatformForwarder() eventplatform.Component {
+	return agg.eventPlatformForwarder
 }
 
 func (agg *BufferedAggregator) registerSender(id checkid.ID) error {
@@ -461,13 +459,9 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 }
 
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
-	forwarder, found := agg.eventPlatformForwarder.Get()
-	if !found {
-		return errors.New("event platform forwarder not initialized")
-	}
 	m := message.NewMessage(event.rawEvent, nil, "", 0)
 	// eventPlatformForwarder is threadsafe so no locking needed here
-	return forwarder.SendEventPlatformEvent(m, event.eventType)
+	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -686,11 +680,7 @@ func (agg *BufferedAggregator) GetEvents() event.Events {
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
 // Note that this works only if using the 'noop' event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
-	forwarder, found := agg.eventPlatformForwarder.Get()
-	if !found {
-		return nil
-	}
-	return forwarder.Purge()
+	return agg.eventPlatformForwarder.Purge()
 }
 
 func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {
@@ -860,6 +850,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
+	}
+	if agg.haAgent.Enabled() {
+		tags = append(tags, "agent_group:"+agg.haAgent.GetGroup())
 	}
 	// nil to empty string
 	// This is expected by other components/tests

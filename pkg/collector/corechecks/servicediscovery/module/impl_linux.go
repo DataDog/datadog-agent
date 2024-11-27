@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,6 +67,9 @@ type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
+	// ignorePids processes to be excluded from discovery
+	ignorePids map[int32]struct{}
+
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
 
@@ -78,21 +82,26 @@ type discovery struct {
 
 	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
 	lastCPUTimeUpdate time.Time
+
+	containerProvider proccontainers.ContainerProvider
 }
 
-func newDiscovery() *discovery {
+func newDiscovery(containerProvider proccontainers.ContainerProvider) *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
+		ignorePids:         make(map[int32]struct{}),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
+		containerProvider:  containerProvider,
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
-	return newDiscovery(), nil
+func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
+	return newDiscovery(sharedContainerProvider), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -112,6 +121,7 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	clear(s.cache)
+	clear(s.ignorePids)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -328,6 +338,46 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
+// addIgnoredPid store excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.ignorePids[pid] = struct{}{}
+}
+
+// shouldIgnorePid returns true if process should be excluded from handling.
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	_, found := s.ignorePids[pid]
+	return found
+}
+
+// shouldIgnoreService returns true if the service should be excluded from handling.
+func (s *discovery) shouldIgnoreService(name string) bool {
+	if len(s.config.ignoreServices) == 0 {
+		return false
+	}
+	_, found := s.config.ignoreServices[name]
+
+	return found
+}
+
+// cleanIgnoredPids removes dead PIDs from the list of ignored processes.
+func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	for pid := range s.ignorePids {
+		if _, alive := alivePids[pid]; alive {
+			continue
+		}
+		delete(s.ignorePids, pid)
+	}
+}
+
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
@@ -406,7 +456,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
+	if s.shouldIgnorePid(proc.Pid) {
+		return nil
+	}
 	if s.shouldIgnoreComm(proc) {
+		s.addIgnoredPid(proc.Pid)
 		return nil
 	}
 
@@ -491,6 +545,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if name == "" {
 		name = info.generatedName
 	}
+	if s.shouldIgnoreService(name) {
+		s.addIgnoredPid(proc.Pid)
+		return nil
+	}
 
 	return &model.Service{
 		PID:                int(pid),
@@ -570,6 +628,10 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	var services []model.Service
 	alivePids := make(map[int32]struct{}, len(pids))
+	_, _, pidToCid, err := s.containerProvider.GetContainers(1*time.Minute, nil)
+	if err != nil {
+		log.Errorf("could not get containers: %s", err)
+	}
 
 	for _, pid := range pids {
 		alivePids[pid] = struct{}{}
@@ -579,10 +641,15 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 			continue
 		}
 
+		if id, ok := pidToCid[service.PID]; ok {
+			service.ContainerID = id
+		}
+
 		services = append(services, *service)
 	}
 
 	s.cleanCache(alivePids)
+	s.cleanIgnoredPids(alivePids)
 
 	if err = s.updateServicesCPUStats(services); err != nil {
 		return nil, err

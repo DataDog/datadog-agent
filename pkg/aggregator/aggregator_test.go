@@ -22,13 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -146,8 +146,8 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -179,8 +179,8 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -229,8 +229,8 @@ func TestDefaultData(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	agg := NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval)
 
 	start := time.Now()
 
@@ -513,6 +513,7 @@ func TestTags(t *testing.T) {
 		agentTags               func(types.TagCardinality) ([]string, error)
 		globalTags              func(types.TagCardinality) ([]string, error)
 		withVersion             bool
+		haAgentEnabled          bool
 		want                    []string
 	}{
 		{
@@ -578,15 +579,28 @@ func TestTags(t *testing.T) {
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
+		{
+			name:                    "tags disabled, without version, ha agent enabled",
+			hostname:                "hostname",
+			tlmContainerTagsEnabled: false,
+			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			withVersion:             false,
+			haAgentEnabled:          true,
+			want:                    []string{"agent_group:group01"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 
-			taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+			taggerComponent := taggerMock.SetupFakeTagger(t)
 
-			agg := NewBufferedAggregator(nil, nil, taggerComponent, tt.hostname, time.Second)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+			mockHaAgent.SetEnabled(tt.haAgentEnabled)
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
@@ -619,8 +633,8 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval)
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",
@@ -729,7 +743,7 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionmock.MockModule(), haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

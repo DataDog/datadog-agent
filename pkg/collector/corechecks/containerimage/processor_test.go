@@ -18,16 +18,16 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestProcessEvents(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name           string

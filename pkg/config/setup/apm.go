@@ -43,6 +43,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.obfuscation.redis.remove_all_args", "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
 	config.BindEnv("apm_config.obfuscation.memcached.enabled", "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.BindEnv("apm_config.obfuscation.memcached.keep_command", "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
+	config.BindEnv("apm_config.obfuscation.cache.enabled", "DD_APM_OBFUSCATION_CACHE_ENABLED")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.filter_tags_regex.require")
@@ -76,7 +77,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.remote_tagger", true, "DD_APM_REMOTE_TAGGER")                                                     //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", true, "DD_APM_PEER_SERVICE_AGGREGATION")                               //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")                                     //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
@@ -112,6 +112,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.probabilistic_sampler.enabled", "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")
 	config.BindEnv("apm_config.probabilistic_sampler.sampling_percentage", "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnv("apm_config.probabilistic_sampler.hash_seed", "DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED")
+	config.BindEnvAndSetDefault("apm_config.error_tracking_standalone.enabled", false, "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED")
 
 	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
 	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")
@@ -152,6 +153,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.install_time", "DD_INSTRUMENTATION_INSTALL_TIME")
 	config.BindEnv("apm_config.obfuscation.credit_cards.enabled", "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
+	config.BindEnv("apm_config.obfuscation.credit_cards.keep_values", "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
@@ -183,7 +185,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.ParseEnvAsStringSlice("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
 	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
 	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
-
+	config.ParseEnvAsStringSlice("apm_config.obfuscation.credit_cards.keep_values", parseKVList("apm_config.obfuscation.credit_cards.keep_values"))
 	config.ParseEnvAsSliceMapString("apm_config.replace_tags", func(in string) []map[string]string {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {

@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -50,7 +51,7 @@ func (c *Check) Run() error {
 	}
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
-	cfg := traceroute.Config{
+	cfg := config.Config{
 		DestHostname: c.config.DestHostname,
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,

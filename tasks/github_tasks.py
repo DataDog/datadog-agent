@@ -18,8 +18,10 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
+from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
@@ -35,7 +37,7 @@ def concurrency_key():
     current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
+    if re.search(rf'^({get_default_branch()}|\d+\.\d+\.x)$', current_ref):
         return None
 
     return current_ref
@@ -67,7 +69,7 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
 def trigger_macos(
     _,
     workflow_type="build",
-    datadog_agent_ref=DEFAULT_BRANCH,
+    datadog_agent_ref=None,
     release_version="nightly-a7",
     major_version="7",
     destination=".",
@@ -78,6 +80,13 @@ def trigger_macos(
     test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
+    """
+    Args:
+        datadog_agent_ref: If None, will be the default branch.
+    """
+
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
+
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
             # Provide the release version to be able to fetch the associated
@@ -474,6 +483,8 @@ tags: {tags}''')
         tags=tags,
     )
 
+    print(f"Event sent to Datadog for PR #{pr.number}")
+
 
 def extract_test_qa_description(pr_body: str) -> str:
     """
@@ -509,3 +520,29 @@ def assign_codereview_label(_, pr_id=-1):
     gh = GithubAPI('DataDog/datadog-agent')
     complexity = gh.get_codereview_complexity(pr_id)
     gh.update_review_complexity_labels(pr_id, complexity)
+
+
+@task
+def agenttelemetry_list_change_ack_check(_, pr_id=-1):
+    """
+    Change to `comp/core/agenttelemetry/impl/config.go` file requires to acknowledge
+    potential changes to Agent Telemetry metrics. If Agent Telemetry metric list has been changed,
+    the PR should be labeled with `need-change/agenttelemetry-governance` and follow
+    `Agent Telemetry Governance` instructions to potentially perform additional changes. See
+    https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance
+    for details.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+
+    labels = gh.get_pr_labels(pr_id)
+    files = gh.get_pr_files(pr_id)
+    if "comp/core/agenttelemetry/impl/config.go" in files:
+        if "need-change/agenttelemetry-governance" not in labels:
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, pleas follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            raise Exit(message, code=1)
+        else:
+            print(
+                "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
+            )

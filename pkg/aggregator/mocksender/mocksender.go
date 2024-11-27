@@ -12,14 +12,12 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -41,10 +39,8 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	log := logimpl.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
-	taggerComponent := nooptagger.NewTaggerClient()
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), taggerComponent, "")
-
+	taggerComponent := nooptagger.NewComponent()
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventplatformock.NewMock(), haagentmock.NewMockHaAgent(), compressionmock.NewMockCompressor(), taggerComponent, "")
 }
 
 // NewMockSenderWithSenderManager returns a functional mocked Sender for testing

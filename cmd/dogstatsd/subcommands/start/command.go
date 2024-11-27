@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-less"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -40,9 +40,10 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformfxnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -53,7 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -141,18 +142,17 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		compressionimpl.Module(),
+		compressionfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+		eventplatformfxnoop.Module(),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		taggerimpl.Module(),
-		fx.Provide(tagger.NewTaggerParams),
+		localTaggerfx.Module(tagger.Params{}),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -174,6 +174,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			}
 		}),
 		healthprobefx.Module(),
+		haagentfx.Module(),
 	)
 }
 

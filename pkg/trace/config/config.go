@@ -115,6 +115,9 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
+
+	// Cache holds the configuration for caching obfuscation results.
+	Cache obfuscate.CacheConfig `mapstructure:"cache"`
 }
 
 func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
@@ -132,7 +135,6 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			Cache:            conf.HasFeature("sql_cache"),
 			ObfuscationMode:  obfuscationMode(conf.HasFeature("sqllexer")),
 		},
 		ES:                   o.ES,
@@ -145,6 +147,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
+		Cache:                o.Cache,
 	}
 }
 
@@ -317,6 +320,9 @@ type AgentConfig struct {
 	ProbabilisticSamplerHashSeed           uint32
 	ProbabilisticSamplerSamplingPercentage float32
 
+	// Error Tracking Standalone
+	ErrorTrackingStandalone bool
+
 	// Receiver
 	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
 	ReceiverHost    string
@@ -450,6 +456,10 @@ type AgentConfig struct {
 
 	// Lambda function name
 	LambdaFunctionName string
+
+	// Azure container apps tags, in the form of a comma-separated list of
+	// key-value pairs, starting with a comma
+	AzureContainerAppTags string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -494,6 +504,8 @@ func New() *AgentConfig {
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
+
+		ErrorTrackingStandalone: false,
 
 		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",

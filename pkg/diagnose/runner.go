@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -524,7 +524,7 @@ func RegisterConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
 
 // RegisterConnectivityDatadogEventPlatform registers the connectivity-datadog-event-platform diagnose suite.
 func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
-	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
+	catalog.Register("connectivity-datadog-event-platform", eventplatform.Diagnose)
 }
 
 // RegisterPortConflict registers the port-conflict diagnose suite.

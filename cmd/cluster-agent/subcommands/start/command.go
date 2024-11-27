@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -49,22 +50,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformfxnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -137,10 +138,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+				eventplatformfxnoop.Module(),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
@@ -149,8 +150,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				fx.Provide(tagger.NewTaggerParams),
-				taggerimpl.Module(),
+				localTaggerfx.Module(tagger.Params{}),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -204,6 +204,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
+				haagentfx.Module(),
 			)
 		},
 	}

@@ -1317,9 +1317,19 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "bind.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "bind.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "bind.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "bind-protocol-doc"
         },
         {
           "name": "bind.retval",
@@ -1821,29 +1831,24 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "connect.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "connect.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
+          "name": "connect.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "connect-protocol-doc"
+        },
+        {
           "name": "connect.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
-        },
-        {
-          "name": "connect.server.addr.family",
-          "definition": "Server address family",
-          "property_doc_link": "connect-server-addr-family-doc"
-        },
-        {
-          "name": "connect.server.addr.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "connect.server.addr.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
@@ -1895,6 +1900,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -1923,6 +1933,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -2827,6 +2842,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -2855,6 +2875,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -3699,6 +3724,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "packet.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "packet.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -3732,6 +3762,11 @@
           "name": "packet.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "packet.source.port",
@@ -8325,7 +8360,6 @@
       "prefixes": [
         "bind.addr",
         "connect.addr",
-        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8374,6 +8408,23 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_public",
+      "link": "common-ipportcontext-is_public-doc",
+      "type": "bool",
+      "definition": "Whether the IP address belongs to a public network",
+      "prefixes": [
+        "bind.addr",
+        "connect.addr",
+        "network.destination",
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -9065,7 +9116,6 @@
       "prefixes": [
         "bind.addr",
         "connect.addr",
-        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -9400,6 +9450,18 @@
       "examples": []
     },
     {
+      "name": "bind.protocol",
+      "link": "bind-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
+      "prefixes": [
+        "bind"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bpf.cmd",
       "link": "bpf-cmd-doc",
       "type": "int",
@@ -9676,10 +9738,10 @@
       "examples": []
     },
     {
-      "name": "connect.server.addr.family",
-      "link": "connect-server-addr-family-doc",
+      "name": "connect.protocol",
+      "link": "connect-protocol-doc",
       "type": "int",
-      "definition": "Server address family",
+      "definition": "Socket Protocol",
       "prefixes": [
         "connect"
       ],

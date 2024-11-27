@@ -19,11 +19,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -40,14 +42,15 @@ type grpcServer struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	taggerServer       *taggerserver.Server
-	taggerComp         tagger.Component
-	workloadmetaServer *workloadmetaServer.Server
-	configService      optional.Option[rcservice.Component]
-	configServiceMRF   optional.Option[rcservicemrf.Component]
-	dogstatsdServer    dogstatsdServer.Component
-	capture            dsdReplay.Component
-	pidMap             pidmap.Component
+	taggerServer        *taggerserver.Server
+	taggerComp          tagger.Component
+	workloadmetaServer  *workloadmetaServer.Server
+	configService       optional.Option[rcservice.Component]
+	configServiceMRF    optional.Option[rcservicemrf.Component]
+	dogstatsdServer     dogstatsdServer.Component
+	capture             dsdReplay.Component
+	pidMap              pidmap.Component
+	remoteAgentRegistry remoteagentregistry.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -181,6 +184,22 @@ func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*p
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
+}
+
+func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	registration := rarproto.ProtobufToRemoteAgentRegistration(in)
+	recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.RegisterRemoteAgentResponse{
+		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
+	}, nil
 }
 
 func init() {

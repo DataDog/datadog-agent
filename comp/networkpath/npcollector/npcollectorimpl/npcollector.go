@@ -19,7 +19,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
@@ -42,7 +43,7 @@ type npCollectorImpl struct {
 	collectorConfigs *collectorConfigs
 
 	// Deps
-	epForwarder  eventplatform.Forwarder
+	epForwarder  eventplatform.Component
 	logger       log.Component
 	metricSender metricsender.MetricSender
 	statsdClient ddgostatsd.ClientInterface
@@ -72,7 +73,7 @@ type npCollectorImpl struct {
 	TimeNowFn func() time.Time
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
+	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
 }
@@ -83,7 +84,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Component, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component) *npCollectorImpl {
 	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
 		collectorConfigs.workers,
 		collectorConfigs.timeout,
@@ -227,7 +228,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	startTime := s.TimeNowFn()
-	cfg := traceroute.Config{
+	cfg := config.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
 		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
@@ -262,7 +263,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 }
 
-func runTraceroute(cfg traceroute.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
+func runTraceroute(cfg config.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
 	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)

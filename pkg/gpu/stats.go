@@ -9,22 +9,24 @@ package gpu
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
 // the data to the aggregators which are responsible for computing the metrics.
 type statsGenerator struct {
-	streamHandlers      map[streamKey]*StreamHandler // streamHandlers contains the map of active stream handlers.
-	lastGenerationKTime int64                        // lastGenerationTime is the kernel time of the last stats generation.
-	currGenerationKTime int64                        // currGenerationTime is the kernel time of the current stats generation.
-	aggregators         map[uint32]*aggregator       // aggregators contains the map of aggregators
-	sysCtx              *systemContext               // sysCtx is the system context with global GPU-system data
+	streamHandlers      map[streamKey]*StreamHandler   // streamHandlers contains the map of active stream handlers.
+	lastGenerationKTime int64                          // lastGenerationTime is the kernel time of the last stats generation.
+	currGenerationKTime int64                          // currGenerationTime is the kernel time of the current stats generation.
+	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
+	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
 }
 
-func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
+func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
+	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
-		aggregators:         make(map[uint32]*aggregator),
+		aggregators:         make(map[model.StatsKey]*aggregator),
 		lastGenerationKTime: currKTime,
 		currGenerationKTime: currKTime,
 		sysCtx:              sysCtx,
@@ -33,11 +35,12 @@ func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers ma
 
 // getStats takes data from all active stream handlers, aggregates them and returns the per-process GPU stats.
 // This function gets called by the Probe when it receives a data request in the GetAndFlush method
+// TODO: consider removing this parameter and encapsulate it inside the function (will affect UTs as they rely on precise time intervals)
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
 	for key, handler := range g.streamHandlers {
-		aggr := g.getOrCreateAggregator(key.pid)
+		aggr := g.getOrCreateAggregator(key)
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData(true)
 
@@ -56,28 +59,37 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 	normFactor := g.getNormalizationFactor()
 
-	stats := model.GPUStats{
-		ProcessStats: make(map[uint32]model.ProcessStats),
+	stats := &model.GPUStats{
+		Metrics: make([]model.StatsTuple, 0, len(g.aggregators)),
 	}
 
-	for pid, aggr := range g.aggregators {
-		stats.ProcessStats[pid] = aggr.getStats(normFactor)
+	for aggKey, aggr := range g.aggregators {
+		entry := model.StatsTuple{
+			Key:                aggKey,
+			UtilizationMetrics: aggr.getStats(normFactor),
+		}
+		stats.Metrics = append(stats.Metrics, entry)
 	}
 
 	g.lastGenerationKTime = g.currGenerationKTime
 
-	return &stats
+	return stats
 }
 
-func (g *statsGenerator) getOrCreateAggregator(pid uint32) *aggregator {
-	if _, ok := g.aggregators[pid]; !ok {
-		g.aggregators[pid] = newAggregator(g.sysCtx)
+func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
+	aggKey := model.StatsKey{
+		PID:        sKey.pid,
+		DeviceUUID: sKey.gpuUUID,
+	}
+
+	if _, ok := g.aggregators[aggKey]; !ok {
+		g.aggregators[aggKey] = newAggregator(g.sysCtx)
 	}
 
 	// Update the last check time and the measured interval, as these change between check runs
-	g.aggregators[pid].lastCheckKtime = uint64(g.lastGenerationKTime)
-	g.aggregators[pid].measuredIntervalNs = g.currGenerationKTime - g.lastGenerationKTime
-	return g.aggregators[pid]
+	g.aggregators[aggKey].lastCheckKtime = uint64(g.lastGenerationKTime)
+	g.aggregators[aggKey].measuredIntervalNs = g.currGenerationKTime - g.lastGenerationKTime
+	return g.aggregators[aggKey]
 }
 
 // getNormalizationFactor returns the factor to use for utilization

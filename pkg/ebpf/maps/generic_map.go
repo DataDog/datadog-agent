@@ -25,7 +25,7 @@ import (
 
 const defaultBatchSize = 100
 
-var ErrBatchAPINotSupported = errors.New("batch API not supported for this map: check whether key is fixed-size, kernel supports batch API and if this map is not per-cpu")
+var ErrBatchAPINotSupported = errors.New("batch API not supported for this map: check whether key is fixed-size, kernel supports batch API and if this map is not per-cpu") //nolint:revive // TODO
 
 // BatchAPISupported returns true if the kernel supports the batch API for maps
 var BatchAPISupported = funcs.MemoizeNoError(func() bool {

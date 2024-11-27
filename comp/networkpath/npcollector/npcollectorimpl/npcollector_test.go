@@ -24,15 +24,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -91,7 +91,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	stats := &teststatsd.Client{}
 
-	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	mockEpForwarder := eventplatformmock.NewMockComponent(gomock.NewController(t))
 	npCollector.epForwarder = mockEpForwarder
 
 	app.RequireStart()
@@ -101,7 +101,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	assert.True(t, npCollector.running)
 
-	npCollector.runTraceroute = func(cfg traceroute.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+	npCollector.runTraceroute = func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "10.0.0.2" {
 			p = payload.NetworkPath{

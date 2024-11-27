@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
@@ -45,9 +46,9 @@ func testArch(t *testing.T, arch string) {
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
-		utils.WaitForPathToBeBlocked(t, "shared_libraries", lib)
+		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, "shared_libraries", lib)
 	}
 }
 

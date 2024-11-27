@@ -18,7 +18,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -151,10 +151,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: collector.start,
 		OnStop:  collector.stop,
 	})
-
+	timeoutCallback := func(flaretypes.FlareBuilder) time.Duration {
+		return time.Second * time.Duration(reqs.Config.GetInt("otelcollector.flare.timeout"))
+	}
 	return Provides{
 		Comp:           collector,
-		FlareProvider:  flaretypes.NewProvider(collector.fillFlare),
+		FlareProvider:  flaretypes.NewProviderWithTimeout(collector.fillFlare, timeoutCallback),
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
 }

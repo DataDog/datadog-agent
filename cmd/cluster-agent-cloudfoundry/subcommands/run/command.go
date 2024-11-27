@@ -39,18 +39,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformfxnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -85,10 +86,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+				eventplatformfxnoop.Module(),
 				eventplatformreceiverimpl.Module(),
 
 				// setup workloadmeta
@@ -96,8 +97,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
-				fx.Provide(tagger.NewTaggerParams),
-				taggerimpl.Module(),
+				localTaggerfx.Module(tagger.Params{}),
 				collectorimpl.Module(),
 				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 					return optional.NewNoneOption[serializer.MetricSerializer]()
@@ -127,6 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
+				haagentfx.Module(),
 			)
 		},
 	}

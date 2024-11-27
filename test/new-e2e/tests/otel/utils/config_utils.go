@@ -21,9 +21,25 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
+
+// Payload handles the JSON unmarshalling of the metadata payload
+type Payload struct {
+	Hostname     string        `json:"hostname"`
+	Timestamp    int64         `json:"timestamp"`
+	OTelMetadata *OTelMetadata `json:"otel_metadata"`
+	UUID         string        `json:"uuid"`
+}
+
+// OTelMetadata represents the inventory otel metadata payload
+type OTelMetadata struct {
+	Command          string `json:"command"`
+	Description      string `json:"description"`
+	Enabled          bool   `json:"enabled"`
+	ExtensionVersion string `json:"extension_version"`
+	extension.ConfigResponse
+}
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
 func TestOTelAgentInstalled(s OTelTestSuite) {
@@ -88,7 +104,6 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 
 // TestOTelFlareFiles tests that the OTel Agent flares contain the expected files
 func TestOTelFlareFiles(s OTelTestSuite) {
-	flake.Mark(s.T())
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
@@ -129,6 +144,37 @@ func TestOTelFlareFiles(s OTelTestSuite) {
 	}
 
 	assert.Contains(s.T(), otelflares["otel/otel-flare/health_check/dd-autoconfigured.dat"], `"status":"Server available"`)
+}
+
+// TestOTelRemoteConfigPayload tests that the OTel Agent DD flare extension returns expected responses
+func TestOTelRemoteConfigPayload(s OTelTestSuite, providedCfg string, fullCfg string) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Starting diagnose")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "diagnose", "show-metadata", "inventory-otel"})
+	require.NoError(s.T(), err, "Failed to execute diagnose")
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
+	ind := strings.Index(stdout, "{")
+	require.NotEqual(s.T(), ind, -1)
+	rawPayload := stdout[ind:]
+
+	var payload Payload
+	err = json.Unmarshal([]byte(rawPayload), &payload)
+	if err != nil {
+		s.T().Fatal(err)
+	}
+	s.T().Log("Got metadata payload")
+
+	assert.Equal(s.T(), "otel-agent", payload.OTelMetadata.Command)
+	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", payload.OTelMetadata.Description)
+	assert.True(s.T(), payload.OTelMetadata.Enabled)
+	assert.Equal(s.T(), "", payload.OTelMetadata.RuntimeOverrideConfig)
+
+	validateConfigs(s.T(), providedCfg, payload.OTelMetadata.CustomerConfig)
+	validateConfigs(s.T(), fullCfg, payload.OTelMetadata.RuntimeConfig)
 }
 
 func getAgentPod(s OTelTestSuite) corev1.Pod {
