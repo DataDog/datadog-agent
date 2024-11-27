@@ -195,6 +195,60 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	}
 }
 
+// TestTracesWithOperationAndResourceName tests that OTLP traces are received through OTel pipelines as expected with updated operation and resource name logic
+func TestTracesWithOperationAndResourceName(
+	s OTelTestSuite,
+	clientOperationName string,
+	clientResourceName string,
+	serverOperationName string,
+	serverResourceName string,
+) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	var traces []*aggregator.TracePayload
+	s.T().Log("Waiting for traces")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		traces, err = s.Env().FakeIntake.Client().GetTraces()
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotEmpty(c, traces) {
+			return
+		}
+		trace := traces[0]
+		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+			return
+		}
+		tp := trace.TracerPayloads[0]
+		if !assert.NotEmpty(s.T(), tp.Chunks) {
+			return
+		}
+		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+			return
+		}
+		assert.Equal(s.T(), telemetrygenService, tp.Chunks[0].Spans[0].Service)
+	}, 5*time.Minute, 10*time.Second)
+	require.NotEmpty(s.T(), traces)
+	s.T().Log("Got traces", s.T().Name(), traces)
+
+	tp := traces[0].TracerPayloads[0]
+	require.NotEmpty(s.T(), tp.Chunks)
+	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
+	spans := tp.Chunks[0].Spans
+
+	for _, sp := range spans {
+		if sp.Meta["span.kind"] == "client" {
+			assert.Equal(s.T(), clientOperationName, sp.Name)
+			assert.Equal(s.T(), clientResourceName, sp.Resource)
+		} else {
+			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
+			assert.Equal(s.T(), serverOperationName, sp.Name)
+			assert.Equal(s.T(), serverResourceName, sp.Resource)
+		}
+	}
+}
+
 // TestMetrics tests that OTLP metrics are received through OTel pipelines as expected
 func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()

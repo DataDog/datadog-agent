@@ -11,7 +11,7 @@
     - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
     - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
   stage: packaging
@@ -45,7 +45,6 @@
 .package_rpm_agent_7:
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 .package_suse_rpm_common:
   extends: .package_rpm_common
@@ -76,13 +75,13 @@ agent_suse-x64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["datadog-agent-7-x64"]
   variables:
-    DD_PRODUCT: agent
+    DD_PROJECT: agent
 
 agent_suse-arm64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64"]
   variables:
-    DD_PRODUCT: agent
+    DD_PROJECT: agent
 
 installer_rpm-amd64:
   extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]

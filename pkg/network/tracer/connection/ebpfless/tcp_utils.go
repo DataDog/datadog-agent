@@ -25,20 +25,24 @@ var statsTelemetry = struct {
 	missedTCPConnections telemetry.Counter
 	missingTCPFlags      telemetry.Counter
 	tcpSynAndFin         telemetry.Counter
+	tcpRstAndSyn         telemetry.Counter
+	tcpRstAndFin         telemetry.Counter
 }{
 	telemetry.NewCounter(ebpflessModuleName, "missed_tcp_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
 	telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", []string{}, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
 	telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", []string{}, "Counter measuring packets encountered with SYN+FIN together"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", []string{}, "Counter measuring packets encountered with RST+SYN together"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", []string{}, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
 
-type ConnStatus uint8
+type ConnStatus uint8 //nolint:revive // TODO
 
 const (
-	ConnStatClosed ConnStatus = iota
-	ConnStatAttempted
-	ConnStatEstablished
+	ConnStatClosed      ConnStatus = iota //nolint:revive // TODO
+	ConnStatAttempted                     //nolint:revive // TODO
+	ConnStatEstablished                   //nolint:revive // TODO
 )
 
 var connStatusLabels = []string{
@@ -47,12 +51,12 @@ var connStatusLabels = []string{
 	"Established",
 }
 
-type SynState uint8
+type SynState uint8 //nolint:revive // TODO
 
 const (
-	SynStateNone SynState = iota
-	SynStateSent
-	SynStateAcked
+	SynStateNone  SynState = iota //nolint:revive // TODO
+	SynStateSent                  //nolint:revive // TODO
+	SynStateAcked                 //nolint:revive // TODO
 )
 
 func (ss *SynState) update(synFlag, ackFlag bool) {
@@ -72,7 +76,7 @@ func (ss *SynState) update(synFlag, ackFlag bool) {
 	}
 }
 
-func LabelForState(tcpState ConnStatus) string {
+func LabelForState(tcpState ConnStatus) string { //nolint:revive // TODO
 	idx := int(tcpState)
 	if idx < len(connStatusLabels) {
 		return connStatusLabels[idx]
@@ -86,6 +90,9 @@ func isSeqBefore(prev, cur uint32) bool {
 	// constrain the maximum difference to half the number space
 	return diff > 0 && diff < tcpSeqMidpoint
 }
+func isSeqBeforeEq(prev, cur uint32) bool {
+	return prev == cur || isSeqBefore(prev, cur)
+}
 
 func debugPacketDir(pktType uint8) string {
 	switch pktType {
@@ -98,7 +105,7 @@ func debugPacketDir(pktType uint8) string {
 	}
 }
 
-func debugTcpFlags(tcp *layers.TCP) string {
+func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
 	var flags []string
 	if tcp.RST {
 		flags = append(flags, "RST")

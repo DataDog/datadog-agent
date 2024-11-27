@@ -1,7 +1,5 @@
 import datetime
-import io
 import os
-from collections import namedtuple
 from collections.abc import Iterable
 
 from invoke.context import Context
@@ -148,112 +146,6 @@ def send_count_metrics(
         print(color_message("Sending metrics to Datadog", "blue"))
         send_metrics(series=series)
         print(color_message("Done", "green"))
-
-
-BINARY_TO_TEST = ["serverless"]
-MisMatchBinary = namedtuple('MisMatchBinary', ['binary', 'os', 'arch', 'differences'])
-
-
-@task
-def test_list(
-    ctx: Context,
-):
-    """
-    Compare the dependencies list for the binaries in BINARY_TO_TEST with the actual dependencies of the binaries.
-    If the lists do not match, the task will raise an error.
-    """
-    mismatch_binaries = set()
-
-    for binary in BINARY_TO_TEST:
-        binary_info = BINARIES[binary]
-        entrypoint = binary_info["entrypoint"]
-        platforms = binary_info["platforms"]
-        flavor = binary_info.get("flavor", AgentFlavor.base)
-        build = binary_info.get("build", binary)
-
-        with ctx.cd(entrypoint):
-            for platform in platforms:
-                platform, arch = platform.split("/")
-
-                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
-
-                filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
-                if not os.path.isfile(filename):
-                    print(
-                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate"
-                    )
-                    continue
-
-                deps_file = open(filename)
-                deps = deps_file.read().strip().splitlines()
-                deps_file.close()
-
-                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
-
-                if list != deps:
-                    new_dependencies_lines = len(list)
-                    recorded_dependencies_lines = len(deps)
-
-                    mismatch_binaries.add(
-                        MisMatchBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
-                    )
-
-    if len(mismatch_binaries) > 0:
-        message = io.StringIO()
-
-        for mismatch_binary in mismatch_binaries:
-            if mismatch_binary.differences > 0:
-                message.write(
-                    color_message(
-                        f"You added some dependencies to {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Adding new dependencies to the binary increases its size. Do we really need to add this dependency?\n",
-                        "red",
-                    )
-                )
-            else:
-                message.write(
-                    color_message(
-                        f"You removed some dependencies from {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Congratulations!\n",
-                        "green",
-                    )
-                )
-
-        message.write(
-            color_message(
-                "To fix this check, please run `inv -e go-deps.generate`",
-                "orange",
-            )
-        )
-
-        raise Exit(
-            code=1,
-            message=message.getvalue(),
-        )
-
-
-@task
-def generate(
-    ctx: Context,
-):
-    for binary in BINARY_TO_TEST:
-        binary_info = BINARIES[binary]
-        entrypoint = binary_info["entrypoint"]
-        platforms = binary_info["platforms"]
-        flavor = binary_info.get("flavor", AgentFlavor.base)
-        build = binary_info.get("build", binary)
-
-        with ctx.cd(entrypoint):
-            for platform in platforms:
-                platform, arch = platform.split("/")
-
-                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
-
-                filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
-
-                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
-
-                f = open(filename, "w")
-                f.write('\n'.join(list))
-                f.close()
 
 
 def key_for_value(map: dict[str, str], value: str) -> str:

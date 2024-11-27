@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -592,7 +592,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
-		os.Chdir(commonCfgDir)
+		if err := os.Chdir(commonCfgDir); err != nil {
+			return nil, err
+		}
 	}
 
 	var proFile *os.File
@@ -728,10 +730,11 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
-	if opts.staticOpts.tagsResolver != nil {
-		emopts.ProbeOpts.TagsResolver = opts.staticOpts.tagsResolver
+
+	if opts.staticOpts.tagger != nil {
+		emopts.ProbeOpts.Tagger = opts.staticOpts.tagger
 	} else {
-		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
+		emopts.ProbeOpts.Tagger = NewFakeTaggerDifferentImageNames()
 	}
 
 	if opts.staticOpts.discardRuntime {
@@ -1113,6 +1116,13 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	if skipCheck(kv) {
 		tb.Skipf("kernel version not supported: %s", why)
 	}
+}
+
+func checkNetworkCompatibility(tb testing.TB) {
+	checkKernelCompatibility(tb, "network feature", func(kv *kernel.Version) bool {
+		// OpenSUSE distributions are missing the dummy kernel module
+		return sprobe.IsNetworkNotSupported(kv) || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+	})
 }
 
 func (tm *testModule) StopActivityDump(name, containerID string) error {

@@ -8,6 +8,7 @@ package usm
 import (
 	"io/fs"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -19,7 +20,8 @@ const (
 )
 
 type pythonDetector struct {
-	ctx DetectionContext
+	ctx      DetectionContext
+	gunicorn detector
 }
 
 type gunicornDetector struct {
@@ -31,10 +33,18 @@ func newGunicornDetector(ctx DetectionContext) detector {
 }
 
 func newPythonDetector(ctx DetectionContext) detector {
-	return &pythonDetector{ctx: ctx}
+	return &pythonDetector{ctx: ctx, gunicorn: newGunicornDetector(ctx)}
 }
 
 func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
+	// When Gunicorn is invoked via its wrapper script the command line ends up
+	// looking like the example below, so redirect to the Gunicorn detector for
+	// this case:
+	//  /usr/bin/python3 /usr/bin/gunicorn foo:app()
+	if len(args) > 0 && filepath.Base(args[0]) == "gunicorn" {
+		return p.gunicorn.detect(args[1:])
+	}
+
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool

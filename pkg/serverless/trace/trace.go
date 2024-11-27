@@ -8,24 +8,27 @@ package trace
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -98,6 +101,7 @@ type StartServerlessTraceAgentArgs struct {
 	LambdaSpanChan        chan<- *pb.Span
 	ColdStartSpanID       uint64
 	AzureContainerAppTags string
+	RCService             *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -109,6 +113,9 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
 		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
+
+		// Turn off apm_sampling as it's not supported and generates debug logs
+		pkgconfigsetup.Datadog().Set("remote_configuration.apm_sampling.enabled", false, model.SourceAgentRuntime)
 
 		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
@@ -126,6 +133,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			}
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
+			startTraceAgentConfigEndpoint(args.RCService, tc)
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:     ta,
@@ -136,6 +144,20 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 		log.Info("Trace agent is disabled")
 	}
 	return noopTraceAgent{}
+}
+
+func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
+		statsdNoopClient := &statsd.NoOpClient{}
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/v0.7/config",
+			Handler: func(r *api.HTTPReceiver) http.Handler {
+				return remotecfg.ConfigHandler(r, rcService, tc, statsdNoopClient, timing.New(statsdNoopClient))
+			},
+		})
+	} else {
+		log.Debug("Not starting trace agent config endpoint")
+	}
 }
 
 type serverlessTraceAgent struct {

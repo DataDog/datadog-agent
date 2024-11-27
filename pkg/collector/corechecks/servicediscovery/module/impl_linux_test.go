@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
@@ -46,12 +47,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
@@ -61,6 +62,9 @@ func setupDiscoveryModule(t *testing.T) string {
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
+
+	tagger := taggermock.SetupFakeTagger(t)
+
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -84,7 +88,7 @@ func setupDiscoveryModule(t *testing.T) string {
 			return false
 		},
 	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, nil)
+	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(mux)
@@ -579,7 +583,7 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	// https://github.com/shirou/gopsutil/commit/aa0b73dc6d5669de5bc9483c0655b1f9446317a9).
 	//
 	// This is due to an inherent race since the code in BootTimeWithContext
-	// substracts the uptime of the host from the current time, and there can be
+	// subtracts the uptime of the host from the current time, and there can be
 	// in theory an unbounded amount of time between the read of /proc/uptime
 	// and the retrieval of the current time. Allow a 10 second diff as a
 	// reasonable value.
@@ -772,10 +776,13 @@ func TestDocker(t *testing.T) {
 	url := setupDiscoveryModule(t)
 
 	dir, _ := testutil.CurDir()
-	err := protocolUtils.RunDockerServer(t, "foo-server",
-		dir+"/testdata/docker-compose.yml", []string{},
+	dockerCfg := dockerutils.NewComposeConfig("foo-server",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
 		regexp.MustCompile("Serving.*"),
-		protocolUtils.DefaultTimeout, 3)
+		dockerutils.EmptyEnv,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	err := dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
 
 	proc, err := procfs.NewDefaultFS()

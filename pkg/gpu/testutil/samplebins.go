@@ -21,9 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	prototestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 // SampleName represents the name of the sample binary.
@@ -42,7 +42,7 @@ const (
 	MinimalDockerImage DockerImage = "alpine:3.20.3"
 )
 
-type SampleArgs struct {
+type SampleArgs struct { //nolint:revive // TODO
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
 
@@ -143,7 +143,7 @@ func RunSample(t *testing.T, name SampleName) *exec.Cmd {
 	return RunSampleWithArgs(t, name, GetDefaultArgs())
 }
 
-// RunSample executes the sample binary with args and returns the command. Cleanup is configured automatically
+// RunSampleWithArgs executes the sample binary with args and returns the command. Cleanup is configured automatically
 func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd {
 	builtBin := getBuiltSamplePath(t, name)
 
@@ -177,12 +177,12 @@ func RunSampleInDockerWithArgs(t *testing.T, name SampleName, image DockerImage,
 	var err error
 	// The docker container might take a bit to start, so we retry until we get the PID
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerPID, err = prototestutil.GetDockerPID(containerName)
+		dockerPID, err = dockerutils.GetMainPID(containerName)
 		assert.NoError(c, err)
 	}, 1*time.Second, 100*time.Millisecond, "failed to get docker PID")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerContainerID, err = GetDockerContainerID(containerName)
+		dockerContainerID, err = dockerutils.GetContainerID(containerName)
 		assert.NoError(c, err)
 	}, 1*time.Second, 100*time.Millisecond, "failed to get docker container ID")
 

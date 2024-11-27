@@ -9,17 +9,24 @@ package tags
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remotetagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Event defines the tags event type
+type Event int
+
+const (
+	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
+	WorkloadSelectorResolved Event = iota
 )
 
 // Tagger defines a Tagger for the Tags Resolver
@@ -34,13 +41,30 @@ type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
 	Resolve(id string) []string
-	ResolveWithErr(id string) ([]string, error)
+	ResolveWithErr(fid string) ([]string, error)
 	GetValue(id string, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
 	tagger Tagger
+}
+
+// Resolve returns the tags for the given id
+func (t *DefaultResolver) Resolve(id string) []string {
+	tags, _ := t.ResolveWithErr(id)
+	return tags
+}
+
+// ResolveWithErr returns the tags for the given id
+func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
+	entityID := types.NewEntityID(types.ContainerID, id)
+	return t.tagger.Tag(entityID, types.OrchestratorCardinality)
+}
+
+// GetValue return the tag value for the given id and tag name
+func (t *DefaultResolver) GetValue(id string, tag string) string {
+	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
 // Start the resolver
@@ -59,40 +83,19 @@ func (t *DefaultResolver) Start(ctx context.Context) error {
 	return nil
 }
 
-// Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id string) []string {
-	// container id for ecs task are composed of task id + container id.
-	// use only the container id part for the tag resolution.
-	if els := strings.Split(id, "-"); len(els) == 2 {
-		id = els[1]
-	}
-
-	entityID := types.NewEntityID(types.ContainerID, id)
-	tags, _ := t.tagger.Tag(entityID, types.OrchestratorCardinality)
-	return tags
-}
-
-// ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
-	entityID := types.NewEntityID(types.ContainerID, id)
-	return t.tagger.Tag(entityID, types.OrchestratorCardinality)
-}
-
-// GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id string, tag string) string {
-	return utils.GetTagValue(tag, t.Resolve(id))
-}
-
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
 	return t.tagger.Stop()
 }
 
-// NewResolver returns a new tags resolver
-func NewResolver(telemetry telemetry.Component) Resolver {
+// NewDefaultResolver returns a new default tags resolver
+func NewDefaultResolver(telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
 	ddConfig := pkgconfigsetup.Datadog()
+	resolver := &DefaultResolver{
+		tagger: tagger,
+	}
 
-	params := tagger.RemoteParams{
+	params := taggerdef.RemoteParams{
 		RemoteFilter: types.NewMatchAllFilter(),
 		RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
 		RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
@@ -102,11 +105,9 @@ func NewResolver(telemetry telemetry.Component) Resolver {
 		},
 	}
 
-	tagger, _ := remoteTagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
-
-	return &DefaultResolver{
-		// TODO: (components) use the actual remote tagger instance from the Fx entry point
-		tagger: tagger,
+	if tagger == nil {
+		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
 	}
 
+	return resolver
 }
