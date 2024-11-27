@@ -79,7 +79,15 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
 	t.srcIP = addr.IP
-	t.srcPort = addr.AddrPort().Port()
+
+	// Create a TCP listener with port 0 to get a random port from the OS
+	// and reserve it for the duration of the traceroute
+	port, tcpListener, err := reserveLocalPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
+	}
+	defer tcpListener.Close()
+	t.srcPort = port
 
 	rs, err := createRawSocket()
 	if err != nil {
