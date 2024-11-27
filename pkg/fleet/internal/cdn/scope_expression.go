@@ -6,12 +6,11 @@
 package cdn
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 
-	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/expr-lang/expr"
 )
@@ -112,14 +111,9 @@ func getOrderedScopedLayers(configs map[string][]byte, env map[string]interface{
 	return layers, nil
 }
 
-func getScopeExprVars(ctx context.Context, hostTagsGetter hostTagsGetter) map[string]interface{} {
-	// TODO(baptiste): This should be passed from the daemon to the executable like tags
-	hostname, err := pkghostname.Get(ctx)
-	if err != nil {
-		hostname = "unknown"
-	}
+func getScopeExprVars(env *env.Env, hostTagsGetter hostTagsGetter) map[string]interface{} {
 	return map[string]interface{}{
-		"hostname":          hostname,
+		"hostname":          env.Hostname,
 		"installer_version": version.AgentVersion, // AgentVersion evaluates to the installer version here
 
 		"tags": hostTagsGetter.get(),

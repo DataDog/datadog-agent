@@ -156,6 +156,7 @@ struct syscall_cache_t {
             u32 request;
             u32 pid;
             u64 addr;
+            u32 ns_pid;
         } ptrace;
 
         struct {
@@ -206,12 +207,14 @@ struct syscall_cache_t {
             u64 addr[2];
             u16 family;
             u16 port;
+            u16 protocol;
         } bind;
 
          struct {
             u64 addr[2];
             u16 family;
             u16 port;
+            u16 protocol;
         } connect;
 
         struct {

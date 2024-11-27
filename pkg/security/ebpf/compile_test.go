@@ -20,7 +20,7 @@ import (
 
 func TestLoaderCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		_, err := sysconfig.New("")
+		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
 		cfg, err := config.NewConfig()
 		require.NoError(t, err)
