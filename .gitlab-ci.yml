@@ -24,6 +24,7 @@ include:
   - .gitlab/e2e/e2e.yml
   - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  - .gitlab/e2e_testing_deploy/e2e_deploy.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/install_script_testing/install_script_testing.yml
   - .gitlab/integration_test/include.yml
@@ -87,6 +88,7 @@ stages:
   - trigger_release
   - choco_and_install_script_deploy
   - internal_image_deploy
+  - e2e_deploy
   - install_script_testing
   - e2e_pre_test
   - e2e_init
