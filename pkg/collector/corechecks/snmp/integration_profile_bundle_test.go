@@ -25,7 +25,7 @@ import (
 
 func TestProfileBundleJsonZip(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "zipprofiles.d"))
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
 

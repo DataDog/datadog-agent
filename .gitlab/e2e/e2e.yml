@@ -79,6 +79,7 @@
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent
+    - qa_agent_jmx
     - qa_dca
     - qa_dogstatsd
 
@@ -190,21 +191,13 @@ new-e2e-windows-service-test:
   variables:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-agent
-    EXTRA_PARAMS: --run TestServiceBehavior
-
-# Temporary job for hunting a crash
-new-e2e-windows-service-test-nofim:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - deploy_windows_testing-a7
-  rules:
-    - !reference [.on_windows_service_or_e2e_changes]
-    - !reference [.manual]
-  variables:
-    TARGETS: ./tests/windows/service-test
-    TEAM: windows-agent
-    EXTRA_PARAMS: --run TestNoFIMServiceBehavior
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -418,6 +411,20 @@ new-e2e-installer-windows:
     TARGETS: ./tests/installer/windows
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
+  parallel:
+    matrix:
+      # agent-package
+      - EXTRA_PARAMS: --run "TestAgentInstallsWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$"
+      # install-script
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      # installer-package
+      - EXTRA_PARAMS: --run "TestInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
+      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
+
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -476,6 +483,10 @@ new-e2e-windows-systemprobe:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
     SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
+      - EXTRA_PARAMS: --run TestVMSuite
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
