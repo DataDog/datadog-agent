@@ -58,7 +58,7 @@ type LogParams struct {
 }
 
 // Default duration is 60 seconds
-const defaultStreamLogsDuration = 60 * time.Second
+const DefaultStreamLogsDuration = 60 * time.Second
 
 // NewComponent creates a new streamlogs component for remote config flare component
 func NewComponent(reqs Requires) (Provides, error) {
@@ -156,7 +156,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 	if enabled {
 		streamLogParams := LogParams{
 			FilePath: streamlogsLogFilePath,
-			Duration: defaultStreamLogsDuration,
+			Duration: DefaultStreamLogsDuration,
 		}
 		if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
 			return fmt.Errorf("failed to export stream logs: %w", err)
@@ -187,7 +187,7 @@ func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 // getFlareTimeout returns the timeout for the flare when streaming logs.
 func (sl *streamlogsimpl) getFlareTimeout(fb flaretypes.FlareBuilder) time.Duration {
 	// Base timeout is the default duration for streaming logs
-	baseTimeout := defaultStreamLogsDuration
+	baseTimeout := fb.GetFlareArgs().StreamLogsDuration
 
 	// overhead is the duration for processing file operations (e.g., copying logs to the flare)
 	overhead := 10 * time.Second

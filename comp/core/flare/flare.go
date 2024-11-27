@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	streamlogsimpl "github.com/DataDog/datadog-agent/comp/logs/streamlogs/impl"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -119,6 +120,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	flareArgs := types.FlareArgs{}
 	// flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling_runtime") will be utilized here on completion
 	// of AMLII-2127
+	flareArgs.StreamLogsDuration = streamlogsimpl.DefaultStreamLogsDuration
 
 	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
 	if err != nil {
