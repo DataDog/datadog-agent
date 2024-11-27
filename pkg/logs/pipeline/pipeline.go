@@ -76,12 +76,12 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	var strategy sender.Strategy
+	senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
 	if logsSender != nil {
-		senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
 		mainDestinations := GetDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
 		logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 	}
+    strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
@@ -134,7 +134,7 @@ func getStrategy(inputChan chan *message.Message, outputChan chan *message.Paylo
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }
 
-// XXX(remy): comment
+// GetDestinations returns configured destinations instances for the given endpoints.
 func GetDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineMonitor metrics.PipelineMonitor, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}

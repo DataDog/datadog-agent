@@ -76,6 +76,7 @@ func (s *Sender) Stop() {
 	close(s.inputChan)
 }
 
+// In returns the input chan of the sender.
 func (s *Sender) In() chan *message.Payload {
 	return s.inputChan
 }
