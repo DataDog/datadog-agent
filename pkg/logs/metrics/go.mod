@@ -13,7 +13,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
+	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.9.0
 )
 
@@ -22,7 +22,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 // indirect
-	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

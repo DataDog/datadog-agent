@@ -45,7 +45,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.135
+	github.com/DataDog/agent-payload/v5 v5.0.137
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
@@ -288,6 +288,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.5.0
+	github.com/aws/aws-sdk-go v1.55.5
+	github.com/aws/session-manager-plugin v0.0.0-20241010233726-61cf1288c7c6
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.5.0
 )
@@ -295,6 +297,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/creack/pty v1.1.20 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0 // indirect
@@ -308,6 +311,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/collector/component v0.114.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.114.0 // indirect
