@@ -1462,6 +1462,16 @@ api_key:
   ##            collectors using the probabilistic sampler to ensure consistent sampling.
   #  hash_seed: 0
 
+  ## @param error_tracking_standalone - object - optional
+  ## Enables Error Tracking Standalone
+  ##
+  #error_tracking_standalone:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_APM_ERROR_TRACKING_STANDALONE_ENABLED - boolean - optional - default: false
+    ## Enables or disables Error Tracking Standalone
+    # enabled: false
+
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
