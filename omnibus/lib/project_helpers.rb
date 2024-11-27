@@ -1,5 +1,5 @@
 #
-# Profect related helpers
+# Project related helpers
 #
 
 require './lib/ostools.rb'
