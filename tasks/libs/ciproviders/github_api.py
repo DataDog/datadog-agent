@@ -17,7 +17,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 try:
     import semver
-    from github import Auth, BranchProtection, Github, GithubException, GithubIntegration, GithubObject, PullRequest
+    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -90,7 +90,7 @@ class GithubAPI:
                 return milestone
         return None
 
-    def get_branch_protection(self, branch_name: str) -> BranchProtection:
+    def get_branch_protection(self, branch_name: str):
         """
         Get the protection of a given branch
         """
