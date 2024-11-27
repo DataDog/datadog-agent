@@ -37,7 +37,6 @@ import (
 )
 
 const webhookName = "agent_sidecar"
-const agentConfigVolumeName = "agent-config"
 
 // Selector specifies an object label selector and a namespace label selector
 type Selector struct {
@@ -173,13 +172,13 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	if !agentSidecarExists {
 		agentSidecarContainer := w.getDefaultSidecarTemplate()
 		if w.isReadOnlyRootFilesystem() {
-			configVolume := w.getDefaultSidecarVolumeTemplate()
-			pod.Spec.Volumes = append(pod.Spec.Volumes, *configVolume)
-			w.addDefaultSidecarSecurity(agentSidecarContainer, configVolume.Name)
+			volumes := w.getSecurityVolumeTemplates()
+			pod.Spec.Volumes = append(pod.Spec.Volumes, *volumes...)
+			w.addSecurityConfigToAgent(agentSidecarContainer)
 			// Don't want to apply any overrides to the agent sidecar init container
 			defer func() {
-				initContainer := w.getDefaultSidecarInitTemplate(configVolume.Name)
-				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainer)
+				initContainers := w.getSecurityInitTemplates()
+				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainers...)
 			}()
 		}
 		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
@@ -210,36 +209,89 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	return podUpdated, nil
 }
 
-func (w *Webhook) getDefaultSidecarInitTemplate(configVolumeName string) *corev1.Container {
-	return &corev1.Container{
-		Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Name:            "copy-datadog-config",
-		Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/"},
-		VolumeMounts: []corev1.VolumeMount{
-			{
-				Name:      configVolumeName,
-				MountPath: "/agent-config",
+func (w *Webhook) getSecurityInitTemplates() *[]corev1.Container {
+	return &[]corev1.Container{
+		{
+			Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Name:            "copy-" + agentConfigVolumeName,
+			Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/"},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      agentConfigVolumeName,
+					MountPath: "/agent-config",
+				},
+			},
+		},
+		{
+			Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Name:            "copy-" + agentOptionsVolumeName,
+			Command:         []string{"sh", "-c", "cp -R /opt/datadog-agent/* /agent-options/"},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      agentOptionsVolumeName,
+					MountPath: "/agent-options",
+				},
 			},
 		},
 	}
 }
 
-func (w *Webhook) getDefaultSidecarVolumeTemplate() *corev1.Volume {
-	return &corev1.Volume{
-		Name: agentConfigVolumeName,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
+func (w *Webhook) getSecurityVolumeTemplates() *[]corev1.Volume {
+	return &[]corev1.Volume{
+		{
+			Name: agentConfigVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: agentOptionsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: agentTmpVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: agentLogsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
 		},
 	}
 }
 
-func (w *Webhook) addDefaultSidecarSecurity(container *corev1.Container, configVolumeName string) {
-	if container.SecurityContext == nil {
-		container.SecurityContext = &corev1.SecurityContext{}
+func (w *Webhook) addSecurityConfigToAgent(agentContainer *corev1.Container) {
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      agentConfigVolumeName,
+			MountPath: "/etc/datadog-agent",
+		},
+		{
+			Name:      agentOptionsVolumeName,
+			MountPath: "/opt/datadog-agent",
+		},
+		{
+			Name:      agentTmpVolumeName,
+			MountPath: "/tmp",
+		},
+		{
+			Name:      agentLogsVolumeName,
+			MountPath: "/var/log/datadog",
+		},
 	}
-	container.SecurityContext.ReadOnlyRootFilesystem = pointer.Ptr(true)
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{Name: configVolumeName, MountPath: "/etc/datadog-agent"})
+	agentContainer.VolumeMounts = append(agentContainer.VolumeMounts, volumeMounts...)
+
+	if agentContainer.SecurityContext == nil {
+		agentContainer.SecurityContext = &corev1.SecurityContext{}
+	}
+	agentContainer.SecurityContext.ReadOnlyRootFilesystem = pointer.Ptr(true)
 }
 
 func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {

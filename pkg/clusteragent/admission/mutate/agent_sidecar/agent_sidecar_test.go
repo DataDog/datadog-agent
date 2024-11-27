@@ -65,23 +65,19 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				webhook := NewWebhook(mockConfig)
-				defaultSidecarTemplate := webhook.getDefaultSidecarTemplate()
-				webhook.addDefaultSidecarSecurity(defaultSidecarTemplate, agentConfigVolumeName)
+				sidecar := webhook.getDefaultSidecarTemplate()
+				webhook.addSecurityConfigToAgent(sidecar)
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
-						InitContainers: []corev1.Container{
-							*webhook.getDefaultSidecarInitTemplate(agentConfigVolumeName),
-						},
+						InitContainers: *webhook.getSecurityInitTemplates(),
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*defaultSidecarTemplate,
+							*sidecar,
 						},
-						Volumes: []corev1.Volume{
-							*webhook.getDefaultSidecarVolumeTemplate(),
-						},
+						Volumes: *webhook.getSecurityVolumeTemplates(),
 					},
 				}
 			},
@@ -206,7 +202,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				webhook := NewWebhook(mockConfig)
 				sidecar := webhook.getDefaultSidecarTemplate()
-				webhook.addDefaultSidecarSecurity(sidecar, agentConfigVolumeName)
+				webhook.addSecurityConfigToAgent(sidecar)
 				_, _ = withEnvOverrides(
 					sidecar,
 					corev1.EnvVar{
@@ -240,9 +236,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
-						InitContainers: []corev1.Container{
-							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(agentConfigVolumeName),
-						},
+						InitContainers:        *webhook.getSecurityInitTemplates(),
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
@@ -266,15 +260,14 @@ func TestInjectAgentSidecar(t *testing.T) {
 							},
 							*sidecar,
 						},
-						Volumes: []corev1.Volume{
-							*NewWebhook(mockConfig).getDefaultSidecarVolumeTemplate(),
-							{
+						Volumes: append(*webhook.getSecurityVolumeTemplates(),
+							corev1.Volume{
 								Name: "ddsockets",
 								VolumeSource: corev1.VolumeSource{
 									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},
 							},
-						},
+						),
 					},
 				}
 			},
@@ -313,7 +306,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				webhook := NewWebhook(mockConfig)
 				sidecar := webhook.getDefaultSidecarTemplate()
-				webhook.addDefaultSidecarSecurity(sidecar, agentConfigVolumeName)
+				webhook.addSecurityConfigToAgent(sidecar)
 
 				_, _ = withEnvOverrides(
 					sidecar,
@@ -366,9 +359,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
-						InitContainers: []corev1.Container{
-							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(agentConfigVolumeName),
-						},
+						InitContainers:        *webhook.getSecurityInitTemplates(),
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
@@ -392,15 +383,14 @@ func TestInjectAgentSidecar(t *testing.T) {
 							},
 							*sidecar,
 						},
-						Volumes: []corev1.Volume{
-							*NewWebhook(mockConfig).getDefaultSidecarVolumeTemplate(),
-							{
+						Volumes: append(*webhook.getSecurityVolumeTemplates(),
+							corev1.Volume{
 								Name: "ddsockets",
 								VolumeSource: corev1.VolumeSource{
 									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},
 							},
-						},
+						),
 					},
 				}
 			},
@@ -720,7 +710,7 @@ func TestIsReadOnlyRootFilesystem(t *testing.T) {
 			assert.Equal(tt, test.expected, webhook.isReadOnlyRootFilesystem())
 
 			if test.expected {
-				webhook.addDefaultSidecarSecurity(sidecar, agentConfigVolumeName)
+				webhook.addSecurityConfigToAgent(sidecar)
 			} else {
 				assert.Nil(t, sidecar.SecurityContext)
 				profile, _ := loadSidecarProfiles(test.profile)
