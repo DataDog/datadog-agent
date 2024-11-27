@@ -175,6 +175,19 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 				return podUpdated, errors.New(metrics.InvalidInput)
 			}
 			podUpdated = podUpdated || updated
+
+			if isOwnedByJob(pod.OwnerReferences) {
+				updated, err = withEnvOverrides(&pod.Spec.Containers[i], corev1.EnvVar{
+					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
+					Value: "true",
+				})
+			}
+			if err != nil {
+				log.Errorf("Failed to apply env overrides: %v", err)
+				return podUpdated, errors.New(metrics.InvalidInput)
+			}
+			podUpdated = podUpdated || updated
+
 			break
 		}
 	}
@@ -311,4 +324,14 @@ func labelSelectors(datadogConfig config.Component) (namespaceSelector, objectSe
 	}
 
 	return namespaceSelector, objectSelector
+}
+
+// isOwnedByJob returns true if the pod is owned by a Job
+func isOwnedByJob(ownerReferences []metav1.OwnerReference) bool {
+	for _, owner := range ownerReferences {
+		if owner.APIVersion == "batch/v1" && owner.Kind == "Job" {
+			return true
+		}
+	}
+	return false
 }
