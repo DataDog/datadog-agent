@@ -12,7 +12,7 @@ import sys
 import tempfile
 
 from invoke import task
-from invoke.exceptions import Exit, ParseError
+from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
@@ -135,7 +135,6 @@ def build(
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
-    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
@@ -360,15 +359,10 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, tag=None, push=False):
+def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=None, push=False):
     """
     Build the docker image
     """
-    BOTH_VERSIONS = ["both", "2+3"]
-    VALID_VERSIONS = ["2", "3"] + BOTH_VERSIONS
-    if python_version not in VALID_VERSIONS:
-        raise ParseError("provided python_version is invalid")
-
     build_context = "Dockerfiles/agent"
     base_dir = base_dir or os.environ["OMNIBUS_BASE_DIR"]
     pkg_dir = os.path.join(base_dir, 'pkg')
@@ -387,8 +381,6 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         tag = AGENT_TAG
 
     common_build_opts = f"-t {tag} -f {dockerfile_path}"
-    if python_version not in BOTH_VERSIONS:
-        common_build_opts = f"{common_build_opts} --build-arg PYTHON_VERSION={python_version}"
 
     # Build with the testing target
     if not skip_tests:

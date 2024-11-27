@@ -7,13 +7,13 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
-
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 )
 
 const (
+	// Environment var needed for service
 	revisionNameEnvVar      = "K_REVISION"
 	ServiceNameEnvVar       = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
 	configurationNameEnvVar = "K_CONFIGURATION"
@@ -22,9 +22,15 @@ const (
 )
 
 const (
-	// SpanNamespace is the namespace for the span
-	cloudRunService  = "gcr."
-	cloudRunFunction = "gcrfx."
+	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
+	cloudRunService      = "gcr."
+	cloudRunFunction     = "gcrfx."
+	runRevisionName      = "gcr.revision_name"
+	functionRevisionName = "gcrfx.revision_name"
+	runServiceName       = "gcr.service_name"
+	functionServiceName  = "gcrfx.service_name"
+	runConfigName        = "gcr.configuration_name"
+	functionConfigName   = "gcrfx.configuration_name"
 )
 
 var metadataHelperFunc = helper.GetMetaData
@@ -37,31 +43,44 @@ type CloudRun struct {
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
 	tags := metadataHelperFunc(helper.GetDefaultConfig()).TagMap(c.spanNamespace)
+	tags["origin"] = c.GetOrigin()
+	tags["_dd.origin"] = c.GetOrigin()
+
 	revisionName := os.Getenv(revisionNameEnvVar)
 	serviceName := os.Getenv(ServiceNameEnvVar)
 	configName := os.Getenv(configurationNameEnvVar)
-
 	if revisionName != "" {
-		tags[c.spanNamespace+"revision_name"] = revisionName
 		tags["revision_name"] = revisionName
+		if c.spanNamespace == cloudRunService {
+			tags[runRevisionName] = revisionName
+		} else {
+			tags[functionRevisionName] = revisionName
+		}
 	}
 
 	if serviceName != "" {
-		tags[c.spanNamespace+"service_name"] = serviceName
 		tags["service_name"] = serviceName
+		if c.spanNamespace == cloudRunService {
+			tags[runServiceName] = serviceName
+		} else {
+			tags[functionServiceName] = serviceName
+		}
 	}
 
 	if configName != "" {
-		tags[c.spanNamespace+"configuration_name"] = configName
 		tags["configuration_name"] = configName
+		if c.spanNamespace == cloudRunService {
+			tags[runConfigName] = configName
+		} else {
+			tags[functionConfigName] = configName
+		}
 	}
 
 	if c.spanNamespace == cloudRunFunction {
-		tags = c.getFunctionTags(tags)
+		return c.getFunctionTags(tags)
 	}
 
-	tags["origin"] = c.GetOrigin()
-	tags["_dd.origin"] = c.GetOrigin()
+	tags["_dd.gcr.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + serviceName
 	return tags
 }
 
@@ -76,6 +95,8 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	if functionSignatureType != "" {
 		tags[c.spanNamespace+"function_signature_type"] = functionSignatureType
 	}
+
+	tags["_dd.gcrfx.resource_name"] = "projects/" + tags["project_id"] + "/locations/" + tags["location"] + "/services/" + tags["service_name"] + "/functions/" + functionTarget
 	return tags
 }
 
