@@ -48,8 +48,8 @@ SECL operators are used to combine event attributes together into a full express
 | `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
 | `\|`                  | File             | Binary or                                | 7.27          |
-| `&&`                  | File             | Logical and                              | 7.27          |
-| `\|\|`                | File             | Logical or                               | 7.27          |
+| `&&` or `and`         | File             | Logical and                              | 7.27          |
+| `\|\|` or `or`        | File             | Logical or                               | 7.27          |
 | `in CIDR`             | Network          | Element is in the IP range               | 7.37          |
 | `not in CIDR`         | Network          | Element is not in the IP range           | 7.37          |
 | `allin CIDR`          | Network          | All the elements are in the IP range     | 7.37          |
