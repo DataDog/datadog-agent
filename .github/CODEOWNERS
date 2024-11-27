@@ -128,8 +128,6 @@
 
 /.gitlab/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-delivery @DataDog/windows-agent
 
-/.gitlab/kitchen_*                                   @DataDog/container-ecosystems @DataDog/agent-delivery
-/.gitlab/kitchen_testing/windows.yml                 @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/e2e_install_packages/windows.yml            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/common/                                     @DataDog/agent-devx-infra
@@ -582,18 +580,6 @@
 /test/integration/docker/otel_agent_build_tests.py @DataDog/opentelemetry
 /test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
 /test/integration/serverless_perf       @DataDog/serverless @Datadog/serverless-aws
-/test/kitchen/                          @DataDog/agent-devx-loops
-/test/kitchen/test-definitions/         @DataDog/container-ecosystems @DataDog/agent-delivery
-/test/kitchen/test/integration/         @DataDog/container-ecosystems @DataDog/agent-delivery
-/test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/windows-kernel-integrations
-/test/kitchen/test/integration/win-all-subservices/ @DataDog/windows-agent
-/test/kitchen/test/integration/win-alt-dir/ @DataDog/windows-agent
-/test/kitchen/test/integration/win-install-fail/ @DataDog/windows-agent
-/test/kitchen/test/integration/win-installopts/ @DataDog/windows-agent
-/test/kitchen/test/integration/win-no-subservices/ @DataDog/windows-agent
-/test/kitchen/test/integration/win-sysprobe-test/ @DataDog/windows-kernel-integrations
-/test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
-/test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
