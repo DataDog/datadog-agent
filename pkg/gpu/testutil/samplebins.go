@@ -21,9 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	prototestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 // SampleName represents the name of the sample binary.
@@ -177,12 +177,12 @@ func RunSampleInDockerWithArgs(t *testing.T, name SampleName, image DockerImage,
 	var err error
 	// The docker container might take a bit to start, so we retry until we get the PID
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerPID, err = prototestutil.GetDockerPID(containerName)
+		dockerPID, err = dockerutils.GetMainPID(containerName)
 		assert.NoError(c, err)
 	}, 1*time.Second, 100*time.Millisecond, "failed to get docker PID")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerContainerID, err = GetDockerContainerID(containerName)
+		dockerContainerID, err = dockerutils.GetContainerID(containerName)
 		assert.NoError(c, err)
 	}, 1*time.Second, 100*time.Millisecond, "failed to get docker container ID")
 

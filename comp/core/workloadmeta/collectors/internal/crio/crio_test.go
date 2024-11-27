@@ -10,470 +10,502 @@ package crio
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	imgspecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-// Helper functions to create pointer values for testing
-func floatPtr(f float64) *float64 {
-	return &f
-}
-
-func uintPtr(u uint64) *uint64 {
-	return &u
-}
-
-// fakeWorkloadmetaStore is a mock implementation of the workloadmeta store.
-type fakeWorkloadmetaStore struct {
-	workloadmeta.Component
-	notifiedEvents []workloadmeta.CollectorEvent
-}
-
-func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent) {
-	store.notifiedEvents = append(store.notifiedEvents, events...)
-}
-
-// fakeCRIOClient simulates the CRI-O client for testing purposes.
-type fakeCRIOClient struct {
-	mockGetAllContainers   func(ctx context.Context) ([]*v1.Container, error)
-	mockGetContainerStatus func(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error)
-	mockGetPodStatus       func(ctx context.Context, podID string) (*v1.PodSandboxStatus, error)
-	mockGetContainerImage  func(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error)
-	mockRuntimeMetadata    func(ctx context.Context) (*v1.VersionResponse, error)
-}
-
-func (f *fakeCRIOClient) GetAllContainers(ctx context.Context) ([]*v1.Container, error) {
-	if f.mockGetAllContainers != nil {
-		return f.mockGetAllContainers(ctx)
-	}
-	return []*v1.Container{}, nil
-}
-
-func (f *fakeCRIOClient) GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error) {
-	if f.mockGetContainerStatus != nil {
-		return f.mockGetContainerStatus(ctx, containerID)
-	}
-	return &v1.ContainerStatusResponse{}, nil
-}
-
-func (f *fakeCRIOClient) GetPodStatus(ctx context.Context, podID string) (*v1.PodSandboxStatus, error) {
-	if f.mockGetPodStatus != nil {
-		return f.mockGetPodStatus(ctx, podID)
-	}
-	return &v1.PodSandboxStatus{}, nil
-}
-
-func (f *fakeCRIOClient) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
-	if f.mockGetContainerImage != nil {
-		return f.mockGetContainerImage(ctx, imageSpec)
-	}
-	return &v1.Image{}, nil
-}
-
-func (f *fakeCRIOClient) RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error) {
-	if f.mockRuntimeMetadata != nil {
-		return f.mockRuntimeMetadata(ctx)
-	}
-	return &v1.VersionResponse{RuntimeName: "cri-o", RuntimeVersion: "v1.30.0"}, nil
-}
-
-func (f *fakeCRIOClient) Close() error {
-	return nil
-}
-
-// TestPull verifies that Pull populates container data correctly with PID, Hostname, and CgroupPath.
 func TestPull(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}, Image: &v1.ImageSpec{Image: "myrepo/myimage:latest"}},
-			}, nil
-		},
-		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
-			return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return &v1.ContainerStatusResponse{
-				Status: &v1.ContainerStatus{
-					Metadata:  &v1.ContainerMetadata{Name: "container1"},
-					State:     v1.ContainerState_CONTAINER_RUNNING,
-					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
-					Resources: &v1.ContainerResources{
-						Linux: &v1.LinuxContainerResources{
-							CpuQuota:           50000,
-							CpuPeriod:          100000,
-							MemoryLimitInBytes: 104857600,
+
+	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
+	originalValue := os.Getenv(envVarName)
+	defer os.Setenv(envVarName, originalValue)
+
+	os.Setenv(envVarName, "false")
+
+	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
+	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
+	finishTime := time.Now().UnixNano()
+
+	tests := []struct {
+		name                   string
+		mockGetAllContainers   func(ctx context.Context) ([]*v1.Container, error)
+		mockGetPodStatus       func(ctx context.Context, podID string) (*v1.PodSandboxStatus, error)
+		mockGetContainerStatus func(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error)
+		mockGetContainerImage  func(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error)
+		expectedEvents         []workloadmeta.CollectorEvent
+		expectedError          bool
+	}{
+		{
+			name: "Valid container and image data",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{Id: "container1", Image: &v1.ImageSpec{Image: "myrepo/myimage:latest"}, PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
+				}, nil
+			},
+			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
+				return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						Metadata:   &v1.ContainerMetadata{Name: "container1"},
+						State:      v1.ContainerState_CONTAINER_RUNNING,
+						CreatedAt:  createTime,
+						StartedAt:  startTime,
+						FinishedAt: finishTime,
+						Resources: &v1.ContainerResources{
+							Linux: &v1.LinuxContainerResources{
+								CpuQuota:           50000,
+								CpuPeriod:          100000,
+								MemoryLimitInBytes: 104857600,
+							},
+						},
+					},
+				}, nil
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image123",
+						RepoTags:    []string{"myrepo/myimage:latest"},
+						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+					},
+				}, nil
+			},
+			expectedEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceRuntime,
+					Entity: &workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "container1",
+							Namespace: "default",
+						},
+						Image: workloadmeta.ContainerImage{
+							Name:       "myrepo/myimage",
+							ShortName:  "myimage",
+							RawName:    "myrepo/myimage:latest",
+							ID:         "sha256:123abc",
+							Tag:        "latest",
+							RepoDigest: "myrepo/myimage@sha256:123abc",
+						},
+						Resources: workloadmeta.ContainerResources{
+							CPULimit:    pointer.Ptr(0.5),
+							MemoryLimit: pointer.Ptr(uint64(104857600)),
+						},
+						Runtime: workloadmeta.ContainerRuntimeCRIO,
+						State: workloadmeta.ContainerState{
+							Status:     workloadmeta.ContainerStatusRunning,
+							Running:    true,
+							CreatedAt:  time.Unix(0, createTime).UTC(),
+							StartedAt:  time.Unix(0, startTime).UTC(),
+							FinishedAt: time.Unix(0, finishTime).UTC(),
+							ExitCode:   pointer.Ptr(int64(0)),
 						},
 					},
 				},
-				Info: map[string]string{
-					"info": `{
-						"pid": 12345,
-						"runtimeSpec": {
-							"hostname": "container-host",
-							"linux": {
-								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
-							}
-						}
-					}`,
-				},
-			}, nil
+			},
+			expectedError: false,
 		},
-		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
-			return &v1.Image{
-				Id:          "image123",
-				RepoTags:    []string{"myrepo/myimage:latest"},
-				RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
-			}, nil
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	assert.NotEmpty(t, store.notifiedEvents)
-	event := store.notifiedEvents[0]
-	container := event.Entity.(*workloadmeta.Container)
-
-	assert.Equal(t, "container1", container.EntityMeta.Name)
-	assert.Equal(t, "default", container.EntityMeta.Namespace)
-	assert.Equal(t, "container1", container.EntityID.ID)
-	assert.Equal(t, floatPtr(0.5), container.Resources.CPULimit)
-	assert.Equal(t, uintPtr(104857600), container.Resources.MemoryLimit)
-	assert.Equal(t, "myrepo/myimage:latest", container.Image.RawName)
-	assert.Equal(t, 12345, container.PID)
-	assert.Equal(t, "container-host", container.Hostname)
-	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
-}
-
-// TestPullContainerStatusError verifies that Pull handles errors when retrieving container status.
-func TestPullContainerStatusError(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1"},
-			}, nil
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return nil, errors.New("container status error")
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	assert.Len(t, store.notifiedEvents, 1)
-	event := store.notifiedEvents[0]
-	container := event.Entity.(*workloadmeta.Container)
-
-	assert.Equal(t, workloadmeta.ContainerStatusUnknown, container.State.Status)
-	assert.Empty(t, container.Resources.CPULimit)
-	assert.Empty(t, container.Resources.MemoryLimit)
-	assert.Equal(t, 0, container.PID)         // Default PID
-	assert.Equal(t, "", container.Hostname)   // Default Hostname
-	assert.Equal(t, "", container.CgroupPath) // Default CgroupPath
-}
-
-// TestPullNoPodNamespace verifies that Pull handles cases with a missing pod namespace.
-func TestPullNoPodNamespace(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "nonexistent-pod"},
-			}, nil
-		},
-		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
-			return nil, errors.New("pod not found")
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return &v1.ContainerStatusResponse{
-				Status: &v1.ContainerStatus{
-					Metadata:  &v1.ContainerMetadata{Name: "container1"},
-					State:     v1.ContainerState_CONTAINER_RUNNING,
-					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
-				},
-				Info: map[string]string{
-					"info": `{
-						"pid": 12345,
-						"runtimeSpec": {
-							"hostname": "container-host",
-							"linux": {
-								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
-							}
-						}
-					}`,
-				},
-			}, nil
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	container := store.notifiedEvents[0].Entity.(*workloadmeta.Container)
-
-	assert.Equal(t, "", container.EntityMeta.Namespace) // Namespace should be empty
-	assert.Equal(t, 12345, container.PID)
-	assert.Equal(t, "container-host", container.Hostname)
-	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
-}
-
-// TestPullContainerImageError verifies error handling when retrieving container image fails.
-func TestPullContainerImageError(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1"},
-			}, nil
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return &v1.ContainerStatusResponse{
-				Status: &v1.ContainerStatus{
-					Metadata:  &v1.ContainerMetadata{Name: "container1"},
-					State:     v1.ContainerState_CONTAINER_RUNNING,
-					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
-				},
-				Info: map[string]string{
-					"info": `{
-						"pid": 12345,
-						"runtimeSpec": {
-							"hostname": "container-host",
-							"linux": {
-								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
-							}
-						}
-					}`,
-				},
-			}, nil
-		},
-		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
-			return nil, errors.New("image retrieval error")
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	container := store.notifiedEvents[0].Entity.(*workloadmeta.Container)
-
-	assert.Empty(t, container.Image.ID)
-	assert.Empty(t, container.Image.RawName)
-	assert.Equal(t, 12345, container.PID)
-	assert.Equal(t, "container-host", container.Hostname)
-	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
-}
-
-// TestPullNoContainers verifies that Pull handles an empty container list gracefully.
-func TestPullNoContainers(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{}, nil
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	assert.Empty(t, store.notifiedEvents) // Should have no events
-}
-
-// TestPullContainerRetrievalError verifies that Pull handles an error when retrieving containers.
-func TestPullContainerRetrievalError(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return nil, errors.New("failed to retrieve containers")
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.Error(t, err)
-	assert.Empty(t, store.notifiedEvents) // No events should be generated
-}
-
-// TestPullContainerMissingMetadata verifies that Pull handles containers with missing metadata.
-func TestPullContainerMissingMetadata(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1", Metadata: nil}, // Missing metadata
-			}, nil
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return &v1.ContainerStatusResponse{
-				Status: &v1.ContainerStatus{
-					State: v1.ContainerState_CONTAINER_RUNNING,
-				},
-				Info: map[string]string{
-					"info": `{
-						"pid": 12345,
-						"runtimeSpec": {
-							"hostname": "container-host",
-							"linux": {
-								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
-							}
-						}
-					}`,
-				},
-			}, nil
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	container := store.notifiedEvents[0].Entity.(*workloadmeta.Container)
-
-	assert.Equal(t, "", container.EntityMeta.Name) // Default to unknown name
-	assert.Equal(t, 12345, container.PID)
-	assert.Equal(t, "container-host", container.Hostname)
-	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
-}
-
-// TestPullContainerDefaultResourceLimits verifies that Pull handles containers with default resource limits.
-func TestPullContainerDefaultResourceLimits(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1"},
-			}, nil
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return &v1.ContainerStatusResponse{
-				Status: &v1.ContainerStatus{
-					Metadata: &v1.ContainerMetadata{Name: "container1"},
-					Resources: &v1.ContainerResources{
-						Linux: &v1.LinuxContainerResources{
-							CpuQuota: 0, CpuPeriod: 0, MemoryLimitInBytes: 0,
-						},
+		{
+			name: "Missing resources in container but available in Info",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{Id: "container1", PodSandboxId: "pod1"},
+				}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						Metadata:   &v1.ContainerMetadata{Name: "container1"},
+						State:      v1.ContainerState_CONTAINER_RUNNING,
+						CreatedAt:  createTime,
+						StartedAt:  startTime,
+						FinishedAt: finishTime,
 					},
-				},
-				Info: map[string]string{
-					"info": `{
-						"pid": 12345,
-						"runtimeSpec": {
-							"hostname": "container-host",
-							"linux": {
-								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
-							}
-						}
-					}`,
-				},
-			}, nil
-		},
-	}
-
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
-	}
-
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	container := store.notifiedEvents[0].Entity.(*workloadmeta.Container)
-
-	assert.Nil(t, container.Resources.CPULimit)
-	assert.Nil(t, container.Resources.MemoryLimit)
-	assert.Equal(t, 12345, container.PID)
-	assert.Equal(t, "container-host", container.Hostname)
-	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
-}
-
-// TestPullContainerResourceFallbackToInfo verifies that Pull uses resource limits from info when Resources in containerStatus is nil.
-func TestPullContainerResourceFallbackToInfo(t *testing.T) {
-	client := &fakeCRIOClient{
-		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1"},
-			}, nil
-		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
-			return &v1.ContainerStatusResponse{
-				Status: &v1.ContainerStatus{
-					Metadata:  &v1.ContainerMetadata{Name: "container1"},
-					State:     v1.ContainerState_CONTAINER_RUNNING,
-					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
-					Resources: nil, // No resources in status
-				},
-				Info: map[string]string{
-					"info": `{
-						"pid": 12345,
-						"runtimeSpec": {
-							"hostname": "container-host",
-							"linux": {
-								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4",
-								"resources": {
-									"cpu": {
-										"quota": 50000,
-										"period": 100000
-									},
-									"memory": {
-										"memoryLimitInBytes": 104857600
+					Info: map[string]string{
+						"info": `{
+							"pid": 12345,
+							"runtimeSpec": {
+								"hostname": "container-host",
+								"linux": {
+									"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4",
+									"resources": {
+										"cpu": {
+											"quota": 50000,
+											"period": 100000
+										},
+										"memory": {	
+											"memoryLimitInBytes": 104857600
+										}
 									}
 								}
 							}
-						}
-					}`,
+						}`,
+					},
+				}, nil
+			},
+			expectedEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceRuntime,
+					Entity: &workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						Runtime:  workloadmeta.ContainerRuntimeCRIO,
+						State: workloadmeta.ContainerState{
+							Status:     workloadmeta.ContainerStatusRunning,
+							Running:    true,
+							CreatedAt:  time.Unix(0, createTime).UTC(),
+							StartedAt:  time.Unix(0, startTime).UTC(),
+							FinishedAt: time.Unix(0, finishTime).UTC(),
+							ExitCode:   pointer.Ptr(int64(0)),
+						},
+						Resources: workloadmeta.ContainerResources{
+							CPULimit:    pointer.Ptr(0.5),
+							MemoryLimit: pointer.Ptr(uint64(104857600)),
+						},
+						PID:        12345,
+						Hostname:   "container-host",
+						CgroupPath: "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4",
+					},
 				},
-			}, nil
+			},
+			expectedError: false,
+		},
+		{
+			name: "Container with missing metadata",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{Id: "container1", PodSandboxId: "pod1", Metadata: nil},
+				}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						State: v1.ContainerState_CONTAINER_RUNNING,
+					},
+				}, nil
+			},
+			expectedEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceRuntime,
+					Entity: &workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						Runtime:  workloadmeta.ContainerRuntimeCRIO,
+						State: workloadmeta.ContainerState{
+							Running:    true,
+							Status:     workloadmeta.ContainerStatusRunning,
+							CreatedAt:  time.Unix(0, 0).UTC(),
+							StartedAt:  time.Unix(0, 0).UTC(),
+							FinishedAt: time.Unix(0, 0).UTC(),
+							ExitCode:   pointer.Ptr(int64(0)),
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Error retrieving container status",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{Id: "container1", PodSandboxId: "pod1"},
+				}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return nil, errors.New("container status error")
+			},
+			expectedEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceRuntime,
+					Entity: &workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						Runtime:  workloadmeta.ContainerRuntimeCRIO,
+						State: workloadmeta.ContainerState{
+							Status: workloadmeta.ContainerStatusUnknown,
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "No containers returned",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{}, nil
+			},
+			expectedEvents: nil,
+			expectedError:  false,
+		},
+		{
+			name: "Error retrieving containers",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return nil, errors.New("failed to retrieve containers")
+			},
+			expectedEvents: nil,
+			expectedError:  true,
+		},
+		{
+			name: "All resource limits are zero",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{Id: "container1", Image: &v1.ImageSpec{Image: "myrepo/myimage:latest"}, PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
+				}, nil
+			},
+			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
+				return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						Metadata:   &v1.ContainerMetadata{Name: "container1"},
+						State:      v1.ContainerState_CONTAINER_RUNNING,
+						CreatedAt:  createTime,
+						StartedAt:  startTime,
+						FinishedAt: finishTime,
+						Resources: &v1.ContainerResources{
+							Linux: &v1.LinuxContainerResources{
+								CpuQuota:           0,
+								CpuPeriod:          0,
+								MemoryLimitInBytes: 0,
+							},
+						},
+					},
+				}, nil
+			},
+			expectedEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceRuntime,
+					Entity: &workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "container1",
+							Namespace: "default",
+						},
+						Image: workloadmeta.ContainerImage{
+							Name:       "myrepo/myimage",
+							ShortName:  "myimage",
+							RawName:    "myrepo/myimage:latest",
+							ID:         "sha256:123abc",
+							Tag:        "latest",
+							RepoDigest: "myrepo/myimage@sha256:123abc",
+						},
+						Resources: workloadmeta.ContainerResources{
+							CPULimit:    nil, // No CPU limit
+							MemoryLimit: nil, // No memory limit
+						},
+						Runtime: workloadmeta.ContainerRuntimeCRIO,
+						State: workloadmeta.ContainerState{
+							Status:     workloadmeta.ContainerStatusRunning,
+							Running:    true,
+							CreatedAt:  time.Unix(0, createTime).UTC(),
+							StartedAt:  time.Unix(0, startTime).UTC(),
+							FinishedAt: time.Unix(0, finishTime).UTC(),
+							ExitCode:   pointer.Ptr(int64(0)),
+						},
+					},
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "Error retrieving container",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return nil, errors.New("failed to retrieve containers")
+			},
+			expectedEvents: nil,
+			expectedError:  true,
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
-	crioCollector := collector{
-		client: client,
-		store:  store,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &mockCRIOClient{
+				mockGetAllContainers:   tt.mockGetAllContainers,
+				mockGetPodStatus:       tt.mockGetPodStatus,
+				mockGetContainerStatus: tt.mockGetContainerStatus,
+				mockGetContainerImage:  tt.mockGetContainerImage,
+			}
+
+			store := &mockWorkloadmetaStore{}
+			crioCollector := collector{
+				client: client,
+				store:  store,
+			}
+
+			err := crioCollector.Pull(context.Background())
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.expectedEvents, store.notifiedEvents)
+		})
+	}
+}
+
+func TestGenerateImageEventFromContainer(t *testing.T) {
+	time1, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
+	time2, _ := time.Parse(time.RFC3339, "2023-01-02T00:00:00Z")
+	tests := []struct {
+		name                string
+		mockGetContainerImg func(context.Context, *v1.ImageSpec, bool) (*v1.ImageStatusResponse, error)
+		container           *v1.Container
+		expectedEvent       *workloadmeta.CollectorEvent
+		expectError         bool
+	}{
+		{
+			name: "Valid image metadata with history and layers",
+			mockGetContainerImg: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image123",
+						RepoTags:    []string{"myrepo/myimage:latest"},
+						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+					},
+					Info: map[string]string{
+						"info": `{
+							"labels": {"label1": "value1", "label2": "value2"},
+							"imageSpec": {
+								"os": "linux",
+								"architecture": "amd64",
+								"variant": "v8",
+								"rootfs": {
+									"diff_ids": ["sha256:layer1digest", "sha256:layer2digest"]
+								},
+								"history": [
+									{
+										"created": "2023-01-01T00:00:00Z",
+										"created_by": "command1",
+										"author": "author1",
+										"comment": "Layer 1 comment",
+										"empty_layer": false
+									},
+									{
+										"created": "2023-01-02T00:00:00Z",
+										"created_by": "command2",
+										"author": "author2",
+										"comment": "Layer 2 comment",
+										"empty_layer": false
+									}
+								]
+							}
+						}`,
+					},
+				}, nil
+			},
+			container: &v1.Container{
+				Id:           "container1",
+				Image:        &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+				PodSandboxId: "pod1",
+			},
+			expectedEvent: &workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:123abc"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:   "myrepo/myimage:latest",
+						Labels: map[string]string{"label1": "value1", "label2": "value2"},
+					},
+					RepoTags:     []string{"myrepo/myimage:latest"},
+					RepoDigests:  []string{"myrepo/myimage@sha256:123abc"},
+					OS:           "linux",
+					Architecture: "amd64",
+					Variant:      "v8",
+					Layers: []workloadmeta.ContainerImageLayer{
+						{
+							Digest:    "sha256:layer1digest",
+							History:   &imgspecs.History{Created: &time1, CreatedBy: "command1", Author: "author1", Comment: "Layer 1 comment"},
+							SizeBytes: 0,
+						},
+						{
+							Digest:    "sha256:layer2digest",
+							History:   &imgspecs.History{Created: &time2, CreatedBy: "command2", Author: "author2", Comment: "Layer 2 comment"},
+							SizeBytes: 0,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "Image has no repo tags or digest",
+			mockGetContainerImg: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id: "image123",
+					},
+				}, nil
+			},
+			container: &v1.Container{
+				Id:           "container1",
+				Image:        &v1.ImageSpec{Image: "repo/image:tag"},
+				PodSandboxId: "pod1",
+			},
+			expectedEvent: &workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image123"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "",
+					},
+					RepoTags:    nil,
+					RepoDigests: nil,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "Error retrieving image metadata",
+			mockGetContainerImg: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return nil, fmt.Errorf("failed to retrieve image metadata")
+			},
+			container: &v1.Container{
+				Id:           "container1",
+				Image:        &v1.ImageSpec{Image: "repo/image:tag"},
+				PodSandboxId: "pod1",
+			},
+			expectedEvent: nil,
+			expectError:   true,
+		},
 	}
 
-	err := crioCollector.Pull(context.Background())
-	assert.NoError(t, err)
-	assert.Len(t, store.notifiedEvents, 1)
-	container := store.notifiedEvents[0].Entity.(*workloadmeta.Container)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &mockCRIOClient{
+				mockGetContainerImage: tt.mockGetContainerImg,
+			}
+			store := &mockWorkloadmetaStore{}
+			crioCollector := collector{
+				client: client,
+				store:  store,
+			}
 
-	assert.Equal(t, floatPtr(0.5), container.Resources.CPULimit)
-	assert.Equal(t, uintPtr(104857600), container.Resources.MemoryLimit)
-	assert.Equal(t, 12345, container.PID)
-	assert.Equal(t, "container-host", container.Hostname)
-	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
+			event, err := crioCollector.generateImageEventFromContainer(context.Background(), tt.container)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedEvent, event)
+			}
+		})
+	}
 }

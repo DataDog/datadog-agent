@@ -25,6 +25,8 @@ const (
 	HostScanType ScanType = "host"
 	// ContainerdCollector is the name of the containerd collector
 	ContainerdCollector = "containerd"
+	// CrioCollector is the name of the containerd collector
+	CrioCollector = "crio"
 	// DockerCollector is the name of the docker collector
 	DockerCollector = "docker"
 	// HostCollector is the name of the host collector
@@ -69,6 +71,11 @@ func GetDockerScanner() Collector {
 // GetContainerdScanner returns the containerd scanner
 func GetContainerdScanner() Collector {
 	return Collectors[ContainerdCollector]
+}
+
+// GetCrioScanner returns the crio scanner
+func GetCrioScanner() Collector {
+	return Collectors[CrioCollector]
 }
 
 // GetHostScanner returns the host scanner
