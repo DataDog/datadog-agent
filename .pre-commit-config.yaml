@@ -70,8 +70,16 @@ repos:
       description: clang-format
       entry: 'inv pre-commit.check-winclang-format'
       language: system
-      types_or: [c, c++, c#]
+      types_or: [c, c++]
       pass_filenames: false
+    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
+      id: dotnet-format-installer
+      name: dotnet-format-installer
+      description: Format .net file of the MSI installer
+      language: system
+      # The dotnet format tool requires a solution file to operate.
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
+      types: [c#]
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
@@ -133,7 +141,7 @@ repos:
     - id: check-go-modules-in-python
       name: check-go-modules-in-python
       description: Validate all go modules are declared in Invoke tasks
-      entry: 'inv modules.validate'
+      entry: 'inv modules.validate --fix-format'
       language: system
       pass_filenames: false
-      files: .*go\.mod$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$

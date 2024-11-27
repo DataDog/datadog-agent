@@ -21,7 +21,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
 
-& inv -e security-agent.kitchen-prepare --skip-linters
+& inv -e security-agent.e2e-prepare-win
 
 $err = $LASTEXITCODE
 if($err -ne 0){

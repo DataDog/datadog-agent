@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// This doesn't need BPF but it's built with this tag to only run with
+// This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests.
-//go:build linux_bpf
+//go:build test && linux_bpf
 
 package module
 
@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
@@ -39,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
@@ -46,21 +48,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
-func setupDiscoveryModule(t *testing.T) string {
+func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider) {
 	t.Helper()
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
+
+	tagger := taggermock.SetupFakeTagger(t)
+	mockCtrl := gomock.NewController(t)
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -71,25 +79,22 @@ func setupDiscoveryModule(t *testing.T) string {
 	m := module.Factory{
 		Name:             config.DiscoveryModule,
 		ConfigNamespaces: []string{"discovery"},
-		Fn: func(cfg *types.Config, deps module.FactoryDependencies) (module.Module, error) {
-			module, err := NewDiscoveryModule(cfg, deps)
-			if err != nil {
-				return nil, err
-			}
+		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
+			module := newDiscovery(mockContainerProvider)
+			module.config.cpuUsageUpdateDelay = time.Second
 
-			module.(*discovery).config.cpuUsageUpdateDelay = time.Second
 			return module, nil
 		},
 		NeedsEBPF: func() bool {
 			return false
 		},
 	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, nil)
+	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv.URL
+	return srv.URL, mockContainerProvider
 }
 
 func getServices(t *testing.T, url string) []model.Service {
@@ -191,7 +196,8 @@ func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 
 // Check that we get (only) listening processes for all expected protocols.
 func TestBasic(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
@@ -244,7 +250,8 @@ func TestBasic(t *testing.T) {
 
 // Check that we get all listening ports for a process
 func TestPorts(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
@@ -290,7 +297,8 @@ func TestPorts(t *testing.T) {
 }
 
 func TestPortsLimits(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	var expectedPorts []int
 
@@ -324,7 +332,8 @@ func TestPortsLimits(t *testing.T) {
 }
 
 func TestServiceName(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
@@ -358,11 +367,13 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
 		assert.False(t, portMap[pid].DDServiceInjected)
+		assert.Equal(t, portMap[pid].ContainerID, "")
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestInjectedServiceName(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	createEnvsMemfd(t, []string{
 		"OTHER_ENV=test",
@@ -388,7 +399,8 @@ func TestInjectedServiceName(t *testing.T) {
 }
 
 func TestAPMInstrumentationInjected(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	createEnvsMemfd(t, []string{
 		"DD_INJECTION_ENABLED=service_name,tracer",
@@ -484,7 +496,8 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 	pid := int(proc.Pid)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		svcMap := getServicesMap(t, url)
@@ -509,8 +522,12 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				"CORECLR_ENABLE_PROFILING=1",
 			},
 		},
-		"java": {
+		"java - dd-java-agent.jar": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
+		},
+		"java - datadog.jar": {
+			commandline: []string{"java", "-javaagent:/path/to/datadog-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
 		"node": {
@@ -520,7 +537,8 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	}
 
 	serverDir := buildFakeServer(t)
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -575,11 +593,11 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	// https://github.com/shirou/gopsutil/commit/aa0b73dc6d5669de5bc9483c0655b1f9446317a9).
 	//
 	// This is due to an inherent race since the code in BootTimeWithContext
-	// substracts the uptime of the host from the current time, and there can be
+	// subtracts the uptime of the host from the current time, and there can be
 	// in theory an unbounded amount of time between the read of /proc/uptime
 	// and the retrieval of the current time. Allow a 10 second diff as a
 	// reasonable value.
-	assert.InDelta(t, uint64(createTimeMs/1000), svc.StartTimeSecs, 10)
+	assert.InDelta(t, uint64(createTimeMs), svc.StartTimeMilli, 10000)
 }
 
 func assertCPU(t *testing.T, url string, pid int) {
@@ -601,7 +619,8 @@ func assertCPU(t *testing.T, url string, pid int) {
 
 func TestCommandLineSanitization(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -624,41 +643,6 @@ func TestCommandLineSanitization(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
-func TestIgnore(t *testing.T) {
-	serverDir := buildFakeServer(t)
-	url := setupDiscoveryModule(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	badBin := filepath.Join(serverDir, "sshd")
-	badCmd := exec.CommandContext(ctx, badBin)
-	require.NoError(t, badCmd.Start())
-
-	// Also run a non-ignored server so that we can use it in the eventually
-	// loop below so that we don't have to wait a long time to be sure that we
-	// really ignored badBin and just didn't miss it because of a race.
-	goodBin := filepath.Join(serverDir, "node")
-	goodCmd := exec.CommandContext(ctx, goodBin)
-	require.NoError(t, goodCmd.Start())
-
-	goodPid := goodCmd.Process.Pid
-	badPid := badCmd.Process.Pid
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(t, url)
-		assert.Contains(collect, svcMap, goodPid)
-		require.NotContains(t, svcMap, badPid)
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
-func TestIgnoreCommsLengths(t *testing.T) {
-	for comm := range ignoreComms {
-		// /proc/PID/comm is limited to 16 characters.
-		assert.LessOrEqual(t, len(comm), 16, "Process name %q too big", comm)
-	}
-}
-
 func TestNodeDocker(t *testing.T) {
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
@@ -667,7 +651,8 @@ func TestNodeDocker(t *testing.T) {
 	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
 	require.NoError(t, err)
 
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 	pid := int(nodeJSPID)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -724,7 +709,8 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			cmd, err := fileopener.OpenFromProcess(t, fake, test.lib)
 			require.NoError(t, err)
 
-			url := setupDiscoveryModule(t)
+			url, mockContainerProvider := setupDiscoveryModule(t)
+			mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 			pid := cmd.Process.Pid
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -740,7 +726,8 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 
 // Check that we can get listening processes in other namespaces.
 func TestNamespaces(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	// Needed when changing namespaces
 	runtime.LockOSThread()
@@ -800,13 +787,16 @@ func TestNamespaces(t *testing.T) {
 
 // Check that we are able to find services inside Docker containers.
 func TestDocker(t *testing.T) {
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
 
 	dir, _ := testutil.CurDir()
-	err := protocolUtils.RunDockerServer(t, "foo-server",
-		dir+"/testdata/docker-compose.yml", []string{},
+	dockerCfg := dockerutils.NewComposeConfig("foo-server",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
 		regexp.MustCompile("Serving.*"),
-		protocolUtils.DefaultTimeout, 3)
+		dockerutils.EmptyEnv,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	err := dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
 
 	proc, err := procfs.NewDefaultFS()
@@ -822,6 +812,10 @@ func TestDocker(t *testing.T) {
 			}
 			if comm == "python-1111" {
 				pid1111 = process.PID
+				mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).Return(nil, nil, map[int]string{
+					pid1111: "dummyCID",
+				}, nil)
+
 				break
 			}
 		}
@@ -832,20 +826,17 @@ func TestDocker(t *testing.T) {
 
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
+	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
 }
 
 // Check that the cache is cleaned when procceses die.
 func TestCache(t *testing.T) {
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-	deps := module.FactoryDependencies{
-		WMeta: wmeta,
-	}
-	module, err := NewDiscoveryModule(nil, deps)
-	require.NoError(t, err)
-	discovery := module.(*discovery)
+	var err error
+
+	mockCtrl := gomock.NewController(t)
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).MinTimes(1)
+	discovery := newDiscovery(mockContainerProvider)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })

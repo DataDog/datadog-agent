@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-less"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -40,9 +40,10 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformfxnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -53,7 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -137,28 +138,21 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-			catalog := workloadmeta.NodeAgent
-			instantiate := config.GetBool("dogstatsd_origin_detection")
-
-			return workloadmeta.Params{
-				AgentType:  catalog,
-				InitHelper: common.GetWorkloadmetaInit(),
-				NoInstance: !instantiate,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-
-		compressionimpl.Module(),
+		compressionfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+		eventplatformfxnoop.Module(),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		taggerimpl.OptionalModule(),
+		localTaggerfx.Module(tagger.Params{}),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -180,6 +174,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			}
 		}),
 		healthprobefx.Module(),
+		haagentfx.Module(),
 	)
 }
 
@@ -190,8 +185,8 @@ func start(
 	params *Params,
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
-	wmeta optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component],
+	wmeta workloadmeta.Component,
+	_ tagger.Component,
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,
@@ -203,10 +198,9 @@ func start(
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
-	w, _ := wmeta.Get()
 	components := &DogstatsdComponents{
 		DogstatsdServer: server,
-		WorkloadMeta:    w,
+		WorkloadMeta:    wmeta,
 	}
 	defer StopAgent(cancel, components)
 

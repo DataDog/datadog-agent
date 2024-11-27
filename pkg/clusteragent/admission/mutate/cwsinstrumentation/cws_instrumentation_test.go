@@ -489,7 +489,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				initialCommand = strings.Join(tt.args.exec.Command, " ")
 			}
 
-			ci, err := NewCWSInstrumentation(wmeta)
+			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -846,7 +846,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
 			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
 
-			ci, err := NewCWSInstrumentation(wmeta)
+			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {

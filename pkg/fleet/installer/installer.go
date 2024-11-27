@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
@@ -72,7 +71,7 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
-	env        *env.Env
+	env        *fleetEnv.Env
 	cdn        cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
@@ -84,7 +83,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(env *fleetEnv.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -101,7 +100,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		env:        env,
 		cdn:        cdn,
 		db:         db,
-		downloader: oci.NewDownloader(env, http.DefaultClient),
+		downloader: oci.NewDownloader(env, fleetEnv.GetHTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 
@@ -186,6 +185,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
+	err = i.db.DeletePackage(pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not remove package installation in db: %w", err)
+	}
 	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
@@ -384,18 +387,42 @@ func (i *installerImpl) Purge(ctx context.Context) {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
 	}
+	// NOTE: On Windows, purge must be called from a copy of the installer that
+	//       exists outside of the install directory. If purge is called from
+	//       within the installer package, then one of two things may happen:
+	//       - this process will be ctrl-c killed and purge will not complete
+	//       - this process will ignore ctrl-c and msiexec will kill msiserver,
+	//         failing the uninstall.
+	//       We can't workaround this by moving removePackage to the end of purge,
+	//       as the daemon may be running and holding locks on files that need to be removed.
 	err = i.removePackage(ctx, packageDatadogInstaller)
 	if err != nil {
 		log.Warnf("could not remove installer: %v", err)
 	}
 
+	// Must close dependencies before removing the rest of the files,
+	// as some may be open/locked by the dependencies
+	i.close()
+
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
 		log.Warnf("could not delete configs dir: %v", err)
 	}
+
+	// explicitly remove the packages database from disk
+	// It's in the packagesDir which we'll completely remove below,
+	// however RemoveAll stops on the first failure and we want to
+	// avoid leaving a stale database behind. Any stale repository
+	// files will simply be removed by the next Install, but the packages.db
+	// is still used as a source of truth.
+	err = os.Remove(filepath.Join(i.packagesDir, "packages.db"))
+	if err != nil {
+		log.Warnf("could not delete packages db: %v", err)
+	}
+
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
-	err = os.RemoveAll(paths.PackagesPath)
+	err = os.RemoveAll(i.packagesDir)
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
@@ -476,9 +503,37 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	return nil
 }
 
+// Close cleans up the Installer's dependencies, lock must be held by the caller
+func (i *installerImpl) close() error {
+	var errs []error
+
+	if i.db != nil {
+		if dbErr := i.db.Close(); dbErr != nil {
+			dbErr = fmt.Errorf("failed to close packages database: %w", dbErr)
+			errs = append(errs, dbErr)
+		}
+		i.db = nil
+	}
+	if i.cdn != nil {
+		if cdnErr := i.cdn.Close(); cdnErr != nil {
+			cdnErr = fmt.Errorf("failed to close Remote Config cdn: %w", cdnErr)
+			errs = append(errs, cdnErr)
+		}
+		i.cdn = nil
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
 // Close cleans up the Installer's dependencies
 func (i *installerImpl) Close() error {
-	return i.cdn.Close()
+	i.m.Lock()
+	defer i.m.Unlock()
+	return i.close()
 }
 
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
@@ -549,7 +604,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
 	switch pkg {
-	case packageDatadogAgent:
+	case packageDatadogAgent, packageAPMInjector:
 		config, err := i.cdn.Get(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)

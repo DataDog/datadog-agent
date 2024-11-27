@@ -6,8 +6,6 @@
 package ebpf
 
 import (
-	"strings"
-
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -67,8 +65,8 @@ type Config struct {
 	// ZypperReposDir is the path to the zypper repository directory
 	ZypperReposDir string
 
-	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
-	AllowPrecompiledFallback bool
+	// AllowPrebuiltFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
+	AllowPrebuiltFallback bool
 
 	// AllowRuntimeCompiledFallback indicates whether we are allowed to fallback to runtime compilation if CO-RE fails.
 	AllowRuntimeCompiledFallback bool
@@ -81,38 +79,34 @@ type Config struct {
 	BypassEnabled bool
 }
 
-func key(pieces ...string) string {
-	return strings.Join(pieces, ".")
-}
-
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
 	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{
-		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
-		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
-		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
-		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
+		BPFDebug:                 cfg.GetBool(sysconfig.FullKeyPath(spNS, "bpf_debug")),
+		BPFDir:                   cfg.GetString(sysconfig.FullKeyPath(spNS, "bpf_dir")),
+		ExcludedBPFLinuxVersions: cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "excluded_linux_versions")),
+		EnableTracepoints:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_tracepoints")),
 		ProcRoot:                 kernel.ProcFSRoot(),
-		InternalTelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
+		InternalTelemetryEnabled: cfg.GetBool(sysconfig.FullKeyPath(spNS, "telemetry_enabled")),
 
-		EnableCORE: cfg.GetBool(key(spNS, "enable_co_re")),
-		BTFPath:    cfg.GetString(key(spNS, "btf_path")),
+		EnableCORE: cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
+		BTFPath:    cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
 
-		EnableRuntimeCompiler:        cfg.GetBool(key(spNS, "enable_runtime_compiler")),
-		RuntimeCompilerOutputDir:     cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
-		EnableKernelHeaderDownload:   cfg.GetBool(key(spNS, "enable_kernel_header_download")),
-		KernelHeadersDirs:            cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:     cfg.GetString(key(spNS, "kernel_header_download_dir")),
-		AptConfigDir:                 cfg.GetString(key(spNS, "apt_config_dir")),
-		YumReposDir:                  cfg.GetString(key(spNS, "yum_repos_dir")),
-		ZypperReposDir:               cfg.GetString(key(spNS, "zypper_repos_dir")),
-		AllowPrecompiledFallback:     cfg.GetBool(key(spNS, "allow_precompiled_fallback")),
-		AllowRuntimeCompiledFallback: cfg.GetBool(key(spNS, "allow_runtime_compiled_fallback")),
+		EnableRuntimeCompiler:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_runtime_compiler")),
+		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),
+		EnableKernelHeaderDownload:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:            cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "kernel_header_download_dir")),
+		AptConfigDir:                 cfg.GetString(sysconfig.FullKeyPath(spNS, "apt_config_dir")),
+		YumReposDir:                  cfg.GetString(sysconfig.FullKeyPath(spNS, "yum_repos_dir")),
+		ZypperReposDir:               cfg.GetString(sysconfig.FullKeyPath(spNS, "zypper_repos_dir")),
+		AllowPrebuiltFallback:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_prebuilt_fallback")),
+		AllowRuntimeCompiledFallback: cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_runtime_compiled_fallback")),
 
-		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
+		AttachKprobesWithKprobeEventsABI: cfg.GetBool(sysconfig.FullKeyPath(spNS, "attach_kprobes_with_kprobe_events_abi")),
 	}
 
 	return c

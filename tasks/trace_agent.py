@@ -3,7 +3,6 @@ import sys
 
 from invoke import Exit, task
 
-from tasks.agent import build as agent_build
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
@@ -22,25 +21,11 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     major_version='7',
-    python_runtimes='3',
     go_mod="mod",
-    bundle=False,
 ):
     """
     Build the trace agent.
     """
-
-    if bundle:
-        return agent_build(
-            ctx,
-            race=race,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            flavor=flavor,
-            major_version=major_version,
-            python_runtimes=python_runtimes,
-            go_mod=go_mod,
-        )
 
     flavor = AgentFlavor[flavor]
     if flavor.is_ot():
@@ -50,13 +35,12 @@ def build(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/trace-agent/windows/resources/trace-agent.rc",

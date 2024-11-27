@@ -47,7 +47,6 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
-	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
@@ -61,9 +60,13 @@ const (
 
 	// SourceRuntime represents entities detected by the container runtime
 	// running on the node, collecting lower level information about
-	// containers. `docker`, `containerd`, `podman` and `ecs_fargate` use
-	// this source.
+	// containers. `docker`, `containerd`, 'crio', `podman` and `ecs_fargate`
+	// use this source.
 	SourceRuntime Source = "runtime"
+
+	// SourceTrivy represents entities detected by Trivy during the SBOM scan.
+	// `crio` uses this source.
+	SourceTrivy Source = "trivy"
 
 	// SourceNodeOrchestrator represents entities detected by the node
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
@@ -422,7 +425,7 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 type ContainerResources struct {
 	GPURequest    *uint64 // Number of GPUs
 	GPULimit      *uint64
-	GPUType       string   // The type of GPU requested (eg. nvidia, amd, intel)
+	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -444,8 +447,8 @@ func (cr ContainerResources) String(bool) string {
 	if cr.MemoryLimit != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetMemoryLimit:", *cr.MemoryLimit)
 	}
-	if cr.GPUType != "" {
-		_, _ = fmt.Fprintln(&sb, "GPUType:", cr.GPUType)
+	if cr.GPUVendorList != nil {
+		_, _ = fmt.Fprintln(&sb, "GPUVendor:", cr.GPUVendorList)
 	}
 	return sb.String()
 }
@@ -536,7 +539,8 @@ type Container struct {
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath string
+	CgroupPath   string
+	RestartCount int
 }
 
 // GetID implements Entity#GetID.
@@ -678,6 +682,7 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	GPUVendorList              []string
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
@@ -745,6 +750,7 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "GPU Vendor:", p.GPUVendorList)
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
@@ -1106,13 +1112,17 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
-		switch i.SBOM.Status {
-		case Success:
-			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		case Failed:
-			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
-		default:
+		if i.SBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+			switch i.SBOM.Status {
+			case Success:
+				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+			case Failed:
+				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+			default:
+			}
+		} else {
+			fmt.Fprintln(&sb, "SBOM is nil")
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")

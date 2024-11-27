@@ -7,15 +7,15 @@
 package aggregator
 
 import (
-	"errors"
 	"expvar"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -252,6 +252,7 @@ type BufferedAggregator struct {
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
+	haAgent                haagent.Component
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -261,10 +262,10 @@ type BufferedAggregator struct {
 	health    *health.Handle
 	agentName string // Name of the agent for telemetry metrics
 
-	tlmContainerTagsEnabled bool                                         // Whether we should call the tagger to tag agent telemetry metrics
-	agentTags               func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
-	globalTags              func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
-
+	tlmContainerTagsEnabled     bool                                         // Whether we should call the tagger to tag agent telemetry metrics
+	agentTags                   func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
+	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
 
@@ -283,7 +284,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -326,6 +327,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
+		haAgent:                     haAgent,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -336,6 +338,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tlmContainerTagsEnabled:     pkgconfigsetup.Datadog().GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
+		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 	}
 
@@ -406,12 +409,8 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
-	forwarder, found := agg.eventPlatformForwarder.Get()
-	if !found {
-		return nil, errors.New("event platform forwarder not initialized")
-	}
-	return forwarder, nil
+func (agg *BufferedAggregator) GetEventPlatformForwarder() eventplatform.Component {
+	return agg.eventPlatformForwarder
 }
 
 func (agg *BufferedAggregator) registerSender(id checkid.ID) error {
@@ -460,13 +459,9 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 }
 
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
-	forwarder, found := agg.eventPlatformForwarder.Get()
-	if !found {
-		return errors.New("event platform forwarder not initialized")
-	}
 	m := message.NewMessage(event.rawEvent, nil, "", 0)
 	// eventPlatformForwarder is threadsafe so no locking needed here
-	return forwarder.SendEventPlatformEvent(m, event.eventType)
+	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -475,7 +470,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginInfo)
+	agg.tagger.EnrichTags(tb, sc.OriginInfo)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -489,7 +484,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginInfo)
+	agg.tagger.EnrichTags(tb, e.OriginInfo)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -685,11 +680,7 @@ func (agg *BufferedAggregator) GetEvents() event.Events {
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
 // Note that this works only if using the 'noop' event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
-	forwarder, found := agg.eventPlatformForwarder.Get()
-	if !found {
-		return nil
-	}
-	return forwarder.Purge()
+	return agg.eventPlatformForwarder.Purge()
 }
 
 func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {
@@ -837,13 +828,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality())
+	tags, err = agg.globalTags(agg.tagger.ChecksCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality())
+		agentTags, err := agg.agentTags(agg.tagger.ChecksCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
@@ -859,6 +850,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
+	}
+	if agg.haAgent.Enabled() {
+		tags = append(tags, "agent_group:"+agg.haAgent.GetGroup())
 	}
 	// nil to empty string
 	// This is expected by other components/tests
@@ -955,5 +949,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		pkgconfigsetup.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
 		id,
+		agg.tagger,
 	)
 }

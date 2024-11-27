@@ -9,34 +9,41 @@ package gpu
 
 import (
 	"fmt"
-	"time"
+	"net/http"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/hashicorp/go-multierror"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
-	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+const (
+	gpuMetricsNs     = "gpu."
+	metricNameMemory = gpuMetricsNs + "memory"
+	metricNameUtil   = gpuMetricsNs + "utilization"
+	metricNameMaxMem = gpuMetricsNs + "memory.max"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config         *CheckConfig               // config for the check
-	sysProbeUtil   processnet.SysProbeUtil    // sysProbeUtil is used to communicate with system probe
-	lastCheckTime  time.Time                  // lastCheckTime is the time the last check was done, used to compute GPU average utilization
-	timeResolver   *sectime.Resolver          // TODO: Move resolver to a common package, see EBPF-579
-	statProcessors map[uint32]*StatsProcessor // statProcessors is a map of processors, one per pid
-	gpuDevices     []gpuDevice                // gpuDevices is a list of GPU devices found in the host
+	config         *CheckConfig            // config for the check
+	sysProbeClient *http.Client            // sysProbeClient is used to communicate with system probe
+	activeMetrics  map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
+	collectors     []nvidia.Collector      // collectors for NVML metrics
+	nvmlLib        nvml.Interface          // NVML library interface
 }
 
 // Factory creates a new check factory
@@ -46,19 +53,9 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:      core.NewCheckBase(CheckName),
-		config:         &CheckConfig{},
-		statProcessors: make(map[uint32]*StatsProcessor),
-	}
-}
-
-// Cancel cancels the check
-func (m *Check) Cancel() {
-	m.CheckBase.Cancel()
-
-	ret := nvml.Shutdown()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_UNINITIALIZED {
-		log.Warnf("Failed to shutdown NVML: %v", nvml.ErrorString(ret))
+		CheckBase:     core.NewCheckBase(CheckName),
+		config:        &CheckConfig{},
+		activeMetrics: make(map[model.StatsKey]bool),
 	}
 }
 
@@ -67,146 +64,120 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
+
 	if err := yaml.Unmarshal(config, m.config); err != nil {
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	return nil
-}
+	// Initialize NVML collectors. if the config parameter doesn't exist or is
+	// empty string, the default value is used as defined in go-nvml library
+	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
+	m.nvmlLib = nvml.New(nvml.WithLibraryPath(m.config.NVMLLibraryPath))
+	ret := m.nvmlLib.Init()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
+	}
 
-func (m *Check) ensureInitialized() error {
 	var err error
-
-	if m.sysProbeUtil == nil {
-		m.sysProbeUtil, err = processnet.GetRemoteSystemProbeUtil(
-			pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
-		)
-		if err != nil {
-			return fmt.Errorf("sysprobe connection: %w", err)
-		}
+	m.collectors, err = nvidia.BuildCollectors(m.nvmlLib)
+	if err != nil {
+		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
-	if m.timeResolver == nil {
-		m.timeResolver, err = sectime.NewResolver()
-		if err != nil {
-			return fmt.Errorf("cannot create time resolver: %w", err)
-		}
-	}
-
-	if m.gpuDevices == nil {
-		m.gpuDevices, err = getGPUDevices()
-		if err != nil {
-			return fmt.Errorf("cannot get GPU devices: %w", err)
-		}
-	}
-
+	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
-// ensureProcessor ensures that there is a stats processor for the given key
-func (m *Check) ensureProcessor(key *model.StreamKey, snd sender.Sender, gpuThreads int, checkDuration time.Duration) {
-	if _, ok := m.statProcessors[key.Pid]; !ok {
-		m.statProcessors[key.Pid] = &StatsProcessor{
-			key: key,
-		}
+// Cancel stops the check
+func (m *Check) Cancel() {
+	if m.nvmlLib != nil {
+		_ = m.nvmlLib.Shutdown()
 	}
 
-	m.statProcessors[key.Pid].totalThreadSecondsUsed = 0
-	m.statProcessors[key.Pid].sender = snd
-	m.statProcessors[key.Pid].gpuMaxThreads = gpuThreads
-	m.statProcessors[key.Pid].measuredInterval = checkDuration
-	m.statProcessors[key.Pid].timeResolver = m.timeResolver
-	m.statProcessors[key.Pid].lastCheck = m.lastCheckTime
+	m.CheckBase.Cancel()
 }
 
 // Run executes the check
 func (m *Check) Run() error {
-	if err := m.ensureInitialized(); err != nil {
-		return err
-	}
-	if len(m.gpuDevices) == 0 {
-		log.Warnf("No GPU devices found")
-		return nil
-	}
-
-	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
-	if err != nil {
-		return fmt.Errorf("cannot get data from system-probe: %w", err)
-	}
-	now := time.Now()
-
-	var checkDuration time.Duration
-	// mark the check duration as close to the actual check as possible
-	if !m.lastCheckTime.IsZero() {
-		checkDuration = now.Sub(m.lastCheckTime)
-	}
-
 	snd, err := m.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
 	}
-
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	stats, ok := sysprobeData.(model.GPUStats)
-	if !ok {
-		return log.Errorf("gpu check raw data has incorrect type: %T", stats)
+	if err := m.emitSysprobeMetrics(snd); err != nil {
+		log.Warnf("error while sending sysprobe metrics: %s", err)
 	}
 
-	// TODO: Multiple GPUs are not supported yet
-	gpuThreads, err := m.gpuDevices[0].GetMaxThreads()
-	if err != nil {
-		return fmt.Errorf("get GPU device threads: %w", err)
+	if err := m.emitNvmlMetrics(snd); err != nil {
+		log.Warnf("error while sending NVML metrics: %s", err)
 	}
-
-	for _, data := range stats.CurrentData {
-		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
-		m.statProcessors[data.Key.Pid].processCurrentData(data)
-	}
-
-	for _, data := range stats.PastData {
-		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
-		m.statProcessors[data.Key.Pid].processPastData(data)
-	}
-
-	m.configureNormalizationFactor()
-
-	for _, processor := range m.statProcessors {
-		if processor.hasPendingData {
-			err := processor.markInterval()
-			if err != nil {
-				return fmt.Errorf("mark interval: %w", err)
-			}
-		} else {
-			err := processor.finish(now)
-			// delete even in an error case, as we don't want to keep the processor around
-			delete(m.statProcessors, processor.key.Pid)
-			if err != nil {
-				return fmt.Errorf("finish processor: %w", err)
-			}
-		}
-	}
-
-	m.lastCheckTime = now
 
 	return nil
 }
 
-func (m *Check) configureNormalizationFactor() {
-	// As we compute the utilization based on the number of threads launched by the kernel, we need to
-	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
-	totalGPUUtilization := 0.0
-	for _, processor := range m.statProcessors {
-		// Only consider processors that received data this interval
-		if processor.hasPendingData {
-			totalGPUUtilization += processor.getGPUUtilization()
+func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
+	stats, err := sysprobeclient.GetCheck[model.GPUStats](m.sysProbeClient, sysconfig.GPUMonitoringModule)
+	if err != nil {
+		return fmt.Errorf("cannot get data from system-probe: %w", err)
+	}
+
+	// Set all metrics to inactive, so we can remove the ones that we don't see
+	// and send the final metrics
+	for key := range m.activeMetrics {
+		m.activeMetrics[key] = false
+	}
+
+	for _, entry := range stats.Metrics {
+		key := entry.Key
+		metrics := entry.UtilizationMetrics
+		tags := getTagsForKey(key)
+		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
+		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
+		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
+
+		m.activeMetrics[key] = true
+	}
+
+	// Remove the PIDs that we didn't see in this check
+	for key, active := range m.activeMetrics {
+		if !active {
+			tags := getTagsForKey(key)
+			snd.Gauge(metricNameMemory, 0, "", tags)
+			snd.Gauge(metricNameMaxMem, 0, "", tags)
+			snd.Gauge(metricNameUtil, 0, "", tags)
+
+			delete(m.activeMetrics, key)
 		}
 	}
 
-	normFactor := max(1.0, totalGPUUtilization)
+	return nil
+}
 
-	for _, processor := range m.statProcessors {
-		processor.setGPUUtilizationNormalizationFactor(normFactor)
+func getTagsForKey(key model.StatsKey) []string {
+	// Per-PID metrics are subject to change due to high cardinality
+	return []string{
+		fmt.Sprintf("pid:%d", key.PID),
+		fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID),
 	}
+}
+
+func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
+	var err error
+
+	for _, collector := range m.collectors {
+		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
+		metrics, collectErr := collector.Collect()
+		if collectErr != nil {
+			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+		}
+
+		for _, metric := range metrics {
+			metricName := gpuMetricsNs + metric.Name
+			snd.Gauge(metricName, metric.Value, "", metric.Tags)
+		}
+	}
+
+	return err
 }

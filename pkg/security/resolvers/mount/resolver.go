@@ -58,6 +58,10 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		if subvol != "" {
 			root = strings.TrimPrefix(root, subvol)
 		}
+
+		if root == "" {
+			root = "/"
+		}
 	}
 
 	// create a Mount out of the parsed MountInfo
@@ -569,17 +573,6 @@ func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	}
 
 	return position
-}
-
-// GetVFSRenameInputType gets VFS rename input type
-func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
-	inputType := uint64(1)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		inputType = 2
-	}
-
-	return inputType
 }
 
 // SendStats sends metrics about the current state of the mount resolver

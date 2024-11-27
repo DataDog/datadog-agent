@@ -22,11 +22,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -478,7 +477,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 	message := LambdaLogAPIMessage{
 		logType:      logTypeExtension,
 		time:         time.Now(),
-		stringRecord: "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}",
+		stringRecord: "{\"DD_EXTENSION_FALLBACK_REASON\":\"test-reason\"}",
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
@@ -504,7 +503,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 
 	// even if enhanced metrics are disabled, we should still send the failover metric
 	lc.enhancedMetricsEnabled = false
-	message.stringRecord = "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}" // add again bc processing empties it
+	message.stringRecord = "{\"DD_EXTENSION_FALLBACK_REASON\":\"test-reason\"}" // add again bc processing empties it
 	lc.processMessage(&message)
 
 	received, timed = demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
@@ -1473,5 +1472,5 @@ func TestMultipleStartLogCollection(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule())
 }

@@ -9,6 +9,7 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    ami,
     bench,
     buildimages,
     cluster_agent,
@@ -18,6 +19,7 @@ from tasks import (
     coverage,
     cws_instrumentation,
     debug,
+    debugging,
     devcontainer,
     diff,
     docker_tasks,
@@ -60,6 +62,7 @@ from tasks import (
     trace_agent,
     vim,
     vscode,
+    worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
@@ -155,11 +158,13 @@ ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(ami)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
 ns.add_collection(coverage)
+ns.add_collection(debugging)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
@@ -206,6 +211,7 @@ ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
+ns.add_collection(worktree)
 ns.configure(
     {
         "run": {

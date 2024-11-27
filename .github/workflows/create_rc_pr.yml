@@ -22,9 +22,10 @@ jobs:
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 sparse-checkout: 'tasks'
+                persist-credentials: false
 
             - name: Install python
-              uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
               with:
                 python-version: 3.11
                 cache: "pip"
@@ -56,15 +57,17 @@ jobs:
       strategy:
         matrix:
           value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
+        fail-fast: false
       steps:
             - name: Checkout release branch
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 ref: ${{ matrix.value }}
                 fetch-depth: 0
+                persist-credentials: true
 
             - name: Install python
-              uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
               with:
                 python-version: 3.11
                 cache: "pip"
@@ -82,8 +85,14 @@ jobs:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
                 SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+                MATRIX: ${{ matrix.value }}
+                WARNING: ${{ needs.find_release_branches.outputs.warning }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ needs.find_release_branches.outputs.warning }})" >> $GITHUB_OUTPUT
+                if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+                else
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
+                fi
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}

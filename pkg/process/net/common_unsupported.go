@@ -5,7 +5,6 @@
 
 //go:build !linux && !windows
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package net
 
 import (
@@ -13,7 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	discoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -83,18 +81,26 @@ func (r *RemoteSysProbeUtil) GetPprof(_ string) ([]byte, error) {
 // GetTelemetry is not supported
 func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) { return nil, ErrNotImplemented }
 
+// GetConnTrackCached is not supported
+func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) { return nil, ErrNotImplemented }
+
+// GetConnTrackHost is not supported
+func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) { return nil, ErrNotImplemented }
+
+// GetBTFLoaderInfo is not supported
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) { return nil, ErrNotImplemented }
+
+// GetDiscoveryServices is not supported
 func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
 	return nil, ErrNotImplemented
 }
 
-func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interface{}, error) {
+// GetPing is not supported
+func (r *RemoteSysProbeUtil) GetPing(_ string, _ string, _ int, _ time.Duration, _ time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
 
-func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
-	return nil, ErrNotImplemented
-}
-
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
+// GetTraceroute is not supported
+func (r *RemoteSysProbeUtil) GetTraceroute(_ string, _ string, _ uint16, _ nppayload.Protocol, _ uint8, _ time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }

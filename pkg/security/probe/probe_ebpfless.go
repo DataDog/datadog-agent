@@ -25,8 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -96,7 +96,7 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
 			p.probe.DispatchCustomEvent(
-				NewEBPFLessHelloMsgEvent(msg.Hello, p.probe.scrubber),
+				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber),
 			)
 
 			cl.nsID = msg.Hello.NSID
@@ -653,8 +653,13 @@ func (p *EBPFLessProbe) EnableEnforcement(state bool) {
 	p.processKiller.SetState(state)
 }
 
+// GetAgentContainerContext returns the agent container context
+func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.probe.GetAgentContainerContext()
+}
+
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
 	processKiller, err := NewProcessKiller(config)
@@ -679,10 +684,10 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	}
 
 	resolversOpts := resolvers.Opts{
-		TagsResolver: opts.TagsResolver,
+		Tagger: opts.Tagger,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -694,7 +699,11 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &EBPFLessFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	fh, err := NewEBPFLessFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 
@@ -702,9 +711,4 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	p.zeroEvent()
 
 	return p, nil
-}
-
-// PlaySnapshot plays a snapshot
-func (p *EBPFLessProbe) PlaySnapshot() {
-	// TODO: Implement this method if needed.
 }

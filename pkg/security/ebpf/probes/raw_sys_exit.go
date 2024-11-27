@@ -172,6 +172,13 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 		},
 		{
 			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.ConnectEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_handle_sys_connect_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.LoadModuleEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tracepoint_handle_sys_init_module_exit",

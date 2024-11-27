@@ -23,6 +23,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				Mirror:                         "",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
 				RegistryUsername:               "",
@@ -37,6 +38,11 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
+				Tags:       []string{},
+				Hostname:   "",
+				HTTPProxy:  "",
+				HTTPSProxy: "",
+				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 		{
@@ -46,6 +52,7 @@ func TestFromEnv(t *testing.T) {
 				envSite:                                       "datadoghq.eu",
 				envRemoteUpdates:                              "true",
 				envRemotePolicies:                             "true",
+				envMirror:                                     "https://mirror.example.com",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
 				envRegistryUsername:                           "username",
@@ -64,10 +71,18 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
 				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
 				envApmInstrumentationEnabled:                  "all",
+				envAgentUserName:                              "customuser",
+				envTags:                                       "k1:v1,k2:v2",
+				envExtraTags:                                  "k3:v3,k4:v4",
+				envHostname:                                   "hostname",
+				envDDHTTPProxy:                                "http://proxy.example.com:8080",
+				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
+				envDDNoProxy:                                  "localhost",
 			},
 			expected: &Env{
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
+				Mirror:               "https://mirror.example.com",
 				RemoteUpdates:        true,
 				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
@@ -103,9 +118,15 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				AgentUserName: "customuser",
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
+				Tags:       []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname:   "hostname",
+				HTTPProxy:  "http://proxy.example.com:8080",
+				HTTPSProxy: "http://proxy.example.com:8080",
+				NoProxy:    "localhost",
 			},
 		},
 		{
@@ -133,6 +154,8 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
+				Tags:    []string{},
+				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 		{
@@ -159,6 +182,9 @@ func TestFromEnv(t *testing.T) {
 				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
+				Tags:                           []string{},
+				Hostname:                       "",
+				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 	}
@@ -193,6 +219,7 @@ func TestToEnv(t *testing.T) {
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
 				RemotePolicies:       true,
+				Mirror:               "https://mirror.example.com",
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryUsername:     "username",
@@ -226,12 +253,18 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				Tags:       []string{"k1:v1", "k2:v2"},
+				Hostname:   "hostname",
+				HTTPProxy:  "http://proxy.example.com:8080",
+				HTTPSProxy: "http://proxy.example.com:8080",
+				NoProxy:    "localhost",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
 				"DD_SITE=datadoghq.eu",
 				"DD_REMOTE_UPDATES=true",
 				"DD_REMOTE_POLICIES=true",
+				"DD_INSTALLER_MIRROR=https://mirror.example.com",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
 				"DD_INSTALLER_REGISTRY_USERNAME=username",
@@ -249,6 +282,11 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
+				"DD_TAGS=k1:v1,k2:v2",
+				"DD_HOSTNAME=hostname",
+				"HTTP_PROXY=http://proxy.example.com:8080",
+				"HTTPS_PROXY=http://proxy.example.com:8080",
+				"NO_PROXY=localhost",
 			},
 		},
 	}
@@ -257,6 +295,61 @@ func TestToEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.env.ToEnv()
 			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAgentUserVars(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected *Env
+	}{
+		{
+			name:    "not set",
+			envVars: map[string]string{},
+			expected: &Env{
+				AgentUserName: "",
+			},
+		},
+		{
+			name: "primary set",
+			envVars: map[string]string{
+				envAgentUserName: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "compat set",
+			envVars: map[string]string{
+				envAgentUserNameCompat: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "primary precedence",
+			envVars: map[string]string{
+				envAgentUserName:       "customuser",
+				envAgentUserNameCompat: "otheruser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.envVars {
+				os.Setenv(key, value)
+				defer os.Unsetenv(key)
+			}
+			result := FromEnv()
+			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
 		})
 	}
 }

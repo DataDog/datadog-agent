@@ -66,7 +66,7 @@ type KubeEndpointService struct {
 var _ Service = &KubeEndpointService{}
 
 // NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
-func NewKubeEndpointsListener(conf Config, telemetryStore *telemetry.Store) (ServiceListener, error) {
+func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -95,9 +95,9 @@ func NewKubeEndpointsListener(conf Config, telemetryStore *telemetry.Store) (Ser
 		serviceInformer:    serviceInformer,
 		serviceLister:      serviceInformer.Lister(),
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
-		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
+		targetAllEndpoints: options.Config.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
 		containerFilters:   containerFilters,
-		telemetryStore:     telemetryStore,
+		telemetryStore:     options.Telemetry,
 	}, nil
 }
 
@@ -485,6 +485,11 @@ func (s *KubeEndpointService) GetTags() ([]string, error) {
 		return []string{}, nil
 	}
 	return s.tags, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *KubeEndpointService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

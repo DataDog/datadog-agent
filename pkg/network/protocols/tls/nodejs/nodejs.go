@@ -3,17 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package nodejs provides helpers to run nodejs HTTPs server.
 package nodejs
 
 import (
 	"io"
 	"os"
+	"path"
 	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 func copyFile(src, dst string) error {
@@ -59,10 +62,17 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 		"CERTS_DIR=/v/certs",
 		"TESTDIR=" + dir + "/testdata",
 	}
-	return protocolsUtils.RunDockerServer(t, "nodejs-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("Server running at https.*"), protocolsUtils.DefaultTimeout, 3)
+
+	dockerCfg := dockerutils.NewComposeConfig("nodejs-server",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		regexp.MustCompile("Server running at https.*"),
+		env,
+		path.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }
 
 // GetNodeJSDockerPID returns the PID of the nodejs docker container.
 func GetNodeJSDockerPID() (int64, error) {
-	return protocolsUtils.GetDockerPID("node-node-1")
+	return dockerutils.GetMainPID("node-node-1")
 }

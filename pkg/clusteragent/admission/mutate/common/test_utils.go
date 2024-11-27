@@ -239,6 +239,11 @@ func FakePod(name string) *corev1.Pod {
 	return FakePodWithContainer(name, corev1.Container{Name: name + "-container"})
 }
 
+// FakePodWithResources with resource requirements
+func FakePodWithResources(name string, reqs corev1.ResourceRequirements) *corev1.Pod {
+	return FakePodWithContainer(name, corev1.Container{Name: name + "-container", Resources: reqs})
+}
+
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod

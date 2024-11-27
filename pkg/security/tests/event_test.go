@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestEventRulesetLoaded(t *testing.T) {
@@ -55,15 +57,13 @@ func TestEventRulesetLoaded(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
-		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
-
+		}, func(_ *rules.Rule, customEvent *events.CustomEvent) bool {
 			test.cws.SendStats()
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 
 			return validateRuleSetLoadedSchema(t, customEvent)
-		}, 20*time.Second, model.CustomRulesetLoadedEventType)
+		}, 20*time.Second, model.CustomEventType, events.RulesetLoadedRuleID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,12 +90,9 @@ func TestEventHeartbeatSent(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
-		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-
-			isHeartbeatEvent := events.HeartbeatRuleID == rule.ID
-
-			return validateHeartbeatSchema(t, customEvent) && isHeartbeatEvent
-		}, 80*time.Second, model.CustomHeartbeatEventType)
+		}, func(_ *rules.Rule, customEvent *events.CustomEvent) bool {
+			return validateHeartbeatSchema(t, customEvent)
+		}, 80*time.Second, model.CustomEventType, events.HeartbeatRuleID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -143,7 +140,7 @@ func TestEventRaleLimiters(t *testing.T) {
 				t.Fatal(err)
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "test_unique_id")
 		if err != nil {
@@ -159,7 +156,7 @@ func TestEventRaleLimiters(t *testing.T) {
 				timeoutCtx, t, syscallTester,
 				"open", testFile,
 			)
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "test_unique_id")
 		if err != nil {
@@ -173,7 +170,7 @@ func TestEventRaleLimiters(t *testing.T) {
 				t.Fatal(err)
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "test_unique_id")
 		if err == nil {
@@ -194,7 +191,7 @@ func TestEventRaleLimiters(t *testing.T) {
 				t.Fatal(err)
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "test_std")
 		if err != nil {
@@ -210,12 +207,76 @@ func TestEventRaleLimiters(t *testing.T) {
 				timeoutCtx, t, syscallTester,
 				"open", testFile,
 			)
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "test_std")
 		if err == nil {
 			t.Error(err)
 		}
+	})
+}
+
+func TestEventIteratorRegister(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	pid1ExePath := utils.ProcExePath(1)
+	pid1Path, err := os.Readlink(pid1ExePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_register_1",
+			Expression: `open.file.path == "{{.Root}}/test-register" && process.ancestors[A].name == "syscall_tester" && process.ancestors[A].argv in ["span-exec"]`,
+		},
+		{
+			ID:         "test_register_2",
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-register-2" && process.ancestors[A].file.path == "%s" && process.ancestors[A].pid == 1`, pid1Path),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("test-register")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	testFile2, _, err := test.Path("test-register-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("std", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_register_1")
+		})
+	})
+
+	t.Run("pid1", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			f, err := os.Create(testFile2)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_register_2")
+		})
 	})
 }
 
@@ -256,10 +317,9 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 			return err
 		}
 		return f.Close()
-	}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-		assert.Equal(t, events.AbnormalPathRuleID, rule.ID, "wrong rule")
+	}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 		return true
-	}, getEventTimeout, model.CustomTruncatedParentsEventType)
+	}, getEventTimeout, model.CustomEventType, events.AbnormalPathRuleID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +330,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 			return err
 		}
 		return f.Close()
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		// check the length of the filepath that triggered the custom event
 		filepath, err := event.GetFieldValue("open.file.path")
 		if err == nil {

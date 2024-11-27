@@ -8,16 +8,21 @@
 package gpu
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"golang.org/x/sys/unix"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,19 +33,21 @@ type cudaEventConsumer struct {
 	eventHandler   ddebpf.EventHandler
 	once           sync.Once
 	closed         chan struct{}
-	streamHandlers map[model.StreamKey]*StreamHandler
+	streamHandlers map[streamKey]*StreamHandler
 	wg             sync.WaitGroup
 	running        atomic.Bool
-	cfg            *Config
+	sysCtx         *systemContext
+	cfg            *config.Config
 }
 
-// NewCudaEventConsumer creates a new CUDA event consumer.
-func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config) *cudaEventConsumer {
+// newCudaEventConsumer creates a new CUDA event consumer.
+func newCudaEventConsumer(sysCtx *systemContext, eventHandler ddebpf.EventHandler, cfg *config.Config) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
-		streamHandlers: make(map[model.StreamKey]*StreamHandler),
+		streamHandlers: make(map[streamKey]*StreamHandler),
 		cfg:            cfg,
+		sysCtx:         sysCtx,
 	}
 }
 
@@ -49,7 +56,6 @@ func (c *cudaEventConsumer) Stop() {
 	if c == nil {
 		return
 	}
-	c.eventHandler.Stop()
 	c.once.Do(func() {
 		close(c.closed)
 	})
@@ -90,6 +96,7 @@ func (c *cudaEventConsumer) Start() {
 			case <-health.C:
 			case <-processSync.C:
 				c.checkClosedProcesses()
+				c.sysCtx.cleanupOldEntries()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
@@ -102,36 +109,17 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
+				dataPtr := unsafe.Pointer(&batchData.Data[0])
 
-				pid := uint32(header.Pid_tgid >> 32)
-				streamKey := model.StreamKey{Pid: pid, Stream: header.Stream_id}
-
-				if _, ok := c.streamHandlers[streamKey]; !ok {
-					c.streamHandlers[streamKey] = newStreamHandler()
+				var err error
+				if isStreamSpecificEvent(gpuebpf.CudaEventType(header.Type)) {
+					err = c.handleStreamEvent(header, dataPtr, dataLen)
+				} else {
+					err = c.handleGlobalEvent(header, dataPtr, dataLen)
 				}
 
-				switch header.Type {
-				case gpuebpf.CudaEventTypeKernelLaunch:
-					if dataLen != gpuebpf.SizeofCudaKernelLaunch {
-						log.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
-						continue
-					}
-					ckl := (*gpuebpf.CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[streamKey].handleKernelLaunch(ckl)
-				case gpuebpf.CudaEventTypeMemory:
-					if dataLen != gpuebpf.SizeofCudaMemEvent {
-						log.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
-						continue
-					}
-					cme := (*gpuebpf.CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[streamKey].handleMemEvent(cme)
-				case gpuebpf.CudaEventTypeSync:
-					if dataLen != gpuebpf.SizeofCudaSync {
-						log.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
-						continue
-					}
-					cs := (*gpuebpf.CudaSync)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[streamKey].handleSync(cs)
+				if err != nil {
+					log.Errorf("Error processing CUDA event: %v", err)
 				}
 
 				batchData.Done()
@@ -146,27 +134,132 @@ func (c *cudaEventConsumer) Start() {
 	log.Trace("CUDA event consumer started")
 }
 
+func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
+	return eventType != gpuebpf.CudaEventTypeSetDevice
+}
+
+func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
+	streamHandler := c.getStreamHandler(header)
+
+	switch header.Type {
+	case gpuebpf.CudaEventTypeKernelLaunch:
+		if dataLen != gpuebpf.SizeofCudaKernelLaunch {
+			return fmt.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
+
+		}
+		streamHandler.handleKernelLaunch((*gpuebpf.CudaKernelLaunch)(data))
+	case gpuebpf.CudaEventTypeMemory:
+		if dataLen != gpuebpf.SizeofCudaMemEvent {
+			return fmt.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
+
+		}
+		streamHandler.handleMemEvent((*gpuebpf.CudaMemEvent)(data))
+	case gpuebpf.CudaEventTypeSync:
+		if dataLen != gpuebpf.SizeofCudaSync {
+			return fmt.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
+
+		}
+		streamHandler.handleSync((*gpuebpf.CudaSync)(data))
+	default:
+		return fmt.Errorf("Unknown event type: %d", header.Type)
+	}
+
+	return nil
+}
+
+func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
+	tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+	pid := uint32(header.Pid_tgid >> 32)
+	return pid, tid
+}
+
+func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
+	switch header.Type {
+	case gpuebpf.CudaEventTypeSetDevice:
+		if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
+			return fmt.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
+
+		}
+		csde := (*gpuebpf.CudaSetDeviceEvent)(data)
+
+		pid, tid := getPidTidFromHeader(header)
+		c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+	default:
+		return fmt.Errorf("Unknown event type: %d", header.Type)
+	}
+
+	return nil
+}
+
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	for key, handler := range c.streamHandlers {
-		if key.Pid == pid {
-			log.Debugf("Process %d ended, marking stream %d as ended", pid, key.Stream)
+		if key.pid == pid {
+			log.Debugf("Process %d ended, marking stream %d as ended", pid, key.stream)
 			// the probe is responsible for deleting the stream handler
 			_ = handler.markEnd()
 		}
 	}
 }
 
+func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) streamKey {
+	pid, tid := getPidTidFromHeader(header)
+
+	key := streamKey{
+		pid:     pid,
+		stream:  header.Stream_id,
+		gpuUUID: "",
+	}
+
+	// Try to get the GPU device if we can, but do not fail if we can't as we want to report
+	// the data even if we can't get the GPU UUID
+	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid))
+	if err != nil {
+		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
+	} else {
+		var ret nvml.Return
+		key.gpuUUID, ret = gpuDevice.GetUUID()
+		if ret != nvml.SUCCESS {
+			log.Warnf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
+		}
+	}
+
+	return key
+}
+
+func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *StreamHandler {
+	key := c.getStreamKey(header)
+	if _, ok := c.streamHandlers[key]; !ok {
+		cgroup := unix.ByteSliceToString(header.Cgroup[:])
+		containerID, err := cgroups.ContainerFilter("", cgroup)
+		if err != nil {
+			// We don't want to return an error here, as we can still process the event without the container ID
+			log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
+		}
+		c.streamHandlers[key] = newStreamHandler(key.pid, containerID, c.sysCtx)
+	}
+
+	return c.streamHandlers[key]
+}
+
 func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs("/proc", func(pid int) error {
+	_ = kernel.WithAllProcs(c.cfg.ProcRoot, func(pid int) error {
 		seenPIDs[uint32(pid)] = struct{}{}
 		return nil
 	})
 
 	for key, handler := range c.streamHandlers {
-		if _, ok := seenPIDs[key.Pid]; !ok {
-			log.Debugf("Process %d ended, marking stream %d as ended", key.Pid, key.Stream)
+		if _, ok := seenPIDs[key.pid]; !ok {
+			log.Debugf("Process %d ended, marking stream %d as ended", key.pid, key.stream)
 			_ = handler.markEnd()
+		}
+	}
+}
+
+func (c *cudaEventConsumer) cleanFinishedHandlers() {
+	for key, handler := range c.streamHandlers {
+		if handler.processEnded {
+			delete(c.streamHandlers, key)
 		}
 	}
 }

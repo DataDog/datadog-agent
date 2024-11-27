@@ -71,10 +71,29 @@ var sources = []Source{
 	SourceCLI,
 }
 
+// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
+// configuration tree (a higher priority overwrites a lower one).
+var sourcesPriority = map[Source]int{
+	SourceDefault:            0,
+	SourceUnknown:            1,
+	SourceFile:               2,
+	SourceEnvVar:             3,
+	SourceFleetPolicies:      4,
+	SourceAgentRuntime:       5,
+	SourceLocalConfigProcess: 6,
+	SourceRC:                 7,
+	SourceCLI:                8,
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
 	Value  interface{}
+}
+
+// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterOrEqualThan(x Source) bool {
+	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
 // String casts Source into a string
@@ -248,6 +267,11 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
+// BuildSchema is a no-op for the viper based config
+func (c *safeConfig) BuildSchema() {
+	// pass
+}
+
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
@@ -286,8 +310,8 @@ func (c *safeConfig) IsSet(key string) bool {
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 	return c.Viper.AllKeys()
 }
 
@@ -390,18 +414,6 @@ func (c *safeConfig) GetFloat64(key string) float64 {
 	return val
 }
 
-// GetTime wraps Viper for concurrent access
-func (c *safeConfig) GetTime(key string) time.Time {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetTimeE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
 // GetDuration wraps Viper for concurrent access
 func (c *safeConfig) GetDuration(key string) time.Duration {
 	c.RLock()
@@ -427,7 +439,7 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 }
 
 // GetFloat64SliceE loads a key as a []float64
-func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
+func (c *safeConfig) GetFloat64Slice(key string) []float64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -435,18 +447,20 @@ func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	// We're using GetStringSlice because viper can only parse list of string from env variables
 	list, err := c.Viper.GetStringSliceE(key)
 	if err != nil {
-		return nil, fmt.Errorf("'%v' is not a list", key)
+		log.Warnf("'%v' is not a list", key)
+		return nil
 	}
 
 	res := []float64{}
 	for _, item := range list {
 		nb, err := strconv.ParseFloat(item, 64)
 		if err != nil {
-			return nil, fmt.Errorf("value '%v' from '%v' is not a float64", item, key)
+			log.Warnf("value '%v' from '%v' is not a float64", item, key)
+			return nil
 		}
 		res = append(res, nb)
 	}
-	return res, nil
+	return res
 }
 
 // GetStringMap wraps Viper for concurrent access
@@ -664,18 +678,10 @@ func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	return nil
 }
 
-// MergeConfigMap merges the configuration from the map given with an existing config.
-// Note that the map given may be modified.
-func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.MergeConfigMap(cfg)
-}
-
 // AllSettings wraps Viper for concurrent access
 func (c *safeConfig) AllSettings() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettings returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -684,8 +690,8 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -694,20 +700,9 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
-	sources := []Source{
-		SourceDefault,
-		SourceUnknown,
-		SourceFile,
-		SourceEnvVar,
-		SourceFleetPolicies,
-		SourceAgentRuntime,
-		SourceRC,
-		SourceCLI,
-		SourceLocalConfigProcess,
-	}
 	res := map[Source]interface{}{}
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()

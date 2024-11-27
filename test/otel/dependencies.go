@@ -7,15 +7,17 @@
 package otel
 
 import (
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
+	strategy_none "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -27,7 +29,7 @@ const (
 )
 
 func _(
-	_ datadogexporter.Config,
+	_ datadogconfig.Config,
 	_ *statsprocessor.TraceAgent,
 	_ config.Component,
 	_ hostnameinterface.Component,
@@ -39,6 +41,7 @@ func _(
 	_ setup.ConfigurationProviders,
 	_ trace.Trace,
 	_ *api.OTLPReceiver,
+	_ *strategy_none.NoopStrategy,
 ) {
 	main()
 }

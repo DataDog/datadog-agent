@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -80,6 +81,8 @@ type RuntimeSecurityConfig struct {
 	OnDemandEnabled bool
 	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
 	OnDemandRateLimiterEnabled bool
+	// ReducedProcPidCacheSize defines whether the `proc_cache` and `pid_cache` map should use reduced size
+	ReducedProcPidCacheSize bool
 
 	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
 	InternalMonitoringEnabled bool
@@ -267,6 +270,9 @@ type RuntimeSecurityConfig struct {
 	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
 	WindowsProbeBlockOnChannelSend bool
 
+	WindowsWriteEventRateLimiterMaxAllowed int
+	WindowsWriteEventRateLimiterPeriod     time.Duration
+
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 }
@@ -322,13 +328,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
-		FIMEnabled:                     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
-		WindowsFilenameCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
-		WindowsRegistryCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
-		ETWEventsChannelSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_max_buffers"),
-		WindowsProbeBlockOnChannelSend: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		RuntimeEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
+		FIMEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
+
+		// Windows specific
+		WindowsFilenameCacheSize:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
+		ETWEventsChannelSize:                   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
+		WindowsProbeBlockOnChannelSend:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		WindowsWriteEventRateLimiterMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_write_event_rate_limiter_max_allowed"),
+		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
@@ -342,6 +351,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		OnDemandEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.on_demand.enabled"),
 		OnDemandRateLimiterEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.on_demand.rate_limiter.enabled"),
+		ReducedProcPidCacheSize:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.reduced_proc_pid_cache_size"),
 
 		// policy & ruleset
 		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),
@@ -445,7 +455,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
-		EBPFLessEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessEnabled: IsEBPFLessModeEnabled(),
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
@@ -488,6 +498,20 @@ func isRemoteConfigEnabled() bool {
 	}
 
 	return false
+}
+
+// IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
+// it's based on the configuration itself, but will default on true if
+// running on fargate
+func IsEBPFLessModeEnabled() bool {
+	const cfgKey = "runtime_security_config.ebpfless.enabled"
+	// by default on fargate, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsSet(cfgKey) && fargate.IsFargateInstance() {
+		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	return pkgconfigsetup.SystemProbe().GetBool(cfgKey)
 }
 
 // GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type
