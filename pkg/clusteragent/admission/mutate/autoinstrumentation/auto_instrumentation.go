@@ -157,7 +157,6 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 	if pod.Namespace == "" {
 		pod.Namespace = ns
 	}
-	injectApmTelemetryConfig(pod)
 
 	if !w.isPodEligible(pod) {
 		return false, nil
@@ -233,26 +232,6 @@ func profilingClientLibraryConfigMutators(config *webhookConfig) []podMutator {
 		podMutators = append(podMutators, newConfigEnvVarFromStringlMutator("DD_PROFILING_ENABLED", config.profilingEnabled))
 	}
 	return podMutators
-}
-
-func injectApmTelemetryConfig(pod *corev1.Pod) {
-	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
-	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
-	if instrumentationInstallTime == "" {
-		instrumentationInstallTime = common.ClusterAgentStartTime
-	}
-	instrumentationInstallTimeEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallTimeEnvVarName,
-		Value: instrumentationInstallTime,
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
-
-	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
-	instrumentationInstallIDEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallIDEnvVarName,
-		Value: os.Getenv(instrumentationInstallIDEnvVarName),
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
 type libInfoLanguageDetection struct {
@@ -371,6 +350,24 @@ func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: s.injectionType(),
 	})
+
+	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
+	instrumentationInstallTimeEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallTimeEnvVarName,
+		Value: instrumentationInstallTime,
+	}
+	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
+
+	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+	instrumentationInstallIDEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallIDEnvVarName,
+		Value: os.Getenv(instrumentationInstallIDEnvVarName),
+	}
+	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
 	return nil
 }
 
