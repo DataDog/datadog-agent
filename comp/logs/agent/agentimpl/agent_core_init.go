@@ -8,7 +8,6 @@
 package agentimpl
 
 import (
-	"sync"
 	"time"
 
 	"github.com/spf13/afero"
