@@ -80,7 +80,7 @@ require (
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
 	github.com/pulumi/pulumi/sdk/v3 v3.137.0
 	github.com/samber/lo v1.47.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/crypto v0.29.0
 	golang.org/x/sys v0.27.0
