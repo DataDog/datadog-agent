@@ -323,6 +323,7 @@
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/compression @DataDog/agent-metrics-logs
 /comp/snmpscan @DataDog/ndm-core
+/comp/core/log/impl-trace @DataDog/agent-apm
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
