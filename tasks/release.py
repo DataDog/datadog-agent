@@ -601,8 +601,10 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(ctx, release_branch, key, value, skip_checkout=False):
-    with agent_context(ctx, release_branch, skip_checkout=skip_checkout):
+def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, worktree=True):
+    def _main():
+        nonlocal key
+
         release_json = load_release_json()
         path = key.split('::')
         current_node = release_json
@@ -617,12 +619,22 @@ def set_release_json(ctx, release_branch, key, value, skip_checkout=False):
                 current_node = current_node[key]
         _save_release_json(release_json)
 
+    if worktree:
+        with agent_context(ctx, release_branch, skip_checkout=skip_checkout):
+            _main()
+    else:
+        _main()
+
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
-def get_release_json_value(ctx, release_branch, key, skip_checkout=False):
-    with agent_context(ctx, release_branch, skip_checkout=skip_checkout):
+def get_release_json_value(ctx, key, release_branch=None, skip_checkout=False, worktree=True):
+    if worktree:
+        with agent_context(ctx, release_branch, skip_checkout=skip_checkout):
+            release_json = _get_release_json_value(key)
+    else:
         release_json = _get_release_json_value(key)
-        print(release_json)
+
+    print(release_json)
 
 
 def create_and_update_release_branch(

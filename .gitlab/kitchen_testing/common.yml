@@ -97,7 +97,7 @@
 
 .kitchen_test_upgrade7:
   script:
-    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7" --no-worktree)
     - tasks/run-test-kitchen.sh upgrade7-test 7
 
 # Kitchen: Agent flavor
