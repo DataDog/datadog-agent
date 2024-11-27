@@ -187,7 +187,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 		RawSample: []byte("test"),
 	}, nil, nil)
 
-	consumer, err := NewConsumer("test", program, func(events []uint64) {})
+	consumer, err := NewConsumer("test", program, func(_ []uint64) {})
 	require.NoError(t, err)
 	consumer.handler = ringBufferHandler
 
