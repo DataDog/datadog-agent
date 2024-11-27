@@ -53,12 +53,18 @@ func (t *DefaultResolver) Resolve(id string) []string {
 
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
-	if t.tagger == nil {
+	return GetTagsOfContainer(t.tagger, id)
+}
+
+// GetTagsOfContainer returns the tags for the given container id
+// exported to share the code with other non-resolver users of tagger
+func GetTagsOfContainer(tagger Tagger, containerID string) ([]string, error) {
+	if tagger == nil {
 		return nil, nil
 	}
 
-	entityID := types.NewEntityID(types.ContainerID, id)
-	return t.tagger.Tag(entityID, types.OrchestratorCardinality)
+	entityID := types.NewEntityID(types.ContainerID, containerID)
+	return tagger.Tag(entityID, types.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name

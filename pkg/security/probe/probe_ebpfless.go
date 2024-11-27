@@ -96,7 +96,7 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
 			p.probe.DispatchCustomEvent(
-				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber),
+				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber, p.probe.Opts.Tagger),
 			)
 
 			cl.nsID = msg.Hello.NSID
