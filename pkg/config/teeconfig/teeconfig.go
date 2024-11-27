@@ -364,6 +364,11 @@ func (t *teeConfig) Object() model.Reader {
 	return t.baseline
 }
 
+// Stringify stringifies the config
+func (t *teeConfig) Stringify(source model.Source) string {
+	return t.baseline.Stringify(source)
+}
+
 // CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
 // the global config reference is unsafe.
 func (t *teeConfig) CopyConfig(cfg model.Config) {

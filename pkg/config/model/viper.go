@@ -835,6 +835,11 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	return &config
 }
 
+// Stringify stringifies the config, but only for nodetremodel with the test build tag
+func (c *safeConfig) Stringify(source Source) string {
+	return "safeConfig{...}"
+}
+
 // CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
 // the global config reference is unsafe.
 func (c *safeConfig) CopyConfig(cfg Config) {

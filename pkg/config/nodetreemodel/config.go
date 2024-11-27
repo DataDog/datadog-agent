@@ -305,6 +305,18 @@ func (c *ntmConfig) BuildSchema() {
 	}
 }
 
+// Stringify stringifies the config, but only with the test build tag
+func (c *ntmConfig) Stringify(source model.Source) string {
+	c.Lock()
+	defer c.Unlock()
+	// only does anything if the build tag "test" is enabled
+	text, err := c.toDebugString(source)
+	if err != nil {
+		return fmt.Sprintf("Stringify error: %s", err)
+	}
+	return text
+}
+
 func (c *ntmConfig) isReady() bool {
 	return c.ready.Load()
 }
