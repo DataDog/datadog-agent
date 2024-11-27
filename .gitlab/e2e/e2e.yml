@@ -79,6 +79,7 @@
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent
+    - qa_agent_jmx
     - qa_dca
     - qa_dogstatsd
 

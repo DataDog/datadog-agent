@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build crio && !trivy
 
-package rcclientimpl
+package crio
 
 import (
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"context"
 )
 
-func (rc rcClient) SubscribeApmTracing() {
-	pkglog.Info("APM TRACING config product is not supported outside Linux currently.")
+func (c *collector) startSBOMCollection(context.Context) error {
+	return nil
 }

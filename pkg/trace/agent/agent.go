@@ -568,7 +568,8 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID)
 }
 
-// sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
+// sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
+// and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
 	// For example: We want to maintain the overall trace level sampling decision for a trace with Analytics Events
@@ -579,7 +580,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 	if checkAnalyticsEvents {
 		events = a.getAnalyzedEvents(pt, ts)
 	}
-	if !keep {
+	if !keep && !a.conf.ErrorTrackingStandalone {
 		modified := sampler.SingleSpanSampling(pt)
 		if !modified {
 			// If there were no sampled spans, and we're not keeping the trace, let's use the analytics events
@@ -630,13 +631,23 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 // runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
 // with the sampling rate.
 //
-// The rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
+// If the agent is set as Error Tracking Standalone, only the ErrorSampler is run (other samplers are bypassed).
+// Otherwise, the rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
 // enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
 // priority set, the sampling priority is used with the Priority Sampler. When there is no priority
 // set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
 // samplers, the error sampler is run.
 func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
-	// run this early to make sure the signature gets counted by the RareSampler.
+	// ETS: chunks that don't contain errors (or spans with exception span events) are all dropped.
+	if a.conf.ErrorTrackingStandalone {
+		if traceContainsError(pt.TraceChunk.Spans, true) {
+			pt.TraceChunk.Tags["_dd.error_tracking_standalone.error"] = "true"
+			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), false
+		}
+		return false, false
+	}
+
+	// Run this early to make sure the signature gets counted by the RareSampler.
 	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 
 	if a.conf.ProbabilisticSamplerEnabled {
@@ -647,7 +658,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
 			return true, true
 		}
-		if traceContainsError(pt.TraceChunk.Spans) {
+		if traceContainsError(pt.TraceChunk.Spans, false) {
 			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 		}
 		return false, true
@@ -684,18 +695,25 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 		return true, true
 	}
 
-	if traceContainsError(pt.TraceChunk.Spans) {
+	if traceContainsError(pt.TraceChunk.Spans, false) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 	}
 
 	return false, true
 }
 
-func traceContainsError(trace pb.Trace) bool {
+func traceContainsError(trace pb.Trace, considerExceptionEvents bool) bool {
 	for _, span := range trace {
-		if span.Error != 0 {
+		if span.Error != 0 || (considerExceptionEvents && spanContainsExceptionSpanEvent(span)) {
 			return true
 		}
+	}
+	return false
+}
+
+func spanContainsExceptionSpanEvent(span *pb.Span) bool {
+	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
+		return true
 	}
 	return false
 }

@@ -3,24 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package strategy provides a set of functions for compressing with zlib / zstd
-package strategy
+// Package compressionimpl provides a set of functions for compressing with zlib
+package compressionimpl
 
 import (
 	"bytes"
 	"compress/zlib"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
+
+// Provides contains the compression component
+type Provides struct {
+	Comp compression.Component
+}
 
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
 type ZlibStrategy struct {
 }
 
-// NewZlibStrategy returns a new ZlibStrategy
-func NewZlibStrategy() *ZlibStrategy {
-	return &ZlibStrategy{}
+// NewComponent returns a new ZlibStrategy
+func NewComponent() Provides {
+	return Provides{
+		Comp: &ZlibStrategy{},
+	}
 }
 
 // Compress will compress the data with zlib
