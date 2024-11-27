@@ -136,7 +136,6 @@ func (c *cfg) SetHandler() http.Handler {
 		if apiutil.Validate(w, req) != nil {
 			return
 		}
-		log.Info("WE VALIDATED THE REQUEST")
 		for key, values := range req.URL.Query() {
 			if len(values) == 0 {
 				continue
