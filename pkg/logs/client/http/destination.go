@@ -217,7 +217,6 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	d.wg.Wait()
 
 	d.updateRetryState(nil, isRetrying)
-	d.utilization.Cancel()
 	stopChan <- struct{}{}
 }
 
@@ -344,6 +343,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
+	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
 	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
@@ -393,12 +393,32 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 }
 
 func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
+	var transport *http.Transport
+
+	transportConfig := cfg.Get("logs_config.http_protocol")
+	// Configure transport based on user setting
+	switch transportConfig {
+	case "http1":
+		// Use default ALPN auto-negotiation to negotiate up to http/1.1
+		transport = httputils.CreateHTTPTransport(cfg)
+	case "auto":
+		fallthrough
+	default:
+		if cfg.Get("logs_config.http_protocol") != "auto" {
+			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
+		}
+		// Use default ALPN auto-negotiation and negotiate to HTTP/2 if possible, if not it will automatically fallback to best available protocol
+		transport = httputils.CreateHTTPTransport(cfg, httputils.WithHTTP2())
+	}
+
 	return func() *http.Client {
-		return &http.Client{
+		client := &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(cfg),
+			Transport: transport,
 		}
+
+		return client
 	}
 }
 

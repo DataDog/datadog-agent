@@ -60,13 +60,13 @@ func TestConnectEvent(t *testing.T) {
 			defer wg.Done()
 			err := bindAndAcceptConnection("tcp", ":4242", done)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		}()
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp")
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
@@ -88,13 +88,13 @@ func TestConnectEvent(t *testing.T) {
 			defer wg.Done()
 			err := bindAndAcceptConnection("udp", ":4242", done)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		}()
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp")
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
@@ -120,13 +120,13 @@ func TestConnectEvent(t *testing.T) {
 			defer wg.Done()
 			err := bindAndAcceptConnection("tcp", ":4242", done)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		}()
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp")
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
@@ -152,13 +152,13 @@ func TestConnectEvent(t *testing.T) {
 			defer wg.Done()
 			err := bindAndAcceptConnection("udp", ":4242", done)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		}()
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp")
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
