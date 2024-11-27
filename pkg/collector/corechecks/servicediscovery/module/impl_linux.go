@@ -614,7 +614,7 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
-func (s *discovery) enrichContainerData(service *model.Service, containers []*agentPayload.Container, pidToCid map[int]string) {
+func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
 	id, ok := pidToCid[service.PID]
 	if !ok {
 		return
@@ -636,40 +636,36 @@ func (s *discovery) enrichContainerData(service *model.Service, containers []*ag
 
 	service.ContainerID = id
 	log.Debugf("Found container id for %v: %v", service.Name, id)
-	for _, c := range containers {
-		if c.Id != id {
+	container := containers[id]
+
+	for _, tag := range container.Tags {
+		// Get index of separator between name and value
+		sepIndex := strings.IndexRune(tag, ':')
+		if sepIndex < 0 || sepIndex >= len(tag)-1 {
+			// Malformed tag; we skip it
 			continue
 		}
 
-		for _, tag := range c.Tags {
-			// Get index of separator between name and value
-			sepIndex := strings.IndexRune(tag, ':')
-			if sepIndex < 0 || sepIndex >= len(tag)-1 {
-				// Malformed tag; we skip it
+		for i := range tagsPriority {
+			if tag[:sepIndex] != tagsPriority[i].tagName {
+				// Not a tag we care about; we skip it
 				continue
 			}
 
-			for i := range tagsPriority {
-				if tag[:sepIndex] != tagsPriority[i].tagName {
-					// Not a tag we care about; we skip it
-					continue
-				}
+			value := tag[sepIndex+1:]
+			tagsPriority[i].tagValue = &value
+			break
+		}
+	}
 
-				value := tag[sepIndex+1:]
-				tagsPriority[i].tagValue = &value
-				break
-			}
+	for _, tag := range tagsPriority {
+		if tag.tagValue == nil {
+			continue
 		}
 
-		for _, tag := range tagsPriority {
-			if tag.tagValue != nil {
-				service.GeneratedName = *tag.tagValue
-				log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-				return
-			}
-		}
-
-		return
+		service.GeneratedName = *tag.tagValue
+		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
+		break
 	}
 }
 
@@ -693,6 +689,13 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		log.Errorf("could not get containers: %s", err)
 	}
 
+	// Build mapping of Container ID to container object to avoid traversal of
+	// the containers slice for every services.
+	containersMap := make(map[string]*agentPayload.Container)
+	for _, c := range containers {
+		containersMap[c.Id] = c
+	}
+
 	for _, pid := range pids {
 		alivePids[pid] = struct{}{}
 
@@ -700,7 +703,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containers, pidToCid)
+		s.enrichContainerData(service, containersMap, pidToCid)
 
 		services = append(services, *service)
 	}
