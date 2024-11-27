@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build unix && test
 
 package tcp
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"reflect"
 	"strings"
@@ -48,6 +49,20 @@ type (
 
 	mockTimeoutErr string
 )
+
+func Test_reserveLocalPort(t *testing.T) {
+	// WHEN we reserve a local port
+	port, listener, err := reserveLocalPort(0)
+	require.NoError(t, err)
+	require.NotNil(t, listener)
+
+	// THEN we should not be able to get another connection
+	// on the same port
+	conn2, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "address already in use")
+	assert.Nil(t, conn2)
+}
 
 func Test_handlePackets(t *testing.T) {
 	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))

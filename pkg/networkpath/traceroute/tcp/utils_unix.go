@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build unix
+
 package tcp
 
 import (
@@ -18,6 +20,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -84,6 +87,46 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	}
 
 	return localUDPAddr, nil
+}
+
+// reserveLocalPort reserves an ephemeral port
+// and returns both the port number and the file descriptor
+// because the descriptor should be held until the port is no
+// longer in use, then closed via unix.Close(fd)
+func reserveLocalPort(port int) (uint16, int, error) {
+	// Create a SOCK_STREAM listener with the specified port
+	// and reserve it for the duration of the traceroute
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	if err != nil {
+		return 0, -1, fmt.Errorf("failed to create socket: %w", err)
+	}
+	// Disable SO_REUSEADDR and SO_REUSEPORT to prevent other sockets from reusing the port
+	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 0); err != nil {
+		return 0, -1, fmt.Errorf("failed to disable socket re-use: %w", err)
+	}
+	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEPORT, 0); err != nil {
+		return 0, -1, fmt.Errorf("failed to disable socket re-use: %w", err)
+	}
+	err = unix.Bind(fd, &unix.SockaddrInet4{Port: port})
+	if err != nil {
+		return 0, -1, fmt.Errorf("failed to bind socket: %w", err)
+	}
+
+	// Put the socket in listen mode
+	if err := unix.Listen(fd, 1); err != nil {
+		return 0, -1, fmt.Errorf("failed to listen on socket: %w", err)
+	}
+
+	sa, err := unix.Getsockname(fd)
+	if err != nil {
+		return 0, -1, fmt.Errorf("failed to get port: %w", err)
+	}
+	inet4Addr, ok := sa.(*unix.SockaddrInet4)
+	if !ok {
+		return 0, -1, fmt.Errorf("failed to convert address")
+	}
+
+	return uint16(inet4Addr.Port), fd, nil
 }
 
 // createRawTCPSyn creates a TCP packet with the specified parameters
