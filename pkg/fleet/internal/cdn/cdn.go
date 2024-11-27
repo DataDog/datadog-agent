@@ -8,6 +8,7 @@ package cdn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -158,7 +159,7 @@ func writePolicyMetadata(config Config, dir string) error {
 	}
 
 	state := config.State()
-	stateBytes, err := state.MarshalMsg(nil)
+	stateBytes, err := json.Marshal(state)
 	if err != nil {
 		return fmt.Errorf("could not marshal state: %w", err)
 	}

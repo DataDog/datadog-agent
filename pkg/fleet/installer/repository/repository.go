@@ -7,6 +7,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -138,7 +139,7 @@ func (r *Repository) loadPoliciesMetadata(version string) (*pbgo.PoliciesState, 
 	}
 
 	state := &pbgo.PoliciesState{}
-	_, err = state.UnmarshalMsg(stateFile)
+	err = json.Unmarshal(stateFile, state)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal policies state: %w", err)
 	}

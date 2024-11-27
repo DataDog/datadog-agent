@@ -407,11 +407,9 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", "/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
 	// Verify metadata
 	state.AssertFileExists("/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata", 0440, "dd-agent", "dd-agent")
-	s.Env().RemoteHost.MustExecute("sudo chmod 0444 /etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
-	file, err := s.Env().RemoteHost.ReadFile("/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
-	require.NoError(s.T(), err)
+	file := s.Env().RemoteHost.MustExecute("sudo cat /etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
 	policiesState := &pbgo.PoliciesState{}
-	_, err = policiesState.UnmarshalMsg(file)
+	err := json.Unmarshal([]byte(file), policiesState)
 	require.NoError(s.T(), err)
 	require.Len(s.T(), policiesState.MatchedPolicies, 1)
 	require.Equal(s.T(), policiesState.Version, "e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d")
