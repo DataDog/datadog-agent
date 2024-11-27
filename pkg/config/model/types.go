@@ -92,7 +92,6 @@ type Writer interface {
 	Set(key string, value interface{}, source Source)
 	SetWithoutSource(key string, value interface{})
 	UnsetForSource(key string, source Source)
-	CopyConfig(cfg Config)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration

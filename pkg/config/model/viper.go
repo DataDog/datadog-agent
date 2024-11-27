@@ -840,26 +840,6 @@ func (c *safeConfig) Stringify(source Source) string {
 	return "safeConfig{...}"
 }
 
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (c *safeConfig) CopyConfig(cfg Config) {
-	c.Lock()
-	defer c.Unlock()
-
-	if cfg, ok := cfg.(*safeConfig); ok {
-		c.Viper = cfg.Viper
-		c.configSources = cfg.configSources
-		c.envPrefix = cfg.envPrefix
-		c.envKeyReplacer = cfg.envKeyReplacer
-		c.proxies = cfg.proxies
-		c.configEnvVars = cfg.configEnvVars
-		c.unknownKeys = cfg.unknownKeys
-		c.notificationReceivers = cfg.notificationReceivers
-		return
-	}
-	panic("Replacement config must be an instance of safeConfig")
-}
-
 // GetProxies returns the proxy settings from the configuration
 func (c *safeConfig) GetProxies() *Proxy {
 	c.Lock()

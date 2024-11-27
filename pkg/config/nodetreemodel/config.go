@@ -689,26 +689,6 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	return &config
 }
 
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (c *ntmConfig) CopyConfig(cfg model.Config) {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("CopyConfig")
-	if cfg, ok := cfg.(*ntmConfig); ok {
-		// TODO: Probably a bug, should be a deep copy, add a test and verify
-		c.root = cfg.root
-		c.envPrefix = cfg.envPrefix
-		c.envKeyReplacer = cfg.envKeyReplacer
-		c.proxies = cfg.proxies
-		c.configEnvVars = cfg.configEnvVars
-		c.unknownKeys = cfg.unknownKeys
-		c.notificationReceivers = cfg.notificationReceivers
-		return
-	}
-	panic("Replacement config must be an instance of ntmConfig")
-}
-
 // ExtraConfigFilesUsed returns the additional config files used
 func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	c.Lock()

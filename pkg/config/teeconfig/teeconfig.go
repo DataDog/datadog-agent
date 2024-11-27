@@ -369,13 +369,6 @@ func (t *teeConfig) Stringify(source model.Source) string {
 	return t.baseline.Stringify(source)
 }
 
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (t *teeConfig) CopyConfig(cfg model.Config) {
-	t.baseline.CopyConfig(cfg)
-	t.compare.CopyConfig(cfg)
-}
-
 func (t *teeConfig) GetProxies() *model.Proxy {
 	return t.baseline.GetProxies()
 }
