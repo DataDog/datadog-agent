@@ -32,7 +32,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -1073,14 +1072,42 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
-		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
+		if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 			pce = newPlaceholderProcessCacheEntryPTraceMe()
+		} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
+			seclog.Errorf("ptrace event without any PID to resolve")
+			return
 		} else {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false, newEntryCb)
+			pidToResolve := event.PTrace.PID
+
+			if pidToResolve == 0 { // resolve the PID given as argument instead
+				if event.ContainerContext.ContainerID == "" {
+					pidToResolve = event.PTrace.NSPID
+				} else {
+					// 1. get the pid namespace of the tracer
+					ns, err := utils.GetProcessPidNamespace(event.ProcessContext.Process.Pid)
+					if err != nil {
+						seclog.Errorf("Failed to resolve PID namespace: %v", err)
+						return
+					}
+
+					// 2. find the host pid matching the arg pid with he tracer namespace
+					pid, err := utils.FindPidNamespace(event.PTrace.NSPID, ns)
+					if err != nil {
+						seclog.Warnf("Failed to resolve tracee PID namespace: %v", err)
+						return
+					}
+
+					pidToResolve = pid
+				}
+			}
+
+			pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
 			if pce == nil {
-				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+				pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
 			}
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
@@ -1852,7 +1879,7 @@ func (p *EBPFProbe) EnableEnforcement(state bool) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -2116,7 +2143,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}

@@ -151,14 +151,6 @@ remove_persist_integration_files()
     fi
 }
 
-remove_apm_remote_config()
-{
-    if [ -f "$INSTALL_DIR/run/inject_config.yaml" ]; then
-        echo "Removing APM remote configuration file"
-        rm "$INSTALL_DIR/run/inject_config.yaml" || true
-    fi
-}
-
 remove_fips_module()
 {
     # We explicitly remove the ssl directory because files within this folder are generated via a script

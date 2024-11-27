@@ -8,15 +8,9 @@ package tags
 
 import (
 	"context"
-	"fmt"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remotetagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,6 +52,10 @@ func (t *DefaultResolver) Resolve(id string) []string {
 
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
+	if t.tagger == nil {
+		return nil, nil
+	}
+
 	entityID := types.NewEntityID(types.ContainerID, id)
 	return t.tagger.Tag(entityID, types.OrchestratorCardinality)
 }
@@ -69,6 +67,10 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 
 // Start the resolver
 func (t *DefaultResolver) Start(ctx context.Context) error {
+	if t.tagger == nil {
+		return nil
+	}
+
 	go func() {
 		if err := t.tagger.Start(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)
@@ -85,29 +87,19 @@ func (t *DefaultResolver) Start(ctx context.Context) error {
 
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
+	if t.tagger == nil {
+		return nil
+	}
 	return t.tagger.Stop()
 }
 
 // NewDefaultResolver returns a new default tags resolver
-func NewDefaultResolver(telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
-	ddConfig := pkgconfigsetup.Datadog()
-	resolver := &DefaultResolver{
+func NewDefaultResolver(tagger Tagger) *DefaultResolver {
+	if tagger == nil {
+		seclog.Errorf("initializing tags resolver with nil tagger")
+	}
+
+	return &DefaultResolver{
 		tagger: tagger,
 	}
-
-	params := taggerdef.RemoteParams{
-		RemoteFilter: types.NewMatchAllFilter(),
-		RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-		RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
-			return func() (string, error) {
-				return security.FetchAuthToken(c)
-			}
-		},
-	}
-
-	if tagger == nil {
-		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
-	}
-
-	return resolver
 }

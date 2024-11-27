@@ -879,6 +879,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
+	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -994,6 +995,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", false)
 	config.BindEnvAndSetDefault("remote_policies", false)
+	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
