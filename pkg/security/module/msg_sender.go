@@ -8,11 +8,17 @@ package module
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -94,4 +100,78 @@ func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
 	return &DirectMsgSender{
 		reporter: reporter,
 	}, nil
+}
+
+// DiskSender defines a disk sender
+type DiskSender struct {
+	outputDir string
+}
+
+// NewDiskSender returns a DiskSender
+func NewDiskSender(outputDir string) (*DiskSender, error) {
+	if _, err := os.Stat(outputDir); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+	return &DiskSender{
+		outputDir: outputDir,
+	}, nil
+}
+
+// Send writes the given message to disk
+func (ds *DiskSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
+	fileName := time.Now().Format(time.RFC3339Nano)
+	filePath := ""
+
+	// append event type to output file name
+	eventType := ""
+	if slices.ContainsFunc(msg.Tags, func(tag string) bool {
+		if strings.HasPrefix(tag, "type:") {
+			eventType = strings.TrimPrefix(tag, "type:")
+			return true
+		}
+		return false
+	}) {
+		fileName += "_" + eventType + ".json"
+	} else {
+		fileName += ".json"
+	}
+
+	// prepend containerID if any to output path
+	containerID := ""
+	if slices.ContainsFunc(msg.Tags, func(tag string) bool {
+		if strings.HasPrefix(tag, "container_id:") {
+			containerID = strings.TrimPrefix(tag, "container_id:")
+			return true
+		}
+		return false
+	}) {
+		newOutputDir := filepath.Join(ds.outputDir, containerID)
+		// create container output dir if doesnt exist
+		_, err := os.Stat(newOutputDir)
+		if os.IsNotExist(err) {
+			err := os.MkdirAll(newOutputDir, 0755)
+			if err != nil {
+				seclog.Errorf("Failed to create output directory %s: %v", newOutputDir, err)
+				return
+			}
+		} else if err != nil {
+			seclog.Errorf("Failed to stat output directory %s: %v", newOutputDir, err)
+			return
+		}
+		filePath = filepath.Join(newOutputDir, fileName)
+	} else {
+		filePath = filepath.Join(ds.outputDir, fileName)
+	}
+
+	// dump the event as json file
+	err := os.WriteFile(filePath, msg.Data, 0666)
+	if err != nil {
+		seclog.Errorf("Failed to log event: %v", err)
+	}
 }

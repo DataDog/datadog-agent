@@ -32,7 +32,7 @@ var (
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
-	EventsPerfRingBufferSize = 256 * os.Getpagesize()
+	EventsPerfRingBufferSize = 1025 * os.Getpagesize()
 )
 
 // computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
@@ -44,10 +44,10 @@ func computeDefaultEventsRingBufferSize() uint32 {
 	}
 
 	if numCPU <= 16 {
-		return uint32(8 * 256 * os.Getpagesize())
+		return uint32(8 * 1024 * os.Getpagesize())
 	}
 
-	return uint32(16 * 256 * os.Getpagesize())
+	return uint32(16 * 1024 * os.Getpagesize())
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
