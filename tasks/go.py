@@ -213,6 +213,7 @@ def generate_protobuf(ctx):
         'trace': (False, True),
         'process': (False, False),
         'workloadmeta': (False, False),
+        'autodiscovery': (False, False),
         'languagedetection': (False, False),
         'remoteagent': (False, False),
     }

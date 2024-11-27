@@ -117,6 +117,15 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
+# KA_AGENT_TAGS lists the tags needed when building the Kernel agent
+KA_AGENT_TAGS = {"zlib", "zstd", "docker", "kubelet"}
+
+# LOGS_AGENT_TAGS lists the tags needed when building the Logs agent
+LOGS_AGENT_TAGS = {"docker", "kubelet"}
+
+# CHECKS_AGENT_TAGS lists the tags needed when building the Logs agent
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python"}
+
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = {"docker", "ec2", "gce", "kubelet"}
 
@@ -234,6 +243,21 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.ka: {
+        "agent": KA_AGENT_TAGS,
+        "lint": KA_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": KA_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.logs: {
+        "agent": LOGS_AGENT_TAGS,
+        "lint": LOGS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": LOGS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.checks: {
+        "agent": CHECKS_AGENT_TAGS,
+        "lint": CHECKS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": CHECKS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

@@ -10,15 +10,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	auProto "github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
@@ -39,11 +44,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	remoteAdScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/remoteAd"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -79,8 +86,8 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
-	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+	GrpcClient         grpcClient.Component
 	Tagger             tagger.Component
 }
 
@@ -119,6 +126,9 @@ type logAgent struct {
 	wmeta                     optional.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
+	grpcClient                grpcClient.Component
+	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
+	autodiscoveryStreamCancel context.CancelFunc
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -146,8 +156,8 @@ func newLogsAgent(deps dependencies) provides {
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),
 			flarecontroller:    flareController.NewFlareController(),
-			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
+			grpcClient:         deps.GrpcClient,
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 		}
@@ -202,8 +212,84 @@ func (a *logAgent) start(context.Context) error {
 		return err
 	}
 
+	remoteAdScheduler := remoteAdScheduler.New()
+
+	go func() {
+		for {
+			if a.autodiscoveryStream == nil {
+				err := a.initStream()
+				if err != nil {
+					a.log.Warnf("error received trying to start stream: %s", err)
+					continue
+				}
+			}
+
+			if remoteAdScheduler.Started() {
+				streamConfigs, err := a.autodiscoveryStream.Recv()
+
+				if err != nil {
+					a.autodiscoveryStreamCancel()
+
+					a.autodiscoveryStream = nil
+
+					if err != io.EOF {
+						a.log.Warnf("error received from autodiscovery stream: %s", err)
+					}
+
+					continue
+				}
+
+				scheduleConfigs := []integration.Config{}
+				unscheduleConfigs := []integration.Config{}
+
+				for _, config := range streamConfigs.Configs {
+					if config.EventType == core.ConfigEventType_SCHEDULE {
+						scheduleConfigs = append(scheduleConfigs, auProto.AutodiscoveryConfigFromprotobufConfig(config))
+					} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
+						unscheduleConfigs = append(unscheduleConfigs, auProto.AutodiscoveryConfigFromprotobufConfig(config))
+					}
+				}
+
+				remoteAdScheduler.Schedule(scheduleConfigs)
+				remoteAdScheduler.UnSchedule(unscheduleConfigs)
+			}
+		}
+	}()
+
+	a.AddScheduler(remoteAdScheduler)
+
 	a.startPipeline()
 	return nil
+}
+
+func (a *logAgent) initStream() error {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 500 * time.Millisecond
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.MaxElapsedTime = 0 * time.Minute
+
+	return backoff.Retry(func() error {
+		select {
+		case <-a.grpcClient.Context().Done():
+			return &backoff.PermanentError{}
+		default:
+		}
+
+		streamCtx, streamCancelCtx := a.grpcClient.NewStreamContext()
+
+		stream, err := a.grpcClient.AutodiscoveryStreamConfig(streamCtx, nil)
+		if err != nil {
+			a.log.Infof("unable to establish stream, will possibly retry: %s", err)
+			// We need to handle the case that the kernel agent dies
+			return err
+		}
+
+		a.autodiscoveryStream = stream
+		a.autodiscoveryStreamCancel = streamCancelCtx
+
+		a.log.Info("autodiscovery stream established successfully")
+		return nil
+	}, expBackoff)
 }
 
 func (a *logAgent) setupAgent() error {
@@ -236,7 +322,8 @@ func (a *logAgent) setupAgent() error {
 		a.log.Error(fmt.Errorf("error while reading configuration, will block until the Agents receive an SDS configuration: %v", err))
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
+	a.SetupPipeline(processingRules, a.integrationsLogs)
+
 	return nil
 }
 
@@ -325,6 +412,11 @@ func (a *logAgent) stop(context.Context) error {
 			}
 		}
 	}
+
+	a.grpcClient.Cancel()
+	a.autodiscoveryStreamCancel()
+	a.autodiscoveryStream = nil
+
 	a.log.Info("logs-agent stopped")
 	return nil
 }
