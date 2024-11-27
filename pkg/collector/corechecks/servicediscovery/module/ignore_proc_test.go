@@ -66,7 +66,7 @@ func TestShouldIgnorePid(t *testing.T) {
 				_ = cmd.Process.Kill()
 			})
 
-			discovery := newDiscovery()
+			discovery := newDiscovery(nil)
 			require.NotEmpty(t, discovery)
 
 			proc, err := customNewProcess(int32(cmd.Process.Pid))

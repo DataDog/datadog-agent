@@ -13,6 +13,7 @@ import requests
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
 
 try:
@@ -626,7 +627,7 @@ Make sure that milestone is open before trying again.""",
     ]
 
     if changelog_pr:
-        labels.append("backport/main")
+        labels.append(f"backport/{get_default_branch()}")
 
     updated_pr = github.update_pr(
         pull_number=pr.number,

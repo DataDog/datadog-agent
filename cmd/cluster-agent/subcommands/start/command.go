@@ -58,7 +58,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformfxnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -141,7 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+				eventplatformfxnoop.Module(),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),

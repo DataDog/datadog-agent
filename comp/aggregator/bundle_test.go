@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-mock"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
@@ -25,7 +25,7 @@ func TestBundleDependencies(t *testing.T) {
 		compressionmock.MockModule(),
 		defaultforwarder.MockModule(),
 		orchestratorForwarderImpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		eventplatformmock.MockModule(),
 		nooptagger.Module(),
 		haagentmock.Module(),
 	)
