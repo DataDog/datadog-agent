@@ -9,7 +9,7 @@ struct event {
 };
 
 struct expression_context {
-    int *output_offset;
+    __u64 *output_offset;
     struct pt_regs *ctx;
     struct event *event;
     __u16 *limit;

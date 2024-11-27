@@ -222,24 +222,20 @@ static __always_inline int dereference_dynamic_to_output(struct expression_conte
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
 
-    __u16 collection_size;
+    __u32 collection_size;
     collection_size = (__u16)lengthToRead;
     if (collection_size > bytes_limit) {
         collection_size = bytes_limit;
     }
-    bpf_printk("size after limiting is: %d", collection_size);
-
-    if ((*(context.output_offset) + collection_size) < PARAM_BUFFER_SIZE) {
-        bpf_printk("reading string from 0x%x", addressHolder);
-        err = bpf_probe_read(&context.event->output[*(context.output_offset)], collection_size, (void*)addressHolder);
-        if (err != 0) {
-            bpf_printk("error when doing dynamic dereference: %d", err);
-        }
-        bpf_printk("success");
-        *context.output_offset += collection_size;
-    } else {
-        bpf_printk("couldn't read dynamic type to output, would exceed output buffer length");
+    err = bpf_probe_read(&context.event->output[*(context.output_offset)], collection_size, (void*)addressHolder);
+    if (err != 0) {
+        bpf_printk("error when doing dynamic dereference: %d", err);
     }
+
+    if (collection_size > bytes_limit) {
+        collection_size = bytes_limit;
+    }
+    *context.output_offset += collection_size;
     return err;
 }
 
@@ -266,34 +262,41 @@ static __always_inline int copy(struct expression_context context)
 
 static __always_inline int read_str_to_output(struct expression_context context, __u16 limit)
 {
+    // Expect the address of the string struct on the stack
     long err;
+
     __u64 stringStructAddressHolder = 0;
     err = bpf_map_pop_elem(&param_stack, &stringStructAddressHolder);
     if (err != 0) {
         bpf_printk("error popping string struct addr: %d", err);
+        return err;
     }
 
-    char *charArray;
-    err = bpf_probe_read(&charArray, sizeof(charArray), (void*)stringStructAddressHolder);
-    if (err != 0) {
-        bpf_printk("error reading string char pointer: %d", err);
-    }
+    char* characterPointer = 0;
+    err = bpf_probe_read(&characterPointer, sizeof(characterPointer), (void*)(stringStructAddressHolder));
+    bpf_printk("Reading from 0x%x", characterPointer);
 
-    __u16 length;
-    err = bpf_probe_read(&length, sizeof(length), (void*)stringStructAddressHolder+8);
+    __u32 length;
+    err = bpf_probe_read(&length, sizeof(length), (void*)(stringStructAddressHolder+8));
     if (err != 0) {
         bpf_printk("error reading string length: %d", err);
+        return err;
     }
-
     if (length > limit) {
         length = limit;
     }
 
-    err = bpf_probe_read(&context.event->output[*(context.output_offset)], length, charArray);
+    err = bpf_probe_read(&context.event->output[*(context.output_offset)], length, (char*)characterPointer);
     if (err != 0) {
         bpf_printk("error reading string: %d", err);
     }
+    // Have to check again to make sure the verifier knows
+    if (length > limit) {
+        length = limit;
+    }
     *context.output_offset += length;
+    bpf_printk("Read %d bytes (limit = %d)", length, limit);
+
     return err;
 }
 #endif

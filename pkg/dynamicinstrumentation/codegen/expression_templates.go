@@ -90,7 +90,7 @@ set_global_limit(context, {{.Arg1}});
 `
 
 var jumpIfGreaterThanLimitText = `
-if ({{.Arg1}} > collectionLimit) {
+if ({{.Arg1}} == collectionLimit) {
     goto {{.Label}};
 }
 `
