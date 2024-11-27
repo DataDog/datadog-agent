@@ -44,7 +44,6 @@ static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple
 
     // this code path is executed once during the entire connection lifecycle
     protocol_stack_wrapper_t empty_wrapper = {0};
-    empty_wrapper.updated = bpf_ktime_get_ns();
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
