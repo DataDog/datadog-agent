@@ -20,6 +20,7 @@ static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tup
     if (!wrapper) {
         return NULL;
     }
+    wrapper->updated = bpf_ktime_get_ns();
     return &wrapper->stack;
 }
 
