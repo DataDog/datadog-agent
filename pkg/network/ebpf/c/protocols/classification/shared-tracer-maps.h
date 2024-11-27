@@ -37,10 +37,9 @@ static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple
 static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
-    protocol_stack_wrapper_t* wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    protocol_stack_t *wrapper = __get_protocol_stack_if_exists(&normalized_tup);
     if (wrapper) {
-        wrapper->updated = bpf_ktime_get_ns();
-        return &wrapper->stack;
+        return wrapper;
     }
 
     // this code path is executed once during the entire connection lifecycle
