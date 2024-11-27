@@ -553,18 +553,19 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:                int(pid),
-		Name:               name,
-		GeneratedName:      info.generatedName,
-		DDService:          info.ddServiceName,
-		DDServiceInjected:  info.ddServiceInjected,
-		Ports:              ports,
-		APMInstrumentation: string(info.apmInstrumentation),
-		Language:           string(info.language),
-		RSS:                rss,
-		CommandLine:        info.cmdLine,
-		StartTimeMilli:     info.startTimeMilli,
-		CPUCores:           info.cpuUsage,
+		PID:                            int(pid),
+		Name:                           name,
+		GeneratedName:                  info.generatedName,
+		DDService:                      info.ddServiceName,
+		DDServiceInjected:              info.ddServiceInjected,
+		GeneratedNameFromContainerTags: info.generatedNameFromContainerTags,
+		Ports:                          ports,
+		APMInstrumentation:             string(info.apmInstrumentation),
+		Language:                       string(info.language),
+		RSS:                            rss,
+		CommandLine:                    info.cmdLine,
+		StartTimeMilli:                 info.startTimeMilli,
+		CPUCores:                       info.cpuUsage,
 	}
 }
 
@@ -621,11 +622,6 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	serviceInfo, ok := s.cache[int32(service.PID)]
-	if !ok {
-		return
-	}
-
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -644,7 +640,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	log.Debugf("Found container id for %v: %v", service.Name, id)
 
 	// We got the service name from container tags before, no need to do it again.
-	if serviceInfo.generatedNameFromContainerTags {
+	if service.GeneratedNameFromContainerTags {
 		return
 	}
 
@@ -687,10 +683,17 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	if serviceName != "" {
 		s.mux.Lock()
+		defer s.mux.Unlock()
+
+		serviceInfo, ok := s.cache[int32(service.PID)]
+		if !ok {
+			return
+		}
+
 		service.GeneratedName = serviceName
+		service.GeneratedNameFromContainerTags = true
 		serviceInfo.generatedName = serviceName
 		serviceInfo.generatedNameFromContainerTags = true
-		s.mux.Unlock()
 	}
 }
 
