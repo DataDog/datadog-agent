@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"reflect"
 	"runtime"
 	"strconv"
 	"sync"
@@ -103,8 +104,9 @@ type Agent struct {
 	Timing                timing.Reporter
 
 	// obfuscator is used to obfuscate sensitive data from various span
-	// tags based on their type.
-	obfuscator *obfuscate.Obfuscator
+	// tags based on their type. It is lazy initialized with obfuscatorConf in obfuscate.go
+	obfuscator     *obfuscate.Obfuscator
+	obfuscatorConf *obfuscate.Config
 
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
@@ -156,7 +158,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
 		StatsWriter:           statsWriter,
-		obfuscator:            obfuscate.NewObfuscator(oconf),
+		obfuscatorConf:        &oconf,
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
@@ -273,7 +275,10 @@ func (a *Agent) loop() {
 		a.obfuscator,
 		a.DebugServer,
 	} {
-		stopper.Stop()
+		// Fun with golang nil checks
+		if stopper != nil && !reflect.ValueOf(stopper).IsNil() {
+			stopper.Stop()
+		}
 	}
 }
 

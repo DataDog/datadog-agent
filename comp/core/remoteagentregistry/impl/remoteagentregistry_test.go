@@ -16,6 +16,12 @@ import (
 	"strconv"
 	"testing"
 
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -23,11 +29,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -147,7 +148,7 @@ func TestFlareProvider(t *testing.T) {
 	fb := helpers.NewFlareBuilderMock(t, false)
 	fb.AssertNoFileExists("test-agent/test_file.yaml")
 
-	err = flareProvider.Callback(fb.Fb)
+	err = flareProvider.FlareFiller.Callback(fb.Fb)
 	require.NoError(t, err)
 	fb.AssertFileExists("test-agent/test_file.yaml")
 	fb.AssertFileContent("test_content", "test-agent/test_file.yaml")
@@ -206,7 +207,7 @@ func TestDisabled(t *testing.T) {
 	provides, _ := buildComponentWithConfig(t, config)
 
 	require.Nil(t, provides.Comp)
-	require.Nil(t, provides.FlareProvider.Callback)
+	require.Nil(t, provides.FlareProvider.FlareFiller)
 	require.Nil(t, provides.Status.Provider)
 }
 

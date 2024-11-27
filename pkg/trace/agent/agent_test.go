@@ -1800,7 +1800,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		a := &Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{}), conf: config.New()}
+		a := &Agent{obfuscatorConf: &obfuscate.Config{}, conf: config.New()}
 		a.obfuscateSpan(span)
 		a.Truncate(span)
 	}
@@ -2190,10 +2190,10 @@ func TestConvertStats(t *testing.T) {
 			}
 
 			a := Agent{
-				Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
-				obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
-				Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
-				conf:        cfg,
+				Blacklister:    filters.NewBlacklister([]string{"blocked_resource"}),
+				obfuscatorConf: &obfuscate.Config{},
+				Replacer:       filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
+				conf:           cfg,
 			}
 
 			out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, testCase.containerID)
