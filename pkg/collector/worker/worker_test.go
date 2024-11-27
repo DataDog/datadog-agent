@@ -639,7 +639,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 }
 
 func TestWorker_HaIntegration(t *testing.T) {
-	testHostname := "my-agent-hostname"
+	testHostname := "myhost"
 	tests := []struct {
 		name             string
 		setLeaderValue   string
@@ -658,8 +658,8 @@ func TestWorker_HaIntegration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			expvars.Reset()
+			pkgconfigsetup.Datadog().SetWithoutSource("hostname", testHostname)
 
 			var wg sync.WaitGroup
 
@@ -673,7 +673,6 @@ func TestWorker_HaIntegration(t *testing.T) {
 			close(pendingChecksChan)
 
 			agentConfigs := map[string]interface{}{
-				"hostname":         testHostname,
 				"ha_agent.enabled": true,
 				"ha_agent.group":   "my-group-01",
 			}

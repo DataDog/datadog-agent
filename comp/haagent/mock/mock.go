@@ -45,7 +45,7 @@ func (m *mockHaAgent) SetEnabled(enabled bool) {
 }
 
 func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
-	return false
+	return true
 }
 
 // Component is the component type.
