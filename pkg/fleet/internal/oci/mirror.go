@@ -48,6 +48,9 @@ func (mt *mirrorTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if err != nil {
 		return nil, err
 	}
+	if r.StatusCode != http.StatusOK {
+		return r, nil
+	}
 	// Unfortunately some mirrors (ex: Nexus) do not respect the Content-Type header of the original request.
 	// We fix the Content-Type header for manifest requests to match the mediaType field in the manifest.
 	if isManifestPath(req.URL.Path) {
