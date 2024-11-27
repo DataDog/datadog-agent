@@ -251,16 +251,16 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(s
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
-    if (!protocol_stack) {
-        return;
-    }
-
-    // The GRPC classification program can be called without a prior
-    // classification of HTTP2, which is a precondition.
-    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
-    if (app_layer_proto == PROTOCOL_HTTP2) {
-        classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
+    // gRPC classification can happen only if the application layer is known
+    // So if we don't have a protocol stack, we can continue to the next program.
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    if (protocol_stack) {
+        // The GRPC classification program can be called without a prior
+        // classification of HTTP2, which is a precondition.
+        protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
+        if (app_layer_proto == PROTOCOL_HTTP2) {
+            classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
+        }
     }
 
     classification_next_program(skb, usm_ctx);
