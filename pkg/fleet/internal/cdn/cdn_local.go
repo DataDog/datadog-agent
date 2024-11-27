@@ -19,7 +19,7 @@ type fetcherLocal struct {
 }
 
 // newfetcherLocal creates a new local CDN.
-func newLocalFetcher(env *env.Env) (Fetcher, error) {
+func newLocalFetcher(env *env.Env) (fetcher, error) {
 	return &fetcherLocal{
 		dirPath: env.CDNLocalDirPath,
 	}, nil

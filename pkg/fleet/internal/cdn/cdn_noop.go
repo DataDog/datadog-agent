@@ -15,7 +15,7 @@ type fetcherNoop struct {
 }
 
 // newNoopFetcher creates a new noop CDN.
-func newNoopFetcher() (Fetcher, error) {
+func newNoopFetcher() (fetcher, error) {
 	return &fetcherNoop{}, nil
 }
 

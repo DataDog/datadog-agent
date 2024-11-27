@@ -33,15 +33,15 @@ type Config interface {
 	Write(dir string) error
 }
 
-// Fetcher provides access to the Remote Config CDN.
-type Fetcher interface {
+// fetcher provides access to the Remote Config CDN.
+type fetcher interface {
 	get(ctx context.Context) ([][]byte, error)
 	close() error
 }
 
 // CDN provides access to the Remote Config CDN.
 type CDN struct {
-	fetcher        Fetcher
+	fetcher        fetcher
 	hostTagsGetter hostTagsGetter
 }
 
