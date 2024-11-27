@@ -479,8 +479,8 @@ class CollectorVersionUpdater:
             "./tasks/collector.py",
             "./.gitlab/integration_test/otel.yml",
         ]
-        for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
-            for file in files:
+        for root, _, testfiles in os.walk("./tasks/unit_tests/testdata/collector"):
+            for file in testfiles:
                 files.append(os.path.join(root, file))
         collector_version = self.core_collector.get_version()[1:]
         for file in files:
