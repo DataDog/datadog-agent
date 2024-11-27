@@ -116,7 +116,7 @@ func TestMirrorTransportContentTypeRemap(t *testing.T) {
 }
 
 func TestMirrorManifestPathWithError(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	}))
 	defer upstream.Close()
