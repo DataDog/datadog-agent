@@ -115,6 +115,9 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
+
+	// Cache holds the configuration for caching obfuscation results.
+	Cache obfuscate.CacheConfig `mapstructure:"cache"`
 }
 
 func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
@@ -132,7 +135,6 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			Cache:            conf.HasFeature("sql_cache"),
 			ObfuscationMode:  obfuscationMode(conf.HasFeature("sqllexer")),
 		},
 		ES:                   o.ES,
@@ -145,6 +147,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
+		Cache:                o.Cache,
 	}
 }
 

@@ -372,6 +372,7 @@
 /pkg/clusteragent/autoscaling/          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
+/pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-metrics-logs
@@ -464,6 +465,7 @@
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/util/testutil/flake                @DataDog/agent-devx-loops
+/pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/linters/                           @DataDog/agent-devx-loops
