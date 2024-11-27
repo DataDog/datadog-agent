@@ -682,17 +682,16 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	}
 
 	if serviceName != "" {
-		s.mux.Lock()
-		defer s.mux.Unlock()
-
-		serviceInfo, ok := s.cache[int32(service.PID)]
-		if !ok {
-			return
-		}
-
 		service.GeneratedName = serviceName
-		serviceInfo.generatedName = serviceName
-		serviceInfo.generatedNameFromContainerTags = true
+
+		s.mux.Lock()
+		serviceInfo, ok := s.cache[int32(service.PID)]
+		if ok {
+			serviceInfo.generatedName = serviceName
+			serviceInfo.generatedNameFromContainerTags = true
+		}
+		s.mux.Unlock()
+
 	}
 	service.CheckedContainerData = true
 }
