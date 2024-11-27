@@ -59,6 +59,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/status/health v0.59.0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
 	github.com/benbjohnson/clock v1.3.5
@@ -77,7 +78,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/status/health v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
