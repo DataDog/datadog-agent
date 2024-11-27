@@ -10,6 +10,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 // Requires defines the dependencies for the haagent component
@@ -20,14 +22,25 @@ type Requires struct {
 
 // Provides defines the output of the haagent component
 type Provides struct {
-	Comp haagent.Component
+	Comp       haagent.Component
+	RCListener rctypes.ListenerProvider
 }
 
 // NewComponent creates a new haagent component
 func NewComponent(reqs Requires) (Provides, error) {
 	haAgentConfigs := newHaAgentConfigs(reqs.AgentConfig)
+	haAgent := newHaAgentImpl(reqs.Logger, haAgentConfigs)
+	var rcListener rctypes.ListenerProvider
+	if haAgent.Enabled() {
+		reqs.Logger.Debug("Add onHaAgentUpdate RCListener")
+		rcListener.ListenerProvider = rctypes.RCListener{
+			state.ProductHaAgent: haAgent.onHaAgentUpdate,
+		}
+	}
+
 	provides := Provides{
-		Comp: newHaAgentImpl(reqs.Logger, haAgentConfigs),
+		Comp:       haAgent,
+		RCListener: rcListener,
 	}
 	return provides, nil
 }
