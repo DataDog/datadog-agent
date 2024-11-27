@@ -494,7 +494,7 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.logErrorNotImplemented("UnmarshalKey")
+	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
 }
 
 // MergeConfig merges in another config
@@ -642,11 +642,9 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
-// SetTypeByDefaultValue enables typing using default values
+// SetTypeByDefaultValue is a no-op
 func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("SetTypeByDefaultValue")
+	// do nothing: nodetreemodel always does this conversion
 }
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
@@ -684,7 +682,6 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		envTransform:       make(map[string]func(string) interface{}),
 	}
 
-	config.SetTypeByDefaultValue(true)
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
