@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package testutil provides utilities for testing the network package.
+//go:build test
+
+// Package testutil provides general test utilities
 package testutil
 
 import (
@@ -72,5 +74,5 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 
 // PrintLogs writes the captured logs into the test logger.
 func (ps *PatternScanner) PrintLogs(t testing.TB) {
-	t.Log(strings.Join(ps.buffers, ""))
+	t.Log(strings.Join(ps.buffers, "\n"))
 }

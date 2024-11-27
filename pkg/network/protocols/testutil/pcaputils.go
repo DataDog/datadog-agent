@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package testutil provides general utilities for protocols UTs.
 package testutil
 
 import (
