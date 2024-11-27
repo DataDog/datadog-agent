@@ -4,6 +4,7 @@ Docker related tasks
 
 import os
 import shutil
+import sys
 import tempfile
 
 from invoke import task
@@ -67,8 +68,7 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-RUN docker login
-CMD echo $HOME && whoami && echo "hihi" && /test.bin
+CMD echo $HOME && whoami && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && docker login && echo "hihi" && /test.bin
 COPY test.bin /test.bin
 """
         )
@@ -83,7 +83,7 @@ COPY test.bin /test.bin
 
     test_container = client.containers.run(
         test_image.id,
-        detach=False,
+        detach=True,
         stdout=True,
         stderr=True,
         pid_mode="host",  # For origin detection
@@ -102,6 +102,11 @@ COPY test.bin /test.bin
     exit_code = test_container.wait()['StatusCode']
 
     print("coucou" * 100)
+    stdout_logs = test_container.logs(stdout=True, stderr=False, stream=False).decode(sys.stdout.encoding)
+    stderr_logs = test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding)
+
+    print(stdout_logs)
+    print(stderr_logs, file=sys.stderr)
 
     skip_cleanup = True
     if not skip_cleanup:
