@@ -2,7 +2,7 @@ import os
 import re
 
 from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
-from tasks.libs.common.constants import DEFAULT_BRANCH
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
@@ -40,7 +40,7 @@ def send_message(ctx, notification_type, dry_run):
     # For deploy pipelines not on the main branch, send notifications in a
     # dedicated channel.
     slack_channel = PIPELINES_CHANNEL
-    if notification_type == "deploy" and pipeline.ref != DEFAULT_BRANCH:
+    if notification_type == "deploy" and pipeline.ref != get_default_branch():
         slack_channel = DEPLOY_PIPELINES_CHANNEL
 
     header = ""
@@ -64,7 +64,7 @@ def send_message(ctx, notification_type, dry_run):
     else:
         send_slack_message(slack_channel, str(message))
 
-    if should_send_message_to_author(pipeline.ref, DEFAULT_BRANCH):
+    if should_send_message_to_author(pipeline.ref, get_default_branch()):
         author_email = commit.author_email
         if dry_run:
             print(f"Would send to {author_email}:\n{str(message)}")
