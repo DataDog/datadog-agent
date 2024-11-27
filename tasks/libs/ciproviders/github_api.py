@@ -99,7 +99,17 @@ class GithubAPI:
             raise Exit(color_message(f"Branch {branch_name} not found", Color.RED), code=1)
         elif not branch.protected:
             raise Exit(color_message(f"Branch {branch_name} doesn't have protection", Color.RED), code=1)
-        return branch.get_protection()
+        try:
+            protection = branch.get_protection()
+        except GithubException as e:
+            if e.status == 403:
+                error_msg = f"""Can't access {branch_name} branch protection, probably due to missing permissions. You need either:
+    - A Personal Access Token (PAT) needs the "repo" permissions.
+    - Or a fine-grained token needs the "Administration" repository permissions.
+"""
+                raise PermissionError(error_msg) from e
+            raise
+        return protection
 
     def protection_to_payload(self, protection_raw_data: dict) -> dict:
         """
