@@ -125,7 +125,6 @@ class GithubAPI:
         return {
             "required_status_checks": {
                 "strict": prot["required_status_checks"]["strict"],
-                # "contexts": prot["required_status_checks"]["contexts"],
                 "checks": [
                     {"context": check["context"], "app_id": -1 if check["app_id"] is None else check["app_id"]}
                     for check in prot["required_status_checks"]["checks"]
