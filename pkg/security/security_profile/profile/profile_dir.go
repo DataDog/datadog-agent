@@ -355,11 +355,11 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 			} else {
 				seclog.Warnf("couldn't load new profile %s: %v", file, err)
 			}
+			filesToCleanup = append(filesToCleanup, file)
 		} else if existingProfile != nil {
 			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", existingProfile.path, existingProfile.selector)
+			filesToCleanup = append(filesToCleanup, file)
 		}
-
-		filesToCleanup = append(filesToCleanup, file)
 	}
 
 	if len(filesToCleanup) != 0 {
