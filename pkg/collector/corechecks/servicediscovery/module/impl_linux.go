@@ -719,7 +719,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	// Build mapping of Container ID to container object to avoid traversal of
 	// the containers slice for every services.
-	containersMap := make(map[string]*agentPayload.Container)
+	containersMap := make(map[string]*agentPayload.Container, 10)
 	for _, c := range containers {
 		containersMap[c.Id] = c
 	}
