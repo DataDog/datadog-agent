@@ -643,6 +643,8 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	log.Debugf("Found container id for %v: %v", service.Name, id)
 	container := containers[id]
 
+	var serviceName string
+
 	for _, tag := range container.Tags {
 		// Get index of separator between name and value
 		sepIndex := strings.IndexRune(tag, ':')
@@ -668,10 +670,16 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 			continue
 		}
 
-		service.GeneratedName = *tag.tagValue
-		serviceInfo.generatedName = *tag.tagValue
+		serviceName = *tag.tagValue
 		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
 		break
+	}
+
+	if serviceName != "" {
+		s.mux.Lock()
+		service.GeneratedName = serviceName
+		serviceInfo.generatedName = serviceName
+		s.mux.Unlock()
 	}
 }
 
