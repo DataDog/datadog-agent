@@ -18,7 +18,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -1477,12 +1476,12 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
 
-	pp, err := NewWindowsProbe(p, config, opts, telemetry)
+	pp, err := NewWindowsProbe(p, config, opts)
 	if err != nil {
 		return nil, err
 	}
