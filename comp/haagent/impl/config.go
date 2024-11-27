@@ -14,7 +14,12 @@ import (
 // At the moment, the list of HA Integrations is hardcoded here, but we might provide
 // more dynamic way to configure which integration should be considered HA Integration.
 var validHaIntegrations = map[string]bool{
-	"snmp":         true,
+	// NDM integrations
+	"snmp":        true,
+	"cisco_aci":   true,
+	"cisco_sdwan": true,
+
+	// Other integrations
 	"network_path": true,
 }
 
