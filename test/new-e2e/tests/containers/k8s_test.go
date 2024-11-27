@@ -38,13 +38,12 @@ import (
 )
 
 const (
-	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
-	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
-	kubeNamespaceTracegenWorkload           = "workload-tracegen"
-	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
-	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
-	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
-	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
+	kubeNamespaceDogstatsWorkload     = "workload-dogstatsd"
+	kubeNamespaceTracegenWorkload     = "workload-tracegen"
+	kubeDeploymentDogstatsdUDPOrigin  = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDS        = "dogstatsd-uds"
+	kubeDeploymentTracegenTCPWorkload = "tracegen-tcp"
+	kubeDeploymentTracegenUDSWorkload = "tracegen-uds"
 )
 
 var GitCommit string
@@ -166,21 +165,12 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				return
 			}
 
-			dogstatsdPods, err := suite.K8sClient.CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
-			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list dogstatsd standalone pods") {
-				return
-			}
-
 			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
 			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
 			assert.NotEmpty(c, clusterAgentPods.Items)
 			assert.NotEmpty(c, clusterChecksPods.Items)
-			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
 
-			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
+			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods} {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
