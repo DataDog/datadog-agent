@@ -291,11 +291,15 @@
                                             },
                                             "ip": {
                                                 "type": "string"
+                                            },
+                                            "protocol": {
+                                                "type": "integer"
                                             }
                                         },
                                         "required": [
                                             "port",
-                                            "ip"
+                                            "ip",
+                                            "protocol"
                                         ]
                                     }
                                 }

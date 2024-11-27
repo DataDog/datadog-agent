@@ -79,13 +79,14 @@ func (h *Host) setSystemdVersion() {
 
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
+	defer func() { h.remote.MustExecute("sudo systemctl start docker") }()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
 	}
 
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
-		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
+		h.remote.MustExecute(`sudo sh -c "yum -y install docker"`)
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
@@ -432,6 +433,45 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 	}
 	h.remote.MustExecute(fmt.Sprintf("umask | grep -q %s", mask)) // Correctness check
 	return oldmask
+}
+
+// SetupProxy sets up a Squid Proxy with Docker & adds iptables/nftables rules to redirect block all traffic
+// except for the proxy
+func (h *Host) SetupProxy() {
+	// Install Docker & the Squid Proxy
+	h.InstallDocker()
+	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta")
+
+	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
+
+	// Block all traffic except for the proxy
+	// Allow squid proxy
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -A OUTPUT -d 0.0.0.0/0 -p tcp -s \"%s\" --dport 80 -j ACCEPT", squidIP))
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -A OUTPUT -d 0.0.0.0/0 -p tcp -s \"%s\" --dport 443 -j ACCEPT", squidIP))
+	// Block all traffic
+	h.remote.MustExecute("sudo iptables -A OUTPUT -p tcp --dport 80 -j REJECT")
+	h.remote.MustExecute("sudo iptables -A OUTPUT -p tcp --dport 443 -j REJECT")
+
+	// Check proxy works
+	_, err := h.remote.Execute("curl https://google.com")
+	require.Error(h.t, err)
+}
+
+// RemoveProxy removes the Squid Proxy & iptables/nftables rules
+func (h *Host) RemoveProxy() {
+	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
+
+	// Remove traffic block
+	// Remove squid proxy rules
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -D OUTPUT -p tcp -s \"%s\" --dport 80 -j ACCEPT", squidIP))
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -D OUTPUT -p tcp -s \"%s\" --dport 443 -j ACCEPT", squidIP))
+	// Remove block rules
+	h.remote.MustExecute("sudo iptables -D OUTPUT -p tcp --dport 80 -j REJECT")
+	h.remote.MustExecute("sudo iptables -D OUTPUT -p tcp --dport 443 -j REJECT")
+
+	// Check proxy removed
+	_, err := h.remote.Execute("curl https://google.com")
+	require.NoError(h.t, err)
 }
 
 // LoadState is the load state of a systemd unit.
