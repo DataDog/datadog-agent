@@ -765,7 +765,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
         create_release_pr(
             f"[release] Update current milestone to {next}",
-            "main",
+            get_default_branch(),
             milestone_branch,
             next,
         )
@@ -785,8 +785,8 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
             with open(file, "w") as gl:
                 for line in file_content:
-                    if re.search(r"compare_to: main", line):
-                        gl.write(line.replace("main", f"{release_branch}"))
+                    if re.search(rf"compare_to: {get_default_branch()}", line):
+                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
                     else:
                         gl.write(line)
 

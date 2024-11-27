@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
+package haagentimpl
 
-package compression
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+type haAgentConfig struct {
+	Group  string `json:"group"`
+	Leader string `json:"leader"`
 }
