@@ -23,6 +23,14 @@ static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tup
     return &wrapper->stack;
 }
 
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, returns NULL.
+static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return __get_protocol_stack_if_exists(&normalized_tup);
+}
+
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
