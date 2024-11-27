@@ -7,11 +7,13 @@ package sender
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -20,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
@@ -36,6 +39,9 @@ func TestSender(t *testing.T) {
 
 	source := sources.NewLogSource("", &config.LogsConfig{})
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -46,7 +52,7 @@ func TestSender(t *testing.T) {
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
 	cfg := configmock.New(t)
-	sender := NewSender(cfg, input, output, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -58,6 +64,7 @@ func TestSender(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, message, expectedMessage)
 
+	auditor.Stop()
 	sender.Stop()
 	destinationsCtx.Stop()
 }
@@ -68,13 +75,16 @@ func TestSenderSingleDestination(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	respondChan := make(chan int)
 
 	server := http.NewTestServerWithOptions(200, 0, true, respondChan, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -86,6 +96,7 @@ func TestSenderSingleDestination(t *testing.T) {
 	<-respondChan
 	<-output
 
+	auditor.Stop()
 	server.Stop()
 	sender.Stop()
 }
@@ -96,6 +107,9 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	respondChan1 := make(chan int)
 	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
 
@@ -104,7 +118,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -120,6 +134,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	<-output
 	<-output
 
+	auditor.Stop()
 	server1.Stop()
 	server2.Stop()
 	sender.Stop()
@@ -131,6 +146,9 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	respondChan1 := make(chan int)
 	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
 
@@ -139,7 +157,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -153,6 +171,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	<-respondChan2
 	<-output
 
+	auditor.Stop()
 	server1.Stop()
 	server2.Stop()
 	sender.Stop()
@@ -163,6 +182,9 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	reliableRespond := make(chan int)
 	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond, cfg)
 
@@ -171,7 +193,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -201,6 +223,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	default:
 	}
 
+	auditor.Stop()
 	reliableServer.Stop()
 	unreliableServer.Stop()
 	sender.Stop()
@@ -212,6 +235,9 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	reliableRespond1 := make(chan int)
 	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
 
@@ -220,7 +246,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -247,6 +273,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	<-reliableRespond2 // Second output gets the line again
 	<-output
 
+	auditor.Stop()
 	reliableServer1.Stop()
 	reliableServer2.Stop()
 	sender.Stop()
@@ -258,6 +285,9 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
+	auditor := auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	auditor.Start()
+
 	reliableRespond1 := make(chan int)
 	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
 
@@ -266,7 +296,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -313,6 +343,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	<-output
 	<-output
 
+	auditor.Stop()
 	reliableServer1.Stop()
 	reliableServer2.Stop()
 	sender.Stop()
