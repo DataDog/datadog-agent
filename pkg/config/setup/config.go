@@ -1122,6 +1122,10 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+
+	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
+	config.BindEnvAndSetDefault("core_agent.enabled", true)
+	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -2385,6 +2389,17 @@ func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	}
 }
 
+func toggleDefaultPayloads(config pkgconfigmodel.Config) {
+	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
+	// Used namely for Error Tracking Standalone where it is not needed.
+	if !config.GetBool("core_agent.enabled") {
+		config.Set("enable_payloads.events", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.series", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.service_checks", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.sketches", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
@@ -2596,7 +2611,7 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 	return allowMap
 }
 
-// IsAgentTelemetryEnabled returns true if Agent Telemetry ise enabled
+// IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Agent Telemetry for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
