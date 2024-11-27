@@ -24,6 +24,7 @@ const (
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envRemotePolicies        = "DD_REMOTE_POLICIES"
+	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envRegistryUsername      = "DD_INSTALLER_REGISTRY_USERNAME"
@@ -42,12 +43,19 @@ const (
 	envTags                = "DD_TAGS"
 	envExtraTags           = "DD_EXTRA_TAGS"
 	envHostname            = "DD_HOSTNAME"
+	envDDHTTPProxy         = "DD_PROXY_HTTP"
+	envHTTPProxy           = "HTTP_PROXY"
+	envDDHTTPSProxy        = "DD_PROXY_HTTPS"
+	envHTTPSProxy          = "HTTPS_PROXY"
+	envDDNoProxy           = "DD_PROXY_NO_PROXY"
+	envNoProxy             = "NO_PROXY"
 )
 
 var defaultEnv = Env{
 	APIKey:        "",
 	Site:          "datadoghq.com",
 	RemoteUpdates: false,
+	Mirror:        "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -79,6 +87,7 @@ type Env struct {
 	RemoteUpdates  bool
 	RemotePolicies bool
 
+	Mirror                      string
 	RegistryOverride            string
 	RegistryAuthOverride        string
 	RegistryUsername            string
@@ -104,6 +113,10 @@ type Env struct {
 
 	Tags     []string
 	Hostname string
+
+	HTTPProxy  string
+	HTTPSProxy string
+	NoProxy    string
 }
 
 // FromEnv returns an Env struct with values from the environment.
@@ -111,12 +124,14 @@ func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
 		return c == ','
 	}
+
 	return &Env{
 		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
 		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
 
+		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
 		RegistryUsername:            getEnvOrDefault(envRegistryUsername, defaultEnv.RegistryUsername),
@@ -145,6 +160,10 @@ func FromEnv() *Env {
 			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
 		),
 		Hostname: os.Getenv(envHostname),
+
+		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
+		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
+		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
 	}
 }
 
@@ -161,12 +180,16 @@ func FromConfig(config model.Reader) *Env {
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
 		RemotePolicies:       config.GetBool("remote_policies"),
+		Mirror:               config.GetString("installer.mirror"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 		RegistryUsername:     config.GetString("installer.registry.username"),
 		RegistryPassword:     config.GetString("installer.registry.password"),
 		Tags:                 utils.GetConfiguredTags(config, false),
 		Hostname:             hostname,
+		HTTPProxy:            config.GetString("proxy.http"),
+		HTTPSProxy:           config.GetString("proxy.https"),
+		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 	}
 }
 
@@ -184,6 +207,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RemotePolicies {
 		env = append(env, envRemotePolicies+"=true")
+	}
+	if e.Mirror != "" {
+		env = append(env, envMirror+"="+e.Mirror)
 	}
 	if e.RegistryOverride != "" {
 		env = append(env, envRegistryURL+"="+e.RegistryOverride)
@@ -214,6 +240,15 @@ func (e *Env) ToEnv() []string {
 	}
 	if len(e.Hostname) > 0 {
 		env = append(env, envHostname+"="+e.Hostname)
+	}
+	if e.HTTPProxy != "" {
+		env = append(env, envHTTPProxy+"="+e.HTTPProxy)
+	}
+	if e.HTTPSProxy != "" {
+		env = append(env, envHTTPSProxy+"="+e.HTTPSProxy)
+	}
+	if e.NoProxy != "" {
+		env = append(env, envNoProxy+"="+e.NoProxy)
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
@@ -287,4 +322,14 @@ func getEnvOrDefault(env string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func getProxySetting(ddEnv string, env string) string {
+	return getEnvOrDefault(
+		ddEnv,
+		getEnvOrDefault(
+			env,
+			os.Getenv(strings.ToLower(env)),
+		),
+	)
 }
