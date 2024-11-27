@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s <wait-to-start-sec> <wait-to-end-sec> <device-index>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <wait-to-start-sec> <device-index>\n", argv[0]);
         return 1;
     }
 
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
 
-    // we don't exit to avoud flakiness when the process is terminated before it was hooked for gpu monitoring
+    // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)
     fprintf(stderr, "CUDA calls made. Press Enter to continue...\n");
     getchar();  // Wait for user input without consuming CPU
