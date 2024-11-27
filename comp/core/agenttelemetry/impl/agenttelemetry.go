@@ -44,8 +44,9 @@ type atel struct {
 	cancelCtx context.Context
 	cancel    context.CancelFunc
 
-	prevPromMetricValues   map[string]interface{}
-	prevPromMetricValuesMU sync.Mutex
+	prevPromMetricCounterValues   map[string]float64
+	prevPromMetricHistogramValues map[string]uint64
+	prevPromMetricValuesMU        sync.Mutex
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -127,14 +128,16 @@ func createAtel(
 	}
 
 	return &atel{
-		enabled:              true,
-		cfgComp:              cfgComp,
-		logComp:              logComp,
-		telComp:              telComp,
-		sender:               sender,
-		runner:               runner,
-		atelCfg:              atelCfg,
-		prevPromMetricValues: make(map[string]interface{}),
+		enabled: true,
+		cfgComp: cfgComp,
+		logComp: logComp,
+		telComp: telComp,
+		sender:  sender,
+		runner:  runner,
+		atelCfg: atelCfg,
+
+		prevPromMetricCounterValues:   make(map[string]float64),
+		prevPromMetricHistogramValues: make(map[string]uint64),
 	}
 }
 
@@ -286,7 +289,7 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 	return keyNames
 }
 
-func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]interface{}, keyNames []string) {
+func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
 	if len(metrics) > 0 {
 		bucketCount := len(metrics[0].Histogram.GetBucket())
 		for i, m := range metrics {
@@ -296,7 +299,7 @@ func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevP
 				curValue := b.GetCumulativeCount()
 
 				// Adjust the counter value if found
-				if prevValue, ok := prevPromMetricValues[key].(uint64); ok {
+				if prevValue, ok := prevPromMetricValues[key]; ok {
 					*b.CumulativeCount -= prevValue
 				}
 
@@ -315,13 +318,13 @@ func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevP
 	}
 }
 
-func convertPromCountersToDatadogCountersValues(metrics []*dto.Metric, prevPromMetricValues map[string]interface{}, keyNames []string) {
+func convertPromCountersToDatadogCountersValues(metrics []*dto.Metric, prevPromMetricValues map[string]float64, keyNames []string) {
 	for i, m := range metrics {
 		key := keyNames[i]
 		curValue := m.GetCounter().GetValue()
 
 		// Adjust the counter value if found
-		if prevValue, ok := prevPromMetricValues[key].(float64); ok {
+		if prevValue, ok := prevPromMetricValues[key]; ok {
 			*m.GetCounter().Value -= prevValue
 		}
 
@@ -341,9 +344,9 @@ func (a *atel) convertPromMetricToDatadogMetricsValues(mt dto.MetricType, metric
 		a.prevPromMetricValuesMU.Lock()
 		defer a.prevPromMetricValuesMU.Unlock()
 		if mt == dto.MetricType_HISTOGRAM {
-			convertPromHistogramsToDatadogHistogramsValues(metrics, a.prevPromMetricValues, keyNames)
+			convertPromHistogramsToDatadogHistogramsValues(metrics, a.prevPromMetricHistogramValues, keyNames)
 		} else {
-			convertPromCountersToDatadogCountersValues(metrics, a.prevPromMetricValues, keyNames)
+			convertPromCountersToDatadogCountersValues(metrics, a.prevPromMetricCounterValues, keyNames)
 		}
 	}
 }
