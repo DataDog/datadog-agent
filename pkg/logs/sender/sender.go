@@ -11,7 +11,6 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -32,11 +31,11 @@ var (
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
 type Sender struct {
-	auditor        auditor.Auditor
 	config         pkgconfigmodel.Reader
 	inputChan      chan *message.Payload
 	outputChan     chan *message.Payload
 	destinations   *client.Destinations
+	done           chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
@@ -46,13 +45,13 @@ type Sender struct {
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
-	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *Sender {
 	return &Sender{
-		auditor:        auditor,
 		config:         config,
 		inputChan:      inputChan,
+		outputChan:     outputChan,
 		destinations:   destinations,
+		done:           make(chan struct{}),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
@@ -65,8 +64,6 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, au
 
 // Start starts the sender.
 func (s *Sender) Start() {
-	s.outputChan = s.auditor.Channel()
-
 	go s.run()
 }
 
@@ -74,11 +71,7 @@ func (s *Sender) Start() {
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
 	close(s.inputChan)
-}
-
-// In returns the input chan of the sender.
-func (s *Sender) In() chan *message.Payload {
-	return s.inputChan
+	<-s.done
 }
 
 func (s *Sender) run() {
@@ -159,7 +152,6 @@ func (s *Sender) run() {
 		destSender.Stop()
 	}
 	close(sink)
-	s.utilization.Cancel()
 }
 
 // Drains the output channel from destinations that don't update the auditor.
