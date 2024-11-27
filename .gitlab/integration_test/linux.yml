@@ -26,6 +26,8 @@ agent_integration_tests:
     - |
       cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g'
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - |
+      cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g'
     - inv -e integration-tests --race --remote-docker
 
 docker_integration_tests:
