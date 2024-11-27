@@ -36,7 +36,7 @@ type fetcherRC struct {
 
 // newRCFetcher creates a new CDN fetcher with RC: it fetches the configuration from the remote config service instead of cloudfront
 // note: naming is a bit misleading, it's not really a cdn, but we're following the convention
-func newRCFetcher(env *env.Env, configDBPath string) (Fetcher, error) {
+func newRCFetcher(env *env.Env, configDBPath string) (fetcher, error) {
 	ctx := context.Background()
 	ctx, cc := context.WithTimeout(ctx, 10*time.Second)
 	defer cc()

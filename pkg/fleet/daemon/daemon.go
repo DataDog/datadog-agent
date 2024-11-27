@@ -597,8 +597,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		cs, hasConfig := configState[pkg]
 		if hasConfig {
-			p.StableConfigVersion = cs.Stable         // Deprecated
-			p.ExperimentConfigVersion = cs.Experiment // Deprecated
 			p.StableConfigState = cs.StablePoliciesState
 			p.ExperimentConfigState = cs.ExperimentPoliciesState
 		}
@@ -606,7 +604,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		configState, err := d.resolveRemoteConfigVersion(ctx, pkg)
 		if err == nil && configState != nil {
 			p.RemoteConfigState = configState
-			p.RemoteConfigVersion = configState.Version // Deprecated
 		} else if err != cdn.ErrProductNotSupported {
 			log.Warnf("could not get remote config version: %v", err)
 		}
