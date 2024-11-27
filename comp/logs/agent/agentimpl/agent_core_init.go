@@ -57,6 +57,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 
 	// create a shared sender
 	// * it doesn't support serverless but the serverless pipeline creates its own sender
+	// * it buffers payload in the channel between the strategy & the sender
 	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, false, nil, status, a.config)
 	sharedSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"), nil, nil, pipelineMonitor)
 
