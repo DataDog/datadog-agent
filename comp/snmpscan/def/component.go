@@ -7,6 +7,7 @@
 package snmpscan
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -17,4 +18,5 @@ type Component interface {
 	// Triggers a device scan
 	RunDeviceScan(snmpConection *gosnmp.GoSNMP, deviceNamespace string, deviceIPAddress string) error
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
+	SendPayload(payload metadata.NetworkDevicesMetadata) error
 }
