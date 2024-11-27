@@ -91,11 +91,11 @@ datadog-ot-agent-7-arm64:
 
 # build Agent 7 binaries for x86_64 with FIPS
 datadog-agent-7-x64-fips:
-  extends: [.agent_build_common, .agent_build_x86, .agent_7_build, .agent_fips_build]
+  extends: [.agent_build_common, .agent_build_x86, .agent_fips_build]
 
 # build Agent 7 binaries for arm64 with FIPS
 datadog-agent-7-arm64-fips:
-  extends: [.agent_build_common, .agent_build_arm64, .agent_7_build, .agent_fips_build]
+  extends: [.agent_build_common, .agent_build_arm64, .agent_fips_build]
 
 .iot-agent-common:
   extends: .agent_build_common
