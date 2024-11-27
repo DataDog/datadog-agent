@@ -68,7 +68,7 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-CMD echo $HOME && whoami && ls /root/.docker && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && docker login && echo "hihi" && /test.bin
+CMD echo $HOME && whoami && ls -la /root && ls -la /root/.docker && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && docker login && echo "hihi" && /test.bin
 COPY test.bin /test.bin
 """
         )
