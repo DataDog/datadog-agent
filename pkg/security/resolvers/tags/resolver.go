@@ -8,15 +8,8 @@ package tags
 
 import (
 	"context"
-	"fmt"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remotetagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,25 +82,8 @@ func (t *DefaultResolver) Stop() error {
 }
 
 // NewDefaultResolver returns a new default tags resolver
-func NewDefaultResolver(telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
-	ddConfig := pkgconfigsetup.Datadog()
-	resolver := &DefaultResolver{
+func NewDefaultResolver(tagger Tagger) *DefaultResolver {
+	return &DefaultResolver{
 		tagger: tagger,
 	}
-
-	params := taggerdef.RemoteParams{
-		RemoteFilter: types.NewMatchAllFilter(),
-		RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-		RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
-			return func() (string, error) {
-				return security.FetchAuthToken(c)
-			}
-		},
-	}
-
-	if tagger == nil {
-		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
-	}
-
-	return resolver
 }
