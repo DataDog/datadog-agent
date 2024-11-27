@@ -102,6 +102,9 @@ def build_linux_script(
     setup_content = setup_content.replace('INSTALLER_BIN_LINUX_AMD64', amd64_b64)
     setup_content = setup_content.replace('INSTALLER_BIN_LINUX_ARM64', arm64_b64)
 
+    commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
+    setup_content = setup_content.replace('INSTALLER_COMMIT', commit_sha)
+
     with open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f:
         f.write(setup_content)
 
