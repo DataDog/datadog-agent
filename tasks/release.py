@@ -1019,14 +1019,14 @@ def _create_build_links_patterns(current_version, new_version):
 
 
 @task
-def get_active_release_branch(ctx):
+def get_active_release_branch(ctx, release_branch):
     """Determine what is the current active release branch for the Agent within the release worktree.
 
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
 
-    with agent_context(ctx, branch=None, skip_checkout=True):
+    with agent_context(ctx, branch=release_branch):
         gh = GithubAPI()
         next_version = get_next_version(gh, latest_release=_get_agent6_latest_release(gh) if is_agent6(ctx) else None)
         release_branch = gh.get_branch(next_version.branch())
