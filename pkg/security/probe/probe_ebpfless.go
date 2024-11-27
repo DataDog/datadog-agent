@@ -102,9 +102,8 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 			cl.nsID = msg.Hello.NSID
 			if msg.Hello.ContainerContext != nil {
 				cl.containerID = msg.Hello.ContainerContext.ID
-				cl.containerName = msg.Hello.ContainerContext.Name
 				p.containerContexts[msg.Hello.ContainerContext.ID] = msg.Hello.ContainerContext
-				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.ContainerContext.Name, msg.Hello.EntrypointArgs)
+				seclog.Infof("tracing started for container ID [%s] with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.EntrypointArgs)
 			}
 		}
 	case ebpfless.MessageTypeSyscall:
@@ -303,10 +302,6 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
-		event.ContainerContext.Tags = []string{
-			"image_name:" + containerContext.ImageShortName,
-			"image_tag:" + containerContext.ImageTag,
-		}
 	}
 
 	// copy span context if any

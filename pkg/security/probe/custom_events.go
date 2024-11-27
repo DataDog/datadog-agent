@@ -81,9 +81,6 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 		NSID: msg.NSID,
 	}
 	evt.Container.ID = msg.ContainerContext.ID
-	evt.Container.Name = msg.ContainerContext.Name
-	evt.Container.ImageShortName = msg.ContainerContext.ImageShortName
-	evt.Container.ImageTag = msg.ContainerContext.ImageTag
 	evt.EntrypointArgs = args
 
 	evt.FillCustomEventCommonFields(acc)
