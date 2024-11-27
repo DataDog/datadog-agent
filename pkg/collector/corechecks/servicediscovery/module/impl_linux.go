@@ -620,6 +620,11 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
+	serviceInfo, ok := s.cache[int32(service.PID)]
+	if !ok {
+		return
+	}
+
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -664,6 +669,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		}
 
 		service.GeneratedName = *tag.tagValue
+		serviceInfo.generatedName = *tag.tagValue
 		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
 		break
 	}
