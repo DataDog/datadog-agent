@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build linux
 
-package rcclientimpl
+// Package probes holds probes related files
+package probes
 
-import (
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-func (rc rcClient) SubscribeApmTracing() {
-	pkglog.Info("APM TRACING config product is not supported outside Linux currently.")
+// RawPacketTCProgram returns the list of TC classifier sections
+var RawPacketTCProgram = []string{
+	"classifier_raw_packet_egress",
+	"classifier_raw_packet_ingress",
 }

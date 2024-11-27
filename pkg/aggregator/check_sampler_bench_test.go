@@ -14,8 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -34,10 +35,10 @@ import (
 
 type benchmarkDeps struct {
 	fx.In
-	Log                log.Component
-	Hostname           hostname.Component
-	CompressionFactory compression.Factory
-	Config             config.Component
+	Log        log.Component
+	Hostname   hostname.Component
+	Compressor compression.Component
+	Config     config.Component
 }
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -51,11 +52,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
-
-	compressor := deps.CompressionFactory.NewNoopCompressor()
-	orchestratorForwarder := optional.NewOption[forwarder.Forwarder](forwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
-	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, compressor, taggerComponent, "hostname")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	haAgent := haagentmock.NewMockHaAgent()
+	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventplatformock.NewMock(), haAgent, deps.Compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)

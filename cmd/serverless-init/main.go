@@ -195,8 +195,8 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.
 		SketchesBucketOffset: time.Second * 0,
 		Tagger:               tagger,
 	}
-	// we don't want to add the container_id tag to metrics for cardinality reasons
-	tags = serverlessInitTag.WithoutContainerID(tags)
+	// we don't want to add certain tags to metrics for cardinality reasons
+	tags = serverlessInitTag.WithoutHighCardinalityTags(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -34,11 +35,12 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log                log.Component
-	Config             config.Component
-	Hostname           hostname.Component
-	CompressionFactory compression.Factory
-	Tagger             tagger.Component
+	Log        log.Component
+	Config     config.Component
+	Hostname   hostname.Component
+	Compressor compression.Component
+	Tagger     tagger.Component
+	HaAgent    haagent.Component
 }
 
 type diagnoseSenderManager struct {
@@ -69,16 +71,10 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 
 	log := sender.deps.Log
 	config := sender.deps.Config
+	haAgent := sender.deps.HaAgent
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
 	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.CompressionFactory))
-
-	compressor := sender.deps.CompressionFactory.NewCompressor(
-		config.GetString("serializer_compressor_kind"),
-		config.GetInt("serializer_zstd_compressor_level"),
-		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
-	)
 
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
@@ -86,7 +82,8 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		orchestratorForwarder,
 		opts,
 		eventPlatformForwarder,
-		compressor,
+		haAgent,
+		sender.deps.Compressor,
 		sender.deps.Tagger,
 		hostnameDetected)
 
