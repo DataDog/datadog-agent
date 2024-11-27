@@ -7,13 +7,11 @@ package infraattributesprocessor
 
 import (
 	"fmt"
-	"strings"
-
 	"go.uber.org/zap"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
-	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -39,7 +37,6 @@ func processInfraTags(
 	entityIDs := entityIDsFromAttributes(resourceAttributes, generateID)
 	tagMap := make(map[string]string)
 
-	fmt.Println(conventions22.AttributeAWSDynamoDBAttributeDefinitions)
 	// Get all unique tags from resource attributes and global tags
 	for _, entityID := range entityIDs {
 		entityTags, err := tagger.Tag(entityID, cardinality)
