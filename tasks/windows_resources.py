@@ -1,4 +1,5 @@
 import os
+import sys
 
 from invoke import task
 
@@ -11,7 +12,7 @@ MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
 def build_messagetable(
     ctx,
     target='pe-x86-64',
-    host_target='',
+    host_target='',  # prefix of the toolchain used to cross-compile, for instance x86_64-w64-mingw32
 ):
     """
     Build the header and resource for the MESSAGETABLE shared between agent binaries.
@@ -22,6 +23,9 @@ def build_messagetable(
 
     # Generate the message header and resource file
     windmc = "windmc"
+    if not host_target and sys.platform.startswith('linux'):
+        host_target = "x86_64-w64-mingw32"
+
     if host_target:
         windmc = host_target + "-" + windmc
 
@@ -42,6 +46,9 @@ def build_rc(ctx, rc_file, vars=None, out=None, target='pe-x86-64', host_target=
     # Build the binary resource
     # go automatically detects+includes .syso files
     windres = "windres"
+    if not host_target and sys.platform.startswith('linux'):
+        host_target = "x86_64-w64-mingw32"
+
     if host_target:
         windres = host_target + "-" + windres
 
