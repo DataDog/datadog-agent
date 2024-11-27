@@ -51,7 +51,7 @@ static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple
     // EBUSY can be returned if a program tries to access an already held bucket lock
     // https://elixir.bootlin.com/linux/latest/source/kernel/bpf/hashtab.c#L164
     // Before kernel version 6.7 it was possible for a program to get interrupted before disabling
-    // interrupts for acquring the bucket spinlock but after marking a bucket as busy.
+    // interrupts for acquiring the bucket spinlock but after marking a bucket as busy.
     // https://github.com/torvalds/linux/commit/d35381aa73f7e1e8b25f3ed5283287a64d9ddff5
     // As such a program running from an irq context would falsely see a bucket as busy in certain cases
     // as explained in the linked commit message.
