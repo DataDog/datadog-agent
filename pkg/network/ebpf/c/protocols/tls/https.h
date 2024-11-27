@@ -72,7 +72,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     normalized_tuple.pid = 0;
     normalized_tuple.netns = 0;
 
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -166,7 +166,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
         return;
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -182,7 +182,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     normalized_tuple.pid = 0;
     normalized_tuple.netns = 0;
 
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }

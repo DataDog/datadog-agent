@@ -31,7 +31,9 @@ static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple
     return __get_protocol_stack_if_exists(&normalized_tup);
 }
 
-static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, creates a new entry and returns it.
+static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
     protocol_stack_wrapper_t* wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
@@ -63,7 +65,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
 }
 
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
-    protocol_stack_t *stack = get_protocol_stack(skb_tup);
+    protocol_stack_t *stack = get_or_create_protocol_stack(skb_tup);
     if (!stack) {
         return;
     }

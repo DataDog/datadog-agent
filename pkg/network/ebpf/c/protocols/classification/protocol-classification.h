@@ -147,7 +147,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
@@ -206,7 +206,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
@@ -229,7 +229,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
@@ -246,7 +246,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(s
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
