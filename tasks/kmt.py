@@ -1372,7 +1372,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
+    ctx.run("rm -rf ./test//files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
 
@@ -2290,7 +2290,7 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
         for job in test_jobs:
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
-            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            complexity_data_fname = f"test/{complexity_name}.tar.gz"
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
             if data is None:
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")

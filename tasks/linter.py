@@ -113,9 +113,7 @@ def filenames(ctx):
     max_length = 255
     for filename in files:
         if (
-            not filename.startswith(
-                ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
-            )
+            not filename.startswith(('tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression'))
             and prefix_length + len(filename) > max_length
         ):
             print(

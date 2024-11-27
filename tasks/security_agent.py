@@ -686,7 +686,7 @@ def go_generate_check(ctx):
         raise Exit(code=1)
 
 
-E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
+TEST_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
 
 
 @task
@@ -697,7 +697,7 @@ def e2e_prepare_win(ctx):
 
     out_binary = "testsuite.exe"
 
-    testsuite_out_dir = E2E_ARTIFACT_DIR
+    testsuite_out_dir = TEST_ARTIFACT_DIR
     # Clean up previous build
     if os.path.exists(testsuite_out_dir):
         shutil.rmtree(testsuite_out_dir)
@@ -713,7 +713,7 @@ def e2e_prepare_win(ctx):
     )
 
     # build the ETW tests binary also
-    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
+    testsuite_out_path = os.path.join(TEST_ARTIFACT_DIR, "etw", out_binary)
     srcpath = 'pkg/security/probe'
     build_functional_tests(
         ctx,

@@ -79,8 +79,8 @@ func TestEC2VMSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
 
-	// Source of our kitchen CI images test/kitchen/platforms.json
-	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
+	// Source of our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
+	// Other VM image can be used, our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
 	e2e.Run(t, s, e2eParams...)
 }
