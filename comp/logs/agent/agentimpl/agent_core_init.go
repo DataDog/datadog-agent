@@ -52,11 +52,11 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	var pipelineMonitor *metrics.TelemetryPipelineMonitor = metrics.NewTelemetryPipelineMonitor("shared_sender")
 	status := NewStatusProvider()
 
-    // buffer 2 payloads per pipeline max
+	// buffer 2 payloads per pipeline max
 	senderInput := make(chan *message.Payload, config.NumberOfPipelines*2)
 
-    // create a shared sender
-    // * it doesn't support serverless but the serverless pipeline creates its own sender
+	// create a shared sender
+	// * it doesn't support serverless but the serverless pipeline creates its own sender
 	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, false, nil, status, a.config)
 	sharedSender := sender.NewSender(a.config, senderInput, auditor, mainDestinations, a.config.GetInt("logs_config.payload_channel_size"), nil, nil, pipelineMonitor)
 
