@@ -72,7 +72,8 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	t := s.T()
 
 	probe := s.getProbe()
-	cmd := testutil.RunSample(t, testutil.CudaSample)
+	cmd, err := testutil.RunSample(t, testutil.CudaSample)
+	require.NoError(t, err)
 
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -115,7 +116,8 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	probe := s.getProbe()
 
-	cmd := testutil.RunSample(t, testutil.CudaSample)
+	cmd, err := testutil.RunSample(t, testutil.CudaSample)
+	require.NoError(t, err)
 
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -145,14 +147,14 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 	sampleArgs := testutil.SampleArgs{
 		StartWaitTimeSec:      6, // default wait time for WaitForProgramsToBeTraced is 5 seconds, give margin to attach manually to avoid flakes
-		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "1,2",
 		SelectedDevice:        1,
 	}
 	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
 	selectedGPU := testutil.GPUUUIDs[2]
 
-	cmd := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
+	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
+	require.NoError(t, err)
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
@@ -180,9 +182,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	probe := s.getProbe()
 
-	args := testutil.GetDefaultArgs()
-	args.EndWaitTimeSec = 1
-	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
+	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
 
