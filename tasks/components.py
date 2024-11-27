@@ -142,7 +142,6 @@ components_classic_style = [
     'comp/remote-config/rcservicemrf/rcservicemrfimpl',
     'comp/remote-config/rcstatus/rcstatusimpl',
     'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
-    'comp/serializer/compression/compressionimpl',
     'comp/snmptraps/config/configimpl',
     'comp/snmptraps/formatter/formatterimpl',
     'comp/snmptraps/forwarder/forwarderimpl',

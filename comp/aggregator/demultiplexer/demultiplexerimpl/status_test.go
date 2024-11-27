@@ -21,7 +21,7 @@ import (
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -60,7 +60,7 @@ func TestStatusOutPut(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
-		compressionimpl.MockModule(),
+		compressionmock.MockModule(),
 		defaultforwarder.MockModule(),
 		haagentmock.Module(),
 		orchestratorimpl.MockModule(),

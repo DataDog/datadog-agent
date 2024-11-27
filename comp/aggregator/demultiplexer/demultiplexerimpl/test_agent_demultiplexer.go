@@ -18,7 +18,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-noop"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"

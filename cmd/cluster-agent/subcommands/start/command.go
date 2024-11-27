@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -65,7 +66,6 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -138,7 +138,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformfxnoop.Module(),

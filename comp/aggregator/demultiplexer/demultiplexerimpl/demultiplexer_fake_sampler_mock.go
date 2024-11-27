@@ -15,7 +15,7 @@ import (
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

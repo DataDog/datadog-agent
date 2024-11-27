@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	eventplatformnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-noop"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

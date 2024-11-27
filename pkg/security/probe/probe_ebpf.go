@@ -115,6 +115,7 @@ type EBPFProbe struct {
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
 	eventPool       *ddsync.TypedPool[model.Event]
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -202,11 +203,11 @@ func (p *EBPFProbe) selectFentryMode() {
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
-	return p.kernelVersion.IsRH7Kernel()
+	return IsNetworkNotSupported(p.kernelVersion)
 }
 
 func (p *EBPFProbe) isRawPacketNotSupported() bool {
-	return p.isNetworkNotSupported() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_15)
+	return IsRawPacketNotSupported(p.kernelVersion)
 }
 
 func (p *EBPFProbe) sanityChecks() error {
@@ -384,6 +385,14 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return errors.New("unable to find `classifier_router` map")
 	}
 
+	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
+	if err != nil {
+		return err
+	}
+	if enabledMap == nil {
+		return errors.New("unable to find `raw_packet_enabled` map")
+	}
+
 	var rawPacketFilters []rawpacket.Filter
 	for id, rule := range rs.GetRules() {
 		for _, field := range rule.GetFieldValues("packet.filter") {
@@ -394,10 +403,26 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		}
 	}
 
+	// enable raw packet or not
+	enabled := make([]uint32, p.numCPU)
+	if len(rawPacketFilters) > 0 {
+		for i := range enabled {
+			enabled[i] = 1
+		}
+	}
+	if err = enabledMap.Put(uint32(0), enabled); err != nil {
+		seclog.Errorf("couldn't push raw_packet_enabled entry to kernel space: %s", err)
+	}
+
 	// unload the previews one
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
 		ddebpf.RemoveNameMappingsCollection(p.rawPacketFilterCollection)
+	}
+
+	// not enabled
+	if enabled[0] == 0 {
+		return nil
 	}
 
 	// adapt max instruction limits depending of the kernel version
@@ -1894,12 +1919,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 
 	p.monitors = NewEBPFMonitors(p)
 
-	numCPU, err := utils.NumCPU()
+	p.numCPU, err = utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
 		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:          useRingBuffers,
 		UseMmapableMaps:         useMmapableMaps,
