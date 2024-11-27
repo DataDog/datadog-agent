@@ -49,15 +49,16 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	generatedName      string
-	ddServiceName      string
-	ddServiceInjected  bool
-	language           language.Language
-	apmInstrumentation apm.Instrumentation
-	cmdLine            []string
-	startTimeMilli     uint64
-	cpuTime            uint64
-	cpuUsage           float64
+	generatedName                  string
+	ddServiceName                  string
+	ddServiceInjected              bool
+	generatedNameFromContainerTags bool
+	language                       language.Language
+	apmInstrumentation             apm.Instrumentation
+	cmdLine                        []string
+	startTimeMilli                 uint64
+	cpuTime                        uint64
+	cpuUsage                       float64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -641,7 +642,16 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	service.ContainerID = id
 	log.Debugf("Found container id for %v: %v", service.Name, id)
-	container := containers[id]
+
+	// We got the service name from container tags before, no need to do it again.
+	if serviceInfo.generatedNameFromContainerTags {
+		return
+	}
+
+	container, ok := containers[id]
+	if !ok {
+		return
+	}
 
 	var serviceName string
 
@@ -679,6 +689,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		s.mux.Lock()
 		service.GeneratedName = serviceName
 		serviceInfo.generatedName = serviceName
+		serviceInfo.generatedNameFromContainerTags = true
 		s.mux.Unlock()
 	}
 }
