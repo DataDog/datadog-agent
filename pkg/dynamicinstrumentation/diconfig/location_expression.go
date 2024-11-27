@@ -53,8 +53,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if elementParam.TotalSize == 0 && len(elementParam.ParameterPieces) == 0 {
 						continue
 					}
-					GenerateLocationExpression(limitsInfo, &elementParam.ParameterPieces[0])
-					expressionsToUseForEachArrayElement := collectAndRemoveLocationExpressions(&elementParam.ParameterPieces[0])
+					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, &elementParam.ParameterPieces[0])
 					targetExpressions = append(targetExpressions,
 						// Read process stack address to the stack
 						ditypes.ReadRegisterLocationExpression(ditypes.StackRegister, 8),
@@ -122,8 +121,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
-					GenerateLocationExpression(limitsInfo, &ptr.ParameterPieces[0])
-					expressionsToUseForEachSliceElement := collectAndRemoveLocationExpressions(&ptr.ParameterPieces[0])
+					expressionsToUseForEachSliceElement := GenerateLocationExpression(limitsInfo, &ptr.ParameterPieces[0])
 
 					labelName := randomLabel()
 					if ptr.Location != nil && len.Location != nil {
@@ -174,8 +172,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 					//FIXME: Do we need to limit lengths of arrays??
-					GenerateLocationExpression(limitsInfo, &elementParam.ParameterPieces[0])
-					expressionsToUseForEachArrayElement := collectAndRemoveLocationExpressions(&elementParam.ParameterPieces[0])
+					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, &elementParam.ParameterPieces[0])
 					for i := 0; i < len(elementParam.ParameterPieces); i++ {
 						targetExpressions = append(targetExpressions,
 							ditypes.CopyLocationExpression(),
@@ -193,31 +190,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		expressions = append(expressions, targetExpressions...)
 	}
 	return expressions
-}
-
-// collectAndRemoveLocationExpressions goes through the parameter tree (param.ParameterPieces) via
-// depth first traversal, collecting the LocationExpression's from each parameter and appending them
-// to a collective slice. As it collects the location expressions, it removes them from that parameter.
-func collectAndRemoveLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpression {
-	collectedExpressions := []ditypes.LocationExpression{}
-	queue := []*ditypes.Parameter{param}
-	var top *ditypes.Parameter
-
-	for {
-		if len(queue) == 0 {
-			break
-		}
-		top = queue[0]
-		queue = queue[1:]
-		for i := range top.ParameterPieces {
-			queue = append(queue, &top.ParameterPieces[i])
-		}
-		if len(top.LocationExpressions) > 0 {
-			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)
-			top.LocationExpressions = []ditypes.LocationExpression{}
-		}
-	}
-	return collectedExpressions
 }
 
 // generateLocationVisitsMap follows the tree of parameters (parameter.ParameterPieces), and

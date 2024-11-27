@@ -73,7 +73,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u16 slice_length;
 
     int chunk_size = 0;
-    int outputOffset = 0;
+    __u64 outputOffset = 0;
 
     __u64 *temp_storage = bpf_map_lookup_elem(&temp_storage_array, &key) ;
     if (!temp_storage) {
