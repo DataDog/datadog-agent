@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
     Convert Prometheus style Counters and Histograms used in Agent telemetry
     from monotonically increasing to non-monotonic values (reset on each scrape).
