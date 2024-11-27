@@ -51,7 +51,10 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 }
 
 func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
-	return h.Enabled() && validHaIntegrations[integrationName] && h.isLeader.Load()
+	if h.Enabled() {
+		return validHaIntegrations[integrationName] && h.isLeader.Load()
+	}
+	return true
 }
 
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {

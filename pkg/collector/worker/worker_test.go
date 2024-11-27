@@ -640,26 +640,36 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 
 func TestWorker_HaIntegration(t *testing.T) {
 	testHostname := "myhost"
+
 	tests := []struct {
 		name             string
+		haAgentEnabled   bool
 		setLeaderValue   string
 		expectedRunCount int
 	}{
 		{
-			name:             "not leader",
+			name:             "should run: ha-agent enabled and is leader",
+			haAgentEnabled:   true,
+			setLeaderValue:   testHostname,
+			expectedRunCount: 1,
+		},
+		{
+			name:             "should not run: ha-agent enabled and not leader",
+			haAgentEnabled:   true,
 			setLeaderValue:   "leader-is-another-agent",
 			expectedRunCount: 0,
 		},
 		{
-			name:             "is leader",
-			setLeaderValue:   testHostname,
+			// when ha-agent is disabled, the agent behaviour as before and will always run all integrations
+			name:             "should run: ha-agent disabled",
+			haAgentEnabled:   false,
+			setLeaderValue:   "",
 			expectedRunCount: 1,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			expvars.Reset()
-			pkgconfigsetup.Datadog().SetWithoutSource("hostname", testHostname)
 
 			var wg sync.WaitGroup
 
@@ -673,7 +683,8 @@ func TestWorker_HaIntegration(t *testing.T) {
 			close(pendingChecksChan)
 
 			agentConfigs := map[string]interface{}{
-				"ha_agent.enabled": true,
+				"hostname":         testHostname,
+				"ha_agent.enabled": tt.haAgentEnabled,
 				"ha_agent.group":   "my-group-01",
 			}
 			logComponent := logmock.New(t)

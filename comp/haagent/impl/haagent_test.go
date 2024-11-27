@@ -209,7 +209,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			},
 		},
 		{
-			name: "should not run: HA Agent not enabled",
+			name: "should run: when HA Agent not enabled",
 			agentConfigs: map[string]interface{}{
 				"hostname":         testAgentHostname,
 				"ha_agent.enabled": false,
@@ -217,10 +217,10 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			},
 			leader: testAgentHostname,
 			expectShouldRunIntegration: map[string]bool{
-				"snmp":                false,
-				"network_path":        false,
-				"unknown_integration": false,
-				"cpu":                 false,
+				"snmp":                true,
+				"network_path":        true,
+				"unknown_integration": true,
+				"cpu":                 true,
 			},
 		},
 	}
