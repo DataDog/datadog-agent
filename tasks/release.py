@@ -535,7 +535,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         new_version = next_rc_version(ctx, major_version, patch_version)
 
         # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
-        versions_string = new_version
+        versions_string = str(new_version)
 
         # Step 0: checks
 
@@ -655,7 +655,7 @@ def create_and_update_release_branch(
     # Perform branch out in all required repositories
     print(color_message(f"Working repository: {repo}", "bold"))
     if repo == 'datadog-agent':
-        with agent_context(ctx, base_branch or get_default_branch(major=int(release_branch[0]))):
+        with agent_context(ctx, base_branch or get_default_branch(major=get_version_major(release_branch))):
             _main()
     else:
         with ctx.cd(f"{base_directory}/{repo}"):
