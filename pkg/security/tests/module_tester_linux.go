@@ -1118,6 +1118,13 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
+func checkNetworkCompatibility(tb testing.TB) {
+	checkKernelCompatibility(tb, "network feature", func(kv *kernel.Version) bool {
+		// OpenSUSE distributions are missing the dummy kernel module
+		return sprobe.IsNetworkNotSupported(kv) || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+	})
+}
+
 func (tm *testModule) StopActivityDump(name, containerID string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {

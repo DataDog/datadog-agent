@@ -84,7 +84,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 		h.log.Debugf("Processed config %s: %v", configPath, haAgentMsg)
 
 		applyStateCallback(configPath, state.ApplyStatus{
-			State: state.ApplyStateUnacknowledged,
+			State: state.ApplyStateAcknowledged,
 		})
 	}
 }
