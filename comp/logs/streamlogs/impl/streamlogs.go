@@ -57,7 +57,7 @@ type LogParams struct {
 	Duration time.Duration
 }
 
-// Default duration is 60 seconds
+// DefaultStreamLogsDuration is 60 seconds
 const DefaultStreamLogsDuration = 60 * time.Second
 
 // NewComponent creates a new streamlogs component for remote config flare component
