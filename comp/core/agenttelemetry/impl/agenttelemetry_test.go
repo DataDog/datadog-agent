@@ -276,6 +276,24 @@ func getPayload(a *atel) (*Payload, error) {
 	return &payload, err
 }
 
+func getPayloadMetric(a *atel, metricName string) (*MetricPayload, bool) {
+	payload, err := getPayload(a)
+	if err != nil {
+		return nil, false
+	}
+	metrics := payload.Payload.(AgentMetricsPayload).Metrics
+	if metricItf, ok := metrics[metricName]; ok {
+		metric := metricItf.(MetricPayload)
+		return &metric, true
+	}
+
+	return nil, false
+}
+
+// Validate the payload
+
+// metric, ok := metrics["foo.bar"]
+
 // ------------------------------
 // Tests
 
@@ -1036,5 +1054,248 @@ func TestAdjustPrometheusCounterValue(t *testing.T) {
 		v, ok := metrics34[ek]
 		require.True(t, ok)
 		assert.Equal(t, ev, v.(MetricPayload).Value)
+	}
+
+	// No addition (expected values should be zero)
+	payload5, err5 := getPayload(a)
+	require.NoError(t, err5)
+	metrics5 := payload5.Payload.(AgentMetricsPayload).Metrics
+	expecVals5 := map[string]float64{
+		"foo.bar": 0.0,
+		"foo.cat": 0.0,
+		"zoo.bar": 0.0,
+		"zoo.cat": 0.0,
+	}
+	for ek, ev := range expecVals5 {
+		v, ok := metrics5[ek]
+		require.True(t, ok)
+		assert.Equal(t, ev, v.(MetricPayload).Value)
+	}
+}
+
+func TestHistogramFloatUpperBoundNormalization(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	// setup and initiate atel
+	hist := tel.NewHistogram("foo", "bar", nil, "", []float64{1, 2, 5, 100})
+	// bucket 0 - 5
+	hist.Observe(1)
+	hist.Observe(1)
+	hist.Observe(1)
+	hist.Observe(1)
+	hist.Observe(1)
+	// bucket 1 - 0
+	// ..
+	// bucket 2 - 3
+	hist.Observe(5)
+	hist.Observe(5)
+	hist.Observe(5)
+	// bucket 4 - 6
+	hist.Observe(6)
+	hist.Observe(100)
+	hist.Observe(100)
+	hist.Observe(100)
+	hist.Observe(100)
+	hist.Observe(100)
+
+	// Test payload1
+	metric1, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok)
+	require.True(t, len(metric1.Buckets) > 0)
+	expecVals1 := map[string]uint64{
+		"1":   5,
+		"2":   0,
+		"5":   3,
+		"100": 6,
+	}
+	for k, b := range metric1.Buckets {
+		assert.Equal(t, expecVals1[k], b)
+	}
+
+	// Test payload2 (no new observations, everything is reset)
+	metric2, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok)
+	require.True(t, len(metric2.Buckets) > 0)
+	expecVals2 := map[string]uint64{
+		"1":   0,
+		"2":   0,
+		"5":   0,
+		"100": 0,
+	}
+	for k, b := range metric2.Buckets {
+		assert.Equal(t, expecVals2[k], b)
+	}
+
+	// Repeat the same observation with the same results)
+	// bucket 0 - 5
+	hist.Observe(1)
+	hist.Observe(1)
+	hist.Observe(1)
+	hist.Observe(1)
+	hist.Observe(1)
+	// bucket 1 - 0
+	// ..
+	// bucket 2 - 3
+	hist.Observe(5)
+	hist.Observe(5)
+	hist.Observe(5)
+	// bucket 4 - 6
+	hist.Observe(6)
+	hist.Observe(100)
+	hist.Observe(100)
+	hist.Observe(100)
+	hist.Observe(100)
+	hist.Observe(100)
+	// Test payload3
+	metric3, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok)
+	require.True(t, len(metric3.Buckets) > 0)
+	expecVals3 := map[string]uint64{
+		"1":   5,
+		"2":   0,
+		"5":   3,
+		"100": 6,
+	}
+	for k, b := range metric3.Buckets {
+		assert.Equal(t, expecVals3[k], b)
+	}
+
+	// Test raw buckets, they should be still accumulated
+	rawHist := hist.WithTags(nil)
+	expecVals4 := []uint64{10, 10, 16, 28}
+	for i, b := range rawHist.Get().Buckets {
+		assert.Equal(t, expecVals4[i], b.Count)
+	}
+}
+
+// The same as above but with tags (to make sure that indexing with tags works)
+func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+                aggregate_tags:
+                  - tag1
+                  - tag2
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	// setup and initiate atel
+	hist := tel.NewHistogram("foo", "bar", []string{"tag1", "tag2"}, "", []float64{1, 2, 5, 100})
+	// bucket 0 - 5
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	// bucket 1 - 0
+	// ..
+	// bucket 2 - 3
+	hist.Observe(5, "val1", "val2")
+	hist.Observe(5, "val1", "val2")
+	hist.Observe(5, "val1", "val2")
+	// bucket 4 - 6
+	hist.Observe(6, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+
+	// Test payload1
+	metric1, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok)
+	require.True(t, len(metric1.Buckets) > 0)
+	expecVals1 := map[string]uint64{
+		"1":   5,
+		"2":   0,
+		"5":   3,
+		"100": 6,
+	}
+	for k, b := range metric1.Buckets {
+		assert.Equal(t, expecVals1[k], b)
+	}
+
+	// Test payload2 (no new observations, everything is reset)
+	metric2, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok)
+	require.True(t, len(metric2.Buckets) > 0)
+	expecVals2 := map[string]uint64{
+		"1":   0,
+		"2":   0,
+		"5":   0,
+		"100": 0,
+	}
+	for k, b := range metric2.Buckets {
+		assert.Equal(t, expecVals2[k], b)
+	}
+
+	// Repeat the same observation with the same results)
+	// bucket 0 - 5
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	hist.Observe(1, "val1", "val2")
+	// bucket 1 - 0
+	// ..
+	// bucket 2 - 3
+	hist.Observe(5, "val1", "val2")
+	hist.Observe(5, "val1", "val2")
+	hist.Observe(5, "val1", "val2")
+	// bucket 4 - 6
+	hist.Observe(6, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	hist.Observe(100, "val1", "val2")
+	// Test payload3
+	metric3, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok)
+	require.True(t, len(metric3.Buckets) > 0)
+	expecVals3 := map[string]uint64{
+		"1":   5,
+		"2":   0,
+		"5":   3,
+		"100": 6,
+	}
+	for k, b := range metric3.Buckets {
+		assert.Equal(t, expecVals3[k], b)
+	}
+
+	// Test raw buckets, they should be still accumulated
+	tags := map[string]string{"tag1": "val1", "tag2": "val2"}
+	rawHist := hist.WithTags(tags)
+	expecVals4 := []uint64{10, 10, 16, 28}
+	for i, b := range rawHist.Get().Buckets {
+		assert.Equal(t, expecVals4[i], b.Count)
 	}
 }

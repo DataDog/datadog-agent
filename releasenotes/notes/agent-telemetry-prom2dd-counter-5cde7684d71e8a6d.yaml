@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    Agent telemetry's original implementation did not reset counter type metrics on
-    each scrape. This caused the counter to be monotonically increasing. This fix
-    resets the counter metrics on each scrape.
+    Convert Prometheus style Counters and Histograms used in Agent telemetry
+    from monotonically increasing to non-monotonic values (reset on each scrape).
+    In addition de-accumulate Prometheus Histogram bucket values on each scrape.

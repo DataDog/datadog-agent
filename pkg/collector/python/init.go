@@ -414,7 +414,8 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
+	externalTelemetryEnabled := pkgconfigsetup.Datadog().GetBool("telemetry.enabled") || pkgconfigsetup.Datadog().GetBool("agent_telemetry.enabled")
+	if externalTelemetryEnabled && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
 		initPymemTelemetry()
 	}
 
