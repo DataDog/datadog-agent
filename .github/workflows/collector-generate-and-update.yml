@@ -19,6 +19,11 @@ jobs:
         with:
           python-version: '3.12.6'
 
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        with:
+          go-version: '1.22.8'
+
       - name: Run Collector Update Bash Script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
