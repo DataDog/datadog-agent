@@ -179,7 +179,9 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 		expectShouldRunIntegration map[string]bool
 	}{
 		{
-			name: "should run: for HA integration",
+			name: "ha agent enabled and agent is leader",
+			// should run HA-integrations
+			// should run "non HA integrations"
 			agentConfigs: map[string]interface{}{
 				"hostname":         testAgentHostname,
 				"ha_agent.enabled": true,
@@ -189,12 +191,14 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			expectShouldRunIntegration: map[string]bool{
 				"snmp":                true,
 				"network_path":        true,
-				"unknown_integration": false,
-				"cpu":                 false,
+				"unknown_integration": true,
+				"cpu":                 true,
 			},
 		},
 		{
-			name: "should not run: current agent is not leader",
+			name: "ha agent enabled and agent is not leader",
+			// should skip HA-integrations
+			// should run "non HA integrations"
 			agentConfigs: map[string]interface{}{
 				"hostname":         testAgentHostname,
 				"ha_agent.enabled": true,
@@ -204,12 +208,13 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			expectShouldRunIntegration: map[string]bool{
 				"snmp":                false,
 				"network_path":        false,
-				"unknown_integration": false,
-				"cpu":                 false,
+				"unknown_integration": true,
+				"cpu":                 true,
 			},
 		},
 		{
-			name: "should run: when HA Agent not enabled",
+			name: "ha agent not enabled",
+			// should run all integrations
 			agentConfigs: map[string]interface{}{
 				"hostname":         testAgentHostname,
 				"ha_agent.enabled": false,
@@ -230,7 +235,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			haAgent.Comp.SetLeader(tt.leader)
 
 			for integrationName, shouldRun := range tt.expectShouldRunIntegration {
-				assert.Equal(t, shouldRun, haAgent.Comp.ShouldRunIntegration(integrationName))
+				assert.Equalf(t, shouldRun, haAgent.Comp.ShouldRunIntegration(integrationName), "fail for integration: "+integrationName)
 			}
 		})
 	}

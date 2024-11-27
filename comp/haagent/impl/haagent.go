@@ -53,8 +53,8 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 // ShouldRunIntegration return true if the agent integrations is should to run.
 // When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
 func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
-	if h.Enabled() {
-		return validHaIntegrations[integrationName] && h.isLeader.Load()
+	if h.Enabled() && validHaIntegrations[integrationName] {
+		return h.isLeader.Load()
 	}
 	return true
 }
