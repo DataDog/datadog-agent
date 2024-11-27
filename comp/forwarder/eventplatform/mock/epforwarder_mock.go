@@ -7,10 +7,30 @@ package mock
 
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	eventplatformnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-noop"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message"
 )
+
+type mock struct {
+}
+
+// SendEventPlatformEvent sends messages to the event platform intake.
+// SendEventPlatformEvent will drop messages and return an error if the input channel is already full.
+func (s *mock) SendEventPlatformEvent(*message.Message, string) error {
+	return nil
+}
+
+// SendEventPlatformEventBlocking sends messages to the event platform intake.
+// SendEventPlatformEventBlocking will block if the input channel is already full.
+func (s *mock) SendEventPlatformEventBlocking(*message.Message, string) error {
+	return nil
+}
+
+// Purge clears out all pipeline channels, returning a map of eventType to list of messages in that were removed from each channel
+func (s *mock) Purge() map[string][]*message.Message {
+	return map[string][]*message.Message{}
+}
 
 // NewMock returns a new mock component.
 func NewMock() eventplatform.Component {
-	return eventplatformnoop.NewComponent()
+	return &mock{}
 }

@@ -14,7 +14,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatformnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-noop"
+	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -33,5 +33,5 @@ type TestDeps struct {
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventplatformnoop.NewComponent(), deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), hostname)
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventplatformock.NewMock(), deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), hostname)
 }

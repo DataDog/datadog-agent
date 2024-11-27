@@ -7,6 +7,8 @@
 package eventplatformimpl
 
 import (
+	"errors"
+
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -17,13 +19,13 @@ type noopForwarder struct {
 // SendEventPlatformEvent sends messages to the event platform intake.
 // SendEventPlatformEvent will drop messages and return an error if the input channel is already full.
 func (s *noopForwarder) SendEventPlatformEvent(*message.Message, string) error {
-	return nil
+	return errors.New("noop forwarder does not support SendEventPlatformEvent")
 }
 
 // SendEventPlatformEventBlocking sends messages to the event platform intake.
 // SendEventPlatformEventBlocking will block if the input channel is already full.
 func (s *noopForwarder) SendEventPlatformEventBlocking(*message.Message, string) error {
-	return nil
+	return errors.New("noop forwarder does not support SendEventPlatformEventBlocking")
 }
 
 // Purge clears out all pipeline channels, returning a map of eventType to list of messages in that were removed from each channel
