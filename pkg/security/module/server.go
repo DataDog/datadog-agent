@@ -22,7 +22,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -127,7 +126,6 @@ type APIServer struct {
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
-	ecsTags            map[string]string
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
@@ -221,17 +219,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 }
 
 func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
-	// apply ecs tag if possible
-	if a.ecsTags != nil {
-		for key, value := range a.ecsTags {
-			if !slices.ContainsFunc(msg.Tags, func(tag string) bool {
-				return strings.HasPrefix(tag, key+":")
-			}) {
-				msg.Tags = append(msg.Tags, key+":"+value)
-			}
-		}
-	}
-
 	// on fargate, append global tags
 	if includeGlobalTags && fargate.IsFargateInstance() {
 		for _, tag := range a.getGlobalTags() {
@@ -601,14 +588,6 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		if as.msgSender == nil {
 			as.msgSender = NewChanMsgSender(as.msgs)
 		}
-	}
-
-	if env.IsECS() || env.IsECSFargate() {
-		tags, err := getCurrentECSTaskTags()
-		if err != nil {
-			return nil, err
-		}
-		as.ecsTags = tags
 	}
 
 	return as, nil
