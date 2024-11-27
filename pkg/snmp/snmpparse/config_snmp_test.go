@@ -297,7 +297,8 @@ func TestParseConfigSnmpMain(t *testing.T) {
 		fx.Replace(config.MockParams{Overrides: rawConf}),
 	)
 
-	Output, _ := parseConfigSnmpMain(conf)
+	Output, err := parseConfigSnmpMain(conf)
+	require.NoError(t, err)
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "1",
@@ -337,7 +338,8 @@ network_devices:
 		fx.Replace(config.MockParams{Overrides: rawConf}),
 	)
 
-	Output, _ := parseConfigSnmpMain(conf)
+	Output, err := parseConfigSnmpMain(conf)
+	require.NoError(t, err)
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "1",

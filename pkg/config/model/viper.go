@@ -310,8 +310,8 @@ func (c *safeConfig) IsSet(key string) bool {
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 	return c.Viper.AllKeys()
 }
 
@@ -703,17 +703,6 @@ func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	sources := []Source{
-		SourceDefault,
-		SourceUnknown,
-		SourceFile,
-		SourceEnvVar,
-		SourceFleetPolicies,
-		SourceAgentRuntime,
-		SourceRC,
-		SourceCLI,
-		SourceLocalConfigProcess,
-	}
 	res := map[Source]interface{}{}
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
