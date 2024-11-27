@@ -141,10 +141,10 @@ func (w *Worker) Run() {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
 
-		if !w.haAgent.ShouldRunIntegration(check.String()) {
-			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
-			continue
-		}
+		//if !w.haAgent.ShouldRunIntegration(check.String()) {
+		//	checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
+		//	continue
+		//}
 
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {

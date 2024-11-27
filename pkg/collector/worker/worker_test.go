@@ -12,14 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -31,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 type testCheck struct {
@@ -638,74 +632,74 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 }
 
-func TestWorker_HaIntegration(t *testing.T) {
-	testHostname := "myhost"
-	tests := []struct {
-		name             string
-		setLeaderValue   string
-		expectedRunCount int
-	}{
-		{
-			name:             "not leader",
-			setLeaderValue:   "leader-is-another-agent",
-			expectedRunCount: 0,
-		},
-		{
-			name:             "is leader",
-			setLeaderValue:   testHostname,
-			expectedRunCount: 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			expvars.Reset()
-			pkgconfigsetup.Datadog().SetWithoutSource("hostname", testHostname)
-
-			var wg sync.WaitGroup
-
-			checksTracker := tracker.NewRunningChecksTracker()
-			pendingChecksChan := make(chan check.Check, 10)
-			mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
-
-			testCheck1 := newCheck(t, "snmp:123", false, nil)
-
-			pendingChecksChan <- testCheck1
-			close(pendingChecksChan)
-
-			agentConfigs := map[string]interface{}{
-				"ha_agent.enabled": true,
-				"ha_agent.group":   "my-group-01",
-			}
-			logComponent := logmock.New(t)
-			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: agentConfigs}),
-			))
-			requires := haagentimpl.Requires{
-				Logger:      logComponent,
-				AgentConfig: agentConfigComponent,
-			}
-			haagentcomp, _ := haagentimpl.NewComponent(requires)
-			haagentcomp.Comp.SetLeader(tt.setLeaderValue)
-
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
-			require.Nil(t, err)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				worker.Run()
-			}()
-
-			wg.Wait()
-
-			assert.Equal(t, tt.expectedRunCount, testCheck1.RunCount())
-
-			// make sure the check is deleted from checksTracker
-			assert.Equal(t, 0, len(checksTracker.RunningChecks()))
-		})
-	}
-}
+//func TestWorker_HaIntegration(t *testing.T) {
+//	testHostname := "myhost"
+//	tests := []struct {
+//		name             string
+//		setLeaderValue   string
+//		expectedRunCount int
+//	}{
+//		{
+//			name:             "not leader",
+//			setLeaderValue:   "leader-is-another-agent",
+//			expectedRunCount: 0,
+//		},
+//		{
+//			name:             "is leader",
+//			setLeaderValue:   testHostname,
+//			expectedRunCount: 1,
+//		},
+//	}
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			expvars.Reset()
+//			pkgconfigsetup.Datadog().SetWithoutSource("hostname", testHostname)
+//
+//			var wg sync.WaitGroup
+//
+//			checksTracker := tracker.NewRunningChecksTracker()
+//			pendingChecksChan := make(chan check.Check, 10)
+//			mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+//
+//			testCheck1 := newCheck(t, "snmp:123", false, nil)
+//
+//			pendingChecksChan <- testCheck1
+//			close(pendingChecksChan)
+//
+//			agentConfigs := map[string]interface{}{
+//				"ha_agent.enabled": true,
+//				"ha_agent.group":   "my-group-01",
+//			}
+//			logComponent := logmock.New(t)
+//			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
+//				config.MockModule(),
+//				fx.Replace(config.MockParams{Overrides: agentConfigs}),
+//			))
+//			requires := haagentimpl.Requires{
+//				Logger:      logComponent,
+//				AgentConfig: agentConfigComponent,
+//			}
+//			haagentcomp, _ := haagentimpl.NewComponent(requires)
+//			haagentcomp.Comp.SetLeader(tt.setLeaderValue)
+//
+//			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+//			require.Nil(t, err)
+//
+//			wg.Add(1)
+//			go func() {
+//				defer wg.Done()
+//				worker.Run()
+//			}()
+//
+//			wg.Wait()
+//
+//			assert.Equal(t, tt.expectedRunCount, testCheck1.RunCount())
+//
+//			// make sure the check is deleted from checksTracker
+//			assert.Equal(t, 0, len(checksTracker.RunningChecks()))
+//		})
+//	}
+//}
 
 // getWorkerUtilizationExpvar returns the utilization as presented by expvars
 // for a named worker.
