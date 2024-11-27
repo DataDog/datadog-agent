@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -81,9 +82,11 @@ type discovery struct {
 
 	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
 	lastCPUTimeUpdate time.Time
+
+	containerProvider proccontainers.ContainerProvider
 }
 
-func newDiscovery() *discovery {
+func newDiscovery(containerProvider proccontainers.ContainerProvider) *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
@@ -91,12 +94,14 @@ func newDiscovery() *discovery {
 		ignorePids:         make(map[int32]struct{}),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
+		containerProvider:  containerProvider,
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
-	return newDiscovery(), nil
+func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
+	return newDiscovery(sharedContainerProvider), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -623,6 +628,10 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	var services []model.Service
 	alivePids := make(map[int32]struct{}, len(pids))
+	_, _, pidToCid, err := s.containerProvider.GetContainers(1*time.Minute, nil)
+	if err != nil {
+		log.Errorf("could not get containers: %s", err)
+	}
 
 	for _, pid := range pids {
 		alivePids[pid] = struct{}{}
@@ -630,6 +639,10 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
+		}
+
+		if id, ok := pidToCid[service.PID]; ok {
+			service.ContainerID = id
 		}
 
 		services = append(services, *service)

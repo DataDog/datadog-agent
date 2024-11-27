@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -113,6 +114,8 @@ type EBPFProbe struct {
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -200,11 +203,11 @@ func (p *EBPFProbe) selectFentryMode() {
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
-	return p.kernelVersion.IsRH7Kernel()
+	return IsNetworkNotSupported(p.kernelVersion)
 }
 
 func (p *EBPFProbe) isRawPacketNotSupported() bool {
-	return p.isNetworkNotSupported() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_15)
+	return IsRawPacketNotSupported(p.kernelVersion)
 }
 
 func (p *EBPFProbe) sanityChecks() error {
@@ -382,6 +385,14 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return errors.New("unable to find `classifier_router` map")
 	}
 
+	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
+	if err != nil {
+		return err
+	}
+	if enabledMap == nil {
+		return errors.New("unable to find `raw_packet_enabled` map")
+	}
+
 	var rawPacketFilters []rawpacket.Filter
 	for id, rule := range rs.GetRules() {
 		for _, field := range rule.GetFieldValues("packet.filter") {
@@ -392,10 +403,26 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		}
 	}
 
+	// enable raw packet or not
+	enabled := make([]uint32, p.numCPU)
+	if len(rawPacketFilters) > 0 {
+		for i := range enabled {
+			enabled[i] = 1
+		}
+	}
+	if err = enabledMap.Put(uint32(0), enabled); err != nil {
+		seclog.Errorf("couldn't push raw_packet_enabled entry to kernel space: %s", err)
+	}
+
 	// unload the previews one
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
 		ddebpf.RemoveNameMappingsCollection(p.rawPacketFilterCollection)
+	}
+
+	// not enabled
+	if enabled[0] == 0 {
+		return nil
 	}
 
 	// adapt max instruction limits depending of the kernel version
@@ -491,7 +518,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		}
 		entry.Retain()
 
-		event := newEBPFEventFromPCE(entry, p.fieldHandlers)
+		event := p.newEBPFPooledEventFromPCE(entry)
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -503,6 +530,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
+		p.eventPool.Put(event)
 	}
 }
 
@@ -702,7 +730,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				return
 			}
 
-			relatedEvent := newEBPFEventFromPCE(entry, p.fieldHandlers)
+			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
 
 			if err != nil {
 				var errResolution *path.ErrPathResolution
@@ -1186,6 +1214,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// send related events
 	for _, relatedEvent := range relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
+		p.eventPool.Put(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
 
@@ -1890,12 +1919,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 
 	p.monitors = NewEBPFMonitors(p)
 
-	numCPU, err := utils.NumCPU()
+	p.numCPU, err = utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
 		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:          useRingBuffers,
 		UseMmapableMaps:         useMmapableMaps,
@@ -2111,6 +2140,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		return nil, err
 	}
 	p.fieldHandlers = fh
+
+	p.eventPool = ddsync.NewTypedPool(func() *model.Event {
+		return newEBPFEvent(p.fieldHandlers)
+	})
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -2452,3 +2485,23 @@ func (p *EBPFProbe) GetAgentContainerContext() *events.AgentContainerContext {
 var newPlaceholderProcessCacheEntryPTraceMe = sync.OnceValue(func() *model.ProcessCacheEntry {
 	return model.NewPlaceholderProcessCacheEntry(0, 0, false)
 })
+
+// newEBPFPooledEventFromPCE returns a new event from a process cache entry
+func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *model.Event {
+	eventType := model.ExecEventType
+	if !entry.IsExec {
+		eventType = model.ForkEventType
+	}
+
+	event := p.eventPool.Get()
+
+	event.Type = uint32(eventType)
+	event.TimestampRaw = uint64(time.Now().UnixNano())
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.Exec.Process = &entry.Process
+	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.CGroup = entry.CGroup
+
+	return event
+}

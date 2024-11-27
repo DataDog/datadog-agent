@@ -50,7 +50,6 @@ func (metadata *GCPMetadata) TagMap(namespace string) map[string]string {
 	if metadata.ContainerID != nil {
 		tagMap[metadata.ContainerID.TagName] = metadata.ContainerID.Value
 		tagMap[namespace+metadata.ContainerID.TagName] = metadata.ContainerID.Value
-
 	}
 	if metadata.Region != nil {
 		tagMap[metadata.Region.TagName] = metadata.Region.Value
