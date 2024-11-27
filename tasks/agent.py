@@ -168,18 +168,20 @@ def build(
         major_version=major_version,
     )
 
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
-        build_rc(
-            ctx,
-            "cmd/agent/windows_resources/agent.rc",
-            vars=vars,
-            out="cmd/agent/rsrc.syso",
-        )
+
+        if sys.platform == 'win32':
+            vars = versioninfo_vars(ctx, major_version=major_version)
+            build_rc(
+                ctx,
+                "cmd/agent/windows_resources/agent.rc",
+                vars=vars,
+                out="cmd/agent/rsrc.syso",
+            )
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
