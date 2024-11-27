@@ -8,7 +8,6 @@
 package loadstore
 
 import (
-	"math"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
@@ -16,20 +15,21 @@ import (
 
 // StoreInfo represents the store information, like memory usage and entity count.
 type StoreInfo struct {
-	TotalMemoryUsage       uint64
 	TotalEntityCount       uint64
 	currentTime            Timestamp
-	EntityCountByMetric    map[string]uint64
-	EntityCountByNamespace map[string]uint64
+	EntityStatsByLoadName  map[string]StatsResult
+	EntityStatsByNamespace map[string]StatsResult
 }
 
 type StatsResult struct {
-	p10    ValueType
-	medium ValueType
-	avg    ValueType
-	p95    ValueType
-	p99    ValueType
-	max    ValueType
+	Count  uint64
+	Min    ValueType
+	P10    ValueType
+	Medium ValueType
+	Avg    ValueType
+	P95    ValueType
+	P99    ValueType
+	Max    ValueType
 }
 
 // Store is an interface for in-memory storage of entities and their load metric values.
@@ -43,17 +43,8 @@ type Store interface {
 	// GetEntitiesStatsByNamespace to get entities stats by namespace
 	GetEntitiesStatsByNamespace(namespace string) StatsResult
 
-	// GetEntitiesStatsByMetricName to get entities stats by metric name
-	GetEntitiesStatsByMetricName(metricName string) StatsResult
-
-	// GetAllMetricNamesWithCount to get all metric names and corresponding entity count
-	GetAllMetricNamesWithCount() map[string]int64
-
-	// GetAllNamespaceNamesWithCount to get all namespace names and corresponding entity count
-	GetAllNamespaceNamesWithCount() map[string]int64
-
-	// GetEntityByHashKey to get entity and latest value by hash key
-	GetEntityByHashKey(hash uint64) (*Entity, *EntityValue)
+	// GetEntitiesStatsByLoadName to get entities stats by load load name
+	GetEntitiesStatsByLoadName(loadName string) StatsResult
 
 	//DeleteEntityByHashKey to delete entity by hash key
 	DeleteEntityByHashKey(hash uint64)
@@ -80,7 +71,7 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 			Host:       "",
 			EntityName: "",
 			Namespace:  "",
-			MetricName: metricName,
+			LoadName:   metricName,
 		}
 		for _, resource := range resources {
 			if resource.Type == "host" {
@@ -99,14 +90,14 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 				entity.EntityType = ContainerType
 			}
 		}
-		if entity.MetricName == "" || entity.Host == "" || entity.EntityType == UnknownType || entity.Namespace == "" || entity.SourceID == "" {
+		if entity.LoadName == "" || entity.Host == "" || entity.EntityType == UnknownType || entity.Namespace == "" || entity.SourceID == "" {
 			continue
 		}
 		for _, point := range points {
-			if point != nil && !math.IsNaN(point.Value) {
+			if point != nil && point.GetTimestamp() > 0 {
 				entities[&entity] = &EntityValue{
-					value:     ValueType(point.Value),
-					timestamp: Timestamp(point.Timestamp),
+					value:     ValueType(point.GetValue()),
+					timestamp: Timestamp(point.GetTimestamp()),
 				}
 			}
 		}
@@ -121,4 +112,6 @@ func ProcessLoadPayload(payload *gogen.MetricPayload, store Store) {
 	}
 	entities := createEntitiesFromPayload(payload)
 	store.SetEntitiesValues(entities)
+	payload = nil
+
 }

@@ -25,8 +25,8 @@ func hashEntityToUInt64(entity *Entity) uint64 {
 	hasher.Write([]byte(entity.Host))
 	// Convert and write the entity's namespace (string) to the hasher
 	hasher.Write([]byte(entity.Namespace))
-	// Convert and write the entity's metricname (string) to the hasher
-	hasher.Write([]byte(entity.MetricName))
+	// Convert and write the entity's LoadName (string) to the hasher
+	hasher.Write([]byte(entity.LoadName))
 	return hasher.Sum64()
 }
 

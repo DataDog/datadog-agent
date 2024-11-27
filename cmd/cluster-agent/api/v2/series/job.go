@@ -22,26 +22,18 @@ import (
 
 const (
 	subsystem               = "autoscaling_workload"
-	payloadProcessQPS       = 500
+	payloadProcessQPS       = 1000
 	payloadProcessRateBurst = 50
 )
 
 var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
-	// telemetryWorkloadStoreMemory tracks the total memory usage of the store
-	telemetryWorkloadStoreMemory = telemetry.NewGaugeWithOpts(
+	telemetryWorkloadLoadnameEntities = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"store_memory_usage",
-		nil,
-		"Total memory usage of the store",
-		commonOpts,
-	)
-	telemetryWorkloadMetricEntities = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"store_metric_entities",
-		[]string{"metric"},
-		"Number of entities by metric names in the store",
+		"store_load_entities",
+		[]string{"loadname"},
+		"Number of entities by load names in the store",
 		commonOpts,
 	)
 	telemetryWorkloadNamespaceEntities = telemetry.NewGaugeWithOpts(
@@ -128,14 +120,13 @@ func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 				return
 			case <-infoTicker.C:
 				info := jq.store.GetStoreInfo()
-				telemetryWorkloadStoreMemory.Set(float64(info.TotalMemoryUsage))
-				for k, v := range info.EntityCountByMetric {
-					telemetryWorkloadMetricEntities.Set(float64(v), k)
+				for k, v := range info.EntityStatsByLoadName {
+					telemetryWorkloadLoadnameEntities.Set(float64(v.Count), k)
 				}
-				for k, v := range info.EntityCountByNamespace {
-					telemetryWorkloadNamespaceEntities.Set(float64(v), k)
+				for k, v := range info.EntityStatsByNamespace {
+					telemetryWorkloadNamespaceEntities.Set(float64(v.Count), k)
 				}
-				log.Debugf("Store info: %+v", info)
+				log.Infof("Store info: %+v", info)
 			}
 		}
 	}()
