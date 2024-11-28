@@ -685,6 +685,10 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	if serviceName != "" {
 		service.GeneratedName = serviceName
+		// Update the legacy name field as well
+		if service.DDService == "" {
+			service.Name = serviceName
+		}
 	}
 	service.CheckedContainerData = true
 
