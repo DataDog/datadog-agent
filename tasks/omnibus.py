@@ -319,7 +319,7 @@ def build(
             if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
                 ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
                 ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-                bundle_dir.close()
+                bundle_dir.cleanup()
 
     # Output duration information for different steps
     print("Build component timing:")
