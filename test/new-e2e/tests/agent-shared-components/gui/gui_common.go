@@ -45,20 +45,18 @@ func getGUIIntentToken(t assert.TestingT, host *components.RemoteHost, authtoken
 	}
 
 	req, err := http.NewRequest(http.MethodGet, apiEndpoint.String(), nil)
-	assert.NoErrorf(t, err, "failed to fetch API from %s", apiEndpoint.String())
+	require.NoErrorf(t, err, "failed to fetch API from %s", apiEndpoint.String())
 
 	req.Header.Set("Authorization", "Bearer "+authtoken)
 
-	assert.NoErrorf(t, err, "failed to create request for %s", apiEndpoint.String())
-
 	resp, err := hostHTTPClient.Do(req)
-	assert.NoErrorf(t, err, "failed to fetch intent token from %s", apiEndpoint.String())
+	require.NoErrorf(t, err, "failed to fetch intent token from %s", apiEndpoint.String())
 	defer resp.Body.Close()
 
-	assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", apiEndpoint.String())
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", apiEndpoint.String())
 
 	url, err := io.ReadAll(resp.Body)
-	assert.NoErrorf(t, err, "failed to read response body from %s", apiEndpoint.String())
+	require.NoErrorf(t, err, "failed to read response body from %s", apiEndpoint.String())
 
 	return string(url)
 }
@@ -81,15 +79,15 @@ func getGUIClient(t assert.TestingT, host *components.RemoteHost, authtoken stri
 	}
 
 	jar, err := cookiejar.New(&cookiejar.Options{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	guiClient := host.NewHTTPClient()
 	guiClient.Jar = jar
 
 	// Make the GET request
 	resp, err := guiClient.Get(guiURL.String())
-	assert.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
+	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 	defer resp.Body.Close()
 
 	cookies := guiClient.Jar.Cookies(&guiURL)
@@ -115,12 +113,12 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 
 	// Make the GET request
 	resp, err := client.Get(guiURL.String())
-	assert.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
+	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 	defer resp.Body.Close()
 
 	doc, err := html.Parse(resp.Body)
-	assert.NoErrorf(t, err, "failed to parse HTML response from GUI at address %s", guiURL.String())
+	require.NoErrorf(t, err, "failed to parse HTML response from GUI at address %s", guiURL.String())
 
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
@@ -177,7 +175,7 @@ func checkPingEndpoint(t *testing.T, client *http.Client) {
 
 	// Make the GET request
 	resp, err := client.Post(guiURL.String(), "", nil)
-	assert.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
+	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 	defer resp.Body.Close()
 }
