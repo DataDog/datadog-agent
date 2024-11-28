@@ -29,7 +29,8 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 		// Ensuring no previous instances exists.
 		killPreviousInstances(cfg)
 
-		scanner := testutil.NewScanner(cfg.LogPattern(), make(chan struct{}, 1))
+		//TODO: in the following PR move the scanner to be a field of the LifecycleConfig
+		scanner := testutil.NewScanner(cfg.LogPattern(), nil, make(chan struct{}, 1))
 		// attempt to start the container/s
 		ctx, err = run(t, cfg, scanner)
 		if err != nil {

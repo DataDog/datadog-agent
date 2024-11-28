@@ -15,32 +15,48 @@ import (
 	"testing"
 )
 
+var NoPattern *regexp.Regexp = nil
+
 // PatternScanner is a helper to scan logs for a given pattern.
 type PatternScanner struct {
-	// The log pattern to match on
-	pattern *regexp.Regexp
+	// The log pattern to match on validating successful start
+	startPattern *regexp.Regexp
+	// The log pattern to match on validating successful finish. This is optional
+	finishPattern *regexp.Regexp
 	// Once we've found the correct log, we should notify the caller.
 	DoneChan chan struct{}
 	// A sync.Once instance to ensure we notify the caller only once, and stop the operation.
 	stopOnce sync.Once
-	// A helper to spare redundant calls to the analyzer once we've found the relevant log.
+
+	// flag to indicate that start was found, and we should look for finishPattern now
+	started bool
+	// A helper to spare redundant calls to the analyzer once we've found both start and finish
 	stopped bool
 
 	// keep the stdout/err in case of failure
 	buffers []string
-
 	//Buffer for accumulating partial lines
 	lineBuf string
 }
 
 // NewScanner returns a new instance of PatternScanner.
-func NewScanner(pattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner {
-	return &PatternScanner{
-		pattern:  pattern,
-		DoneChan: doneChan,
-		stopOnce: sync.Once{},
-		stopped:  false,
+// startPattern and finishPattern are both optional, if none provided, Done channel will be signaled immediately.
+func NewScanner(startPattern, finishPattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner {
+	ps := &PatternScanner{
+		startPattern:  startPattern,
+		finishPattern: finishPattern,
+		DoneChan:      doneChan,
+		stopOnce:      sync.Once{},
+		// skip looking for start pattern if not provided
+		started: startPattern == nil,
+		// mark the scanner as stopped if no pattern was provided
+		stopped: startPattern == nil && finishPattern == nil,
 	}
+
+	if ps.stopped {
+		ps.notifyAndStop()
+	}
+	return ps
 }
 
 // Write implemented io.Writer to be used as a callback for log/string writing.
@@ -61,15 +77,38 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	// Process all complete lines.
 	for _, line := range lines[:len(lines)-1] {
 		ps.buffers = append(ps.buffers, line) // Save the log line.
-		if !ps.stopped && ps.pattern.MatchString(line) {
-			ps.stopOnce.Do(func() {
-				ps.stopped = true
-				close(ps.DoneChan) // Notify the caller about the match.
-			})
-		}
+
+		// Check if we've met the scanning criteria
+		ps.matchPatterns(line)
 	}
 
 	return len(p), nil
+}
+
+// matchPatterns checks if the current line matches the scanning requirements
+func (ps *PatternScanner) matchPatterns(line string) {
+	switch {
+	// started pattern not found yet, look for it
+	case !ps.started:
+		if ps.startPattern.MatchString(line) {
+			// found start pattern, flip the flag to start looking for finish pattern for following iterations
+			ps.started = true
+
+			if ps.finishPattern == nil {
+				ps.notifyAndStop()
+			}
+		}
+	// started pattern found, look for finish pattern if provided
+	case ps.finishPattern != nil && ps.finishPattern.MatchString(line):
+		ps.notifyAndStop()
+	}
+}
+
+func (ps *PatternScanner) notifyAndStop() {
+	ps.stopOnce.Do(func() {
+		ps.stopped = true
+		close(ps.DoneChan)
+	})
 }
 
 // PrintLogs writes the captured logs into the test logger.
