@@ -836,7 +836,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 }
 
 // Stringify stringifies the config, but only for nodetremodel with the test build tag
-func (c *safeConfig) Stringify(source Source) string {
+func (c *safeConfig) Stringify(_ Source) string {
 	return "safeConfig{...}"
 }
 
