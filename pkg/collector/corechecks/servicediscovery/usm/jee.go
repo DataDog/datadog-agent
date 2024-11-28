@@ -297,9 +297,8 @@ func (je jeeExtractor) doExtractContextRoots(extractor vendorExtractor, app *jee
 	return nil
 }
 
-// extractServiceNamesForJEEServer takes args, cws and the fs (for testability reasons) and, after having determined the vendor,
-// If the vendor can be determined, it returns the context roots if found, otherwise the server name.
-// If the vendor is unknown, it returns a nil slice
+// extractServiceNamesForJEEServer extracts the server vendor name and the
+// service names from server-specific deployment files.
 func (je jeeExtractor) extractServiceNamesForJEEServer() (serverVendor, []string) {
 	vendor, domainHome := je.resolveAppServer()
 	if vendor == unknown {
