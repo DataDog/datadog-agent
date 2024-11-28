@@ -13,11 +13,13 @@ import (
 	"strings"
 	"sync"
 
+	"go.uber.org/fx"
+
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -28,9 +30,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
+
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+
+// Module defines the fx options for this component.
+func Module(params Params) fxutil.Module {
+	return fxutil.Component(fx.Provide(newEventPlatformForwarder), fx.Supply(params))
+}
 
 const (
 	eventTypeDBMSamples  = "dbm-samples"
@@ -319,14 +330,14 @@ func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
 	return result
 }
 
-func (s *defaultEventPlatformForwarder) start() {
+func (s *defaultEventPlatformForwarder) Start() {
 	s.destinationsCtx.Start()
 	for _, p := range s.pipelines {
 		p.Start()
 	}
 }
 
-func (s *defaultEventPlatformForwarder) stop() {
+func (s *defaultEventPlatformForwarder) Stop() {
 	log.Debugf("shutting down event platform forwarder")
 	stopper := startstop.NewParallelStopper()
 	for _, p := range s.pipelines {
@@ -478,28 +489,51 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	}
 }
 
-// Requires defined the eventplatform requirements
-type Requires struct {
-	compdef.In
+type dependencies struct {
+	fx.In
+	Params                Params
 	Config                configcomp.Component
-	Lc                    compdef.Lifecycle
+	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 }
 
-// NewComponent creates a new EventPlatformForwarder
-func NewComponent(reqs Requires) eventplatform.Component {
-	forwarder := newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver)
+// newEventPlatformForwarder creates a new EventPlatformForwarder
+func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
+	var forwarder *defaultEventPlatformForwarder
 
-	reqs.Lc.Append(compdef.Hook{
+	if deps.Params.UseNoopEventPlatformForwarder {
+		forwarder = newNoopEventPlatformForwarder(deps.Hostname)
+	} else if deps.Params.UseEventPlatformForwarder {
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver)
+	}
+	if forwarder == nil {
+		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
+	}
+	deps.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			forwarder.start()
+			forwarder.Start()
 			return nil
 		},
 		OnStop: func(context.Context) error {
-			forwarder.stop()
+			forwarder.Stop()
 			return nil
 		},
 	})
-	return forwarder
+	return optional.NewOptionPtr[eventplatform.Forwarder](forwarder)
+}
+
+// NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
+// will build up in each pipeline channel without being forwarded to the intake
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
+	return newNoopEventPlatformForwarder(hostname)
+}
+
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp)
+	// remove the senders
+	for _, p := range f.pipelines {
+		p.strategy = nil
+	}
+	return f
 }

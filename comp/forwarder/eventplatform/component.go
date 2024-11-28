@@ -36,10 +36,14 @@ const (
 	EventTypeServiceDiscovery = "service-discovery"
 )
 
-//go:generate mockgen -source=../def/$GOFILE -package=mock -destination=../mock/epforwarder_mockgen.go
-
 // Component is the interface of the event platform forwarder component.
 type Component interface {
+	// Get the forwarder instance if it exists.
+	Get() (Forwarder, bool)
+}
+
+// Forwarder is the interface of the event platform forwarder.
+type Forwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
 	SendEventPlatformEventBlocking(e *message.Message, eventType string) error
 	Purge() map[string][]*message.Message
