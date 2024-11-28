@@ -10,6 +10,7 @@ package rules
 
 import (
 	"errors"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -22,7 +23,7 @@ type EventCollector struct {
 	eventsCollected []CollectedEvent
 }
 
-func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
+func (ec *EventCollector) CollectEvent(rs *RuleSet, ctx *eval.Context, event eval.Event, result bool) {
 	ec.Lock()
 	defer ec.Unlock()
 	var fieldNotSupportedError *eval.ErrNotSupported
@@ -34,7 +35,14 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result boo
 		Fields:     make(map[string]interface{}, len(rs.fields)),
 	}
 
+	resolvedFields := ctx.GetResolvedFields()
+
 	for _, field := range rs.fields {
+		// skip fields that have not been resolved
+		if !slices.Contains(resolvedFields, field) {
+			continue
+		}
+
 		fieldEventType, err := event.GetFieldEventType(field)
 		if err != nil {
 			rs.logger.Errorf("failed to get event type for field %s: %v", field, err)
