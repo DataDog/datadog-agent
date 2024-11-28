@@ -272,13 +272,13 @@ def build(
                 cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
-                bundle_path = "/tmp/omnibus-git-cache-bundle"
+                bundle_path = tempfile.NamedTemporaryFile()
                 with timed(quiet=True) as durations['Restoring omnibus cache']:
                     # Allow failure in case the cache was evicted
-                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path.name}", warn=True):
                         print(f'Successfully retrieved cache {cache_key}')
                         try:
-                            ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
+                            ctx.run(f"git clone --mirror {bundle_path.name} {omnibus_cache_dir}")
                         except UnexpectedExit as exc:
                             print(f"An error occurring while cloning the cache repo: {exc}")
                         else:
@@ -316,8 +316,9 @@ def build(
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
         with timed(quiet=True) as durations['Updating omnibus cache']:
             if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path.name} --tags")
+                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path.name} {git_cache_url}")
+                bundle_path.close()
 
     # Output duration information for different steps
     print("Build component timing:")
