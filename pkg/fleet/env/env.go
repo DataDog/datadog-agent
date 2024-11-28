@@ -7,7 +7,6 @@
 package env
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,9 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -196,16 +192,21 @@ func FromEnv() *Env {
 	}
 }
 
+// agentConfig is an interface to read configuration values.
+// We use it instead of the config package to reduce the size of the bootstrapper.
+type agentConfig interface {
+	GetString(string) string
+	GetBool(string) bool
+	GetStringSlice(string) []string
+}
+
 // FromConfig returns an Env struct with values from the configuration.
-func FromConfig(config model.Reader) *Env {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	hostname, err := hostname.Get(ctx)
-	if err != nil {
-		hostname = "unknown"
-	}
+func FromConfig(hostname string, config agentConfig) *Env {
+	var tags []string
+	tags = append(tags, config.GetStringSlice("tags")...)
+	tags = append(tags, config.GetStringSlice("extra_tags")...)
 	return &Env{
-		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
+		APIKey:               strings.TrimSpace(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
 		RemotePolicies:       config.GetBool("remote_policies"),
@@ -214,7 +215,7 @@ func FromConfig(config model.Reader) *Env {
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 		RegistryUsername:     config.GetString("installer.registry.username"),
 		RegistryPassword:     config.GetString("installer.registry.password"),
-		Tags:                 utils.GetConfiguredTags(config, false),
+		Tags:                 tags,
 		Hostname:             hostname,
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),

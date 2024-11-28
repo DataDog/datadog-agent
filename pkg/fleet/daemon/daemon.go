@@ -83,7 +83,7 @@ func newInstaller(env *env.Env, installerBin string) installer.Installer {
 }
 
 // NewDaemon returns a new daemon.
-func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
+func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
 	installerBin, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
@@ -96,7 +96,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	env := env.FromConfig(config)
+	env := env.FromConfig(hostname, config)
 	installer := newInstaller(env, installerBin)
 	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_daemon"))
 	if err != nil {
