@@ -479,7 +479,6 @@ func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -1525,7 +1524,52 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	return p.Manager.UpdateActivatedProbes(activatedProbes)
+	previousProbes := p.computeProbesIDs()
+	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
+		return err
+	}
+	newProbes := p.computeProbesIDs()
+
+	p.computeProbesDiffAndRemoveMapping(previousProbes, newProbes)
+	return nil
+}
+
+func (p *EBPFProbe) computeProbesIDs() map[string]lib.ProgramID {
+	out := make(map[string]lib.ProgramID)
+	progList, err := p.Manager.GetPrograms()
+	if err != nil {
+		return out
+	}
+	for funcName, prog := range progList {
+		programInfo, err := prog.Info()
+		if err != nil {
+			continue
+		}
+
+		programID, isAvailable := programInfo.ID()
+		if isAvailable {
+			out[funcName] = programID
+		}
+	}
+
+	return out
+}
+
+func (p *EBPFProbe) computeProbesDiffAndRemoveMapping(previousProbes map[string]lib.ProgramID, newProbes map[string]lib.ProgramID) {
+	// Compute the list of programs that need to be deleted from the ddebpf mapping
+	var toDelete []lib.ProgramID
+	for previousProbeFuncName, programID := range previousProbes {
+		if _, ok := newProbes[previousProbeFuncName]; !ok {
+			toDelete = append(toDelete, programID)
+		}
+	}
+
+	for _, id := range toDelete {
+		ddebpf.RemoveProgramID(uint32(id), "cws")
+	}
+
+	// new programs could have been introduced during the update, add them now
+	ddebpf.AddNameMappings(p.Manager, "cws")
 }
 
 // GetDiscarders retrieve the discarders
