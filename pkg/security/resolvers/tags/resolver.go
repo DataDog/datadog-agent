@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,17 +54,17 @@ func (t *DefaultResolver) Resolve(id string) []string {
 
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
-	return GetTagsOfContainer(t.tagger, id)
+	return GetTagsOfContainer(t.tagger, containerutils.ContainerID(id))
 }
 
 // GetTagsOfContainer returns the tags for the given container id
 // exported to share the code with other non-resolver users of tagger
-func GetTagsOfContainer(tagger Tagger, containerID string) ([]string, error) {
+func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) ([]string, error) {
 	if tagger == nil {
 		return nil, nil
 	}
 
-	entityID := types.NewEntityID(types.ContainerID, containerID)
+	entityID := types.NewEntityID(types.ContainerID, string(containerID))
 	return tagger.Tag(entityID, types.OrchestratorCardinality)
 }
 
