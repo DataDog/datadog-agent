@@ -16,8 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-const maxFieldWeight = 999
-
 type EventCollector struct {
 	sync.Mutex
 	eventsCollected []CollectedEvent
@@ -50,14 +48,6 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, ctx *eval.Context, event eva
 
 		if fieldEventType != "" && fieldEventType != eventType {
 			continue
-		}
-
-		// for non-matching events, we want to avoid resolving costly fields (e.g. file hashes)
-		// to avoid impacting events that should be matching
-		if !result {
-			if evaluator, err := rs.model.GetEvaluator(field, ""); err == nil && evaluator.GetWeight() > maxFieldWeight {
-				continue
-			}
 		}
 
 		value, err := event.GetFieldValue(field)
