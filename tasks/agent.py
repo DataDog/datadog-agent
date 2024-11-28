@@ -174,6 +174,8 @@ def build(
 
         build_messagetable(ctx)
 
+        # Do not call build_rc when cross-compiling on Linux as the intend is more
+        # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
             vars = versioninfo_vars(ctx, major_version=major_version)
             build_rc(
