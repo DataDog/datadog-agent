@@ -59,7 +59,7 @@ GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		guiClient = getGUIClient(t, v.Env().RemoteHost, authtoken)
-	}, 1*time.Minute, 10*time.Second)
+	}, 30*time.Second, 5*time.Second)
 
 	v.T().Log("Testing GUI static file server")
 	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, "/opt/datadog-agent")
