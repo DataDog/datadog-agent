@@ -7,11 +7,13 @@ package infraattributesprocessor
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"strings"
+
+	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
+	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -95,8 +97,8 @@ func entityIDsFromAttributes(attrs pcommon.Map, generateID GenerateKubeMetadataE
 	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
 	}
-	if containerImageID, ok := attrs.Get(conventions.AttributeContainerImageID); ok {
-		splitImageID := strings.SplitN(containerImageID.AsString(), "@sha256:", 2)
+	if ociManifestDigest, ok := attrs.Get(conventions22.AttributeOciManifestDigest); ok {
+		splitImageID := strings.SplitN(ociManifestDigest.AsString(), "@sha256:", 2)
 		if len(splitImageID) == 2 {
 			entityIDs = append(entityIDs, types.NewEntityID(types.ContainerImageMetadata, fmt.Sprintf("sha256:%v", splitImageID[1])))
 		}

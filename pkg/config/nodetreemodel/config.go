@@ -305,6 +305,18 @@ func (c *ntmConfig) BuildSchema() {
 	}
 }
 
+// Stringify stringifies the config, but only with the test build tag
+func (c *ntmConfig) Stringify(source model.Source) string {
+	c.Lock()
+	defer c.Unlock()
+	// only does anything if the build tag "test" is enabled
+	text, err := c.toDebugString(source)
+	if err != nil {
+		return fmt.Sprintf("Stringify error: %s", err)
+	}
+	return text
+}
+
 func (c *ntmConfig) isReady() bool {
 	return c.ready.Load()
 }
@@ -482,14 +494,25 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.logErrorNotImplemented("UnmarshalKey")
+	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
 }
 
 // MergeConfig merges in another config
-func (c *ntmConfig) MergeConfig(_in io.Reader) error {
+func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.logErrorNotImplemented("MergeConfig")
+
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
@@ -619,11 +642,9 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
-// SetTypeByDefaultValue enables typing using default values
+// SetTypeByDefaultValue is a no-op
 func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("SetTypeByDefaultValue")
+	// do nothing: nodetreemodel always does this conversion
 }
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
@@ -661,32 +682,11 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		envTransform:       make(map[string]func(string) interface{}),
 	}
 
-	config.SetTypeByDefaultValue(true)
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
 
 	return &config
-}
-
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (c *ntmConfig) CopyConfig(cfg model.Config) {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("CopyConfig")
-	if cfg, ok := cfg.(*ntmConfig); ok {
-		// TODO: Probably a bug, should be a deep copy, add a test and verify
-		c.root = cfg.root
-		c.envPrefix = cfg.envPrefix
-		c.envKeyReplacer = cfg.envKeyReplacer
-		c.proxies = cfg.proxies
-		c.configEnvVars = cfg.configEnvVars
-		c.unknownKeys = cfg.unknownKeys
-		c.notificationReceivers = cfg.notificationReceivers
-		return
-	}
-	panic("Replacement config must be an instance of ntmConfig")
 }
 
 // ExtraConfigFilesUsed returns the additional config files used

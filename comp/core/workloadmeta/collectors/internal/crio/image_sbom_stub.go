@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !docker
+//go:build crio && !trivy
 
-// Package module holds module related files
-package module
+package crio
 
-func getCurrentECSTaskTags() (map[string]string, error) {
-	return nil, nil
+import (
+	"context"
+)
+
+func (c *collector) startSBOMCollection(context.Context) error {
+	return nil
 }
