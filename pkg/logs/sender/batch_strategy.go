@@ -55,9 +55,9 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
-	pipelineMonitor metrics.PipelineMonitor,
-	compression compression.Component) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), pipelineMonitor, compression)
+	compression compression.Component,
+	pipelineMonitor metrics.PipelineMonitor) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -71,8 +71,8 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	pipelineMonitor metrics.PipelineMonitor,
-	compression compression.Component) Strategy {
+	compression compression.Component,
+	pipelineMonitor metrics.PipelineMonitor) Strategy {
 
 	return &batchStrategy{
 		inputChan:       inputChan,

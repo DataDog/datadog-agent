@@ -43,8 +43,8 @@ type dependencies struct {
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
-	Compressor             compression.Component
 	HaAgent                haagent.Component
+	Compressor             compression.Component
 	Tagger                 tagger.Component
 
 	Params Params
@@ -81,7 +81,6 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,

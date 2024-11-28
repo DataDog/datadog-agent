@@ -73,10 +73,9 @@ func newMock(deps mockDependencies) MockProvides {
 	opts.DontStartForwarders = true
 
 	aggDeps := aggregator.TestDeps{
-		Log:             deps.Log,
-		Hostname:        deps.Hostname,
-		SharedForwarder: defaultforwarder.NoopForwarder{},
-		//Compressor:         compressionmock.NewMockCompressor(),
+		Log:                deps.Log,
+		Hostname:           deps.Hostname,
+		SharedForwarder:    defaultforwarder.NoopForwarder{},
 		CompressionFactory: compressionmock.NewMockCompressorFactory(),
 		HaAgent:            haagentmock.NewMockHaAgent(),
 	}

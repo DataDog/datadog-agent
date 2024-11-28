@@ -433,8 +433,8 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
 			desc.eventType,
-			pipelineMonitor,
-			encoder)
+			encoder,
+			pipelineMonitor)
 	}
 
 	a := auditor.NewNullAuditor()
