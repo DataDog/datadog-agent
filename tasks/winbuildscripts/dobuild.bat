@@ -44,6 +44,10 @@ if "%GO_VERSION_CHECK%" == "true" (
     inv -e check-go-version || exit /b 104
 )
 
+@echo "Attempting to guess which perl version is installed"
+perl --version
+command -v perl
+
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105
 
