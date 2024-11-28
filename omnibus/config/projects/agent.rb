@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
+require "./lib/project_helpers.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -224,7 +225,7 @@ if do_build
   dependency 'datadog-agent'
 
   # System-probe
-  if linux_target? && !heroku_target?
+  if sysprobe_enabled?
     dependency 'system-probe'
   end
 

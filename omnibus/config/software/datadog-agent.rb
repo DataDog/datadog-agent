@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/project_helpers.rb'
 require 'pathname'
 
 name 'datadog-agent'
@@ -134,8 +135,7 @@ build do
   end
 
   # System-probe
-  sysprobe_support = (not heroku_target?) && (linux_target? || (windows_target? && do_windows_sysprobe != ""))
-  if sysprobe_support
+  if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
     if windows_target?
       command "invoke -e system-probe.build", env: env
     elsif linux_target?
