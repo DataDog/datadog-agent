@@ -194,7 +194,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.SkipSSLValidation = core.GetBool("skip_ssl_validation")
 	}
 	if core.IsSet("apm_config.enabled") {
-		c.Enabled = core.GetBool("apm_config.enabled")
+		c.Enabled = utils.IsAPMEnabled(core)
 	}
 	if pkgconfigsetup.Datadog().IsSet("apm_config.log_file") {
 		c.LogFilePath = pkgconfigsetup.Datadog().GetString("apm_config.log_file")
@@ -276,6 +276,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
 		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
+	}
+
+	if core.IsSet("apm_config.error_tracking_standalone.enabled") {
+		c.ErrorTrackingStandalone = core.GetBool("apm_config.error_tracking_standalone.enabled")
 	}
 
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
@@ -418,6 +422,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Obfuscation.Memcached.Enabled = true
 		c.Obfuscation.Redis.Enabled = true
 		c.Obfuscation.CreditCards.Enabled = true
+		c.Obfuscation.Cache.Enabled = true
 
 		// TODO(x): There is an issue with pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
@@ -493,6 +498,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
 			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+		}
+		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.cache.enabled") {
+			c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
 		}
 	}
 

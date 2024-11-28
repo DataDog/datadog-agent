@@ -21,7 +21,7 @@ retract (
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
-	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
+	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
@@ -510,7 +510,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/cors v1.11.1 // indirect
-	github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b
+	github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b
 	github.com/saracen/walker v0.1.3 // indirect
 	github.com/sassoftware/go-rpmutils v0.3.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
@@ -603,7 +603,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
+	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
 	github.com/NVIDIA/go-nvml v0.12.4-0
+	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/distribution/reference v0.6.0
@@ -640,7 +642,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.135
+	github.com/DataDog/agent-payload/v5 v5.0.137
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.59.0
@@ -740,7 +742,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.6
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240409155312-26d1ea377073
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
-	github.com/containerd/cgroups/v3 v3.0.3
+	github.com/containerd/cgroups/v3 v3.0.4
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/dvsekhvalnov/jose2go v1.7.0
 	github.com/elastic/go-seccomp-bpf v1.5.0
@@ -1060,7 +1062,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Pull in replacements needed by upstream Trivy
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/use-fs-main-dd/
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240925151901-6736b8661190
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20241126101205-8517f9b946f4
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// testcontainers-go has a bug with versions v0.25.0 and v0.26.0
 	// ref: https://github.com/testcontainers/testcontainers-go/issues/1782

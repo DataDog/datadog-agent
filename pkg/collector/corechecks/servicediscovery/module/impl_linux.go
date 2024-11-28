@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,15 +49,16 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	generatedName      string
-	ddServiceName      string
-	ddServiceInjected  bool
-	language           language.Language
-	apmInstrumentation apm.Instrumentation
-	cmdLine            []string
-	startTimeMilli     uint64
-	cpuTime            uint64
-	cpuUsage           float64
+	generatedName        string
+	ddServiceName        string
+	ddServiceInjected    bool
+	checkedContainerData bool
+	language             language.Language
+	apmInstrumentation   apm.Instrumentation
+	cmdLine              []string
+	startTimeMilli       uint64
+	cpuTime              uint64
+	cpuUsage             float64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -81,9 +84,11 @@ type discovery struct {
 
 	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
 	lastCPUTimeUpdate time.Time
+
+	containerProvider proccontainers.ContainerProvider
 }
 
-func newDiscovery() *discovery {
+func newDiscovery(containerProvider proccontainers.ContainerProvider) *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
@@ -91,12 +96,14 @@ func newDiscovery() *discovery {
 		ignorePids:         make(map[int32]struct{}),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
+		containerProvider:  containerProvider,
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
-	return newDiscovery(), nil
+func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
+	return newDiscovery(sharedContainerProvider), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -546,18 +553,19 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:                int(pid),
-		Name:               name,
-		GeneratedName:      info.generatedName,
-		DDService:          info.ddServiceName,
-		DDServiceInjected:  info.ddServiceInjected,
-		Ports:              ports,
-		APMInstrumentation: string(info.apmInstrumentation),
-		Language:           string(info.language),
-		RSS:                rss,
-		CommandLine:        info.cmdLine,
-		StartTimeMilli:     info.startTimeMilli,
-		CPUCores:           info.cpuUsage,
+		PID:                  int(pid),
+		Name:                 name,
+		GeneratedName:        info.generatedName,
+		DDService:            info.ddServiceName,
+		DDServiceInjected:    info.ddServiceInjected,
+		CheckedContainerData: info.checkedContainerData,
+		Ports:                ports,
+		APMInstrumentation:   string(info.apmInstrumentation),
+		Language:             string(info.language),
+		RSS:                  rss,
+		CommandLine:          info.cmdLine,
+		StartTimeMilli:       info.startTimeMilli,
+		CPUCores:             info.cpuUsage,
 	}
 }
 
@@ -608,6 +616,89 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
+func getServiceNameFromContainerTags(tags []string) string {
+	// The tags we look for service name generation, in their priority order.
+	// The map entries will be filled as we go through the containers tags.
+	tagsPriority := []struct {
+		tagName  string
+		tagValue *string
+	}{
+		{"service", nil},
+		{"app", nil},
+		{"short_image", nil},
+		{"kube_container_name", nil},
+		{"kube_deployment", nil},
+		{"kube_service", nil},
+	}
+
+	for _, tag := range tags {
+		// Get index of separator between name and value
+		sepIndex := strings.IndexRune(tag, ':')
+		if sepIndex < 0 || sepIndex >= len(tag)-1 {
+			// Malformed tag; we skip it
+			continue
+		}
+
+		for i := range tagsPriority {
+			if tag[:sepIndex] != tagsPriority[i].tagName {
+				// Not a tag we care about; we skip it
+				continue
+			}
+
+			value := tag[sepIndex+1:]
+			tagsPriority[i].tagValue = &value
+			break
+		}
+	}
+
+	for _, tag := range tagsPriority {
+		if tag.tagValue == nil {
+			continue
+		}
+
+		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
+		return *tag.tagValue
+	}
+
+	return ""
+}
+
+func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
+	id, ok := pidToCid[service.PID]
+	if !ok {
+		return
+	}
+
+	service.ContainerID = id
+
+	// We got the service name from container tags before, no need to do it again.
+	if service.CheckedContainerData {
+		return
+	}
+
+	container, ok := containers[id]
+	if !ok {
+		return
+	}
+
+	serviceName := getServiceNameFromContainerTags(container.Tags)
+
+	if serviceName != "" {
+		service.GeneratedName = serviceName
+	}
+	service.CheckedContainerData = true
+
+	s.mux.Lock()
+	serviceInfo, ok := s.cache[int32(service.PID)]
+	if ok {
+		if serviceName != "" {
+			serviceInfo.generatedName = serviceName
+		}
+		serviceInfo.checkedContainerData = true
+	}
+	s.mux.Unlock()
+}
+
 // getStatus returns the list of currently running services.
 func (s *discovery) getServices() (*[]model.Service, error) {
 	procRoot := kernel.ProcFSRoot()
@@ -623,6 +714,17 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	var services []model.Service
 	alivePids := make(map[int32]struct{}, len(pids))
+	containers, _, pidToCid, err := s.containerProvider.GetContainers(1*time.Minute, nil)
+	if err != nil {
+		log.Errorf("could not get containers: %s", err)
+	}
+
+	// Build mapping of Container ID to container object to avoid traversal of
+	// the containers slice for every services.
+	containersMap := make(map[string]*agentPayload.Container, len(containers))
+	for _, c := range containers {
+		containersMap[c.Id] = c
+	}
 
 	for _, pid := range pids {
 		alivePids[pid] = struct{}{}
@@ -631,6 +733,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		if service == nil {
 			continue
 		}
+		s.enrichContainerData(service, containersMap, pidToCid)
 
 		services = append(services, *service)
 	}
