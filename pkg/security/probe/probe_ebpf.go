@@ -685,6 +685,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		panic("should always return a process context")
 	}
 
+	// do the same with cgroup context
+	event.CGroupContext = event.ProcessCacheEntry.CGroup
+
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
 	}
