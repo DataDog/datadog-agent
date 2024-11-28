@@ -9,7 +9,7 @@
 package testutil
 
 import (
-	"fmt"
+	"errors"
 	"regexp"
 	"strings"
 	"sync"
