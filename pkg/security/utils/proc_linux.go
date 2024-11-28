@@ -8,6 +8,7 @@ package utils
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 // Getpid returns the current process ID in the host namespace
@@ -383,4 +385,86 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 	}
 
 	return output, nil
+}
+
+// GetProcessPidNamespace returns the PID namespace of the given PID
+func GetProcessPidNamespace(pid uint32) (uint64, error) {
+	nspidPath := procPidPath(pid, "ns/pid")
+	link, err := os.Readlink(nspidPath)
+	if err != nil {
+		return 0, err
+	}
+	// link should be in for of: pid:[4026532294]
+	if !strings.HasPrefix(link, "pid:[") {
+		return 0, fmt.Errorf("Failed to retrieve PID NS, pid ns malformated: (%s) err: %v", link, err)
+	}
+
+	link = strings.TrimPrefix(link, "pid:[")
+	link = strings.TrimSuffix(link, "]")
+
+	ns, err := strconv.ParseUint(link, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to retrieve PID NS, pid ns malformated: (%s) err: %v", link, err)
+	}
+	return ns, nil
+}
+
+// GetNsPids returns the namespaced pids of the the givent root pid
+func GetNsPids(pid uint32) ([]uint32, error) {
+	statusFile := StatusPath(pid)
+	content, err := os.ReadFile(statusFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read status file: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "NSpid:") {
+			// Remove "NSpid:" prefix and trim spaces
+			values := strings.TrimPrefix(line, "NSpid:")
+			values = strings.TrimSpace(values)
+
+			// Split the remaining string into fields
+			fields := strings.Fields(values)
+
+			// Convert string values to integers
+			nspids := make([]uint32, 0, len(fields))
+			for _, field := range fields {
+				val, err := strconv.ParseUint(field, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse NSpid value: %w", err)
+				}
+				nspids = append(nspids, uint32(val))
+			}
+			return nspids, nil
+		}
+	}
+	return nil, fmt.Errorf("NSpid field not found")
+}
+
+// FindPidNamespace search and return the host PID for the given namespaced PID + its namespace
+func FindPidNamespace(nspid uint32, ns uint64) (uint32, error) {
+	procPids, err := process.Pids()
+	if err != nil {
+		return 0, err
+	}
+
+	for _, procPid := range procPids {
+		procNs, err := GetProcessPidNamespace(uint32(procPid))
+		if err != nil {
+			continue
+		}
+
+		if procNs == ns {
+			nspids, err := GetNsPids(uint32(procPid))
+			if err != nil {
+				return 0, err
+			}
+			// we look only at the last one, as it the most inner one and corresponding to its /proc/pid/ns/pid namespace
+			if nspids[len(nspids)-1] == nspid {
+				return uint32(procPid), nil
+			}
+		}
+	}
+	return 0, errors.New("PID not found")
 }
