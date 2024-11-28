@@ -833,7 +833,7 @@ func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment s
 	ctx := context.Background()
 
 	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
-	oldPods, err := suite.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
+	oldPods, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
 	})
 	suite.Require().NoError(err)
@@ -841,7 +841,7 @@ func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment s
 	oldPod := oldPods.Items[0]
 
 	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err = suite.K8sClient.CoreV1().Pods(kubeNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+	err = suite.Env().KubernetesCluster.KubernetesClient.K8sClient.CoreV1().Pods(kubeNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
 	})
 	suite.Require().NoError(err)
@@ -849,7 +849,7 @@ func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment s
 	// Wait for the fresh pod to be created
 	var pod corev1.Pod
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
+		pods, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
 		})
 		if !assert.NoError(c, err) {
