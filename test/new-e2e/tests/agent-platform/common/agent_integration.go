@@ -80,7 +80,7 @@ func installIntegration(t *testing.T, client *TestClient, integration string) {
 	maxRetries := 6
 
 	err := backoff.Retry(func() error {
-		_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "-r", integration}))
+		_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "--unsafe-disable-verification", "-r", integration}))
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
 

@@ -44,6 +44,10 @@ func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
 }
 
+func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
+	return true
+}
+
 // Component is the component type.
 type Component interface {
 	haagent.Component
