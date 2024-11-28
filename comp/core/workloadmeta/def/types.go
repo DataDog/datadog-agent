@@ -64,6 +64,10 @@ const (
 	// use this source.
 	SourceRuntime Source = "runtime"
 
+	// SourceTrivy represents entities detected by Trivy during the SBOM scan.
+	// `crio` uses this source.
+	SourceTrivy Source = "trivy"
+
 	// SourceNodeOrchestrator represents entities detected by the node
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
 	SourceNodeOrchestrator Source = "node_orchestrator"
@@ -1108,13 +1112,17 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
-		switch i.SBOM.Status {
-		case Success:
-			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		case Failed:
-			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
-		default:
+		if i.SBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+			switch i.SBOM.Status {
+			case Success:
+				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+			case Failed:
+				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+			default:
+			}
+		} else {
+			fmt.Fprintln(&sb, "SBOM is nil")
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")

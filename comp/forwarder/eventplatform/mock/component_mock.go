@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build test
+// Package mock provides the mock interafce for the event platform component.
+package mock
 
-package eventplatform
+import eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	eventplatform.Component
 }
