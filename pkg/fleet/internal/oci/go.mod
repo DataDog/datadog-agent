@@ -4,7 +4,10 @@ go 1.22.1
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/fleet/env => ../../env
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../obfuscate
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber
 )
 
 require (
@@ -27,7 +30,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.5.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.1 // indirect
-	github.com/DataDog/go-sqllexer v0.0.14 // indirect
+	github.com/DataDog/go-sqllexer v0.0.16 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -64,7 +67,6 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.17.1 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
