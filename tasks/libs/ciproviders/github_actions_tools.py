@@ -11,13 +11,13 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import DEFAULT_BRANCH
+from tasks.libs.common.git import get_default_branch
 
 
 def trigger_macos_workflow(
     workflow_name="macos.yaml",
     github_action_ref="master",
-    datadog_agent_ref=DEFAULT_BRANCH,
+    datadog_agent_ref=None,
     release_version=None,
     major_version=None,
     gitlab_pipeline_id=None,
@@ -31,6 +31,8 @@ def trigger_macos_workflow(
     """
     Trigger a workflow to build a MacOS Agent.
     """
+
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
     inputs = {}
 
     if datadog_agent_ref is not None:

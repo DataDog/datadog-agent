@@ -1423,6 +1423,29 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.False(t, conf.IsKnown("inventories_enabled"))
 }
 
+func TestDisableCoreAgent(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
+
+	InitConfig(conf)
+	assert.True(t, conf.GetBool("core_agent.enabled"))
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
+	// ensure events default payloads are enabled
+	assert.True(t, conf.GetBool("enable_payloads.events"))
+	assert.True(t, conf.GetBool("enable_payloads.series"))
+	assert.True(t, conf.GetBool("enable_payloads.service_checks"))
+	assert.True(t, conf.GetBool("enable_payloads.sketches"))
+
+	conf.BindEnvAndSetDefault("core_agent.enabled", false)
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
+	// ensure events default payloads are disabled
+	assert.False(t, conf.GetBool("enable_payloads.events"))
+	assert.False(t, conf.GetBool("enable_payloads.series"))
+	assert.False(t, conf.GetBool("enable_payloads.service_checks"))
+	assert.False(t, conf.GetBool("enable_payloads.sketches"))
+}
+
 func TestAgentConfigInit(t *testing.T) {
 	conf := newTestConf()
 
