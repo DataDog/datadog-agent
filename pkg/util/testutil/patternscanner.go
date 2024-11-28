@@ -45,7 +45,7 @@ type PatternScanner struct {
 // at least one of the startPattern/finishPattern should be provided.
 func NewScanner(startPattern, finishPattern *regexp.Regexp, doneChan chan struct{}) (*PatternScanner, error) {
 	if startPattern == nil && finishPattern == nil {
-		return nil, fmt.Errorf("at least one pattern should be provided")
+		return nil, errors.New("at least one pattern should be provided")
 	}
 	return &PatternScanner{
 		startPattern:  startPattern,
