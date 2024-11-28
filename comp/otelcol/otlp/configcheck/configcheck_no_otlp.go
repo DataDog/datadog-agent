@@ -5,6 +5,7 @@
 
 //go:build !otlp
 
+// Package configcheck exposes helpers to fetch config.
 package configcheck
 
 import (
