@@ -34,7 +34,7 @@ import (
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci/tar"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci/tar"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1/layout"

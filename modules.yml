@@ -141,7 +141,6 @@ modules:
     used_by_otel: true
   pkg/errors: default
   pkg/fleet/env: default
-  pkg/fleet/internal/tar: default
   pkg/gohai:
     importable: false
   pkg/linters/components/pkgconfigusage:
