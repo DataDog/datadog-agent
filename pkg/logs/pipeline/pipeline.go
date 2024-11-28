@@ -33,20 +33,20 @@ type Pipeline struct {
 	flushChan       chan struct{}
 	processor       *processor.Processor
 	strategy        sender.Strategy
-	sender          *sender.Sender
+	sender          sender.PipelineComponent
 	serverless      bool
 	flushWg         *sync.WaitGroup
 	pipelineMonitor metrics.PipelineMonitor
 }
 
 // NewPipeline returns a new Pipeline
-// When logsSender is not provided, this func creates a sender for the created pipeline.
+// When sharedSender is not provided, this func creates a sender for the created pipeline.
 func NewPipeline(outputChan chan *message.Payload,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	auditor auditor.Auditor,
-	logsSender *sender.Sender,
+	sharedSender sender.PipelineComponent,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
 	pipelineID int,
@@ -76,28 +76,31 @@ func NewPipeline(outputChan chan *message.Payload,
 	}
 
 	// if not provided, create a sender for this pipeline
-	senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
-	if logsSender == nil {
+	var senderImpl sender.PipelineComponent
+	if sharedSender == nil {
 		pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 		mainDestinations := GetDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
-		logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations,
+		senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
+		senderImpl = sender.NewSender(cfg, senderInput, auditor, mainDestinations,
 			pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
+	} else {
+		senderImpl = sharedSender
 	}
-	strategy := getStrategy(strategyInput, logsSender.In(), flushChan, endpoints, serverless, flushWg, logsSender.PipelineMonitor)
+	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverless, flushWg, senderImpl.PipelineMonitor())
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, logsSender.PipelineMonitor)
+		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor())
 
 	return &Pipeline{
 		InputChan:       inputChan,
 		flushChan:       flushChan,
 		processor:       processor,
 		strategy:        strategy,
-		sender:          logsSender,
+		sender:          senderImpl,
 		serverless:      serverless,
 		flushWg:         flushWg,
-		pipelineMonitor: logsSender.PipelineMonitor,
+		pipelineMonitor: senderImpl.PipelineMonitor(),
 	}
 }
 

@@ -47,7 +47,7 @@ type provider struct {
 	outputChan                chan *message.Payload
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
-	sender                    *sender.Sender
+	sender                    sender.PipelineComponent
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
@@ -61,10 +61,10 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, logsSender *sender.Sender, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver,
+func NewProvider(numberOfPipelines int, sharedSender sender.PipelineComponent, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext,
 	status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, logsSender, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg)
+	return newProvider(numberOfPipelines, sharedSender, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
@@ -77,14 +77,14 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int, logsSender *sender.Sender, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+func newProvider(numberOfPipelines int, sharedSender sender.PipelineComponent, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		processingRules:           processingRules,
 		endpoints:                 endpoints,
-		sender:                    logsSender,
+		sender:                    sharedSender,
 		pipelines:                 []*Pipeline{},
 		currentPipelineIndex:      atomic.NewUint32(0),
 		destinationsContext:       destinationsContext,
@@ -104,6 +104,7 @@ func (p *provider) Start() {
 	if p.sender != nil {
 		p.sender.Start()
 	}
+
 	for i := 0; i < p.numberOfPipelines; i++ {
 		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.auditor, p.sender,
 			p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
