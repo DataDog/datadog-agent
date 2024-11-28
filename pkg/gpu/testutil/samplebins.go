@@ -106,6 +106,7 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (c
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
 		}
 	})
 
