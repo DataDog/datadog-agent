@@ -1011,7 +1011,7 @@ func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.
 	return &NetworkDeviceSerializer{
 		NetNS:   deviceCtx.NetNS,
 		IfIndex: deviceCtx.IfIndex,
-		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, &e.NetworkContext.Device),
+		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, deviceCtx),
 	}
 }
 
