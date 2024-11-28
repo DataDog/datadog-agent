@@ -209,6 +209,8 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			leader: "another-agent-is-leader",
 			expectShouldRunIntegration: map[string]bool{
 				"snmp":                false,
+				"cisco_aci":           false,
+				"cisco_sdwan":         false,
 				"network_path":        false,
 				"unknown_integration": true,
 				"cpu":                 true,
@@ -225,6 +227,8 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			leader: testAgentHostname,
 			expectShouldRunIntegration: map[string]bool{
 				"snmp":                true,
+				"cisco_aci":           true,
+				"cisco_sdwan":         true,
 				"network_path":        true,
 				"unknown_integration": true,
 				"cpu":                 true,
