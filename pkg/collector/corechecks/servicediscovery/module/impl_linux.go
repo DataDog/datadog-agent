@@ -50,6 +50,7 @@ var _ module.Module = &discovery{}
 // endpoint.
 type serviceInfo struct {
 	generatedName        string
+	generatedNameSource  string
 	ddServiceName        string
 	ddServiceInjected    bool
 	checkedContainerData bool
@@ -420,13 +421,14 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	apmInstrumentation := apm.Detect(lang, ctx)
 
 	return &serviceInfo{
-		generatedName:      nameMeta.Name,
-		ddServiceName:      nameMeta.DDService,
-		language:           lang,
-		apmInstrumentation: apmInstrumentation,
-		ddServiceInjected:  nameMeta.DDServiceInjected,
-		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeMilli:     uint64(createTime),
+		generatedName:       nameMeta.Name,
+		generatedNameSource: string(nameMeta.Source),
+		ddServiceName:       nameMeta.DDService,
+		language:            lang,
+		apmInstrumentation:  apmInstrumentation,
+		ddServiceInjected:   nameMeta.DDServiceInjected,
+		cmdLine:             sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeMilli:      uint64(createTime),
 	}, nil
 }
 
@@ -553,19 +555,19 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:                  int(pid),
-		Name:                 name,
-		GeneratedName:        info.generatedName,
-		DDService:            info.ddServiceName,
-		DDServiceInjected:    info.ddServiceInjected,
-		CheckedContainerData: info.checkedContainerData,
-		Ports:                ports,
-		APMInstrumentation:   string(info.apmInstrumentation),
-		Language:             string(info.language),
-		RSS:                  rss,
-		CommandLine:          info.cmdLine,
-		StartTimeMilli:       info.startTimeMilli,
-		CPUCores:             info.cpuUsage,
+		PID:                 int(pid),
+		Name:                name,
+		GeneratedName:       info.generatedName,
+		GeneratedNameSource: info.generatedNameSource,
+		DDService:           info.ddServiceName,
+		DDServiceInjected:   info.ddServiceInjected,
+		Ports:               ports,
+		APMInstrumentation:  string(info.apmInstrumentation),
+		Language:            string(info.language),
+		RSS:                 rss,
+		CommandLine:         info.cmdLine,
+		StartTimeMilli:      info.startTimeMilli,
+		CPUCores:            info.cpuUsage,
 	}
 }
 
@@ -689,6 +691,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		if service.DDService == "" {
 			service.Name = serviceName
 		}
+		service.GeneratedNameSource = string(usm.Container)
 	}
 	service.CheckedContainerData = true
 
@@ -697,6 +700,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	if ok {
 		if serviceName != "" {
 			serviceInfo.generatedName = serviceName
+			serviceInfo.generatedNameSource = string(usm.Container)
 		}
 		serviceInfo.checkedContainerData = true
 	}

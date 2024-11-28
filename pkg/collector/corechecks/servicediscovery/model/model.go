@@ -11,6 +11,7 @@ type Service struct {
 	PID                  int      `json:"pid"`
 	Name                 string   `json:"name"`
 	GeneratedName        string   `json:"generated_name"`
+	GeneratedNameSource  string   `json:"generated_name_source"`
 	DDService            string   `json:"dd_service"`
 	DDServiceInjected    bool     `json:"dd_service_injected"`
 	CheckedContainerData bool     `json:"checked_container_data"`

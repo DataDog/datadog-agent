@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -367,6 +368,7 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(t, "foo_bar", portMap[pid].DDService)
 		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
+		assert.Equal(t, string(usm.CommandLine), portMap[pid].GeneratedNameSource)
 		assert.False(t, portMap[pid].DDServiceInjected)
 		assert.Equal(t, portMap[pid].ContainerID, "")
 	}, 30*time.Second, 100*time.Millisecond)
@@ -395,6 +397,7 @@ func TestInjectedServiceName(t *testing.T) {
 	// The GeneratedName can vary depending on how the tests are run, so don't
 	// assert for a specific value.
 	require.NotEmpty(t, portMap[pid].GeneratedName)
+	require.NotEmpty(t, portMap[pid].GeneratedNameSource)
 	require.NotEqual(t, portMap[pid].DDService, portMap[pid].GeneratedName)
 	assert.True(t, portMap[pid].DDServiceInjected)
 }
@@ -661,6 +664,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Contains(collect, svcMap, pid)
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", svcMap[pid].GeneratedName)
+		assert.Equal(collect, string(usm.Nodejs), svcMap[pid].GeneratedNameSource)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])
@@ -842,6 +846,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
 	require.Contains(t, portMap[pid1111].Name, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
+	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.Container))
 }
 
 // Check that the cache is cleaned when procceses die.
