@@ -35,12 +35,13 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log        log.Component
-	Config     config.Component
-	Hostname   hostname.Component
-	Compressor compression.Component
-	Tagger     tagger.Component
-	HaAgent    haagent.Component
+	Log                log.Component
+	Config             config.Component
+	Hostname           hostname.Component
+	CompressionFactory compression.Factory
+	Compressor         compression.Component
+	Tagger             tagger.Component
+	HaAgent            haagent.Component
 }
 
 type diagnoseSenderManager struct {

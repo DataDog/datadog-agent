@@ -281,7 +281,7 @@ type internalDemutiplexerDeps struct {
 	TestDeps
 	OrchestratorForwarder orchestratorForwarder.Component
 	Eventplatform         eventplatform.Component
-	Compressor            compression.Factory
+	Compressor            compression.Component
 }
 
 func createDemuxDepsWithOrchestratorFwd(

@@ -158,9 +158,10 @@ type DemultiplexerAgentTestDeps struct {
 	TestDeps
 	OrchestratorFwd orchestratorforwarder.Component
 	EventPlatform   eventplatform.Component
-	Compressor      compression.Factory
-	Tagger          tagger.Component
-	HaAgent         haagent.Component
+	// just changed from factory to component. Do we need both?
+	Compressor compression.Component
+	Tagger     tagger.Component
+	HaAgent    haagent.Component
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
