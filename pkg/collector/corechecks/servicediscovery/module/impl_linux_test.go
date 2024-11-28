@@ -844,6 +844,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
 	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
+	require.Contains(t, portMap[pid1111].Name, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.Container))
 }

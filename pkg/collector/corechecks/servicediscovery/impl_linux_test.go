@@ -88,6 +88,7 @@ var (
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                 procTestService1.pid,
+		Name:                "test-service-1",
 		GeneratedName:       "test-service-1-generated",
 		GeneratedNameSource: "test-service-1-generated-source",
 		DDService:           "test-service-1",
