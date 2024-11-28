@@ -268,6 +268,10 @@ def get_build_flags(
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
+    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+        # fake the minimum windows version
+        env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"
+
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external "
@@ -319,7 +323,7 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux':
+    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
         # Enable lazy binding, which seems to be overridden when loading containerd
         # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
         extldflags += "-Wl,-z,lazy "
