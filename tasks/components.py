@@ -4,7 +4,6 @@ Invoke entrypoint, import here all the tasks we want to make available
 
 import os
 import pathlib
-import re
 from collections import namedtuple
 from collections.abc import Iterable
 from string import Template
@@ -233,8 +232,8 @@ def check_component_contents_and_file_hiearchy(comp):
 
             for part in src_file.parts:
                 if "impl-" in part:
-                    name = re.findall('impl-(.*)', part)
-                    expectname = name[0] + 'impl'
+                    parts = part.split("-")
+                    expectname = parts[1] + 'impl'
 
             if pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
