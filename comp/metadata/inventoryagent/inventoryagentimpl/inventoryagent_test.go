@@ -490,7 +490,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
