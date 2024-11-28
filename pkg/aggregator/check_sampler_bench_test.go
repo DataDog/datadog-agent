@@ -15,11 +15,11 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 
 	//nolint:revive // TODO(AML) Fix revive linter
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
@@ -38,7 +38,6 @@ type benchmarkDeps struct {
 	Log        log.Component
 	Hostname   hostname.Component
 	Compressor compression.Component
-	Config     config.Component
 }
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -53,8 +52,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
 	haAgent := haagentmock.NewMockHaAgent()
-	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventplatformock.NewMock(), haAgent, deps.Compressor, taggerComponent, "hostname")
+	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)

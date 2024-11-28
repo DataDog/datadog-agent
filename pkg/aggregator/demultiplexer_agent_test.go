@@ -89,7 +89,6 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.EnableNoAggregationPipeline = true
 	deps := createDemultiplexerAgentTestDeps(t)
-
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
@@ -158,10 +157,9 @@ type DemultiplexerAgentTestDeps struct {
 	TestDeps
 	OrchestratorFwd orchestratorforwarder.Component
 	EventPlatform   eventplatform.Component
-	// just changed from factory to component. Do we need both?
-	Compressor compression.Component
-	Tagger     tagger.Component
-	HaAgent    haagent.Component
+	Compressor      compression.Component
+	Tagger          tagger.Component
+	HaAgent         haagent.Component
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
