@@ -203,6 +203,12 @@ def build(
     if include_sds:
         build_tags.append("sds")
 
+    command_flavor = "agent"
+    if flavor.is_iot():
+        command_flavor = "iot-agent"
+    if flavor.is_checks():
+        command_flavor = "checks-agent"
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
@@ -213,7 +219,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
+        "flavor": command_flavor,
     }
     with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
