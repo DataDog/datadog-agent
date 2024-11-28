@@ -11,8 +11,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestInjected(t *testing.T) {
@@ -302,10 +305,22 @@ func TestGoDetector(t *testing.T) {
 
 		cmd := exec.Command(binary)
 		require.NoError(t, cmd.Start())
-		tests[i].pid = cmd.Process.Pid
 		t.Cleanup(func() {
 			_ = cmd.Process.Kill()
+			cmd.Wait()
 		})
+		require.Eventually(t, func() bool {
+			if cmd.Process.Pid == 0 {
+				return false
+			}
+			f, err := os.Open(kernel.HostProc(strconv.Itoa(cmd.Process.Pid), "exe"))
+			if err == nil {
+				_ = f.Close()
+				return true
+			}
+			return false
+		}, time.Second*10, time.Millisecond*100)
+		tests[i].pid = cmd.Process.Pid
 	}
 
 	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)

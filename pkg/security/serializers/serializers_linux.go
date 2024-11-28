@@ -895,10 +895,24 @@ func newMProtectEventSerializer(e *model.Event) *MProtectEventSerializer {
 }
 
 func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
+	if e.PTrace.Tracee == nil {
+		return nil
+	}
+
+	fakeTraceeEvent := &model.Event{
+		BaseEvent: model.BaseEvent{
+			FieldHandlers:  e.FieldHandlers,
+			ProcessContext: e.PTrace.Tracee,
+			ContainerContext: &model.ContainerContext{
+				ContainerID: e.PTrace.Tracee.ContainerID,
+			},
+		},
+	}
+
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent),
 	}
 }
 

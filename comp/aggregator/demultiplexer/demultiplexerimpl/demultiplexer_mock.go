@@ -16,7 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -76,7 +76,7 @@ func newMock(deps mockDependencies) MockProvides {
 		Log:             deps.Log,
 		Hostname:        deps.Hostname,
 		SharedForwarder: defaultforwarder.NoopForwarder{},
-		Compressor:      compressionimpl.NewMockCompressor(),
+		Compressor:      compressionmock.NewMockCompressor(),
 		HaAgent:         haagentmock.NewMockHaAgent(),
 	}
 
