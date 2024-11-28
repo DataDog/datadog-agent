@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/mock/gomock"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -812,9 +813,21 @@ func TestDocker(t *testing.T) {
 			}
 			if comm == "python-1111" {
 				pid1111 = process.PID
-				mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).Return(nil, nil, map[int]string{
-					pid1111: "dummyCID",
-				}, nil)
+				mockContainerProvider.
+					EXPECT().
+					GetContainers(1*time.Minute, nil).
+					Return(
+						[]*agentPayload.Container{
+							{Id: "dummyCID", Tags: []string{
+								"sometag:somevalue",
+								"kube_service:kube_foo", // Should not have priority compared to app tag, for service naming
+								"app:foo_from_app_tag",
+							}},
+						},
+						nil,
+						map[int]string{
+							pid1111: "dummyCID",
+						}, nil)
 
 				break
 			}
@@ -827,6 +840,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
 	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
+	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
 }
 
 // Check that the cache is cleaned when procceses die.
@@ -893,6 +907,113 @@ func TestCache(t *testing.T) {
 
 	discovery.Close()
 	require.Empty(t, discovery.cache)
+}
+
+func TestTagsPriority(t *testing.T) {
+	cases := []struct {
+		name                string
+		tags                []string
+		expectedServiceName string
+	}{
+		{
+			"nil tag list",
+			nil,
+			"",
+		},
+		{
+			"empty tag list",
+			[]string{},
+			"",
+		},
+		{
+			"no useful tags",
+			[]string{"foo:bar"},
+			"",
+		},
+		{
+			"malformed tag",
+			[]string{"foobar"},
+			"",
+		},
+		{
+			"service tag",
+			[]string{"service:foo"},
+			"foo",
+		},
+		{
+			"app tag",
+			[]string{"app:foo"},
+			"foo",
+		},
+		{
+			"short_image tag",
+			[]string{"short_image:foo"},
+			"foo",
+		},
+		{
+			"kube_container_name tag",
+			[]string{"kube_container_name:foo"},
+			"foo",
+		},
+		{
+			"kube_deployment tag",
+			[]string{"kube_deployment:foo"},
+			"foo",
+		},
+		{
+			"kube_service tag",
+			[]string{"kube_service:foo"},
+			"foo",
+		},
+		{
+			"multiple tags",
+			[]string{
+				"foo:bar",
+				"baz:biz",
+				"service:my_service",
+				"malformed",
+			},
+			"my_service",
+		},
+		{
+			"empty value",
+			[]string{
+				"service:",
+				"app:foo",
+			},
+			"foo",
+		},
+		{
+			"multiple tags with priority",
+			[]string{
+				"foo:bar",
+				"short_image:my_image",
+				"baz:biz",
+				"service:my_service",
+				"malformed",
+			},
+			"my_service",
+		},
+		{
+			"all priority tags",
+			[]string{
+				"kube_service:my_kube_service",
+				"kube_deployment:my_kube_deployment",
+				"kube_container_name:my_kube_container_name",
+				"short_iamge:my_short_image",
+				"app:my_app",
+				"service:my_service",
+			},
+			"my_service",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			name := getServiceNameFromContainerTags(c.tags)
+			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
+		})
+	}
 }
 
 func BenchmarkOldProcess(b *testing.B) {
