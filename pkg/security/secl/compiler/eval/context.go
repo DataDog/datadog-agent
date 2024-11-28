@@ -66,14 +66,7 @@ func (c *Context) Reset() {
 	clear(c.resolvedFields)
 }
 
-func (c *Context) AppendResolvedField(field string) {
-	if field == "" {
-		return
-	}
-
-	c.resolvedFields = append(c.resolvedFields, field)
-}
-
+// GetResolvedFields returns the resolved fields, always empty outside of functional tests
 func (c *Context) GetResolvedFields() []string {
 	return c.resolvedFields
 }
