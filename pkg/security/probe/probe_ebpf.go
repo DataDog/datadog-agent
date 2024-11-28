@@ -1632,7 +1632,7 @@ func (p *EBPFProbe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *EBPFProbe) RefreshUserCache(containerID string) error {
+func (p *EBPFProbe) RefreshUserCache(containerID containerutils.ContainerID) error {
 	return p.Resolvers.UserGroupResolver.RefreshCache(containerID)
 }
 
@@ -2508,7 +2508,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(string(ev.ContainerContext.ContainerID))
+			_ = p.RefreshUserCache(ev.ContainerContext.ContainerID)
 
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(string(ev.ContainerContext.ContainerID)); err != nil {
