@@ -21,8 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -54,12 +53,11 @@ func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 	return s
 }
 
-func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplexer {
+func testDemux(log log.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), compressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventplatformock.NewMock(), haagentmock.NewMockHaAgent(), compressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
 	return demux
 }
 
@@ -86,7 +84,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -106,7 +104,7 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -136,7 +134,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -159,7 +157,7 @@ func TestDestroySender(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -189,7 +187,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 
 	itemChan := make(chan senderItem, 10)
 	serviceCheckChan := make(chan servicecheck.ServiceCheck, 10)
@@ -212,7 +210,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// -
 
 	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
-	demux := testDemux(deps.Log, deps.Hostname)
+	demux := testDemux(deps.Log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 

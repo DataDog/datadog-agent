@@ -411,6 +411,20 @@ new-e2e-installer-windows:
     TARGETS: ./tests/installer/windows
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
+  parallel:
+    matrix:
+      # agent-package
+      - EXTRA_PARAMS: --run "TestAgentInstallsWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$"
+      # install-script
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      # installer-package
+      - EXTRA_PARAMS: --run "TestInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
+      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
+
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -469,6 +483,10 @@ new-e2e-windows-systemprobe:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
     SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
+      - EXTRA_PARAMS: --run TestVMSuite
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
