@@ -106,6 +106,7 @@ func (ps *PatternScanner) matchPatterns(line string) {
 
 func (ps *PatternScanner) notifyAndStop() {
 	ps.stopOnce.Do(func() {
+		ps.buffers = append(ps.buffers, ps.lineBuf) // flush the last line
 		ps.stopped = true
 		close(ps.DoneChan)
 	})
