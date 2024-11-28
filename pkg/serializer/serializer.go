@@ -504,7 +504,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return err
 	}
 
-	log.Infof("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
+	log.Debugf("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
 	return nil
 }
 
@@ -529,7 +529,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 		return err
 	}
 
-	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payload))
+	log.Debugf("Sent processes metadata payload, size: %d bytes.", len(payload))
 	log.Debugf("Sent processes metadata payload, content: %v", string(payload))
 	return nil
 }
