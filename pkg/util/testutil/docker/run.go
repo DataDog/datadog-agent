@@ -10,6 +10,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
 	"time"
@@ -24,13 +25,15 @@ import (
 func Run(t testing.TB, cfg LifecycleConfig) error {
 	var err error
 	var ctx context.Context
+	var scanner *testutil.PatternScanner
 	for i := 0; i < cfg.Retries(); i++ {
 		t.Helper()
 		// Ensuring no previous instances exists.
 		killPreviousInstances(cfg)
 
 		//TODO: in the following PR move the scanner to be a field of the LifecycleConfig
-		scanner := testutil.NewScanner(cfg.LogPattern(), testutil.NoPattern, make(chan struct{}, 1))
+		scanner, err = testutil.NewScanner(cfg.LogPattern(), testutil.NoPattern, make(chan struct{}, 1))
+		require.NoError(t, err, "failed to create pattern scanner")
 		// attempt to start the container/s
 		ctx, err = run(t, cfg, scanner)
 		if err != nil {

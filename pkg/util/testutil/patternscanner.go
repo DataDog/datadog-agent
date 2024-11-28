@@ -9,6 +9,7 @@
 package testutil
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -30,7 +31,7 @@ type PatternScanner struct {
 	stopOnce sync.Once
 
 	// flag to indicate that start was found, and we should look for finishPattern now
-	started bool
+	startPatternFound bool
 	// A helper to spare redundant calls to the analyzer once we've found both start and finish
 	stopped bool
 
@@ -41,23 +42,20 @@ type PatternScanner struct {
 }
 
 // NewScanner returns a new instance of PatternScanner.
-// startPattern and finishPattern are both optional, if none provided, Done channel will be signaled immediately.
-func NewScanner(startPattern, finishPattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner {
-	ps := &PatternScanner{
+// at least one of the startPattern/finishPattern should be provided.
+func NewScanner(startPattern, finishPattern *regexp.Regexp, doneChan chan struct{}) (*PatternScanner, error) {
+	if startPattern == nil && finishPattern == nil {
+		return nil, fmt.Errorf("at least one pattern should be provided")
+	}
+	return &PatternScanner{
 		startPattern:  startPattern,
 		finishPattern: finishPattern,
 		DoneChan:      doneChan,
 		stopOnce:      sync.Once{},
 		// skip looking for start pattern if not provided
-		started: startPattern == nil,
-		// mark the scanner as stopped if no pattern was provided
-		stopped: startPattern == nil && finishPattern == nil,
-	}
-
-	if ps.stopped {
-		ps.notifyAndStop()
-	}
-	return ps
+		startPatternFound: startPattern == nil,
+		stopped:           false,
+	}, nil
 }
 
 // Write implemented io.Writer to be used as a callback for log/string writing.
@@ -89,17 +87,18 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 // matchPatterns checks if the current line matches the scanning requirements
 func (ps *PatternScanner) matchPatterns(line string) {
 	switch {
-	// started pattern not found yet, look for it
-	case !ps.started:
+	// startPatternFound pattern not found yet, look for it
+	case !ps.startPatternFound:
 		if ps.startPattern.MatchString(line) {
 			// found start pattern, flip the flag to start looking for finish pattern for following iterations
-			ps.started = true
+			ps.startPatternFound = true
 
+			// no finishPattern provided, we can stop here
 			if ps.finishPattern == nil {
 				ps.notifyAndStop()
 			}
 		}
-	// started pattern found, look for finish pattern if provided
+	// startPatternFound pattern found, look for finish pattern if provided
 	case ps.finishPattern != nil && ps.finishPattern.MatchString(line):
 		ps.notifyAndStop()
 	}
