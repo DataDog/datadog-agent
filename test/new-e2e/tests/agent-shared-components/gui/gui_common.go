@@ -19,6 +19,7 @@ import (
 	"net/http/cookiejar"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -31,11 +32,7 @@ const (
 )
 
 // assertAgentsUseKey checks that all agents are using the given key.
-func getGUIIntentToken(t assert.TestingT, host *components.RemoteHost, authtoken string) string {
-	if h, ok := t.(testing.TB); ok {
-		h.Helper()
-	}
-
+func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) string {
 	hostHTTPClient := host.NewHTTPClient()
 
 	apiEndpoint := &url.URL{
@@ -62,11 +59,7 @@ func getGUIIntentToken(t assert.TestingT, host *components.RemoteHost, authtoken
 }
 
 // assertGuiIsAvailable checks that the Agent GUI server is up and running.
-func getGUIClient(t assert.TestingT, host *components.RemoteHost, authtoken string) *http.Client {
-	if h, ok := t.(testing.TB); ok {
-		h.Helper()
-	}
-
+func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string) *http.Client {
 	intentToken := getGUIIntentToken(t, host, authtoken)
 
 	guiURL := url.URL{
