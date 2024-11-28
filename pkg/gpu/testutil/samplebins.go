@@ -9,7 +9,6 @@ package testutil
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -40,7 +39,6 @@ const (
 type dockerImage string
 
 var sampleStartedPattern = regexp.MustCompile("Starting CudaSample program")
-var errTimeout = errors.New(fmt.Sprintf("%s execution attempt reached timeout %v ", CudaSample, dockerutils.DefaultTimeout))
 
 const (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
@@ -138,7 +136,7 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (c
 			return cmd, nil
 		case <-time.After(dockerutils.DefaultTimeout):
 			//setting the error explicitly to trigger the defer function
-			err = errTimeout
+			err = fmt.Errorf("%s execution attempt reached timeout %v ", CudaSample, dockerutils.DefaultTimeout)
 			return nil, err
 		}
 	}
