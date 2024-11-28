@@ -1372,7 +1372,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    ctx.run("rm -rf ./test//files/default/tests/pkg")
+    ctx.run("rm -rf ./test/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
 

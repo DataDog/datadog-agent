@@ -25,7 +25,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
 
 $err = $LASTEXITCODE
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "kitchen prepare failed $err"
+    Write-Host -ForegroundColor Red "e2e prepare failed $err"
     [Environment]::Exit($err)
 }
 Write-Host Test passed

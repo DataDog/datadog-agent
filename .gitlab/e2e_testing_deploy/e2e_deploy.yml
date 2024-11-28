@@ -1,6 +1,6 @@
 ---
 # e2e_deploy stage
-# Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
+# Contains jobs which deploy Agent package to testing repsoitories that are used in e2e tests.
 
 .setup_rpm_signing_key: &setup_rpm_signing_key
   - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
