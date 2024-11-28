@@ -204,7 +204,7 @@ func TestBasic(t *testing.T) {
 	var unexpectedPIDs []int
 	expectedPorts := make(map[int]int)
 
-	startTCP := func(proto string) {
+	var startTCP = func(proto string) {
 		f, server := startTCPServer(t, proto, "")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
@@ -215,7 +215,7 @@ func TestBasic(t *testing.T) {
 		unexpectedPIDs = append(unexpectedPIDs, cmd.Process.Pid)
 	}
 
-	startUDP := func(proto string) {
+	var startUDP = func(proto string) {
 		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
@@ -257,7 +257,7 @@ func TestPorts(t *testing.T) {
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
 
-	startTCP := func(proto string) {
+	var startTCP = func(proto string) {
 		serverf, server := startTCPServer(t, proto, "")
 		t.Cleanup(func() { serverf.Close() })
 		clientf, client := startTCPClient(t, proto, server)
@@ -267,7 +267,7 @@ func TestPorts(t *testing.T) {
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 	}
 
-	startUDP := func(proto string) {
+	var startUDP = func(proto string) {
 		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
@@ -303,7 +303,7 @@ func TestPortsLimits(t *testing.T) {
 
 	var expectedPorts []int
 
-	openPort := func(address string) {
+	var openPort = func(address string) {
 		serverf, server := startTCPServer(t, "tcp4", address)
 		t.Cleanup(func() { serverf.Close() })
 
@@ -465,7 +465,7 @@ func TestPythonFromBashScript(t *testing.T) {
 
 func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
 	// Changing permissions
-	require.NoError(t, os.Chmod(script, 0o755))
+	require.NoError(t, os.Chmod(script, 0755))
 
 	commandLineArgs := append(commandWrapper, script)
 	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
@@ -1119,8 +1119,7 @@ func BenchmarkOldGetSockets(b *testing.B) {
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
 func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
-	family network.ConnectionFamily, ctype network.ConnectionType, state uint64,
-) {
+	family network.ConnectionFamily, ctype network.ConnectionType, state uint64) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue
