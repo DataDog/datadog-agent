@@ -78,14 +78,23 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 			if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
 				return NewServiceMetadata(value), true
 			}
-			return NewServiceMetadata(p.findNearestTopLevel(stripped)), true
+
+			name := p.findNearestTopLevel(stripped)
+			// If we have generic/useless directory names, fallback to the filename.
+			if name == "." || name == "/" || name == "bin" || name == "sbin" {
+				name = p.findNearestTopLevel(filename)
+			}
+
+			return NewServiceMetadata(name), true
 		}
 
 		if hasFlagPrefix && a == "-m" {
 			moduleFlag = true
 		}
 
-		prevArgIsFlag = hasFlagPrefix
+		// The -u (unbuffered) option doesn't take an argument so we should
+		// consider the next arg even though this one is a flag.
+		prevArgIsFlag = hasFlagPrefix && a != "-u"
 	}
 
 	return ServiceMetadata{}, false
