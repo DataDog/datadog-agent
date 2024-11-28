@@ -49,16 +49,16 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	generatedName                  string
-	ddServiceName                  string
-	ddServiceInjected              bool
-	generatedNameFromContainerTags bool
-	language                       language.Language
-	apmInstrumentation             apm.Instrumentation
-	cmdLine                        []string
-	startTimeMilli                 uint64
-	cpuTime                        uint64
-	cpuUsage                       float64
+	generatedName        string
+	ddServiceName        string
+	ddServiceInjected    bool
+	checkedContainerData bool
+	language             language.Language
+	apmInstrumentation   apm.Instrumentation
+	cmdLine              []string
+	startTimeMilli       uint64
+	cpuTime              uint64
+	cpuUsage             float64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -558,7 +558,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		GeneratedName:        info.generatedName,
 		DDService:            info.ddServiceName,
 		DDServiceInjected:    info.ddServiceInjected,
-		CheckedContainerData: info.generatedNameFromContainerTags,
+		CheckedContainerData: info.checkedContainerData,
 		Ports:                ports,
 		APMInstrumentation:   string(info.apmInstrumentation),
 		Language:             string(info.language),
@@ -670,7 +670,6 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	}
 
 	service.ContainerID = id
-	log.Debugf("Found container id for %v: %v", service.Name, id)
 
 	// We got the service name from container tags before, no need to do it again.
 	if service.CheckedContainerData {
@@ -686,17 +685,18 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	if serviceName != "" {
 		service.GeneratedName = serviceName
-
-		s.mux.Lock()
-		serviceInfo, ok := s.cache[int32(service.PID)]
-		if ok {
-			serviceInfo.generatedName = serviceName
-			serviceInfo.generatedNameFromContainerTags = true
-		}
-		s.mux.Unlock()
-
 	}
 	service.CheckedContainerData = true
+
+	s.mux.Lock()
+	serviceInfo, ok := s.cache[int32(service.PID)]
+	if ok {
+		if serviceName != "" {
+			serviceInfo.generatedName = serviceName
+		}
+		serviceInfo.checkedContainerData = true
+	}
+	s.mux.Unlock()
 }
 
 // getStatus returns the list of currently running services.
