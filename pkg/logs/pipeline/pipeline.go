@@ -60,7 +60,6 @@ func NewPipeline(outputChan chan *message.Payload,
 		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 
 	strategyInput := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
@@ -79,14 +78,16 @@ func NewPipeline(outputChan chan *message.Payload,
 	// if not provided, create a sender for this pipeline
 	senderInput := make(chan *message.Payload, 1) // only buffer 1 message since payloads can be large
 	if logsSender == nil {
+		pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 		mainDestinations := GetDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
-		logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
+		logsSender = sender.NewSender(cfg, senderInput, auditor, mainDestinations,
+			pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 	}
-	strategy := getStrategy(strategyInput, logsSender.In(), flushChan, endpoints, serverless, flushWg, pipelineMonitor)
+	strategy := getStrategy(strategyInput, logsSender.In(), flushChan, endpoints, serverless, flushWg, logsSender.PipelineMonitor)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
+		encoder, diagnosticMessageReceiver, hostname, logsSender.PipelineMonitor)
 
 	return &Pipeline{
 		InputChan:       inputChan,
@@ -96,7 +97,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		sender:          logsSender,
 		serverless:      serverless,
 		flushWg:         flushWg,
-		pipelineMonitor: pipelineMonitor,
+		pipelineMonitor: logsSender.PipelineMonitor,
 	}
 }
 

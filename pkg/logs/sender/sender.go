@@ -41,7 +41,7 @@ type Sender struct {
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
 
-	pipelineMonitor metrics.PipelineMonitor
+	PipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 }
 
@@ -58,7 +58,7 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, au
 		flushWg:        flushWg,
 
 		// Telemetry
-		pipelineMonitor: pipelineMonitor,
+		PipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
 	}
 }
@@ -97,7 +97,7 @@ func (s *Sender) run() {
 			for _, destSender := range reliableDestinations {
 				if destSender.Send(payload) {
 					if destSender.destination.Metadata().ReportingEnabled {
-						s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
+						s.PipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
 					}
 					sent = true
 					if s.senderDoneChan != nil {
@@ -148,7 +148,7 @@ func (s *Sender) run() {
 			// Decrement the wait group when this payload has been sent
 			s.flushWg.Done()
 		}
-		s.pipelineMonitor.ReportComponentEgress(payload, "sender")
+		s.PipelineMonitor.ReportComponentEgress(payload, "sender")
 	}
 
 	// Cleanup the destinations
