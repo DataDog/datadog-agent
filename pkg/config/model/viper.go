@@ -312,7 +312,9 @@ func (c *safeConfig) IsSet(key string) bool {
 func (c *safeConfig) AllKeysLowercased() []string {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.AllKeys()
+	res := c.Viper.AllKeys()
+	slices.Sort(res)
+	return res
 }
 
 // Get wraps Viper for concurrent access
