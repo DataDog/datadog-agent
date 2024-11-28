@@ -16,7 +16,7 @@ import (
 )
 
 // NoPattern is a sugar syntax for empty pattern
-var NoPattern *regexp.Regexp = nil
+var NoPattern *regexp.Regexp
 
 // PatternScanner is a helper to scan logs for a given pattern.
 type PatternScanner struct {
