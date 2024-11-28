@@ -10,10 +10,11 @@ package docker
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
