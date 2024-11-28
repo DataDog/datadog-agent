@@ -11,8 +11,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestInjected(t *testing.T) {
@@ -268,34 +271,65 @@ func TestGoDetector(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getuid() != 0 {
 		t.Skip("skipping test; requires root privileges")
 	}
+
+	tests := []struct {
+		program string
+		build   func(string, string) (string, error)
+		binary  string
+		pid     int
+	}{
+		{
+			program: "instrumented",
+			build:   usmtestutil.BuildGoBinaryWrapper,
+		},
+		{
+			program: "instrumented",
+			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
+		},
+		{
+			program: "instrumented2",
+			build:   usmtestutil.BuildGoBinaryWrapper,
+		},
+		{
+			program: "instrumented2",
+			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
+		},
+	}
+
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
-	require.NoError(t, err)
-	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
-	require.NoError(t, err)
 
-	cmdWithSymbols := exec.Command(serverBinWithSymbols)
-	require.NoError(t, cmdWithSymbols.Start())
-	t.Cleanup(func() {
-		_ = cmdWithSymbols.Process.Kill()
-	})
+	for i, test := range tests {
+		binary, err := test.build(filepath.Join(curDir, "testutil"), test.program)
+		require.NoError(t, err)
 
-	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
-	require.NoError(t, cmdWithoutSymbols.Start())
-	t.Cleanup(func() {
-		_ = cmdWithoutSymbols.Process.Kill()
-	})
+		cmd := exec.Command(binary)
+		require.NoError(t, cmd.Start())
+		t.Cleanup(func() {
+			_ = cmd.Process.Kill()
+		})
+		require.Eventually(t, func() bool {
+			if cmd.Process.Pid == 0 {
+				return false
+			}
+			f, err := os.Open(kernel.HostProc(strconv.Itoa(cmd.Process.Pid), "exe"))
+			if err == nil {
+				_ = f.Close()
+				return true
+			}
+			return false
+		}, time.Second*10, time.Millisecond*100)
+		tests[i].pid = cmd.Process.Pid
+	}
+
 	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
 	ctx.Pid = os.Getpid()
 	result := goDetector(ctx)
 	require.Equal(t, None, result)
 
-	ctx.Pid = cmdWithSymbols.Process.Pid
-	result = goDetector(ctx)
-	require.Equal(t, Provided, result)
-
-	ctx.Pid = cmdWithoutSymbols.Process.Pid
-	result = goDetector(ctx)
-	require.Equal(t, Provided, result)
+	for _, binary := range tests {
+		ctx.Pid = binary.pid
+		result = goDetector(ctx)
+		require.Equal(t, Provided, result)
+	}
 }

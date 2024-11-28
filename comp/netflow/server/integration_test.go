@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
