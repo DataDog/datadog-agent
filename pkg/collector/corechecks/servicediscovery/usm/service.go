@@ -64,6 +64,8 @@ type ServiceNameSource string
 const (
 	// CommandLine indicates that the name comes from the command line
 	CommandLine ServiceNameSource = "command-line"
+	// Container indicates the name comes from the container tags
+	Container ServiceNameSource = "container"
 	// Laravel indicates that the name comes from the Laravel application name
 	Laravel ServiceNameSource = "laravel"
 	// Python indicates that the name comes from the Python package name

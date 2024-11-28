@@ -687,6 +687,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	if serviceName != "" {
 		service.GeneratedName = serviceName
+		service.GeneratedNameSource = string(usm.Container)
 	}
 	service.CheckedContainerData = true
 
@@ -695,6 +696,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	if ok {
 		if serviceName != "" {
 			serviceInfo.generatedName = serviceName
+			serviceInfo.generatedNameSource = string(usm.Container)
 		}
 		serviceInfo.checkedContainerData = true
 	}
