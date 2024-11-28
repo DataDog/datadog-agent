@@ -833,14 +833,15 @@ func (e *PTraceEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 16 {
+	if len(data)-read < 20 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Request = binary.NativeEndian.Uint32(data[read : read+4])
 	e.PID = binary.NativeEndian.Uint32(data[read+4 : read+8])
 	e.Address = binary.NativeEndian.Uint64(data[read+8 : read+16])
-	return read + 16, nil
+	e.NSPID = binary.NativeEndian.Uint32(data[read+16 : read+20])
+	return read + 20, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

@@ -32,6 +32,10 @@ type testProc struct {
 	cwd string
 }
 
+const (
+	dummyContainerID = "abcd"
+)
+
 var (
 	bootTimeMilli     = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).UnixMilli())
 	procLaunchedMilli = bootTimeMilli + uint64((12 * time.Hour).Milliseconds())
@@ -80,6 +84,7 @@ var (
 		CPUCores:            1.5,
 		CommandLine:         []string{"test-service-1"},
 		StartTimeMilli:      procLaunchedMilli,
+		ContainerID:         dummyContainerID,
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                 procTestService1.pid,
@@ -93,6 +98,7 @@ var (
 		CPUCores:            1.5,
 		CommandLine:         []string{"test-service-1"},
 		StartTimeMilli:      procLaunchedMilli,
+		ContainerID:         dummyContainerID,
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                 procTestService1DifferentPID.pid,
@@ -105,6 +111,7 @@ var (
 		APMInstrumentation:  string(apm.Injected),
 		CommandLine:         []string{"test-service-1"},
 		StartTimeMilli:      procLaunchedMilli,
+		ContainerID:         dummyContainerID,
 	}
 	portTCP8081 = model.Service{
 		PID:            procIgnoreService1.pid,
@@ -112,6 +119,7 @@ var (
 		GeneratedName:  "ignore-1",
 		Ports:          []uint16{8081},
 		StartTimeMilli: procLaunchedMilli,
+		ContainerID:    dummyContainerID,
 	}
 	portTCP5000 = model.Service{
 		PID:                 procPythonService.pid,
@@ -122,6 +130,7 @@ var (
 		Ports:               []uint16{5000},
 		CommandLine:         pythonCommandLine,
 		StartTimeMilli:      procLaunchedMilli,
+		ContainerID:         dummyContainerID,
 	}
 	portTCP5432 = model.Service{
 		PID:                 procTestService1Repeat.pid,
@@ -131,6 +140,7 @@ var (
 		Ports:               []uint16{5432},
 		CommandLine:         []string{"test-service-1"},
 		StartTimeMilli:      procLaunchedMilli,
+		ContainerID:         dummyContainerID,
 	}
 )
 
@@ -175,16 +185,6 @@ func Test_linuxImpl(t *testing.T) {
 	type checkRun struct {
 		servicesResp *model.ServicesResponse
 		time         time.Time
-	}
-
-	collectTargetPIDs := func(checkRuns []*checkRun) []int {
-		targetPIDs := make([]int, 0)
-		for _, cr := range checkRuns {
-			for _, service := range cr.servicesResp.Services {
-				targetPIDs = append(targetPIDs, service.PID)
-			}
-		}
-		return targetPIDs
 	}
 
 	tests := []struct {
@@ -584,9 +584,7 @@ func Test_linuxImpl(t *testing.T) {
 			defer ctrl.Finish()
 
 			// check and mocks setup
-			targetPIDs := collectTargetPIDs(tc.checkRun)
-			cpStub := newContainerProviderStub(targetPIDs)
-			check := newCheck(cpStub)
+			check := newCheck()
 
 			mSender := mocksender.NewMockSender(check.ID())
 			mSender.SetupAcceptAll()

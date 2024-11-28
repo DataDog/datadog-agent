@@ -25,10 +25,10 @@ import (
 	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -743,7 +743,7 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentmock.Module())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionmock.MockModule(), haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

@@ -68,10 +68,14 @@ func TestLoadRepositories(t *testing.T) {
 
 	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
 	os.Mkdir(path.Join(rootDir, tempDirPrefix+"2394812349"), 0755)
+	os.Mkdir(path.Join(rootDir, "run"), 0755)
+	os.Mkdir(path.Join(rootDir, "tmp"), 0755)
 
 	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
 	assert.NoError(t, err)
 	assert.Len(t, repositories, 1)
 	assert.Contains(t, repositories, "datadog-agent")
 	assert.NotContains(t, repositories, tempDirPrefix+"2394812349")
+	assert.NotContains(t, repositories, "run")
+	assert.NotContains(t, repositories, "tmp")
 }

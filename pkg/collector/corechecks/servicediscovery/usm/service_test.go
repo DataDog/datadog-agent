@@ -255,6 +255,26 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedSource:        Nodejs,
 		},
 		{
+			name: "nodejs .cjs with a valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"./testdata/foo.cjs",
+			},
+			lang:                  language.Node,
+			expectedGeneratedName: "my-awesome-package",
+			fs:                    &subUsmTestData,
+		},
+		{
+			name: "nodejs .mjs with a valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"./testdata/bar.mjs",
+			},
+			lang:                  language.Node,
+			expectedGeneratedName: "my-awesome-package",
+			fs:                    &subUsmTestData,
+		},
+		{
 			name: "node js with a symlink to a .js file and valid package.json",
 			cmdline: []string{
 				"/usr/bin/node",
