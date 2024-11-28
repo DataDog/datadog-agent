@@ -15,6 +15,7 @@ import (
 	"testing"
 )
 
+// NoPattern is a sugar syntax for empty pattern
 var NoPattern *regexp.Regexp = nil
 
 // PatternScanner is a helper to scan logs for a given pattern.
