@@ -119,6 +119,7 @@ type Env struct {
 	NoProxy    string
 }
 
+// HTTPClient returns an HTTP client with the proxy settings from the environment.
 func (e *Env) HTTPClient() *http.Client {
 	proxyConfig := &httpproxy.Config{
 		HTTPProxy:  e.HTTPProxy,
