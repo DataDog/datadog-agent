@@ -151,10 +151,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: collector.start,
 		OnStop:  collector.stop,
 	})
-
+	timeoutCallback := func(flaretypes.FlareBuilder) time.Duration {
+		return time.Second * time.Duration(reqs.Config.GetInt("otelcollector.flare.timeout"))
+	}
 	return Provides{
 		Comp:           collector,
-		FlareProvider:  flaretypes.NewProvider(collector.fillFlare),
+		FlareProvider:  flaretypes.NewProviderWithTimeout(collector.fillFlare, timeoutCallback),
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
 }

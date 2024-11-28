@@ -62,6 +62,7 @@ from tasks import (
     trace_agent,
     vim,
     vscode,
+    worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
@@ -209,6 +210,7 @@ ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
+ns.add_collection(worktree)
 ns.configure(
     {
         "run": {
