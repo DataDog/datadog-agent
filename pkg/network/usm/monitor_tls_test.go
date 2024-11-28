@@ -69,6 +69,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 	/* enable protocol classification : TLS */
@@ -284,6 +285,7 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 	t := s.T()
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
@@ -343,6 +345,7 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 	t := s.T()
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 
@@ -902,6 +905,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	require.NoError(t, err)
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
 

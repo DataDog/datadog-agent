@@ -1622,10 +1622,8 @@ func getDefaultTestConfiguration(tls bool) *config.Config {
 	cfg := config.New()
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
-	if tls {
-		cfg.EnableGoTLSSupport = true
-		cfg.GoTLSExcludeSelf = true
-	}
+	cfg.EnableGoTLSSupport = tls
+	cfg.GoTLSExcludeSelf = tls
 	return cfg
 }
 
@@ -1727,6 +1725,7 @@ func TestLoadKafkaBinary(t *testing.T) {
 func loadKafkaBinary(t *testing.T, debug bool) {
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug

@@ -14,7 +14,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import (
@@ -127,7 +127,6 @@ def build(
     install_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
     exclude_rtloader=False,
@@ -150,6 +149,7 @@ def build(
     if flavor.is_ot():
         # for agent build purposes the UA agent is just like base
         flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
@@ -163,7 +163,6 @@ def build(
         install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )
@@ -193,6 +192,7 @@ def build(
 
         exclude_tags = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(include_tags, exclude_tags)
+        build_tags = add_fips_tags(build_tags, fips_mode)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 

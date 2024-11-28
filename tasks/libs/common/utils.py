@@ -203,7 +203,6 @@ def get_build_flags(
     run_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
     headless_mode=False,
@@ -243,8 +242,6 @@ def get_build_flags(
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
-    if python_home_2:
-        ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome2={python_home_2} "
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
