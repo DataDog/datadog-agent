@@ -127,8 +127,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
-	var dependsOnDDAgent pulumi.ResourceOption
-
+	var dependsOnCrd []pulumi.Resource
 	if params.agentOptions != nil {
 		helmValues := `
 datadog:
@@ -148,7 +147,7 @@ agents:
 		if err != nil {
 			return err
 		}
-		dependsOnDDAgent = utils.PulumiDependsOn(agent)
+		dependsOnCrd = append(dependsOnCrd, agent)
 	} else {
 		env.Agent = nil
 	}
@@ -157,17 +156,17 @@ agents:
 		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", fakeIntake, false, ctx.Stack()); err != nil {
 			return err
 		}
-
-		// dogstatsd clients that report to the dogstatsd standalone deployment
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, dependsOnDDAgent /* for admission */); err != nil {
-			return err
-		}
 	}
 
 	// Deploy testing workload
 	if params.deployTestWorkload {
 		// dogstatsd clients that report to the Agent
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket"); err != nil {
+			return err
+		}
+
+		// dogstatsd clients that report to the dogstatsd standalone deployment
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 			return err
 		}
 
@@ -179,20 +178,21 @@ agents:
 			return err
 		}
 
-		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
-			return err
-		}
-		if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress"); err != nil {
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 			return err
 		}
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */); err != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 				return err
 			}
 
-			if _, err := redis.K8sAppDefinition(&awsEnv, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */); err != nil {
+			if _, err := redis.K8sAppDefinition(&awsEnv, kubeProvider, "workload-redis", true, utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
+				return err
+			}
+
+			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress", utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 				return err
 			}
 		}
