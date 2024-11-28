@@ -121,6 +121,9 @@ message PackageState {
   string stable_version = 2;
   string experiment_version = 3;
   PackageStateTask task = 4;
+  reserved 5;
+  reserved 6;
+  reserved 7;
   PoliciesState stable_config_state = 8;
   PoliciesState experiment_config_state = 9;
   PoliciesState remote_config_state = 10;
