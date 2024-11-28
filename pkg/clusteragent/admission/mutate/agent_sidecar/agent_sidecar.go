@@ -177,8 +177,8 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 			w.addSecurityConfigToAgent(agentSidecarContainer)
 			// Don't want to apply any overrides to the agent sidecar init container
 			defer func() {
-				initContainers := w.getSecurityInitTemplates()
-				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainers...)
+				initContainer := w.getSecurityInitTemplate()
+				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainer)
 			}()
 		}
 		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
@@ -209,30 +209,20 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	return podUpdated, nil
 }
 
-func (w *Webhook) getSecurityInitTemplates() *[]corev1.Container {
-	return &[]corev1.Container{
-		{
-			Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Name:            "copy-" + agentConfigVolumeName,
-			Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/"},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      agentConfigVolumeName,
-					MountPath: "/agent-config",
-				},
+func (w *Webhook) getSecurityInitTemplate() *corev1.Container {
+	return &corev1.Container{
+		Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Name:            "init-copy-agent-config",
+		Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/", "sh", "-c", "cp -R /opt/datadog-agent/run/ /agent-options/"},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      agentConfigVolumeName,
+				MountPath: "/agent-config",
 			},
-		},
-		{
-			Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Name:            "copy-" + agentOptionsVolumeName,
-			Command:         []string{"sh", "-c", "cp -R /opt/datadog-agent/* /agent-options/"},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      agentOptionsVolumeName,
-					MountPath: "/agent-options",
-				},
+			{
+				Name:      agentOptionsVolumeName,
+				MountPath: "/agent-options",
 			},
 		},
 	}
@@ -275,7 +265,7 @@ func (w *Webhook) addSecurityConfigToAgent(agentContainer *corev1.Container) {
 		},
 		{
 			Name:      agentOptionsVolumeName,
-			MountPath: "/opt/datadog-agent",
+			MountPath: "/opt/datadog-agent/run",
 		},
 		{
 			Name:      agentTmpVolumeName,

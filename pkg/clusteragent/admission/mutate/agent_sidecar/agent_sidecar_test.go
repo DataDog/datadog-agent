@@ -72,7 +72,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
-						InitContainers: *webhook.getSecurityInitTemplates(),
+						InitContainers: []corev1.Container{*webhook.getSecurityInitTemplate()},
 						Containers: []corev1.Container{
 							{Name: "container-name"},
 							*sidecar,
@@ -236,7 +236,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
-						InitContainers:        *webhook.getSecurityInitTemplates(),
+						InitContainers:        []corev1.Container{*webhook.getSecurityInitTemplate()},
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
@@ -359,7 +359,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
-						InitContainers:        *webhook.getSecurityInitTemplates(),
+						InitContainers:        []corev1.Container{*webhook.getSecurityInitTemplate()},
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
