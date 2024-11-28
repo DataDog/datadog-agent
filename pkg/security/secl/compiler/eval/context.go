@@ -35,6 +35,8 @@ type Context struct {
 	now time.Time
 
 	CachedAncestorsCount int
+
+	resolvedFields []string
 }
 
 // Now return and cache the `now` timestamp
@@ -61,6 +63,19 @@ func (c *Context) Reset() {
 	clear(c.Registers)
 	clear(c.RegisterCache)
 	c.CachedAncestorsCount = 0
+	clear(c.resolvedFields)
+}
+
+func (c *Context) AppendResolvedField(field string) {
+	if field == "" {
+		return
+	}
+
+	c.resolvedFields = append(c.resolvedFields, field)
+}
+
+func (c *Context) GetResolvedFields() []string {
+	return c.resolvedFields
 }
 
 // NewContext return a new Context
