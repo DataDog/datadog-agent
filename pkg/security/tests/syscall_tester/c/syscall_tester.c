@@ -188,10 +188,10 @@ int ptrace_traceme() {
 int ptrace_attach() {
     int child = fork();
     if (child == 0) {
-        sleep(2);
+        sleep(5);
     } else {
         ptrace(PTRACE_ATTACH, child, 0, NULL);
-        sleep(2); // sleep here to let the agent resolve the pid namespace on procfs
+        sleep(5); // sleep here to let the agent resolve the pid namespace on procfs
         wait(NULL);
     }
     return EXIT_SUCCESS;
