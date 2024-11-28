@@ -53,7 +53,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	status := NewStatusProvider()
 
 	// buffer 2 payloads per pipeline max
-	senderInput := make(chan *message.Payload, config.NumberOfPipelines*2)
+	senderInput := make(chan *message.Payload, 50)
 
 	// create a shared sender
 	// * it doesn't support serverless but the serverless pipeline creates its own sender

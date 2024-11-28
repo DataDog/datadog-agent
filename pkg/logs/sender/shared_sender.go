@@ -19,77 +19,79 @@ import (
 // PipelineComponent abstracts a pipeline component
 // TODO(remy): finish this work
 type PipelineComponent interface {
-    In() chan *message.Payload
-    PipelineMonitor() metrics.PipelineMonitor
-    Start()
-    Stop()
+	In() chan *message.Payload
+	PipelineMonitor() metrics.PipelineMonitor
+	Start()
+	Stop()
 }
 
 // SharedSender distribute payloads on multiple
 // underlying senders.
 type SharedSender struct {
-    senders []*Sender
+	senders []*Sender
 
-    inputChan chan *message.Payload
+	inputChan chan *message.Payload
 
-    sharedInputChan chan *message.Payload
-    pipelineMonitor metrics.PipelineMonitor
+	sharedInputChan chan *message.Payload
+	pipelineMonitor metrics.PipelineMonitor
+	utilization     metrics.UtilizationMonitor
 }
 
 // NewSharedSender returns a new sender.
 func NewSharedSender(sendersCount int,
-    config pkgconfigmodel.Reader, inputChan chan *message.Payload, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
+	config pkgconfigmodel.Reader, inputChan chan *message.Payload, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
 	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *SharedSender {
 	var senders []*Sender
 
-	sharedInputChan := make(chan *message.Payload, sendersCount+1)
+	sharedInputChan := make(chan *message.Payload, 20)
 	for i := 0; i < sendersCount; i++ {
-        sender := NewSender(config, sharedInputChan, auditor, destinations, bufferSize,
-                            senderDoneChan, flushWg, pipelineMonitor)
-        senders = append(senders, sender)
+		sender := NewSender(config, sharedInputChan, auditor, destinations, bufferSize,
+			senderDoneChan, flushWg, pipelineMonitor)
+		senders = append(senders, sender)
 	}
 
-    log.Infof("created a shared sender with %d senders", len(senders))
-    return &SharedSender{
-        senders: senders,
-        pipelineMonitor: pipelineMonitor,
-        inputChan: inputChan,
-        sharedInputChan: sharedInputChan,
-    }
+	log.Infof("created a shared sender with %d senders", len(senders))
+	return &SharedSender{
+		senders:         senders,
+		pipelineMonitor: pipelineMonitor,
+		utilization:     pipelineMonitor.MakeUtilizationMonitor("shared_sender"),
+		inputChan:       inputChan,
+		sharedInputChan: sharedInputChan,
+	}
 }
 
 // In is the input channel of the shared sender
-func (s *SharedSender) In() chan *message.Payload{
-    return s.inputChan
+func (s *SharedSender) In() chan *message.Payload {
+	return s.inputChan
 }
 
 // PipelineMonitor returns the pipeline monitor of the shared senders.
 func (s *SharedSender) PipelineMonitor() metrics.PipelineMonitor {
-    return s.pipelineMonitor
+	return s.pipelineMonitor
 }
 
 // Start starts all shared sender.
 func (s *SharedSender) Start() {
-    for _, sender := range s.senders {
-        sender.Start()
-    }
-    go s.run()
+	for _, sender := range s.senders {
+		sender.Start()
+	}
+	go s.run()
 }
 
 func (s *SharedSender) run() {
-    log.Info("shared sender starting")
-    for payload := range s.inputChan {
-        s.sharedInputChan<-payload
-    }
+	log.Info("shared sender starting")
+	for payload := range s.inputChan {
+		s.utilization.Start()
+		s.sharedInputChan <- payload
+		s.utilization.Stop()
+	}
 }
 
-// STop stops all shared senders.
+// Stop stops all shared senders.
 func (s *SharedSender) Stop() {
-    log.Info("shared sender stopping")
-    for _, s := range s.senders {
-        s.Stop()
-    }
-    close(s.sharedInputChan)
+	log.Info("shared sender stopping")
+	for _, s := range s.senders {
+		s.Stop()
+	}
+	close(s.sharedInputChan)
 }
-
-
