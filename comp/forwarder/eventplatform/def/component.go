@@ -34,6 +34,18 @@ const (
 
 	// EventTypeServiceDiscovery represents an instrumentation-telemetry event
 	EventTypeServiceDiscovery = "service-discovery"
+
+	// EventTypeDBMSamples represents a database sample event
+	EventTypeDBMSamples = "dbm-samples"
+
+	// EventTypeDBMMetrics represents a database metrics event
+	EventTypeDBMMetrics = "dbm-metrics"
+
+	// EventTypeDBMActivity represents a database activity event
+	EventTypeDBMActivity = "dbm-activity"
+
+	// EventTypeDBMMetadata represents a metadata  event
+	EventTypeDBMMetadata = "dbm-metadata"
 )
 
 //go:generate mockgen -source=../def/$GOFILE -package=mock -destination=../mock/epforwarder_mockgen.go

@@ -58,7 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatformnoopfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-noop"
+	eventplatformfxnosender "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-nosender"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -184,7 +184,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformnoopfx.Module(),
+				eventplatformfxnosender.Module(),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(
 					status.Params{

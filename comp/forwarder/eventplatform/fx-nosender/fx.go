@@ -3,19 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fx provides the fxnoop module for the rdnsquerier component
+// Package fx provides the fxnosender module for the eventplatform component
 package fx
 
 import (
-	eventplatformnoop "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-noop"
+	eventplatfornosender "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl-nosender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for the mock component.
+// Module defines the fx options for the eventplatform component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			eventplatformnoop.NewComponent,
+			eventplatfornosender.NewComponent,
 		),
 	)
 }
