@@ -53,6 +53,11 @@ func (fr *FakeTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([]stri
 	return append(fakeTags, fmt.Sprintf("image_name:fake_ubuntu_%d", len(fr.containerIDs))), nil
 }
 
+// GlobalTags returns the global tags
+func (fr *FakeTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
 // NewFakeTaggerDifferentImageNames returns a new tagger
 func NewFakeTaggerDifferentImageNames() tags.Tagger {
 	return &FakeTagger{}
@@ -76,6 +81,11 @@ func (fmr *FakeMonoTagger) Stop() error {
 // Tag returns the tags for the given id
 func (fmr *FakeMonoTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([]string, error) {
 	return []string{"container_id:" + entity.GetID(), "image_name:fake_ubuntu", "image_tag:latest"}, nil
+}
+
+// GlobalTags returns the global tags
+func (fmr *FakeMonoTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
 }
 
 // NewFakeMonoTagger returns a new tags tagger
@@ -148,6 +158,11 @@ func (fmr *FakeManualTagger) Tag(entity types.EntityID, _ types.TagCardinality) 
 	}
 	fmr.containerToSelector[containerID] = selector
 	return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}, nil
+}
+
+// GlobalTags returns the global tags
+func (fmr *FakeManualTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
 }
 
 // NewFakeManualTagger returns a new tagger
