@@ -605,7 +605,7 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	}
 
 	if p.cgroupResolver != nil {
-		p.cgroupResolver.DelPIDWithID(string(entry.ContainerID), entry.Pid)
+		p.cgroupResolver.DelPIDWithID(entry.ContainerID, entry.Pid)
 	}
 
 	entry.Exit(exitTime)
