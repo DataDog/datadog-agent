@@ -27,7 +27,17 @@ def init_env(ctx, branch: str | None = None):
     """
 
     if not WORKTREE_DIRECTORY.is_dir():
-        if not ctx.run(f"git worktree add '{WORKTREE_DIRECTORY}' origin/{branch or 'main'}", warn=True):
+        print(f'{color_message("Info", Color.BLUE)}: Cloning datadog agent into {WORKTREE_DIRECTORY}')
+        remote = ctx.run("git remote get-url origin", hide=True).stdout.strip()
+        # Try to use this option to reduce cloning time
+        if all(
+            not ctx.run(
+                f"git clone '{remote}' '{WORKTREE_DIRECTORY}' -b {branch or 'main'} {filter_option}",
+                warn=True,
+                hide=True,
+            )
+            for filter_option in ["--filter=blob:none", ""]
+        ):
             raise Exit(
                 f'{color_message("Error", Color.RED)}: Cannot initialize worktree environment. You might want to reset the worktree directory with `inv worktree.remove`',
                 code=1,
@@ -47,7 +57,7 @@ def init_env(ctx, branch: str | None = None):
 def remove_env(ctx):
     """Will remove the environment for commands applying to a worktree."""
 
-    ctx.run(f"git worktree remove -f '{WORKTREE_DIRECTORY}'", warn=True)
+    ctx.run(f"rm -rf '{WORKTREE_DIRECTORY}'", warn=True)
 
 
 def is_worktree():
