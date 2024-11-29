@@ -9,7 +9,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.worktree import is_worktree
-from tasks.libs.releasing.documentation import _stringify_config, nightly_entry_for, release_entry_for
+from tasks.libs.releasing.documentation import _stringify_config, release_entry_for
 from tasks.libs.releasing.version import (
     VERSION_RE,
     _fetch_dependency_repo_version,
@@ -124,11 +124,7 @@ def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_fir
     Gets the version info from the previous entries in the release.json file.
     """
 
-    # First RC should use the data from nightly section otherwise reuse the last RC info
-    if is_first_rc:
-        previous_release_json_version = nightly_entry_for(agent_major_version)
-    else:
-        previous_release_json_version = release_entry_for(agent_major_version)
+    previous_release_json_version = release_entry_for(agent_major_version)
 
     print(f"Using '{previous_release_json_version}' values")
 
@@ -330,9 +326,9 @@ def set_new_release_branch(branch):
 
     rj["base_branch"] = branch
 
-    for nightly in ["nightly", "nightly-a7"]:
+    for version in ["a6", "a7"]:
         for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-            rj[nightly][field] = f"{branch}"
+            rj[version][field] = f"{branch}"
 
     _save_release_json(rj)
 

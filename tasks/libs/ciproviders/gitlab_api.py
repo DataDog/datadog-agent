@@ -1074,8 +1074,8 @@ def get_preset_contexts(required_tests):
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
     integrations_core_contexts = [
-        ("RELEASE_VERSION_6", ["nightly"]),
-        ("RELEASE_VERSION_7", ["nightly-a7"]),
+        ("RELEASE_VERSION_6", ["a6"]),
+        ("RELEASE_VERSION_7", ["a7"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
