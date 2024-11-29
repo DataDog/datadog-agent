@@ -280,7 +280,11 @@ def post_process_output(path: str, test_depth: int = 1):
                 continue
             if json_line["Package"] not in logs_per_test:
                 logs_per_test[json_line["Package"]] = {}
-            if "/".join(json_line["Test"].split("/")[0:test_depth]) not in logs_per_test[json_line["Package"]]:
+            splitted_test = json_line["Test"].split("/")
+            if (
+                "/".join(splitted_test[0 : min(test_depth, len(splitted_test))])
+                not in logs_per_test[json_line["Package"]]
+            ):
                 logs_per_test[json_line["Package"]][json_line["Test"].split("/")[0]] = []
             if "===" in json_line["Output"]:
                 continue
