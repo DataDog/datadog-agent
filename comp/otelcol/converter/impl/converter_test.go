@@ -177,10 +177,10 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/secret/acfg.yaml",
 		},
 		{
-			name:           "dd-core-cfg/apikey/api-set-key-not-present",
-			provided:       "dd-core-cfg/apikey/api-set-key-not-present/config.yaml",
-			expectedResult: "dd-core-cfg/apikey/api-set-key-not-present/config-result.yaml",
-			agentConfig:    "dd-core-cfg/apikey/api-set-key-not-present/acfg.yaml",
+			name:           "dd-core-cfg/apikey/api-set-no-key",
+			provided:       "dd-core-cfg/apikey/api-set-no-key/config.yaml",
+			expectedResult: "dd-core-cfg/apikey/api-set-no-key/config-result.yaml",
+			agentConfig:    "dd-core-cfg/apikey/api-set-no-key/acfg.yaml",
 		},
 		{
 			name:           "dd-core-cfg/apikey/no-api-key-section",
@@ -219,10 +219,10 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/site/unset/acfg.yaml",
 		},
 		{
-			name:           "dd-core-cfg/site/api-set-site-not-present",
-			provided:       "dd-core-cfg/site/api-set-site-not-present/config.yaml",
-			expectedResult: "dd-core-cfg/site/api-set-site-not-present/config-result.yaml",
-			agentConfig:    "dd-core-cfg/site/api-set-site-not-present/acfg.yaml",
+			name:           "dd-core-cfg/site/api-set-no-site",
+			provided:       "dd-core-cfg/site/api-set-no-site/config.yaml",
+			expectedResult: "dd-core-cfg/site/api-set-no-site/config-result.yaml",
+			agentConfig:    "dd-core-cfg/site/api-set-no-site/acfg.yaml",
 		},
 		{
 			name:           "dd-core-cfg/all/no-overrides",
