@@ -84,14 +84,10 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 // to a container.
 func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, containerutils.CGroupFlags, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
-	if err != nil {
+	if err != nil || len(cgroups) == 0 {
 		return "", 0, err
 	}
 
-	for _, cgroup := range cgroups {
-		if containerID, runtime := cgroup.GetContainerContext(); containerID != "" {
-			return containerID, runtime, nil
-		}
-	}
-	return "", 0, nil
+	containerID, runtime := cgroups[0].GetContainerContext()
+	return containerID, runtime, nil
 }

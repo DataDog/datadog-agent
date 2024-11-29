@@ -10,7 +10,7 @@ package module
 import "github.com/DataDog/datadog-agent/pkg/process/procutil"
 
 const (
-	maxCommandLine = 200
+	maxCommandLine = 5000
 )
 
 // countAndAddElements is a helper for truncateCmdline used to be able to

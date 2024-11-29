@@ -43,13 +43,21 @@ The flare will collect all environment variables, and these can be found in `ote
 The flare also adds data collected from extensions. These extensions are added automatically by the [converter component](../converter/README.md). The data collected is from extensions:
 - health_check: Found in `otel/otel-flare/health_check`. 
 
-Will contain a JSON of the latest health check, for example:
+Contains a JSON of the latest health check, for example:
 
 ```
 {"status":"Server available","upSince":"2024-08-14T14:54:00.575804+02:00","uptime":"28.470434291s"}
 ```
 - pprof: Found in `otel/otel-flare/pprof`
+
+Contains a allocs (`dd-autoconfigured_debug_pprof_allocs`), heap (`dd-autoconfigured_debug_pprof_heap`) and cpu (`dd-autoconfigured_debug_pprof_profile`) profile. Profiles can be opened with the [pprof tool](https://github.com/google/pprof), e.g.
+```
+go tool pprof -http=: otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat
+```
+
 - zpages: Found in `otel/otel-flare/zpages`
+
+Contains extension (`dd-autoconfigured_debug_extensionz`), feature (`dd-autoconfigured_debug_featurez`), pipeline (`dd-autoconfigured_debug_pipelinez`), service (`dd-autoconfigured_debug_servicez`) and trace (`dd-autoconfigured_debug_tracez`) data. The data is in html format, and can be input in a html viewer.
 
 ### Logs
 

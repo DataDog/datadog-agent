@@ -24,13 +24,15 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation system probe module
-func NewModule(config *Config) (*Module, error) {
+func NewModule(config *Config) (*Module, error) { //nolint:revive // TODO
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
-		Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
-		ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
-		SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
-		DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
-	})
+		RateLimitPerProbePerSecond: 1.0,
+		OfflineOptions: di.OfflineOptions{
+			Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
+			ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
+			SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
+			DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
+		}})
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +65,7 @@ func (m *Module) GetStats() map[string]interface{} {
 // Register creates a health check endpoint for the dynamic instrumentation module
 func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
-		func(w http.ResponseWriter, req *http.Request) {
+		func(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO
 			stats := []string{}
 			utils.WriteAsJSON(w, stats)
 		}))

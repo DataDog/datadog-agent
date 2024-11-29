@@ -11,26 +11,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
-
-// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerInterface interface {
-	ID() string
-	ChanSize() int
-	HandleEvent(_ any)
-	Copy(_ *model.Event) any
-	EventTypes() []model.EventType
-}
-
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface{}
-
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface{}
 
 // PlatformProbe represents the no-op platform probe on unsupported platforms
 type PlatformProbe struct {
@@ -67,6 +54,10 @@ func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, er
 	return nil, nil
 }
 
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
+}
+
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
@@ -77,13 +68,18 @@ func (p *Probe) GetService(_ *model.Event) string {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(_ string) []string {
+func (p *Probe) GetEventTags(_ containerutils.ContainerID) []string {
 	return nil
 }
 
 // IsNetworkEnabled returns whether network is enabled
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
+}
+
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled
@@ -102,7 +98,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *Probe) RefreshUserCache(_ string) error {
+func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 	return nil
 }
 
@@ -111,3 +107,8 @@ func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
+
+// GetAgentContainerContext returns nil
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return nil
+}

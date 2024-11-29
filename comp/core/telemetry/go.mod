@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.42.0
 	go.opentelemetry.io/otel/metric v1.27.0
 	go.opentelemetry.io/otel/sdk/metric v1.27.0
@@ -41,7 +41,7 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/sys v0.27.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -46,6 +46,7 @@ var RuntimePrefixes = map[string]CGroupManager{
 
 // GetCGroupManager extracts the cgroup manager from a cgroup name
 func GetCGroupManager(cgroup string) (string, CGroupFlags) {
+	cgroup = strings.TrimLeft(cgroup, "/")
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
 		if strings.HasPrefix(cgroup, runtimePrefix) {
 			return cgroup[:len(runtimePrefix)], CGroupFlags(runtimeFlag)
@@ -55,10 +56,11 @@ func GetCGroupManager(cgroup string) (string, CGroupFlags) {
 }
 
 // GetContainerFromCgroup extracts the container ID from a cgroup name
-func GetContainerFromCgroup(cgroup string) (string, CGroupFlags) {
+func GetContainerFromCgroup(cgroup CGroupID) (ContainerID, CGroupFlags) {
+	cgroupID := strings.TrimLeft(string(cgroup), "/")
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if strings.HasPrefix(cgroup, runtimePrefix) {
-			return cgroup[len(runtimePrefix):], CGroupFlags(runtimeFlag)
+		if strings.HasPrefix(cgroupID, runtimePrefix) {
+			return ContainerID(cgroupID[len(runtimePrefix):]), CGroupFlags(runtimeFlag)
 		}
 	}
 	return "", 0

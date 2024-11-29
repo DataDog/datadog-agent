@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestCreateScanner(t *testing.T) {
@@ -68,7 +69,7 @@ func TestCreateScanner(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
@@ -245,7 +246,7 @@ func TestEmptyConfiguration(t *testing.T) {
         ]}
     `)
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
@@ -350,7 +351,7 @@ func TestIsReady(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
@@ -420,7 +421,7 @@ func TestScan(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 	require.NotNil(s, "the returned scanner should not be nil")
 
 	isActive, _ := s.Reconfigure(ReconfigureOrder{
@@ -509,7 +510,7 @@ func TestCloseCycleScan(t *testing.T) {
 	// -----
 
 	for i := 0; i < 10; i++ {
-		s := CreateScanner(0)
+		s := CreateScanner("")
 		require.NotNil(s, "the returned scanner should not be nil")
 
 		_, _ = s.Reconfigure(ReconfigureOrder{
@@ -572,6 +573,12 @@ func TestCloseCycleScan(t *testing.T) {
 func TestInterpretRC(t *testing.T) {
 	require := require.New(t)
 
+	defaults := StandardRulesDefaults{
+		IncludedKeywordsCharCount: 10,
+		ExcludedKeywordsCharCount: 10,
+		ExcludedKeywords:          []string{"trace-id"},
+	}
+
 	stdRc := StandardRuleConfig{
 		ID:          "0",
 		Name:        "Zero",
@@ -593,9 +600,12 @@ func TestInterpretRC(t *testing.T) {
 			Type:        matchActionRCRedact,
 			Placeholder: "[redacted]",
 		},
+		IncludedKeywords: ProximityKeywords{
+			UseRecommendedKeywords: true,
+		},
 	}
 
-	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	rule, err := interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok := rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -611,7 +621,7 @@ func TestInterpretRC(t *testing.T) {
 		RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
 	})
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -641,7 +651,7 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -650,8 +660,11 @@ func TestInterpretRC(t *testing.T) {
 	require.Equal(rxRule.Pattern, "second pattern")
 	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
 
+	// included keywords
+	// -----------------
+
 	// make sure we use the keywords proximity feature if any's configured
-	// in the std rule definition 	stdRc.Definitions = []StandardRuleDefinition{
+	// in the std rule definition
 	stdRc.Definitions = []StandardRuleDefinition{
 		{
 			Version:                 2,
@@ -666,7 +679,7 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -681,11 +694,12 @@ func TestInterpretRC(t *testing.T) {
 	// make sure we use the user provided information first
 	// even if there is some in the std rule
 	rc.IncludedKeywords = ProximityKeywords{
-		Keywords:       []string{"custom"},
-		CharacterCount: 42,
+		Keywords:               []string{"custom"},
+		CharacterCount:         42,
+		UseRecommendedKeywords: false,
 	}
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -696,4 +710,42 @@ func TestInterpretRC(t *testing.T) {
 	require.NotNil(rxRule.ProximityKeywords)
 	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
 	require.Equal(rxRule.ProximityKeywords.IncludedKeywords, []string{"custom"})
+
+	// excluded keywords
+	// -----------------
+
+	// make sure we use the user provided information first
+	// even if there is some in the std rule
+	rc.IncludedKeywords = ProximityKeywords{
+		Keywords:               nil,
+		CharacterCount:         0,
+		UseRecommendedKeywords: false,
+	}
+
+	// make sure we use the keywords proximity feature if any's configured
+	// in the std rule definition, here the excluded keywords one
+	stdRc.Definitions = []StandardRuleDefinition{
+		{
+			Version:              2,
+			Pattern:              "second pattern",
+			RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
+		},
+		{
+			Version:              1,
+			Pattern:              "first pattern",
+			RequiredCapabilities: nil,
+		},
+	}
+
+	rule, err = interpretRCRule(rc, stdRc, defaults)
+	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
+
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rxRule.ProximityKeywords)
+	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
+	require.Equal(rxRule.ProximityKeywords.ExcludedKeywords, []string{"trace-id"})
 }

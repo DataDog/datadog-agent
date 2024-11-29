@@ -26,23 +26,26 @@ const (
 )
 
 type eventPayload struct {
-	NamingSchemaVersion  string   `json:"naming_schema_version"`
-	ServiceName          string   `json:"service_name"`
-	GeneratedServiceName string   `json:"generated_service_name"`
-	DDService            string   `json:"dd_service,omitempty"`
-	HostName             string   `json:"host_name"`
-	Env                  string   `json:"env"`
-	ServiceLanguage      string   `json:"service_language"`
-	ServiceType          string   `json:"service_type"`
-	StartTime            int64    `json:"start_time"`
-	LastSeen             int64    `json:"last_seen"`
-	APMInstrumentation   string   `json:"apm_instrumentation"`
-	ServiceNameSource    string   `json:"service_name_source,omitempty"`
-	Ports                []uint16 `json:"ports"`
-	PID                  int      `json:"pid"`
-	CommandLine          []string `json:"command_line"`
-	RSSMemory            uint64   `json:"rss_memory"`
-	CPUCores             float64  `json:"cpu_cores"`
+	NamingSchemaVersion        string   `json:"naming_schema_version"`
+	ServiceName                string   `json:"service_name"`
+	GeneratedServiceName       string   `json:"generated_service_name"`
+	GeneratedServiceNameSource string   `json:"generated_service_name_source,omitempty"`
+	DDService                  string   `json:"dd_service,omitempty"`
+	HostName                   string   `json:"host_name"`
+	Env                        string   `json:"env"`
+	ServiceLanguage            string   `json:"service_language"`
+	ServiceType                string   `json:"service_type"`
+	StartTime                  int64    `json:"start_time"`
+	StartTimeMilli             int64    `json:"start_time_milli"`
+	LastSeen                   int64    `json:"last_seen"`
+	APMInstrumentation         string   `json:"apm_instrumentation"`
+	ServiceNameSource          string   `json:"service_name_source,omitempty"`
+	Ports                      []uint16 `json:"ports"`
+	PID                        int      `json:"pid"`
+	CommandLine                []string `json:"command_line"`
+	RSSMemory                  uint64   `json:"rss_memory"`
+	CPUCores                   float64  `json:"cpu_cores"`
+	ContainerID                string   `json:"container_id"`
 }
 
 type event struct {
@@ -72,23 +75,26 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 		RequestType: t,
 		APIVersion:  "v2",
 		Payload: &eventPayload{
-			NamingSchemaVersion:  "1",
-			ServiceName:          svc.meta.Name,
-			GeneratedServiceName: svc.service.GeneratedName,
-			DDService:            svc.service.DDService,
-			HostName:             host,
-			Env:                  env,
-			ServiceLanguage:      svc.meta.Language,
-			ServiceType:          svc.meta.Type,
-			StartTime:            int64(svc.service.StartTimeSecs),
-			LastSeen:             svc.LastHeartbeat.Unix(),
-			APMInstrumentation:   svc.meta.APMInstrumentation,
-			ServiceNameSource:    nameSource,
-			Ports:                svc.service.Ports,
-			PID:                  svc.service.PID,
-			CommandLine:          svc.service.CommandLine,
-			RSSMemory:            svc.service.RSS,
-			CPUCores:             svc.service.CPUCores,
+			NamingSchemaVersion:        "1",
+			ServiceName:                svc.meta.Name,
+			GeneratedServiceName:       svc.service.GeneratedName,
+			GeneratedServiceNameSource: svc.service.GeneratedNameSource,
+			DDService:                  svc.service.DDService,
+			HostName:                   host,
+			Env:                        env,
+			ServiceLanguage:            svc.meta.Language,
+			ServiceType:                svc.meta.Type,
+			StartTime:                  int64(svc.service.StartTimeMilli / 1000),
+			StartTimeMilli:             int64(svc.service.StartTimeMilli),
+			LastSeen:                   svc.LastHeartbeat.Unix(),
+			APMInstrumentation:         svc.meta.APMInstrumentation,
+			ServiceNameSource:          nameSource,
+			Ports:                      svc.service.Ports,
+			PID:                        svc.service.PID,
+			CommandLine:                svc.service.CommandLine,
+			RSSMemory:                  svc.service.RSS,
+			CPUCores:                   svc.service.CPUCores,
+			ContainerID:                svc.service.ContainerID,
 		},
 	}
 }

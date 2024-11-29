@@ -57,7 +57,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o707)
 			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
@@ -80,7 +80,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
 			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
@@ -106,7 +106,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
 			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
@@ -127,7 +127,7 @@ func TestChmod(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
 			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)

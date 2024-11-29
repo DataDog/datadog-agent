@@ -10,7 +10,6 @@ package apm
 
 import (
 	"bufio"
-	"debug/elf"
 	"io"
 	"io/fs"
 	"os"
@@ -18,11 +17,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -37,7 +38,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
+type detector func(ctx usm.DetectionContext) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -52,22 +53,22 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
+func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
-	if isInjected(envs) {
+	if isInjected(ctx.Envs) {
 		return Injected
 	}
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(pid, args, envs, contextMap)
+		return detect(ctx)
 	}
 
 	return None
 }
 
-func isInjected(envs map[string]string) bool {
-	if val, ok := envs["DD_INJECTION_ENABLED"]; ok {
+func isInjected(envs envs.Variables) bool {
+	if val, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		parts := strings.Split(val, ",")
 		for _, v := range parts {
 			if v == "tracer" {
@@ -79,39 +80,45 @@ func isInjected(envs map[string]string) bool {
 }
 
 const (
-	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
-	// are looking for are for example
-	// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init". We use a prefix
-	// without the version number instead of a specific symbol name in an
-	// attempt to make it future-proof.
-	ddTraceGoPrefix = "gopkg.in/DataDog/dd-trace-go"
+	// ddTraceGoPrefix(V2) is the prefix of the dd-trace-go symbols. The symbols
+	// we are looking for are for example:
+	//    gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init
+	//  github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.init
+	//
+	// We use an infix instead of a specific symbol name in an attempt to make
+	// it future-proof.
+	ddTraceGoPrefix    = "gopkg.in/DataDog/dd-trace-go"
+	ddTraceGoPrefixV2  = "github.com/DataDog/dd-trace-go/v2/"
+	ddTraceGoMinLength = min(len(ddTraceGoPrefix), len(ddTraceGoPrefixV2))
+	ddTraceGoInfix     = "DataDog/dd-trace-go"
+
 	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
 	// we look for. The max length is an optimization in bininspect to avoid
 	// reading unnecesssary symbols.  As of writing, most non-internal symbols
-	// in dd-trace-go are under 100 chars. The tracer.init example above at 51
-	// chars is one of the shortest.
+	// in dd-trace-go are under 100 chars. The tracer.init example above at
+	// 51/53 chars is one of the shortest.
 	ddTraceGoMaxLength = 100
 )
 
 // goDetector detects APM instrumentation for Go binaries by checking for
 // the presence of the dd-trace-go symbols in the ELF. This only works for
 // unstripped binaries.
-func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
+func goDetector(ctx usm.DetectionContext) Instrumentation {
+	exePath := kernel.HostProc(strconv.Itoa(ctx.Pid), "exe")
 
-	elfFile, err := elf.Open(exePath)
+	elfFile, err := safeelf.Open(exePath)
 	if err != nil {
 		log.Debugf("Unable to open exe %s: %v", exePath, err)
 		return None
 	}
 	defer elfFile.Close()
 
-	if _, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+	if _, err = bininspect.GetAnySymbolWithInfix(elfFile, ddTraceGoInfix, ddTraceGoMinLength, ddTraceGoMaxLength); err == nil {
 		return Provided
 	}
 
 	// We failed to find symbols in the regular symbols section, now we can try the pclntab
-	if _, err = bininspect.GetAnySymbolWithPrefixPCLNTAB(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+	if _, err = bininspect.GetAnySymbolWithInfixPCLNTAB(elfFile, ddTraceGoInfix, ddTraceGoMinLength, ddTraceGoMaxLength); err == nil {
 		return Provided
 	}
 	return None
@@ -142,8 +149,8 @@ func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // For example:
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 // 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
-func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+func pythonDetector(ctx usm.DetectionContext) Instrumentation {
+	mapsPath := kernel.HostProc(strconv.Itoa(ctx.Pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
 		return None
@@ -172,14 +179,14 @@ func isNodeInstrumented(f fs.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
-	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
+func nodeDetector(ctx usm.DetectionContext) Instrumentation {
+	pkgJSONPath, ok := ctx.ContextMap[usm.NodePackageJSONPath]
 	if !ok {
 		log.Debugf("could not get package.json path from context map")
 		return None
 	}
 
-	fs, ok := contextMap[usm.ServiceSubFS]
+	fs, ok := ctx.ContextMap[usm.ServiceSubFS]
 	if !ok {
 		log.Debugf("could not get SubFS for package.json")
 		return None
@@ -199,7 +206,9 @@ func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.Detecto
 	return None
 }
 
-func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
+var javaAgentRegex = regexp.MustCompile(`-javaagent:.*(?:datadog|dd-java-agent|dd-trace-agent)\S*\.jar`)
+
+func javaDetector(ctx usm.DetectionContext) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -207,12 +216,12 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 	}
 
 	// Check simple args on builtIn list.
-	for _, v := range args {
+	for _, v := range ctx.Args {
 		if ignoreArgs[v] {
 			return None
 		}
 		// don't instrument if javaagent is already there on the command line
-		if strings.HasPrefix(v, "-javaagent:") && strings.Contains(v, "dd-java-agent.jar") {
+		if javaAgentRegex.MatchString(v) {
 			return Provided
 		}
 	}
@@ -229,8 +238,8 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 		"JDPA_OPTS",
 	}
 	for _, name := range toolOptionEnvs {
-		if val, ok := envs[name]; ok {
-			if strings.Contains(val, "-javaagent:") && strings.Contains(val, "dd-java-agent.jar") {
+		if val, ok := ctx.Envs.Get(name); ok {
+			if javaAgentRegex.MatchString(val) {
 				return Provided
 			}
 		}
@@ -265,12 +274,12 @@ func dotNetDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // maps file. Note that this does not work for single-file deployments.
 //
 // 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
-func dotNetDetector(pid int, _ []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
+func dotNetDetector(ctx usm.DetectionContext) Instrumentation {
+	if val, ok := ctx.Envs.Get("CORECLR_ENABLE_PROFILING"); ok && val == "1" {
 		return Provided
 	}
 
-	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+	mapsPath := kernel.HostProc(strconv.Itoa(ctx.Pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
 		return None

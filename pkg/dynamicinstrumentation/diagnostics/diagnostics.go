@@ -78,5 +78,9 @@ func (m *DiagnosticManager) update(id probeInstanceID, d *ditypes.DiagnosticUplo
 	}
 }
 
+func StopGlobalDiagnostics() { //nolint:revive // TODO
+	close(Diagnostics.Updates)
+}
+
 // Diagnostics is a global instance of a diagnostic manager
 var Diagnostics = NewDiagnosticManager()

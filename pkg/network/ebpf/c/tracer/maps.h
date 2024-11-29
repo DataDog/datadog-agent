@@ -26,16 +26,10 @@ BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 /* Will hold the PIDs initiating TCP connections keyed by socket + tuple. PIDs have a timestamp attached so they can age out */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
 
-/* Will hold a flag to indicate that closed connections have already been flushed */
-BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 8192)
-
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
 BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
-
-/* Will hold TCP failed connections */
-BPF_PERF_EVENT_ARRAY_MAP(conn_fail_event, __u32)
 
 /* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
@@ -66,7 +60,7 @@ BPF_HASH_MAP(udp_sendpage_args, __u64, struct sock *, 1024)
  * Map to hold struct sock parameter for tcp_recvmsg/tcp_read_sock calls
  * to be used in kretprobe/tcp_recvmsg/tcp_read_sock
  */
-BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 1024)
+BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 0)
 
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid

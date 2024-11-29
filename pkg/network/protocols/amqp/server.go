@@ -7,6 +7,7 @@ package amqp
 
 import (
 	"fmt"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 
 	httpUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -44,7 +46,16 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 	startupRegexp := startupRegexpGenerators[enableTLS](t, serverPort)
 
 	dir, _ := httpUtils.CurDir()
-	return protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, startupRegexp, protocolsUtils.DefaultTimeout, 3)
+
+	scanner, err := globalutils.NewScanner(startupRegexp, globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	dockerCfg := dockerutils.NewComposeConfig("amqp",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		scanner,
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }
 
 // getServerEnv returns the environment to configure the amqp server

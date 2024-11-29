@@ -51,13 +51,17 @@ import (
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
 	a.Concentrator = &mockConcentrator{}
-	a.TraceWriter = &mockTraceWriter{}
+	a.TraceWriter = &mockTraceWriter{
+		apiKey: conf.Endpoints[0].APIKey,
+	}
 	return a
 }
 
 type mockTraceWriter struct {
 	mu       sync.Mutex
 	payloads []*writer.SampledChunks
+
+	apiKey string
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -70,6 +74,10 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 
 func (m *mockTraceWriter) FlushSync() error {
 	panic("not implemented")
+}
+
+func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
+	m.apiKey = newKey
 }
 
 type mockConcentrator struct {
@@ -1265,7 +1273,7 @@ func TestSampling(t *testing.T) {
 	}
 }
 
-func TestSample(t *testing.T) {
+func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
@@ -1343,6 +1351,133 @@ func TestSample(t *testing.T) {
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			assert.Equal(t, tt.keepWithFeature, keep)
+			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
+		})
+	}
+}
+
+func TestSample(t *testing.T) {
+	now := time.Now()
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32, exceptionInSpanEvent bool) traceutil.ProcessedTrace {
+		root := &pb.Span{
+			Service:  "serv1",
+			Start:    now.UnixNano(),
+			Duration: (100 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_top_level": 1},
+			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
+			Meta:     map[string]string{},
+		}
+		if exceptionInSpanEvent {
+			root.Meta["_dd.span_events.has_exception"] = "true" // the Error Sampler will keep the trace
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		if decisionMaker != "" {
+			chunk.Tags["_dd.p.dm"] = decisionMaker
+		}
+		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+		pt.TraceChunk.Priority = int32(priority)
+		return pt
+	}
+	statsd := &statsd.NoOpClient{}
+	tests := map[string]struct {
+		trace           traceutil.ProcessedTrace
+		etsEnabled      bool
+		keep            bool
+		keepWithFeature bool
+	}{
+		"userdrop-error-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"userkeep-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"userkeep-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"autodrop-error-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"ets-userdrop-error-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userdrop-errorspanevent-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userdrop-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 0, false),
+			etsEnabled:      true,
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"ets-userkeep-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userkeep-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-error-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-errorspanevent-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, true),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
+			etsEnabled:      true,
+			keep:            false,
+			keepWithFeature: false,
+		},
+	}
+	for name, tt := range tests {
+		cfg.ErrorTrackingStandalone = tt.etsEnabled
+		a := &Agent{
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+			RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+			EventProcessor:    newEventProcessor(cfg, statsd),
+			conf:              cfg,
+		}
+		t.Run(name, func(t *testing.T) {
+			keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			assert.Equal(t, tt.keep, keep)
+			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
+			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
+			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
+			keep, _ = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
@@ -1665,7 +1800,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		a := &Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{}), conf: config.New()}
+		a := &Agent{obfuscatorConf: &obfuscate.Config{}, conf: config.New()}
 		a.obfuscateSpan(span)
 		a.Truncate(span)
 	}
@@ -1704,6 +1839,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
 }
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
+
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
 
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {
@@ -1817,12 +1954,18 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 
 func TestConvertStats(t *testing.T) {
 	testCases := []struct {
+		name          string
+		features      string
+		withFargate   bool
 		in            *pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
+		containerID   string
 		out           *pb.ClientStatsPayload
 	}{
 		{
+			name:     "containerID feature enabled, no fargate",
+			features: "enable_cid_stats",
 			in: &pb.ClientStatsPayload{
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
@@ -1859,12 +2002,157 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
+			containerID:   "abc123",
 			out: &pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
+				ContainerID:   "abc123",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:     "containerID feature disabled, no fargate",
+			features: "disable_cid_stats",
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "containerID feature not configured, with fargate",
+			features:    "",
+			withFargate: true,
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "abc123",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -1890,15 +2178,27 @@ func TestConvertStats(t *testing.T) {
 			},
 		},
 	}
-	a := Agent{
-		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
-		obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
-		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
-		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname", MaxResourceLen: 5000},
-	}
 	for _, testCase := range testCases {
-		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
-		assert.Equal(t, testCase.out, out)
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.DefaultEnv = "agent_env"
+			cfg.Hostname = "agent_hostname"
+			cfg.MaxResourceLen = 5000
+			cfg.Features[testCase.features] = struct{}{}
+			if testCase.withFargate {
+				cfg.FargateOrchestrator = config.OrchestratorECS
+			}
+
+			a := Agent{
+				Blacklister:    filters.NewBlacklister([]string{"blocked_resource"}),
+				obfuscatorConf: &obfuscate.Config{},
+				Replacer:       filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
+				conf:           cfg,
+			}
+
+			out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, testCase.containerID)
+			assert.Equal(t, testCase.out, out)
+		})
 	}
 }
 
@@ -2585,4 +2885,16 @@ func TestProcessedTrace(t *testing.T) {
 		}
 		assert.Equal(t, expectedPt, pt)
 	})
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	agnt.UpdateAPIKey("test", "foo")
+	tw := agnt.TraceWriter.(*mockTraceWriter)
+	assert.Equal(t, "foo", tw.apiKey)
 }

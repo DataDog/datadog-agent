@@ -8,9 +8,13 @@
 package net
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
@@ -25,18 +29,66 @@ const (
 	pprofURL             = "http://unix/debug/pprof"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
-	netType              = "unix"
+	telemetryURL         = "http://unix/telemetry"
+	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
+	ebpfBTFLoaderURL     = "http://unix/debug/ebpf_btf_loader_info"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
 // From the main agent and want to ensure the socket exists
 func CheckPath(path string) error {
 	if path == "" {
-		return fmt.Errorf("socket path is empty")
+		return errors.New("socket path is empty")
 	}
 
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+// newSystemProbe creates a group of clients to interact with system-probe.
+func newSystemProbe(path string) *RemoteSysProbeUtil {
+	return &RemoteSysProbeUtil{
+		path:       path,
+		httpClient: *client.Get(path),
+		pprofClient: http.Client{
+			Transport: &http.Transport{
+				DialContext: client.DialContextFunc(path),
+			},
+		},
+		tracerouteClient: http.Client{
+			// no timeout set here, the expected usage of this client
+			// is that the caller will set a timeout on each request
+			Transport: &http.Transport{
+				DialContext: client.DialContextFunc(path),
+			},
+		},
+	}
+}
+
+// GetBTFLoaderInfo queries ebpf_btf_loader_info to get information about where btf files came from
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetEbpfBtfInfo got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }

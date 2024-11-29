@@ -88,10 +88,14 @@ func Factory() optional.Option[func() check.Check] {
 	if newOSImpl == nil {
 		return optional.NewNoneOption[func() check.Check]()
 	}
-	return optional.NewOption(newCheck)
+
+	return optional.NewOption(func() check.Check {
+		return newCheck()
+	})
 }
 
-func newCheck() check.Check {
+// TODO: add metastore param
+func newCheck() *Check {
 	return &Check{
 		CheckBase:             corechecks.NewCheckBase(CheckName),
 		cfg:                   &config{},

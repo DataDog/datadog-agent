@@ -13,7 +13,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -22,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
-	"github.com/cilium/ebpf/ringbuf"
-	"github.com/google/uuid"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type rcConfig struct {
@@ -249,12 +249,6 @@ generateCompileAttach:
 	err = codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
-		return
-	}
-
-	err = ebpf.CompileBPFProgram(procInfo, probe)
-	if err != nil {
-		log.Info("Couldn't compile BPF object", err)
 		if !probe.InstrumentationInfo.AttemptedRebuild {
 			log.Info("Removing parameters and attempting to rebuild BPF object", err)
 			probe.InstrumentationInfo.AttemptedRebuild = true
@@ -264,6 +258,18 @@ generateCompileAttach:
 		return
 	}
 
+	err = ebpf.CompileBPFProgram(procInfo, probe)
+	if err != nil {
+		// TODO: Emit diagnostic?
+		log.Info("Couldn't compile BPF object", err)
+		if !probe.InstrumentationInfo.AttemptedRebuild {
+			log.Info("Removing parameters and attempting to rebuild BPF object", err)
+			probe.InstrumentationInfo.AttemptedRebuild = true
+			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+			goto generateCompileAttach
+		}
+		return
+	}
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't load and attach bpf programs", err)

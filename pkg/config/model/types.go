@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"github.com/spf13/afero"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -35,10 +34,9 @@ type Reader interface {
 	GetInt32(key string) int32
 	GetInt64(key string) int64
 	GetFloat64(key string) float64
-	GetTime(key string) time.Time
 	GetDuration(key string) time.Duration
 	GetStringSlice(key string) []string
-	GetFloat64SliceE(key string) ([]float64, error)
+	GetFloat64Slice(key string) []float64
 	GetStringMap(key string) map[string]interface{}
 	GetStringMapString(key string) map[string]string
 	GetStringMapStringSlice(key string) map[string][]string
@@ -84,6 +82,9 @@ type Reader interface {
 	// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
 	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
 	OnUpdate(callback NotificationReceiver)
+
+	// Stringify stringifies the config
+	Stringify(source Source) string
 }
 
 // Writer is a subset of Config that only allows writing the configuration
@@ -91,7 +92,6 @@ type Writer interface {
 	Set(key string, value interface{}, source Source)
 	SetWithoutSource(key string, value interface{})
 	UnsetForSource(key string, source Source)
-	CopyConfig(cfg Config)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration
@@ -104,11 +104,13 @@ type ReaderWriter interface {
 type Setup interface {
 	// API implemented by viper.Viper
 
+	// BuildSchema should be called when Setup is done, it builds the schema making the config ready for use
+	BuildSchema()
+
 	SetDefault(key string, value interface{})
-	SetFs(fs afero.Fs)
 
 	SetEnvPrefix(in string)
-	BindEnv(input ...string)
+	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
@@ -130,26 +132,23 @@ type Setup interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
-}
-
-// Compound is an interface for retrieving compound elements from the config, plus
-// some misc functions, that should likely be split into another interface
-type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
-
-	ReadInConfig() error
-	ReadConfig(in io.Reader) error
-	MergeConfig(in io.Reader) error
-	MergeConfigMap(cfg map[string]any) error
-	MergeFleetPolicy(configPath string) error
 
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error
 	SetConfigName(in string)
 	SetConfigFile(in string)
 	SetConfigType(in string)
+}
+
+// Compound is an interface for retrieving compound elements from the config, plus
+// some misc functions, that should likely be split into another interface
+type Compound interface {
+	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
+
+	ReadInConfig() error
+	ReadConfig(in io.Reader) error
+	MergeConfig(in io.Reader) error
+	MergeFleetPolicy(configPath string) error
 }
 
 // Config represents an object that can load and store configuration parameters

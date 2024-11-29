@@ -61,10 +61,14 @@ enum DENTRY_ERPC_RESOLUTION_CODE
 
 enum TC_TAIL_CALL_KEYS
 {
-    UNKNOWN,
-    DNS_REQUEST,
+    DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
+};
+
+enum TC_RAWPACKET_KEYS {
+    RAW_PACKET_FILTER,
+    // reserved keys for raw packet filter tail calls
 };
 
 #define DNS_MAX_LENGTH 256

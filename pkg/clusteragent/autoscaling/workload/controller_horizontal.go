@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -78,9 +78,6 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
-
-	// Update current replicas
-	autoscalerInternal.SetCurrentReplicas(scale.Status.Replicas)
 
 	return hr.performScaling(ctx, podAutoscaler, autoscalerInternal, gr, scale)
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	fetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

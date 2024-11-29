@@ -20,7 +20,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -28,6 +27,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -187,7 +187,7 @@ func (j *JMXFetch) setDefaults() {
 func (j *JMXFetch) Start(manage bool) error {
 	j.setDefaults()
 
-	classpath := filepath.Join(path.GetDistPath(), "jmx", jmxJarName)
+	classpath := filepath.Join(defaultpaths.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
 	}
@@ -268,6 +268,16 @@ func (j *JMXFetch) Start(manage bool) error {
 		// Specify the initial memory allocation pool for the JVM
 		if !strings.Contains(javaOptions, "Xms") && !strings.Contains(javaOptions, "XX:InitialHeapSize") {
 			javaOptions += defaultJvmInitialMemoryAllocation
+		}
+	}
+
+	if !strings.Contains(javaOptions, "java.io.tmpdir") {
+		javaTmpDir := filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "jmxfetch")
+		if err := os.MkdirAll(javaTmpDir, 0755); err != nil {
+			log.Warnf("Failed to create jmxfetch temporary directory %s: %v", javaTmpDir, err)
+		} else {
+			javaTmpDirOpt := fmt.Sprintf(" -Djava.io.tmpdir=%s", javaTmpDir)
+			javaOptions += javaTmpDirOpt
 		}
 	}
 

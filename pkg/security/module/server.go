@@ -21,6 +21,7 @@ import (
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -61,7 +63,8 @@ type pendingMsg struct {
 
 func (p *pendingMsg) isResolved() bool {
 	for _, report := range p.actionReports {
-		if !report.IsResolved() {
+		if err := report.IsResolved(); err != nil {
+			seclog.Debugf("action report not resolved: %v", err)
 			return false
 		}
 	}
@@ -216,6 +219,30 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
+func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
+	// on fargate, append global tags
+	if includeGlobalTags && fargate.IsFargateInstance() {
+		for _, tag := range a.getGlobalTags() {
+			key, _, _ := strings.Cut(tag, ":")
+			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
+				return strings.HasPrefix(t, key+":")
+			}) {
+				msg.Tags = append(msg.Tags, tag)
+			}
+		}
+	}
+
+	// look for the service tag if we don't have one yet
+	if len(msg.Service) == 0 {
+		for _, tag := range msg.Tags {
+			if strings.HasPrefix(tag, "service:") {
+				msg.Service = strings.TrimPrefix(tag, "service:")
+				break
+			}
+		}
+	}
+}
+
 func (a *APIServer) start(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -229,18 +256,6 @@ func (a *APIServer) start(ctx context.Context) {
 					for _, tag := range msg.extTagsCb() {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
-						}
-					}
-				}
-
-				// recopy tags
-				hasService := len(msg.service) != 0
-				for _, tag := range msg.tags {
-					// look for the service tag if we don't have one yet
-					if !hasService {
-						if strings.HasPrefix(tag, "service:") {
-							msg.service = strings.TrimPrefix(tag, "service:")
-							hasService = true
 						}
 					}
 				}
@@ -264,6 +279,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
+				a.updateMsgTags(m, false)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -351,7 +367,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			extTagsCb:       extTagsCb,
 			service:         service,
 			sendAfter:       time.Now().Add(retention),
-			tags:            make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
+			tags:            tags,
 			actionReports:   actionReports,
 		}
 
@@ -389,6 +405,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
+		a.updateMsgTags(m, true)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -525,8 +542,23 @@ func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
 }
 
+func (a *APIServer) getGlobalTags() []string {
+	tagger := a.probe.Opts.Tagger
+
+	if tagger == nil {
+		return nil
+	}
+
+	globalTags, err := tagger.GlobalTags(types.OrchestratorCardinality)
+	if err != nil {
+		seclog.Errorf("failed to get global tags: %v", err)
+		return nil
+	}
+	return globalTags
+}
+
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) *APIServer {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	as := &APIServer{
@@ -559,5 +591,5 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		}
 	}
 
-	return as
+	return as, nil
 }

@@ -5,10 +5,10 @@ import tempfile
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
@@ -45,17 +45,81 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
-def get_modified_files(ctx, base_branch="main") -> list[str]:
-    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
-    return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
+def get_file_modifications(
+    ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
+) -> list[tuple[str, str]]:
+    """Gets file status changes for the current branch compared to the base branch.
+
+    If no filter is provided, will return all the files.
+
+    Args:
+        added: Include added files
+        modified: Include modified files
+        removed: Include removed files
+        only_names: Return only the file names without the status
+        no_renames: Do not include renamed files
+
+    Returns:
+        A list of (status, filename)
+    """
+
+    from tasks.libs.releasing.json import _get_release_json_value
+
+    base_branch = base_branch or _get_release_json_value('base_branch')
+
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
+
+    flags = '--no-renames' if no_renames else ''
+
+    modifications = [
+        line.split('\t')
+        for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
+    ]
+    if added or modified or removed:
+        # skip when a file is renamed
+        modifications = [m for m in modifications if len(m) != 3]
+        modifications = [
+            (status, file)
+            for status, file in modifications
+            if (added and status == "A") or (modified and status in "MCRT") or (removed and status == "D")
+        ]
+
+    if only_names:
+        modifications = [file for _, file in modifications]
+
+    return modifications
+
+
+def get_modified_files(ctx, base_branch=None) -> list[str]:
+    base_branch = base_branch or get_default_branch()
+
+    return get_file_modifications(
+        ctx, base_branch=base_branch, added=True, modified=True, only_names=True, no_renames=True
+    )
 
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
 
-def get_common_ancestor(ctx, branch) -> str:
-    return ctx.run(f"git merge-base {branch} main", hide=True).stdout.strip()
+def is_agent6(ctx) -> bool:
+    return get_current_branch(ctx).startswith("6.")
+
+
+def get_default_branch():
+    """Returns the default git branch given the current context (agent 6 / 7)."""
+
+    # We create a context to avoid passing context in each function
+    # This context is used to get the current branch so there is no side effect
+    ctx = Context()
+
+    return '6.53.x' if is_agent6(ctx) else 'main'
+
+
+def get_common_ancestor(ctx, branch, base=None) -> str:
+    base = base or get_default_branch()
+
+    return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -86,7 +150,7 @@ def get_main_parent_commit(ctx) -> str:
     """
     Get the commit sha your current branch originated from
     """
-    return ctx.run("git merge-base HEAD origin/main", hide=True).stdout.strip()
+    return ctx.run(f"git merge-base HEAD origin/{get_default_branch()}", hide=True).stdout.strip()
 
 
 def check_base_branch(branch, release_version):
@@ -94,7 +158,7 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version.branch()
 
 
 def try_git_command(ctx, git_command):

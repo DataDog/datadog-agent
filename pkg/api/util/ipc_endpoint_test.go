@@ -14,16 +14,16 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func createConfig(t *testing.T, ts *httptest.Server) pkgconfigmodel.Config {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := configmock.New(t)
 
 	// create a fake auth token
 	authTokenFile, err := os.CreateTemp("", "")
@@ -44,7 +44,7 @@ func createConfig(t *testing.T, ts *httptest.Server) pkgconfigmodel.Config {
 }
 
 func TestNewIPCEndpoint(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := configmock.New(t)
 
 	// create a fake auth token
 	authTokenFile, err := os.CreateTemp("", "")
@@ -64,7 +64,7 @@ func TestNewIPCEndpoint(t *testing.T) {
 }
 
 func TestNewIPCEndpointWithCloseConnection(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := configmock.New(t)
 
 	// create a fake auth token
 	authTokenFile, err := os.CreateTemp("", "")

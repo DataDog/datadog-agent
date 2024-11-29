@@ -17,23 +17,25 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"k8s.io/kubectl/pkg/cmd/util/podcmd"
-	"k8s.io/utils/strings/slices"
-
 	"github.com/wI2L/jsondiff"
-	admiv1 "k8s.io/api/admissionregistration/v1"
+	admiv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/kubectl/pkg/cmd/util/podcmd"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -85,12 +87,13 @@ type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticat
 
 // WebhookForPods is the webhook that injects CWS pod instrumentation
 type WebhookForPods struct {
-	name          string
-	isEnabled     bool
-	endpoint      string
-	resources     []string
-	operations    []admiv1.OperationType
-	admissionFunc admission.WebhookFunc
+	name            string
+	isEnabled       bool
+	endpoint        string
+	resources       map[string][]string
+	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
+	admissionFunc   admission.WebhookFunc
 }
 
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
@@ -98,16 +101,22 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		name: webhookForPodsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-		resources:     []string{"pods"},
-		operations:    []admiv1.OperationType{admiv1.Create},
-		admissionFunc: admissionFunc,
+		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+		resources:       map[string][]string{"": {"pods"}},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		matchConditions: []admissionregistrationv1.MatchCondition{},
+		admissionFunc:   admissionFunc,
 	}
 }
 
 // Name returns the name of the webhook
 func (w *WebhookForPods) Name() string {
 	return w.name
+}
+
+// WebhookType returns the type of the webhook
+func (w *WebhookForPods) WebhookType() common.WebhookType {
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -122,13 +131,13 @@ func (w *WebhookForPods) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForPods) Resources() []string {
+func (w *WebhookForPods) Resources() map[string][]string {
 	return w.resources
 }
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *WebhookForPods) Operations() []admiv1.OperationType {
+func (w *WebhookForPods) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
@@ -138,19 +147,26 @@ func (w *WebhookForPods) LabelSelectors(useNamespaceSelector bool) (namespaceSel
 	return labelSelectors(useNamespaceSelector)
 }
 
-// MutateFunc returns the function that mutates the resources
-func (w *WebhookForPods) MutateFunc() admission.WebhookFunc {
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *WebhookForPods) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
+}
+
+// WebhookFunc returns the function that mutates the resources
+func (w *WebhookForPods) WebhookFunc() admission.WebhookFunc {
 	return w.admissionFunc
 }
 
 // WebhookForCommands is the webhook that injects CWS pods/exec instrumentation
 type WebhookForCommands struct {
-	name          string
-	isEnabled     bool
-	endpoint      string
-	resources     []string
-	operations    []admiv1.OperationType
-	admissionFunc admission.WebhookFunc
+	name            string
+	isEnabled       bool
+	endpoint        string
+	resources       map[string][]string
+	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
+	admissionFunc   admission.WebhookFunc
 }
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
@@ -158,16 +174,22 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		name: webhookForCommandsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
-		resources:     []string{"pods/exec"},
-		operations:    []admiv1.OperationType{admiv1.Connect},
-		admissionFunc: admissionFunc,
+		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
+		resources:       map[string][]string{"": {"pods/exec"}},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
+		matchConditions: []admissionregistrationv1.MatchCondition{},
+		admissionFunc:   admissionFunc,
 	}
 }
 
 // Name returns the name of the webhook
 func (w *WebhookForCommands) Name() string {
 	return w.name
+}
+
+// WebhookType returns the name of the webhook
+func (w *WebhookForCommands) WebhookType() common.WebhookType {
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -182,13 +204,13 @@ func (w *WebhookForCommands) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForCommands) Resources() []string {
+func (w *WebhookForCommands) Resources() map[string][]string {
 	return w.resources
 }
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *WebhookForCommands) Operations() []admiv1.OperationType {
+func (w *WebhookForCommands) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
@@ -198,8 +220,14 @@ func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.L
 	return nil, nil
 }
 
-// MutateFunc returns the function that mutates the resources
-func (w *WebhookForCommands) MutateFunc() admission.WebhookFunc {
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *WebhookForCommands) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
+}
+
+// WebhookFunc MutateFunc returns the function that mutates the resources
+func (w *WebhookForCommands) WebhookFunc() admission.WebhookFunc {
 	return w.admissionFunc
 }
 
@@ -282,7 +310,7 @@ type CWSInstrumentation struct {
 }
 
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
-func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, error) {
+func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component) (*CWSInstrumentation, error) {
 	ci := CWSInstrumentation{
 		wmeta: wmeta,
 	}
@@ -302,7 +330,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 	cwsInjectorImageName := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")
 	cwsInjectorImageTag := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_tag")
 
-	cwsInjectorContainerRegistry := common.ContainerRegistry("admission_controller.cws_instrumentation.container_registry")
+	cwsInjectorContainerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageName) == 0 {
 		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
@@ -357,8 +385,8 @@ func (ci *CWSInstrumentation) WebhookForCommands() *WebhookForCommands {
 	return ci.webhookForCommands
 }
 
-func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest) ([]byte, error) {
-	return mutatePodExecOptions(request.Raw, request.Name, request.Namespace, ci.webhookForCommands.Name(), request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient)
+func (ci *CWSInstrumentation) injectForCommand(request *admission.Request) *admiv1.AdmissionResponse {
+	return common.MutationResponse(mutatePodExecOptions(request.Object, request.Name, request.Namespace, ci.webhookForCommands.Name(), request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient))
 }
 
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
@@ -476,7 +504,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation init container been added ?)
 		if !isPodCWSInstrumentationReady(pod.Annotations) {
 			// pod isn't instrumented, do not attempt to override the pod exec command
-			log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+			log.Debugf("Ignoring exec request into %s, pod not instrumented yet", mutatecommon.PodString(pod))
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 			return false, nil
 		}
@@ -487,7 +515,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		if ci.mountVolumeForRemoteCopy {
 			if !isPodCWSInstrumentationReady(pod.Annotations) {
 				// pod isn't instrumented, do not attempt to override the pod exec command
-				log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+				log.Debugf("Ignoring exec request into %s, pod not instrumented yet", mutatecommon.PodString(pod))
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 				return false, nil
 			}
@@ -496,7 +524,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			// check if the target pod has a read only filesystem
 			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
 				// readonly rootfs containers can't be instrumented
-				log.Errorf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", common.PodString(pod), exec.Container)
+				log.Errorf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", mutatecommon.PodString(pod), exec.Container)
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsReadonlyFilesystemReason)
 				return false, errors.New(metrics.InvalidInput)
 			}
@@ -512,7 +540,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
 		if err != nil {
-			log.Errorf("Ignoring exec request into %s: %v", common.PodString(pod), err)
+			log.Errorf("Ignoring exec request into %s: %v", mutatecommon.PodString(pod), err)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsMissingArchReason)
 			return false, errors.New(metrics.InternalError)
 		}
@@ -520,7 +548,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 		// check if the pod is ready to be exec-ed into
 		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-			log.Errorf("Ignoring exec request into %s: cannot exec into a container in a completed pod; current phase is %s", common.PodString(pod), pod.Status.Phase)
+			log.Errorf("Ignoring exec request into %s: cannot exec into a container in a completed pod; current phase is %s", mutatecommon.PodString(pod), pod.Status.Phase)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsCompletedPodReason)
 			return false, errors.New(metrics.InvalidInput)
 		}
@@ -528,19 +556,19 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		// check if the input container exists, or select the default one to which the user will be redirected
 		container, err := podcmd.FindOrDefaultContainerByName(pod, exec.Container, true, nil)
 		if err != nil {
-			log.Errorf("Ignoring exec request into %s, invalid container: %v", common.PodString(pod), err)
+			log.Errorf("Ignoring exec request into %s, invalid container: %v", mutatecommon.PodString(pod), err)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsInvalidInputContainerReason)
 			return false, errors.New(metrics.InvalidInput)
 		}
 
 		// copy CWS instrumentation directly to the target container
 		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, container.Name, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
-			log.Warnf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
+			log.Warnf("Ignoring exec request into %s, remote copy failed: %v", mutatecommon.PodString(pod), err)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsRemoteCopyFailedReason)
 			return false, errors.New(metrics.InternalError)
 		}
 	default:
-		log.Errorf("Ignoring exec request into %s, unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		log.Errorf("Ignoring exec request into %s, unknown CWS Instrumentation mode %v", mutatecommon.PodString(pod), ci.mode)
 		metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsUnknownModeReason)
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -548,7 +576,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// prepare the user session context
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
-		log.Debugf("ignoring instrumentation of %s: %v", common.PodString(pod), err)
+		log.Debugf("ignoring instrumentation of %s: %v", mutatecommon.PodString(pod), err)
 		metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsCredentialsSerializationErrorReason)
 		return false, errors.New(metrics.InternalError)
 	}
@@ -563,7 +591,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			exec.Command[6] == "--" {
 
 			if exec.Command[5] == string(userSessionCtx) {
-				log.Debugf("Exec request into %s is already instrumented, ignoring", common.PodString(pod))
+				log.Debugf("Exec request into %s is already instrumented, ignoring", mutatecommon.PodString(pod))
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsAlreadyInstrumentedReason)
 				return true, nil
 			}
@@ -581,7 +609,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		"--",
 	}, exec.Command...)
 
-	log.Debugf("Pod exec request to %s by %s is now instrumented for CWS", common.PodString(pod), userInfo.Username)
+	log.Debugf("Pod exec request to %s by %s is now instrumented for CWS", mutatecommon.PodString(pod), userInfo.Username)
 	metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "true", "")
 	injected = true
 
@@ -604,8 +632,8 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 	return health.Run(cwsInstrumentationRemotePath, pod, container)
 }
 
-func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient)
+func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
+	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
@@ -637,7 +665,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	case RemoteCopy:
 		instrumented = ci.injectCWSPodInstrumentationRemoteCopy(pod)
 	default:
-		log.Errorf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		log.Errorf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", mutatecommon.PodString(pod), ci.mode)
 		metrics.CWSPodInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsUnknownModeReason)
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -648,7 +676,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 			pod.Annotations = make(map[string]string)
 		}
 		pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
-		log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
+		log.Debugf("Pod %s is now instrumented for CWS", mutatecommon.PodString(pod))
 		metrics.CWSPodInstrumentationAttempts.Observe(1, ci.mode.String(), "true", "")
 	} else {
 		metrics.CWSPodInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsNoInstrumentationNeededReason)
@@ -715,7 +743,7 @@ func injectCWSVolume(pod *corev1.Pod) {
 		VolumeSource: volumeSource,
 	})
 
-	common.MarkVolumeAsSafeToEvictForAutoscaler(pod, cwsVolumeName)
+	mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(pod, cwsVolumeName)
 }
 
 func injectCWSVolumeMount(container *corev1.Container) {

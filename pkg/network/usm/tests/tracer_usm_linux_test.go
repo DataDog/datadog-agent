@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	redis2 "github.com/go-redis/redis/v9"
 	gorilla "github.com/gorilla/mux"
+	redis2 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -58,6 +58,7 @@ import (
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -298,6 +299,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	t := s.T()
 	cfg := tracertestutil.Config()
 	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableGoTLSSupport = false
 	// USM cannot be enabled without a protocol.
 	cfg.EnableHTTPMonitoring = true
 	cfg.ProtocolClassificationEnabled = true
@@ -2409,11 +2411,11 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 // Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
-	if utils.IsProgramTraced("go-tls", pid) {
+	if utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid) {
 		return
 	}
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
-	utils.WaitForProgramsToBeTraced(t, "go-tls", pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, usm.GoTLSAttacherName, pid, utils.ManualTracingFallbackEnabled)
 }
 
 // goTLSDetachPID detaches the Go-TLS monitoring from the given PID.
@@ -2422,13 +2424,13 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	t.Helper()
 
 	// The program is not traced; nothing to do.
-	if !utils.IsProgramTraced("go-tls", pid) {
+	if !utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid) {
 		return
 	}
 
 	require.NoError(t, usm.GoTLSDetachPID(uint32(pid)))
 
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced("go-tls", pid)
+		return !utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
 }

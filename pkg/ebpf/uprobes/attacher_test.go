@@ -18,6 +18,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -25,6 +26,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -37,8 +39,13 @@ import (
 
 // === Tests
 
+const (
+	testModuleName   = "mock-module"
+	testAttacherName = "mock"
+)
+
 func TestCanCreateAttacher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 }
@@ -50,7 +57,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -62,7 +69,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	config := AttacherConfig{
 		ExcludeTargets: ExcludeSelf,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -76,7 +83,7 @@ func TestGetExecutablePath(t *testing.T) {
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -119,7 +126,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -131,7 +138,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 }
 
 func TestComputeRequestedSymbols(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -203,7 +210,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 }
 
 func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -222,7 +229,7 @@ func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	}
 
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg, SharedLibsLibset: sharedlibraries.LibsetCrypto}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -265,6 +272,33 @@ func TestRuleMatches(t *testing.T) {
 	})
 }
 
+func TestAttachRuleValidatesLibsets(t *testing.T) {
+	attachCfg := AttacherConfig{SharedLibsLibset: sharedlibraries.LibsetCrypto}
+	t.Run("ValidLibset", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.NoError(tt, rule.Validate(&attachCfg))
+	})
+
+	t.Run("IncompatibleLibset", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`somethingelse.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.Error(tt, rule.Validate(&attachCfg))
+	})
+
+	t.Run("NilLibraryNameRegex", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: nil,
+			Targets:          AttachToSharedLibraries,
+		}
+		require.Error(tt, rule.Validate(&attachCfg))
+	})
+}
+
 func TestMonitor(t *testing.T) {
 	ebpfCfg := ddebpf.NewConfig()
 	require.NotNil(t, ebpfCfg)
@@ -273,15 +307,17 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
+	procMon := launchProcessMonitor(t, false)
+
 	config := AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
-		ProcessMonitorEventStream: false,
-		EbpfConfig:                ebpfCfg,
+		EbpfConfig:       ebpfCfg,
+		SharedLibsLibset: sharedlibraries.LibsetCrypto,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, procMon)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -290,6 +326,7 @@ func TestMonitor(t *testing.T) {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	lib := getLibSSLPath(t)
@@ -303,8 +340,9 @@ func TestMonitor(t *testing.T) {
 		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Register", 2)
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
-	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
 	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
+	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
+
 }
 
 func TestSync(t *testing.T) {
@@ -329,9 +367,10 @@ func TestSync(t *testing.T) {
 			ProcRoot:                       procFS,
 			Rules:                          rules,
 			EnablePeriodicScanNewProcesses: true,
+			SharedLibsLibset:               sharedlibraries.LibsetCrypto,
 		}
 
-		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+		ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
 		require.NoError(tt, err)
 		require.NotNil(tt, ua)
 
@@ -361,9 +400,10 @@ func TestSync(t *testing.T) {
 			ProcRoot:                       procFS,
 			Rules:                          rules,
 			EnablePeriodicScanNewProcesses: true,
+			SharedLibsLibset:               sharedlibraries.LibsetCrypto,
 		}
 
-		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+		ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
 		require.NoError(tt, err)
 		require.NotNil(tt, ua)
 
@@ -439,7 +479,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	mockMan := &MockManager{}
 	inspector := &MockBinaryInspector{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, mockMan, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -450,7 +490,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 	inspector.On("Cleanup", mock.Anything).Return(nil)
 
 	// Tell the manager to return no probe when finding an existing one
@@ -471,8 +511,13 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	require.NoError(t, err)
 	mockMan.AssertExpectations(t)
 
+	// FileRegistry calls the detach callback without host path. Replicate that here.
+	detachPath := utils.FilePath{
+		ID: target.ID,
+	}
+
 	mockMan.On("DetachHook", expectedProbe.ProbeIdentificationPair).Return(nil)
-	err = ua.detachFromBinary(target)
+	err = ua.detachFromBinary(detachPath)
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
@@ -500,7 +545,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	mockMan := &MockManager{}
 	inspector := &MockBinaryInspector{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, mockMan, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -511,7 +556,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -565,7 +610,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 				Targets: AttachToSharedLibraries,
 			},
 			{
-				LibraryNameRegex: regexp.MustCompile(`libtls.so`),
+				LibraryNameRegex: regexp.MustCompile(`libgnutls.so`),
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.ProbeSelector{
 						ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -576,12 +621,13 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 				Targets: AttachToSharedLibraries,
 			},
 		},
+		SharedLibsLibset: sharedlibraries.LibsetCrypto,
 	}
 
 	mockMan := &MockManager{}
 	inspector := &MockBinaryInspector{}
 	registry := &MockFileRegistry{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, mockMan, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	ua.fileRegistry = registry
@@ -593,7 +639,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -654,6 +700,8 @@ func TestUprobeAttacher(t *testing.T) {
 		return
 	}
 
+	procMon := launchProcessMonitor(t, false)
+
 	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)
 	t.Cleanup(func() { buf.Close() })
@@ -688,6 +736,7 @@ func TestUprobeAttacher(t *testing.T) {
 		ExcludeTargets:        ExcludeInternal | ExcludeSelf,
 		EbpfConfig:            ebpfCfg,
 		EnableDetailedLogging: true,
+		SharedLibsLibset:      sharedlibraries.LibsetCrypto,
 	}
 
 	var attachedProbes []attachedProbe
@@ -696,7 +745,7 @@ func TestUprobeAttacher(t *testing.T) {
 		attachedProbes = append(attachedProbes, attachedProbe{probe: probe, fpath: fpath})
 	}
 
-	ua, err := NewUprobeAttacher("test", attacherCfg, &mgr, callback, &NativeBinaryInspector{})
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, attacherCfg, &mgr, callback, &NativeBinaryInspector{}, procMon)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -731,15 +780,29 @@ func TestUprobeAttacher(t *testing.T) {
 
 	require.NotNil(t, mainProbe)
 	require.Equal(t, uint32(cmd.Process.Pid), mainProbe.fpath.PID)
+
+	require.True(t, connectProbe.probe.IsRunning())
+	require.True(t, mainProbe.probe.IsRunning())
+
+	// Kill the process to trigger the detach
+	cmd.Process.Kill()
+
+	// Ensure probes are correctly detached
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.False(c, connectProbe.probe.IsRunning())
+		assert.False(c, mainProbe.probe.IsRunning())
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
-func launchProcessMonitor(t *testing.T, useEventStream bool) {
+func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMonitor {
 	pm := monitor.GetProcessMonitor()
 	t.Cleanup(pm.Stop)
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
+
+	return pm
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
@@ -761,22 +824,27 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 
 type SharedLibrarySuite struct {
 	suite.Suite
+	procMonitor ProcessMonitor
 }
 
 func TestAttacherSharedLibrary(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(tt *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(tt *testing.T) {
 		if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
 			tt.Skip("shared library tracing not supported for this platform")
 		}
 
 		tt.Run("netlink", func(ttt *testing.T) {
-			launchProcessMonitor(ttt, false)
-			suite.Run(ttt, new(SharedLibrarySuite))
+			processMonitor := launchProcessMonitor(ttt, false)
+			suite.Run(ttt, &SharedLibrarySuite{procMonitor: processMonitor})
 		})
 
 		tt.Run("event stream", func(ttt *testing.T) {
-			launchProcessMonitor(ttt, true)
-			suite.Run(ttt, new(SharedLibrarySuite))
+			processMonitor := launchProcessMonitor(ttt, true)
+			suite.Run(ttt, &SharedLibrarySuite{procMonitor: processMonitor})
 		})
 	})
 }
@@ -792,10 +860,12 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 			LibraryNameRegex: regexp.MustCompile(`foo-libssl.so`),
 			Targets:          AttachToSharedLibraries,
 		}},
-		EbpfConfig: ebpfCfg,
+		EbpfConfig:                     ebpfCfg,
+		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+		EnablePeriodicScanNewProcesses: false,
 	}
 
-	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, attachCfg, &MockManager{}, nil, nil, s.procMonitor)
 	require.NoError(t, err)
 
 	mockRegistry := &MockFileRegistry{}
@@ -803,18 +873,31 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
-	// open files
-	cmd, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
-	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
+	// We can have missed events so we need to retry
+	var cmd *exec.Cmd
+	waitAndRetryIfFail(t,
+		func() {
+			cmd, err = fileopener.OpenFromAnotherProcess(t, fooPath1)
+			require.NoError(t, err)
+		},
+		func() bool {
+			return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
+		},
+		func(testSuccess bool) {
+			// Only kill the process if the test failed, if it succeeded we want to kill it later
+			// to check if the Unregister call was done correctly
+			if !testSuccess && cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
+		},
+		3, 10*time.Millisecond, 500*time.Millisecond, "did not catch process running, received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
 
@@ -857,10 +940,11 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 			LibraryNameRegex: regexp.MustCompile(`fooroot-crypto.so`),
 			Targets:          AttachToSharedLibraries,
 		}},
-		EbpfConfig: ebpfCfg,
+		EbpfConfig:       ebpfCfg,
+		SharedLibsLibset: sharedlibraries.LibsetCrypto,
 	}
 
-	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, attachCfg, &MockManager{}, nil, nil, s.procMonitor)
 	require.NoError(t, err)
 
 	mockRegistry := &MockFileRegistry{}
@@ -868,6 +952,7 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 

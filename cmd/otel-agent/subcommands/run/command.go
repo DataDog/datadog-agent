@@ -9,11 +9,13 @@ package run
 
 import (
 	"context"
+	"fmt"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -24,8 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -37,19 +41,18 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
-	configstorefx "github.com/DataDog/datadog-agent/comp/otelcol/configstore/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	compressionfxzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-zlib"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -92,7 +95,30 @@ func (o *orchestratorinterfaceimpl) Reset() {
 }
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
-	err := fxutil.Run(
+	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+	if err != nil && err != agentConfig.ErrNoDDExporter {
+		return err
+	}
+	uris := append(params.ConfPaths, params.Sets...)
+	if err == agentConfig.ErrNoDDExporter {
+		return fxutil.Run(
+			fx.Supply(uris),
+			fx.Provide(func() coreconfig.Component {
+				return acfg
+			}),
+			converterfx.Module(),
+			fx.Provide(func(cp converter.Component) confmap.Converter {
+				return cp
+			}),
+			collectorcontribFx.Module(),
+			collectorfx.ModuleNoAgent(),
+			fx.Options(opts...),
+			fx.Invoke(func(_ collectordef.Component) {
+			}),
+		)
+	}
+
+	return fxutil.Run(
 		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
@@ -107,19 +133,17 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
-		configstorefx.Module(),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
-			if err != nil {
-				return nil, err
-			}
-			pkgconfigenv.DetectFeatures(c)
-			return c, nil
+			pkgconfigenv.DetectFeatures(acfg)
+			return acfg, nil
 		}),
-		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Provide(func() []string {
-			return append(params.ConfPaths, params.Sets...)
+		fxutil.ProvideOptional[coreconfig.Component](),
+		fxutil.ProvideNoneOptional[secrets.Component](),
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
 		}),
+		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
@@ -129,11 +153,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
-		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(strategy.NewZlibStrategy),
-		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
-			return s
-		}),
+		// We directly select fxzlib
+		compressionfxzlib.Module(),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
@@ -165,8 +186,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
 		}),
 
-		fx.Provide(tagger.NewTaggerParams),
-		taggerimpl.Module(),
+		remoteTaggerFx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
+			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
+				return func() (string, error) { return security.FetchAuthToken(c) }
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+		}),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
@@ -193,10 +219,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		traceagentfx.Module(),
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.

@@ -7,6 +7,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -14,12 +15,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,13 +79,14 @@ func (h *Host) setSystemdVersion() {
 
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
+	defer func() { h.remote.MustExecute("sudo systemctl start docker") }()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
 	}
 
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
-		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
+		h.remote.MustExecute(`sudo sh -c "yum -y install docker"`)
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
@@ -139,16 +143,17 @@ func (h *Host) DeletePath(path string) {
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
 func (h *Host) WaitForUnitActivating(units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+
 	}
 }
 
@@ -173,8 +178,8 @@ func (h *Host) WaitForTraceAgentSocketReady() {
 	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
-// BootstraperVersion returns the version of the bootstraper on the host.
-func (h *Host) BootstraperVersion() string {
+// BootstrapperVersion returns the version of the bootstrapper on the host.
+func (h *Host) BootstrapperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
 }
 
@@ -428,6 +433,45 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 	}
 	h.remote.MustExecute(fmt.Sprintf("umask | grep -q %s", mask)) // Correctness check
 	return oldmask
+}
+
+// SetupProxy sets up a Squid Proxy with Docker & adds iptables/nftables rules to redirect block all traffic
+// except for the proxy
+func (h *Host) SetupProxy() {
+	// Install Docker & the Squid Proxy
+	h.InstallDocker()
+	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta")
+
+	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
+
+	// Block all traffic except for the proxy
+	// Allow squid proxy
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -A OUTPUT -d 0.0.0.0/0 -p tcp -s \"%s\" --dport 80 -j ACCEPT", squidIP))
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -A OUTPUT -d 0.0.0.0/0 -p tcp -s \"%s\" --dport 443 -j ACCEPT", squidIP))
+	// Block all traffic
+	h.remote.MustExecute("sudo iptables -A OUTPUT -p tcp --dport 80 -j REJECT")
+	h.remote.MustExecute("sudo iptables -A OUTPUT -p tcp --dport 443 -j REJECT")
+
+	// Check proxy works
+	_, err := h.remote.Execute("curl https://google.com")
+	require.Error(h.t, err)
+}
+
+// RemoveProxy removes the Squid Proxy & iptables/nftables rules
+func (h *Host) RemoveProxy() {
+	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
+
+	// Remove traffic block
+	// Remove squid proxy rules
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -D OUTPUT -p tcp -s \"%s\" --dport 80 -j ACCEPT", squidIP))
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -D OUTPUT -p tcp -s \"%s\" --dport 443 -j ACCEPT", squidIP))
+	// Remove block rules
+	h.remote.MustExecute("sudo iptables -D OUTPUT -p tcp --dport 80 -j REJECT")
+	h.remote.MustExecute("sudo iptables -D OUTPUT -p tcp --dport 443 -j REJECT")
+
+	// Check proxy removed
+	_, err := h.remote.Execute("curl https://google.com")
+	require.NoError(h.t, err)
 }
 
 // LoadState is the load state of a systemd unit.
@@ -687,4 +731,139 @@ func (s *State) AssertUnitsDead(names ...string) {
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
 	}
+}
+
+// LocalCDN is a local CDN for testing.
+type LocalCDN struct {
+	host *Host
+	// DirPath is the path to the local CDN directory.
+	DirPath string
+	lock    sync.Mutex
+}
+
+type orderConfig struct {
+	Order            []string          `json:"order"`
+	ScopeExpressions []scopeExpression `json:"scope_expressions"`
+}
+type scopeExpression struct {
+	Expression string `json:"expression"`
+	PolicyID   string `json:"config_id"`
+}
+
+// NewLocalCDN creates a new local CDN.
+func NewLocalCDN(host *Host) *LocalCDN {
+	localCDNPath := fmt.Sprintf("/tmp/local_cdn/%s", uuid.New().String())
+	host.remote.MustExecute(fmt.Sprintf("mkdir -p %s", localCDNPath))
+
+	// Create order file
+	orderPath := filepath.Join(localCDNPath, "configuration_order")
+	orderContent := orderConfig{
+		Order:            []string{},
+		ScopeExpressions: []scopeExpression{},
+	}
+	orderBytes, err := json.Marshal(orderContent)
+	require.NoError(host.t, err)
+
+	_, err = host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(host.t, err)
+
+	return &LocalCDN{
+		host:    host,
+		DirPath: localCDNPath,
+		lock:    sync.Mutex{},
+	}
+}
+
+// AddLayer adds a layer to the local CDN. It'll be last in order.
+func (c *LocalCDN) AddLayer(name string, content string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+
+	jsonContent := fmt.Sprintf(`{"name": "%s", %s}`, name, content)
+
+	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
+	require.NoError(c.host.t, err)
+
+	// Add at the end of the order file
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{}
+	orderBytes, err := c.host.remote.ReadFile(orderPath)
+	require.NoError(c.host.t, err)
+	err = json.Unmarshal(orderBytes, &orderContent)
+	require.NoError(c.host.t, err)
+	orderContent.Order = append(orderContent.Order, name)
+	orderContent.ScopeExpressions = append(orderContent.ScopeExpressions, scopeExpression{
+		Expression: "true",
+		PolicyID:   name,
+	})
+	orderBytes, err = json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+
+	return nil
+}
+
+// UpdateLayer updates a layer in the local CDN.
+func (c *LocalCDN) UpdateLayer(name string, content string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+
+	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
+
+	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
+	require.NoError(c.host.t, err)
+
+	return nil
+}
+
+// RemoveLayer removes a layer from the local CDN.
+func (c *LocalCDN) RemoveLayer(name string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+	err := c.host.remote.Remove(layerPath)
+	require.NoError(c.host.t, err)
+
+	// Remove from order file
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{}
+	orderBytes, err := c.host.remote.ReadFile(orderPath)
+	require.NoError(c.host.t, err)
+	err = json.Unmarshal(orderBytes, &orderContent)
+	require.NoError(c.host.t, err)
+	newOrder := []string{}
+	for _, layer := range orderContent.Order {
+		if layer != name {
+			newOrder = append(newOrder, layer)
+		}
+	}
+	orderContent.Order = newOrder
+	orderBytes, err = json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+	return nil
+}
+
+// Reorder reorders the layers in the local CDN.
+func (c *LocalCDN) Reorder(orderedLayerNames []string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{
+		Order: orderedLayerNames,
+	}
+	orderBytes, err := json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+
+	return nil
 }

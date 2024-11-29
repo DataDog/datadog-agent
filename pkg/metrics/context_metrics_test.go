@@ -23,7 +23,7 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 		Value: 1,
 		Mtype: GaugeType,
 	}
-	c := setupConfig()
+	c := setupConfig(t)
 
 	metrics.AddSample(contextKey, &mSample, 1, 10, nil, c)
 	series, err := metrics.Flush(12345)
@@ -51,7 +51,7 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &mSample, 1, 10, nil, c)
 	series, err := metrics.Flush(12345)
 
@@ -70,7 +70,7 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 	contextKey1 := ckey.ContextKey(0xaaffffffffffffff)
 	contextKey2 := ckey.ContextKey(0xbbffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	// +/-Inf
 	mSample1 := MetricSample{
 		Value: math.Inf(1),
@@ -121,7 +121,7 @@ func TestContextMetricsSingleRateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10, nil, c)
 	series, err := metrics.Flush(12345)
 
@@ -151,7 +151,7 @@ func TestContextMetricsNegativeRateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12350, 10, nil, c)
 	series, err := metrics.Flush(12351)
@@ -165,7 +165,7 @@ func TestContextMetricsCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10, nil, c)
 	series, err := metrics.Flush(12350)
@@ -186,7 +186,7 @@ func TestContextMetricsCountSampling(t *testing.T) {
 func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
-	c := setupConfig()
+	c := setupConfig(t)
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10, nil, c)
@@ -209,7 +209,7 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350, 10, nil, c)
@@ -261,7 +261,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 1}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12342, 10, nil, c)
@@ -320,7 +320,7 @@ func TestContextMetricsGaugeWithTimestampSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: GaugeWithTimestampType, Value: 1}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: GaugeWithTimestampType, Value: 5}, 12345, 10, nil, c)
 	series, err := metrics.Flush(12350)
@@ -342,7 +342,7 @@ func TestContextMetricsCountWithTimestampSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	c := setupConfig()
+	c := setupConfig(t)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountWithTimestampType, Value: 1}, 12340, 10, nil, c)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountWithTimestampType, Value: 5}, 12345, 10, nil, c)
 	series, err := metrics.Flush(12350)

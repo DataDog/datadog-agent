@@ -24,7 +24,7 @@ func init() {
 }
 
 type linuxImpl struct {
-	getSysProbeClient func() (systemProbeClient, error)
+	getSysProbeClient processnet.SysProbeUtilGetter
 	time              timer
 
 	ignoreCfg map[string]bool
@@ -36,7 +36,7 @@ type linuxImpl struct {
 
 func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	return &linuxImpl{
-		getSysProbeClient: getSysProbeClient,
+		getSysProbeClient: processnet.GetRemoteSystemProbeUtil,
 		time:              realTime{},
 		ignoreCfg:         ignoreCfg,
 		ignoreProcs:       make(map[int]bool),
@@ -46,7 +46,8 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 }
 
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
-	sysProbe, err := li.getSysProbeClient()
+	socket := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	sysProbe, err := li.getSysProbeClient(socket)
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,
@@ -69,21 +70,9 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}
 
 	events := serviceEvents{}
-
 	now := li.time.Now()
 
-	// potentialServices contains processes that we scanned in the previous iteration and had open ports.
-	// we check if they are still alive in this iteration, and if so, we send a start-service telemetry event.
-	for pid, svc := range li.potentialServices {
-		if service, ok := serviceMap[pid]; ok {
-			svc.LastHeartbeat = now
-			svc.service.RSS = service.RSS
-			svc.service.CPUCores = service.CPUCores
-			li.aliveServices[pid] = svc
-			events.start = append(events.start, *svc)
-		}
-	}
-	clear(li.potentialServices)
+	li.handlePotentialServices(&events, now, serviceMap)
 
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
@@ -100,6 +89,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 				li.ignoreProcs[pid] = true
 				continue
 			}
+
 			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
 			li.potentialServices[pid] = &svc
 		}
@@ -114,6 +104,10 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
 			svc.service.CPUCores = service.CPUCores
+			svc.service.ContainerID = service.ContainerID
+			svc.service.GeneratedName = service.GeneratedName
+			svc.service.Name = service.Name
+			svc.meta.Name = service.Name
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -131,6 +125,34 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		runningServices: li.aliveServices,
 		events:          events,
 	}, nil
+}
+
+// handlePotentialServices checks cached potential services we have seen in the
+// previous call of the check. If they are still alive, start events are sent
+// for these services.
+func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Time, serviceMap map[int]*model.Service) {
+	if len(li.potentialServices) == 0 {
+		return
+	}
+
+	// potentialServices contains processes that we scanned in the previous
+	// iteration and had open ports. We check if they are still alive in this
+	// iteration, and if so, we send a start-service telemetry event.
+	for pid, svc := range li.potentialServices {
+		if service, ok := serviceMap[pid]; ok {
+			svc.LastHeartbeat = now
+			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
+			svc.service.ContainerID = service.ContainerID
+			svc.service.GeneratedName = service.GeneratedName
+			svc.service.Name = service.Name
+			svc.meta.Name = service.Name
+
+			li.aliveServices[pid] = svc
+			events.start = append(events.start, *svc)
+		}
+	}
+	clear(li.potentialServices)
 }
 
 func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
@@ -153,14 +175,4 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
-}
-
-type systemProbeClient interface {
-	GetDiscoveryServices() (*model.ServicesResponse, error)
-}
-
-func getSysProbeClient() (systemProbeClient, error) {
-	return processnet.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
-	)
 }

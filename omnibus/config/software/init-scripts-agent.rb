@@ -5,8 +5,9 @@ description "Generate and configure init scripts packaging"
 always_build true
 
 build do
+  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || "" 
   if linux_target?
-    etc_dir = "/etc/datadog-agent"
+    etc_dir = "#{output_config_dir}/etc/datadog-agent"
     mkdir "/etc/init"
     if debian_target?
       # sysvinit support for debian only for now

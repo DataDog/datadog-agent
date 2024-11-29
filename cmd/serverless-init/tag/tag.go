@@ -56,17 +56,21 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 		tagsMap[key] = value
 	}
 
-	tagsMap["datadog_"+versionMode+"_version"] = tags.GetExtensionVersion()
+	tagsMap[versionMode] = tags.GetExtensionVersion()
 	tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
 
 	return tagsMap
 }
 
-// WithoutContainerID creates a new tag map without the `container_id` tag
-func WithoutContainerID(tags map[string]string) map[string]string {
+// WithoutHihCardinalityTags creates a new tag map without high cardinality tags we use on traces
+func WithoutHighCardinalityTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {
-		if k != "container_id" {
+		if k != "container_id" &&
+			k != "gcr.container_id" &&
+			k != "gcrfx.container_id" &&
+			k != "replica_name" &&
+			k != "aca.replica.name" {
 			newTags[k] = v
 		}
 	}

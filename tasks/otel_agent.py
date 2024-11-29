@@ -4,7 +4,7 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import REPO_PATH, bin_name
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 
 BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
@@ -25,8 +25,9 @@ def build(ctx):
 
     env = {"GO111MODULE": "on"}
     build_tags = ['otlp']
+    ldflags = get_version_ldflags(ctx, major_version='7')
 
-    cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
+    cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
 
@@ -68,3 +69,13 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
 
     os.remove(os.path.join(build_context, BIN_NAME))
     os.remove(os.path.join(build_context, CFG_NAME))
+
+
+@task
+def integration_test(ctx):
+    """
+    Run the otel integration test
+    """
+    cmd = """go test -timeout 0s -tags otlp,test -run ^TestIntegration$ \
+        github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
+    ctx.run(cmd)

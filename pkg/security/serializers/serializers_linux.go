@@ -427,7 +427,15 @@ type SpliceEventSerializer struct {
 // easyjson:json
 type BindEventSerializer struct {
 	// Bound address (if any)
-	Addr IPPortFamilySerializer `json:"addr"`
+	Addr     IPPortFamilySerializer `json:"addr"`
+	Protocol string                 `json:"protocol"`
+}
+
+// ConnectEventSerializer serializes a connect event to JSON
+// easyjson:json
+type ConnectEventSerializer struct {
+	Addr     IPPortFamilySerializer `json:"addr"`
+	Protocol string                 `json:"protocol"`
 }
 
 // MountEventSerializer serializes a mount event to JSON
@@ -626,10 +634,12 @@ type EventSerializer struct {
 	*DNSEventSerializer       `json:"dns,omitempty"`
 	*IMDSEventSerializer      `json:"imds,omitempty"`
 	*BindEventSerializer      `json:"bind,omitempty"`
+	*ConnectEventSerializer   `json:"connect,omitempty"`
 	*MountEventSerializer     `json:"mount,omitempty"`
 	*SyscallsEventSerializer  `json:"syscalls,omitempty"`
 	*UserContextSerializer    `json:"usr,omitempty"`
 	*SyscallContextSerializer `json:"syscall,omitempty"`
+	*RawPacketSerializer      `json:"packet,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -885,10 +895,24 @@ func newMProtectEventSerializer(e *model.Event) *MProtectEventSerializer {
 }
 
 func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
+	if e.PTrace.Tracee == nil {
+		return nil
+	}
+
+	fakeTraceeEvent := &model.Event{
+		BaseEvent: model.BaseEvent{
+			FieldHandlers:  e.FieldHandlers,
+			ProcessContext: e.PTrace.Tracee,
+			ContainerContext: &model.ContainerContext{
+				ContainerID: e.PTrace.Tracee.ContainerID,
+			},
+		},
+	}
+
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent),
 	}
 }
 
@@ -929,8 +953,18 @@ func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
 			model.AddressFamily(e.Bind.AddrFamily).String()),
+		Protocol: model.L4Protocol(e.Connect.Protocol).String(),
 	}
 	return bes
+}
+
+func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
+	ces := &ConnectEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
+			model.AddressFamily(e.Connect.AddrFamily).String()),
+		Protocol: model.L4Protocol(e.Connect.Protocol).String(),
+	}
+	return ces
 }
 
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
@@ -973,11 +1007,20 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	return mountSerializer
 }
 
-func newNetworkDeviceSerializer(e *model.Event) *NetworkDeviceSerializer {
+func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.Event) *NetworkDeviceSerializer {
 	return &NetworkDeviceSerializer{
-		NetNS:   e.NetworkContext.Device.NetNS,
-		IfIndex: e.NetworkContext.Device.IfIndex,
-		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, &e.NetworkContext.Device),
+		NetNS:   deviceCtx.NetNS,
+		IfIndex: deviceCtx.IfIndex,
+		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, deviceCtx),
+	}
+}
+
+func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawPacketSerializer {
+	return &RawPacketSerializer{
+		NetworkContextSerializer: newNetworkContextSerializer(e, &rp.NetworkContext),
+		TLSContext: &TLSContextSerializer{
+			Version: model.TLSVersion(rp.TLSContext.Version).String(),
+		},
 	}
 }
 
@@ -1089,14 +1132,14 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 }
 
 // nolint: deadcode, unused
-func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
+func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
-		Device:      newNetworkDeviceSerializer(e),
-		L3Protocol:  model.L3Protocol(e.NetworkContext.L3Protocol).String(),
-		L4Protocol:  model.L4Protocol(e.NetworkContext.L4Protocol).String(),
-		Source:      newIPPortSerializer(&e.NetworkContext.Source),
-		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
-		Size:        e.NetworkContext.Size,
+		Device:      newNetworkDeviceSerializer(&networkCtx.Device, e),
+		L3Protocol:  model.L3Protocol(networkCtx.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(networkCtx.L4Protocol).String(),
+		Source:      newIPPortSerializer(&networkCtx.Source),
+		Destination: newIPPortSerializer(&networkCtx.Destination),
+		Size:        networkCtx.Size,
 	}
 }
 
@@ -1142,8 +1185,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
 
-	if s.Category == model.NetworkCategory {
-		s.NetworkContextSerializer = newNetworkContextSerializer(event)
+	if !event.NetworkContext.IsZero() {
+		s.NetworkContextSerializer = newNetworkContextSerializer(event, &event.NetworkContext)
 	}
 
 	if event.SecurityProfileContext.Name != "" {
@@ -1375,6 +1418,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
+	case model.ConnectEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
+		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
 		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
@@ -1391,6 +1437,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
+	case model.RawPacketEventType:
+		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	}
 
 	return s

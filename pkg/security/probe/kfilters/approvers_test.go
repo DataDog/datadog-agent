@@ -147,7 +147,7 @@ func TestApproverAUIDRange(t *testing.T) {
 			t.Fatalf("expected approver not found: %+v", values)
 		}
 
-		kfilters, err := KFilterGetters["open"](approvers)
+		kfilters, _, err := KFilterGetters["open"](approvers)
 		if err != nil {
 			t.Fatal(err)
 		}

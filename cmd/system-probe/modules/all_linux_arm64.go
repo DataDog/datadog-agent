@@ -30,6 +30,7 @@ var All = []module.Factory{
 	Pinger,
 	Traceroute,
 	DiscoveryModule,
+	GPUMonitoring, // GPU monitoring needs to be initialized afer EventMonitor, so that we have the event consumer ready
 }
 
 func inactivityEventLog(_ time.Duration) {

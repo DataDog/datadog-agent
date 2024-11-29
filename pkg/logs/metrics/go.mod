@@ -8,11 +8,13 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../util/utilizationtracker
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
-	github.com/stretchr/testify v1.9.0
+	github.com/benbjohnson/clock v1.3.5
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
@@ -46,7 +48,7 @@ require (
 	go.uber.org/fx v1.22.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/sys v0.27.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

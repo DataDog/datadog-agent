@@ -8,10 +8,10 @@
 package bininspect
 
 import (
-	"debug/elf"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // symbolFilter is an interface for filtering symbols read from ELF files.
@@ -24,7 +24,7 @@ type symbolFilter interface {
 	want(symbol string) bool
 	// findMissing returns the list of symbol names which the filter wanted but were not found in the
 	// symbol map. This is only used for error messages.
-	findMissing(map[string]elf.Symbol) []string
+	findMissing(map[string]safeelf.Symbol) []string
 }
 
 // stringSetSymbolFilter is a symbol filter which finds all the symbols in a
@@ -58,7 +58,7 @@ func (f stringSetSymbolFilter) want(symbol string) bool {
 }
 
 // findMissing gets the list of symbols which were missing. Only used for error prints.
-func (f stringSetSymbolFilter) findMissing(symbolByName map[string]elf.Symbol) []string {
+func (f stringSetSymbolFilter) findMissing(symbolByName map[string]safeelf.Symbol) []string {
 	missingSymbols := make([]string, 0, max(0, len(f.symbolSet)-len(symbolByName)))
 	for symbolName := range f.symbolSet {
 		if _, ok := symbolByName[symbolName]; !ok {
@@ -69,34 +69,36 @@ func (f stringSetSymbolFilter) findMissing(symbolByName map[string]elf.Symbol) [
 	return missingSymbols
 }
 
-// prefixSymbolFilter is a symbol filter which gets any one symbol which has the
-// specified prefix.
-type prefixSymbolFilter struct {
-	prefix    string
+// infixSymbolFilter is a symbol filter which gets any symbol which has the
+// specified infix.
+type infixSymbolFilter struct {
+	infix     string
+	minLength int
 	maxLength int
 }
 
-func newPrefixSymbolFilter(prefix string, maxLength int) prefixSymbolFilter {
-	return prefixSymbolFilter{
-		prefix:    prefix,
+func newInfixSymbolFilter(infix string, minLength int, maxLength int) infixSymbolFilter {
+	return infixSymbolFilter{
+		infix:     infix,
+		minLength: minLength,
 		maxLength: maxLength,
 	}
 }
 
-func (f prefixSymbolFilter) getMinMaxLength() (int, int) {
-	return len(f.prefix), f.maxLength
+func (f infixSymbolFilter) getMinMaxLength() (int, int) {
+	return f.minLength, f.maxLength
 }
 
-func (f prefixSymbolFilter) getNumWanted() int {
+func (f infixSymbolFilter) getNumWanted() int {
 	return 1
 }
 
-func (f prefixSymbolFilter) want(symbol string) bool {
-	return strings.HasPrefix(symbol, f.prefix)
+func (f infixSymbolFilter) want(symbol string) bool {
+	return strings.Contains(symbol, f.infix)
 }
 
 // findMissing gets the list of symbols which were missing. Only used for error
-// prints. Since we only know we were looking for a prefix, return that.
-func (f prefixSymbolFilter) findMissing(_ map[string]elf.Symbol) []string {
-	return []string{f.prefix}
+// prints. Since we only know we were looking for an infix, return that.
+func (f infixSymbolFilter) findMissing(_ map[string]safeelf.Symbol) []string {
+	return []string{f.infix}
 }

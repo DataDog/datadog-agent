@@ -10,6 +10,7 @@ package start
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -18,13 +19,14 @@ import (
 	"syscall"
 	"time"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
@@ -48,8 +50,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -59,11 +61,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -114,6 +116,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -131,17 +134,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
+					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
-				compressionimpl.Module(),
-				demultiplexerimpl.Module(),
-				orchestratorForwarderImpl.Module(),
-				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+				compressionfx.Module(),
+				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
-				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -149,8 +150,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				fx.Provide(tagger.NewTaggerParams),
-				taggerimpl.Module(),
+				localTaggerfx.Module(tagger.Params{}),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -197,6 +197,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				settingsimpl.Module(),
 				datadogclientmodule.Module(),
+				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+				// we can include the tagger as part of the workloadmeta component.
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
+				haagentfx.Module(),
 			)
 		},
 	}
@@ -219,8 +227,10 @@ func start(log log.Component,
 	logReceiver optional.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
+	datadogConfig config.Component,
 ) error {
 	stopCh := make(chan struct{})
+	validatingStopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel()
@@ -371,15 +381,15 @@ func start(log log.Component,
 	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
 
 	// Set up check collector
-	registerChecks()
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
+	registerChecks(wmeta, taggerComp, config)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, taggerComp), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac)
+		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
 		if err == nil {
 			api.ModifyAPIRouter(func(r *mux.Router) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
@@ -437,7 +447,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
-		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
+		if err = languagedetection.Start(mainCtx, wmeta, log, config); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
@@ -464,21 +474,31 @@ func start(log log.Component,
 			IsLeaderFunc:        le.IsLeader,
 			LeaderSubscribeFunc: le.Subscribe,
 			SecretInformers:     apiCl.CertificateSecretInformerFactory,
-			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
+			ValidatingInformers: apiCl.WebhookConfigInformerFactory,
+			MutatingInformers:   apiCl.WebhookConfigInformerFactory,
 			Client:              apiCl.Cl,
 			StopCh:              stopCh,
+			ValidatingStopCh:    validatingStopCh,
+			Demultiplexer:       demultiplexer,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
-		if err != nil {
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
+		// Ignore the error if it's related to the validatingwebhookconfigurations.
+		var syncInformerError *apiserver.SyncInformersError
+		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
+			if err != nil {
+				pkglog.Warnf("Admission controller started with errors: %v", err)
+				pkglog.Debugf("Closing ValidatingWebhooksInformer channel")
+				close(validatingStopCh)
+			}
 			// Webhook and secret controllers are started successfully
-			// Setup the k8s admission webhook server
+			// Set up the k8s admission webhook server
 			server := admissioncmd.NewServer()
 
 			for _, webhookConf := range webhooks {
-				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
+				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.WebhookType(), webhookConf.WebhookFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server
@@ -518,6 +538,9 @@ func start(log log.Component,
 	wg.Wait()
 
 	close(stopCh)
+	if validatingStopCh != nil {
+		close(validatingStopCh)
+	}
 
 	if err := metricsServer.Shutdown(context.Background()); err != nil {
 		pkglog.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
@@ -529,8 +552,8 @@ func start(log log.Component,
 	return nil
 }
 
-func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*clusterchecks.Handler, error) {
-	handler, err := clusterchecks.NewHandler(ac)
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecks.Handler, error) {
+	handler, err := clusterchecks.NewHandler(ac, tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +587,7 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	return rcClient, nil
 }
 
-func registerChecks() {
+func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -573,10 +596,10 @@ func registerChecks() {
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 
 	// Flavor specific checks
-	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
+	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }

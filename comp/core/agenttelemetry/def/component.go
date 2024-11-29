@@ -3,16 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
 // Package agenttelemetry implements a component to generate Agent telemetry
 package agenttelemetry
 
-// team: agent-metrics-logs
+// team: agent-shared-components
 
 // Component is the component type
 type Component interface {

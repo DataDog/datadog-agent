@@ -7,6 +7,7 @@
 package stats
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -17,7 +18,6 @@ import (
 )
 
 const (
-	tagStatusCode  = "http.status_code"
 	tagSynthetics  = "synthetics"
 	tagSpanKind    = "span.kind"
 	tagBaseService = "_dd.base_service"
@@ -53,12 +53,12 @@ type PayloadAggregationKey struct {
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
-	code, ok := metrics[tagStatusCode]
+	code, ok := metrics[traceutil.TagStatusCode]
 	if ok {
 		// only 7.39.0+, for lesser versions, always use Meta
 		return uint32(code)
 	}
-	strC := meta[tagStatusCode]
+	strC := meta[traceutil.TagStatusCode]
 	if strC == "" {
 		return 0
 	}

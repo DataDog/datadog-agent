@@ -65,7 +65,11 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-set +e
+if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
+    ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
+fi
+
+set +e 
 generate_install_id()
 {
     # Try generating a UUID based on /proc/sys/kernel/random/uuid
@@ -180,6 +184,10 @@ else
     # No datadog.yaml file is present. This is probably a clean install made with the
     # step-by-step instructions/an automation tool, and the config file will be added next.
     echo "No datadog.yaml file detected, not starting the agent"
+fi
+
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}" || true
 fi
 
 exit 0

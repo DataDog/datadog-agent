@@ -26,8 +26,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -276,6 +279,13 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
 		}
+
+		if env.IsContainerized() {
+			for i, layer := range layers {
+				layers[i] = containersimage.SanitizeHostPath(layer)
+			}
+		}
+
 		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
 	}
 
@@ -297,8 +307,9 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 	overlayFsReader := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, overlayFsReader, ".", imgMeta, scanOptions)
+	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -318,9 +329,10 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
+
 	layers := extractLayersFromOverlayFSMounts(mounts)
 	if len(layers) == 0 {
-		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts for image %s", imgMeta.ID)
+		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
 	}
 
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
@@ -393,6 +405,22 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 	return c.scanFilesystem(ctx, os.DirFS("/"), imagePath, imgMeta, scanOptions)
 }
 
+// ScanCRIOImageFromOverlayFS scans the CRI-O image layers using OverlayFS.
+func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client crio.Client, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	lowerDirs, err := client.GetCRIOImageLayers(imgMeta)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve layer directories: %w", err)
+	}
+
+	report, err := c.scanOverlayFS(ctx, lowerDirs, imgMeta, scanOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return report, nil
+}
+
+// scanFilesystem scans the specified directory and logs detailed scan steps.
 func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images

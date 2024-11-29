@@ -1,17 +1,17 @@
 ---
 dist:
-  module: github.com/DataDog/comp/otelcol/collector-contrib
+  module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib
   name: otelcol-contrib
   description: valid manifest with minimum requirements and no version (should pass collector_tests.py)
   output_path: ./comp/otelcol/collector-contrib/impl
 
 extensions:
-  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.104.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.104.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.104.0
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.114.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.114.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.114.0
 
 receivers:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.104.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.114.0
 
 # When adding a replace, add a comment before it to document why it's needed and when it can be removed
 replaces:

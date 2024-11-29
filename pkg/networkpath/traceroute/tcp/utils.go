@@ -6,17 +6,13 @@
 package tcp
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
 )
 
@@ -57,13 +53,7 @@ type (
 	tcpResponse struct {
 		SrcIP       net.IP
 		DstIP       net.IP
-		TCPResponse *layers.TCP
-	}
-
-	rawConnWrapper interface {
-		SetReadDeadline(t time.Time) error
-		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
-		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
+		TCPResponse layers.TCP
 	}
 )
 
@@ -86,8 +76,33 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	return localUDPAddr, nil
 }
 
+// reserveLocalPort reserves an ephemeral TCP port
+// and returns both the listener and port because the
+// listener should be held until the port is no longer
+// in use
+func reserveLocalPort() (uint16, net.Listener, error) {
+	// Create a TCP listener with port 0 to get a random port from the OS
+	// and reserve it for the duration of the traceroute
+	tcpListener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create TCP listener: %w", err)
+	}
+	tcpAddr := tcpListener.Addr().(*net.TCPAddr)
+
+	return uint16(tcpAddr.Port), tcpListener, nil
+}
+
 // createRawTCPSyn creates a TCP packet with the specified parameters
 func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
+	ipHdr, packet, hdrlen, err := createRawTCPSynBuffer(sourceIP, sourcePort, destIP, destPort, seqNum, ttl)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ipHdr, packet[hdrlen:], nil
+}
+
+func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
@@ -109,7 +124,7 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 
 	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create packet checksum: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to create packet checksum: %w", err)
 	}
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -118,134 +133,16 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		tcpLayer,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize packet: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to serialize packet: %w", err)
 	}
 	packet := buf.Bytes()
 
 	var ipHdr ipv4.Header
 	if err := ipHdr.Parse(packet[:20]); err != nil {
-		return nil, nil, fmt.Errorf("failed to parse IP header: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to parse IP header: %w", err)
 	}
 
-	return &ipHdr, packet[20:], nil
-}
-
-// sendPacket sends a raw IPv4 packet using the passed connection
-func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error {
-	if err := rawConn.WriteTo(header, payload, nil); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
-// and TCP responses based on the passed in trace information. If neither listener
-// receives a matching packet within the timeout, a blank response is returned.
-// Once a matching packet is received by a listener, it will cause the other listener
-// to be canceled, and data from the matching packet will be returned to the caller
-func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
-	var tcpErr error
-	var icmpErr error
-	var wg sync.WaitGroup
-	var icmpIP net.IP
-	var tcpIP net.IP
-	var icmpCode layers.ICMPv4TypeCode
-	var port uint16
-	wg.Add(2)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	go func() {
-		defer wg.Done()
-		defer cancel()
-		tcpIP, port, _, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
-	}()
-	go func() {
-		defer wg.Done()
-		defer cancel()
-		icmpIP, _, icmpCode, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
-	}()
-	wg.Wait()
-	// TODO: while this is okay, we
-	// should do this more cleanly
-	finished := time.Now()
-
-	if tcpErr != nil && icmpErr != nil {
-		_, tcpCanceled := tcpErr.(canceledError)
-		_, icmpCanceled := icmpErr.(canceledError)
-		if icmpCanceled && tcpCanceled {
-			log.Trace("timed out waiting for responses")
-			return net.IP{}, 0, 0, finished, nil
-		}
-		if tcpErr != nil {
-			log.Errorf("TCP listener error: %s", tcpErr.Error())
-		}
-		if icmpErr != nil {
-			log.Errorf("ICMP listener error: %s", icmpErr.Error())
-		}
-
-		return net.IP{}, 0, 0, finished, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
-	}
-
-	// if there was an error for TCP, but not
-	// ICMP, return the ICMP response
-	if tcpErr != nil {
-		return icmpIP, port, icmpCode, finished, nil
-	}
-
-	// return the TCP response
-	return tcpIP, port, 0, finished, nil
-}
-
-// handlePackets in its current implementation should listen for the first matching
-// packet on the connection and then return. If no packet is received within the
-// timeout or if the listener is canceled, it should return a canceledError
-func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
-	buf := make([]byte, 1024)
-	for {
-		select {
-		case <-ctx.Done():
-			return net.IP{}, 0, 0, canceledError("listener canceled")
-		default:
-		}
-		now := time.Now()
-		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-		if err != nil {
-			return net.IP{}, 0, 0, fmt.Errorf("failed to read: %w", err)
-		}
-		header, packet, _, err := conn.ReadFrom(buf)
-		if err != nil {
-			if nerr, ok := err.(*net.OpError); ok {
-				if nerr.Timeout() {
-					continue
-				}
-			}
-			return net.IP{}, 0, 0, err
-		}
-		// TODO: remove listener constraint and parse all packets
-		// in the same function return a succinct struct here
-		if listener == "icmp" {
-			icmpResponse, err := parseICMP(header, packet)
-			if err != nil {
-				log.Tracef("failed to parse ICMP packet: %s", err.Error())
-				continue
-			}
-			if icmpMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
-				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, nil
-			}
-		} else if listener == "tcp" {
-			tcpResp, err := parseTCP(header, packet)
-			if err != nil {
-				log.Tracef("failed to parse TCP packet: %s", err.Error())
-				continue
-			}
-			if tcpMatch(localIP, localPort, remoteIP, remotePort, seqNum, tcpResp) {
-				return tcpResp.SrcIP, uint16(tcpResp.TCPResponse.SrcPort), 0, nil
-			}
-		} else {
-			return net.IP{}, 0, 0, fmt.Errorf("unsupported listener type")
-		}
-	}
+	return &ipHdr, packet, 20, nil
 }
 
 // parseICMP takes in an IPv4 header and payload and tries to convert to an ICMP
@@ -258,7 +155,6 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 
 	if header.Protocol != IPProtoICMP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
-		log.Errorf("invalid IP header for ICMP packet")
 		return nil, fmt.Errorf("invalid IP header for ICMP packet: %+v", header)
 	}
 	icmpResponse.SrcIP = header.Src
@@ -307,26 +203,37 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	return &icmpResponse, nil
 }
 
-func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
-	tcpResponse := tcpResponse{}
+type tcpParser struct {
+	layer               layers.TCP
+	decoded             []gopacket.LayerType
+	decodingLayerParser *gopacket.DecodingLayerParser
+}
 
+func newTCPParser() *tcpParser {
+	tcpParser := &tcpParser{}
+	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
+	return tcpParser
+}
+
+func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	if header.Protocol != IPProtoTCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
-		log.Errorf("invalid IP header for TCP packet")
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
 	}
-	tcpResponse.SrcIP = header.Src
-	tcpResponse.DstIP = header.Dst
 
-	var tcpLayer layers.TCP
-	decoded := []gopacket.LayerType{}
-	tcpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpLayer)
-	if err := tcpParser.DecodeLayers(payload, &decoded); err != nil {
+	if err := tp.decodingLayerParser.DecodeLayers(payload, &tp.decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode TCP packet: %w", err)
 	}
-	tcpResponse.TCPResponse = &tcpLayer
 
-	return &tcpResponse, nil
+	resp := &tcpResponse{
+		SrcIP:       header.Src,
+		DstIP:       header.Dst,
+		TCPResponse: tp.layer,
+	}
+	// make sure the TCP layer is cleared between runs
+	tp.layer = layers.TCP{}
+
+	return resp, nil
 }
 
 func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {

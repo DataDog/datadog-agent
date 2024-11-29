@@ -26,11 +26,16 @@ func SetupInstaller(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("stable", datadogInstaller, "/i", nil)
+	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
+	if err == nil {
+		// This is the first time that we are installing the installer,
+		// so we can run it synchronously.
+		err = cmd.Run()
+	}
 	return err
 }
 
-// RemoveInstaller noop
+// RemoveInstaller removes the installer
 func RemoveInstaller(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_installer")
 	defer func() {
@@ -52,7 +57,11 @@ func StartInstallerExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("experiment", datadogInstaller, "/i", nil)
+	cmd, err := msiexec("experiment", datadogInstaller, "/i", nil)
+	if err == nil {
+		// Launch the msiexec process asynchronously.
+		err = cmd.Start()
+	}
 	return err
 }
 
@@ -65,7 +74,11 @@ func StopInstallerExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("stable", datadogInstaller, "/i", nil)
+	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
+	if err == nil {
+		// Launch the msiexec process asynchronously.
+		err = cmd.Start()
+	}
 	return err
 }
 

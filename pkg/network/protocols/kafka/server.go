@@ -8,14 +8,15 @@
 package kafka
 
 import (
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 // RunServer runs a kafka server in a docker container
@@ -41,5 +42,13 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 		return err
 	}
 
-	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), 1*time.Minute, 3)
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	dockerCfg := dockerutils.NewComposeConfig("kafka",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		scanner,
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }

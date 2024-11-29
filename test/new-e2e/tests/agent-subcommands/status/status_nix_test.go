@@ -29,25 +29,48 @@ func (v *linuxStatusSuite) TestStatusHostname() {
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
-	status := v.Env().Agent.Client.Status()
-
-	expected := expectedSection{
-		name:            `Hostname`,
-		shouldBePresent: true,
-		shouldContain:   []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
+	expectedSections := []expectedSection{
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
+		},
 	}
 
-	verifySectionContent(v.T(), status.Content, expected)
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }
 
 func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
 
-	expectedSection := expectedSection{
-		name:            `Agent \(.*\)`,
-		shouldBePresent: true,
-		shouldContain:   []string{"FIPS proxy"},
+	expectedSections := []expectedSection{
+		{
+			name:            `Agent \(.*\)`,
+			shouldBePresent: true,
+			shouldContain:   []string{"FIPS proxy"},
+		},
 	}
-	status := v.Env().Agent.Client.Status()
-	verifySectionContent(v.T(), status.Content, expectedSection)
+
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
+}
+
+// This test asserts the presence of metadata sent by Python checks in the status subcommand output.
+func (v *linuxStatusSuite) TestChecksMetadataUnix() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
+		agentparams.WithFile("/etc/datadog-agent/conf.d/custom_check.yaml", string(customCheckYaml), true),
+		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(customCheckPython), true),
+	)))
+
+	expectedSections := []expectedSection{
+		{
+			name:            "Collector",
+			shouldBePresent: true,
+			shouldContain: []string{"Instance ID:", "[OK]",
+				"metadata:",
+				"custom_metadata_key: custom_metadata_value",
+			},
+		},
+	}
+
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }

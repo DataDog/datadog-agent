@@ -22,9 +22,12 @@ import (
 type Config struct {
 	webhookName              string
 	secretName               string
+	validationEnabled        bool
+	mutationEnabled          bool
 	namespace                string
 	admissionV1Enabled       bool
 	namespaceSelectorEnabled bool
+	matchConditionsSupported bool
 	svcName                  string
 	svcPort                  int32
 	timeout                  int32
@@ -33,13 +36,16 @@ type Config struct {
 }
 
 // NewConfig creates a webhook controller configuration
-func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
+func NewConfig(admissionV1Enabled, namespaceSelectorEnabled, matchConditionsSupported bool) Config {
 	return Config{
 		webhookName:              pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name"),
 		secretName:               pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name"),
+		validationEnabled:        pkgconfigsetup.Datadog().GetBool("admission_controller.validation.enabled"),
+		mutationEnabled:          pkgconfigsetup.Datadog().GetBool("admission_controller.mutation.enabled"),
 		namespace:                common.GetResourcesNamespace(),
 		admissionV1Enabled:       admissionV1Enabled,
 		namespaceSelectorEnabled: namespaceSelectorEnabled,
+		matchConditionsSupported: matchConditionsSupported,
 		svcName:                  pkgconfigsetup.Datadog().GetString("admission_controller.service_name"),
 		svcPort:                  int32(443),
 		timeout:                  pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds"),
@@ -50,9 +56,12 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 
 func (w *Config) getWebhookName() string        { return w.webhookName }
 func (w *Config) getSecretName() string         { return w.secretName }
+func (w *Config) isValidationEnabled() bool     { return w.validationEnabled }
+func (w *Config) isMutationEnabled() bool       { return w.mutationEnabled }
 func (w *Config) getSecretNs() string           { return w.namespace }
 func (w *Config) useAdmissionV1() bool          { return w.admissionV1Enabled }
 func (w *Config) useNamespaceSelector() bool    { return w.namespaceSelectorEnabled }
+func (w *Config) supportsMatchConditions() bool { return w.matchConditionsSupported }
 func (w *Config) getServiceNs() string          { return w.namespace }
 func (w *Config) getServiceName() string        { return w.svcName }
 func (w *Config) getServicePort() int32         { return w.svcPort }

@@ -11,30 +11,32 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	reverseDNSTimeouts = telemetry.NewStatCounterWrapper("traceroute", "reverse_dns_timeouts", []string{}, "Counter measuring the number of traceroute reverse DNS timeouts")
 )
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
-// getDestinationHostname tries to convert the input destinationHost to hostname.
-// When input destinationHost is an IP, a reverse DNS call is made to convert it into a hostname.
-func getDestinationHostname(destinationHost string) string {
-	destIP := net.ParseIP(destinationHost)
-	if destIP != nil {
-		reverseDNSHostname := getHostname(destinationHost)
-		if reverseDNSHostname != "" {
-			return reverseDNSHostname
-		}
+// GetReverseDNSForIP returns the reverse DNS for the given IP address as a net.IP.
+func GetReverseDNSForIP(destIP net.IP) string {
+	if destIP == nil {
+		return ""
 	}
-	return destinationHost
+	return GetHostname(destIP.String())
 }
 
-func getHostname(ipAddr string) string {
+// GetHostname returns the hostname for the given IP address as a string.
+func GetHostname(ipAddr string) string {
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	currHostList, err := lookupAddrFn(ctx, ipAddr)
 	if errors.Is(err, context.Canceled) {
-		tracerouteRunnerTelemetry.reverseDNSTimetouts.Inc()
+		reverseDNSTimeouts.Inc()
 	}
 
 	if len(currHostList) > 0 {

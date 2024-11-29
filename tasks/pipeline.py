@@ -19,8 +19,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
-from tasks.libs.common.git import check_clean_branch_state, get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
@@ -38,24 +37,6 @@ from tasks.libs.pipeline.tools import (
 from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
 
 BOT_NAME = "github-actions[bot]"
-
-
-class GitlabReference(yaml.YAMLObject):
-    def __init__(self, refs):
-        self.refs = refs
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}=(refs={self.refs}'
-
-
-def reference_constructor(loader, node):
-    return GitlabReference(loader.construct_sequence(node))
-
-
-def GitlabYamlLoader():
-    loader = yaml.SafeLoader
-    loader.add_constructor('!reference', reference_constructor)
-    return loader
 
 
 # Tasks to trigger pipelines
@@ -85,14 +66,15 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
 
     match = re.match(v7_pattern, git_ref)
 
+    # TODO(@spencergilbert): remove cross reference check when all references to a6 are removed
     if release_version_6 and match:
         # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
         tag_name = "6." + "".join(match.groups())
         try:
             repo.tags.get(tag_name)
-        except GitlabError as e:
+        except GitlabError:
             print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
-            raise Exit(code=1) from e
+            print("v6 tags are no longer created, this check will be removed in a later commit")
 
         print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
     else:
@@ -111,7 +93,7 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
 
 
 @task
-def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
+def clean_running_pipelines(ctx, git_ref=None, here=False, use_latest_sha=False, sha=None):
     """
     Fetch running pipelines on a target ref (+ optionally a git sha), and ask the user if they
     should be cancelled.
@@ -121,6 +103,8 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
 
     if here:
         git_ref = get_current_branch(ctx)
+    else:
+        git_ref = git_ref or get_default_branch()
 
     print(f"Fetching running pipelines on {git_ref}")
 
@@ -147,11 +131,12 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
+def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
 
+    git_ref = git_ref or get_default_branch()
     use_release_entries = ""
     major_versions = []
 
@@ -593,11 +578,13 @@ def changelog(ctx, new_commit_sha):
     print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
-    ctx.run(
+    res = ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
         "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=True,
     )
+    if "unable to locate credentials" in res.stderr.casefold():
+        raise Exit("Permanent error: unable to locate credentials, retry the job", code=42)
 
 
 @task
@@ -753,123 +740,7 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
-    create_branch = branch_name is None
-    branch_name = verify_workspace(ctx, branch_name=branch_name)
-    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    trigger_build(ctx, branch_name=branch_name, create_branch=create_branch)
-
-
-def verify_workspace(ctx, branch_name=None):
-    """
-    Assess we can modify files and commit without risk of local or upstream conflicts
-    """
-    if branch_name is None:
-        user_name = ctx.run("whoami", hide="out")
-        branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
-        github = GithubAPI(repository=GITHUB_REPO_NAME)
-        check_clean_branch_state(ctx, github, branch_name)
-    return branch_name
-
-
-def update_test_infra_def(file_path, image_tag):
-    """
-    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
-    """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
-            if test_infra_def:
-                gl.write(line.replace(test_infra_def.group(1), image_tag))
-            else:
-                gl.write(line)
-
-
-def update_gitlab_config(file_path, image_tag, test_version):
-    """
-    Override variables in .gitlab-ci.yml file
-    """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
-    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-    suffixes = [
-        name
-        for name in gitlab_ci["variables"]
-        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
-    ]
-    images = [name.replace("_SUFFIX", "") for name in suffixes]
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
-                if test_version:
-                    gl.write(line.replace('""', '"_test_only"'))
-                else:
-                    gl.write(line.replace('"_test_only"', '""'))
-            elif any(re.search(rf"{image}:", line) for image in images):
-                current_version = re.search(r"v\d+-\w+", line)
-                if current_version:
-                    gl.write(line.replace(current_version.group(0), image_tag))
-                else:
-                    raise RuntimeError(
-                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
-                    )
-            else:
-                gl.write(line)
-
-
-def update_circleci_config(file_path, image_tag, test_version):
-    """
-    Override variables in .gitlab-ci.yml file
-    """
-    image_name = "gcr.io/datadoghq/agent-circleci-runner"
-    with open(file_path) as circle:
-        circle_ci = circle.read()
-    match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
-    if not match:
-        raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
-    image = f"{image_name}_test_only" if test_version else image_name
-    with open(file_path, "w") as circle:
-        circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
-
-
-@task(
-    help={
-        "file_path": "path of the Gitlab configuration YAML file",
-    },
-    autoprint=True,
-)
-def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
-    """
-    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
-    """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
-    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
-        raise Exit(
-            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
-            code=1,
-        )
-    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
-
-
-def trigger_build(ctx, branch_name=None, create_branch=False):
-    """
-    Trigger a pipeline from current branch on-demand (useful for test image)
-    """
-    if create_branch:
-        ctx.run(f"git checkout -b {branch_name}")
-    answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
-    if len(answer) == 0 or answer.casefold() == "y":
-        ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
-        ctx.run("git commit -m 'Update buildimages version'")
-        ctx.run(f"git push origin {branch_name}")
-        print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
-        time.sleep(10)
-        run(ctx, here=True)
+    raise Exit(f"This invoke task is {color_message('deprecated', 'red')}, please use inv buildimages.update instead.")
 
 
 @task(
@@ -886,11 +757,11 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     owner_branch_name = owner_branch_name.lower()
 
     assert (
-        owner_branch_name.count('/') == 1
+        owner_branch_name.count('/') >= 1
     ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
-    owner, branch = owner_branch_name.split('/')
+    owner, branch = owner_branch_name.split('/', 1)
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout
@@ -960,16 +831,16 @@ def test_merge_queue(ctx):
     # Create a new main and push it
     print("Creating a new main branch")
     timestamp = int(datetime.now(timezone.utc).timestamp())
-    test_main = f"mq/test_{timestamp}"
+    test_default = f"mq/test_{timestamp}"
     current_branch = get_current_branch(ctx)
-    ctx.run("git checkout main", hide=True)
+    ctx.run(f"git checkout {get_default_branch()}", hide=True)
     ctx.run("git pull", hide=True)
-    ctx.run(f"git checkout -b {test_main}", hide=True)
-    ctx.run(f"git push origin {test_main}", hide=True)
+    ctx.run(f"git checkout -b {test_default}", hide=True)
+    ctx.run(f"git push origin {test_default}", hide=True)
     # Create a PR towards this new branch and adds it to the merge queue
     print("Creating a PR and adding it to the merge queue")
     gh = GithubAPI()
-    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_main, current_branch)
+    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_default, current_branch)
     pr.create_issue_comment("/merge")
     # Search for the generated pipeline
     print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
@@ -979,7 +850,7 @@ def test_merge_queue(ctx):
         time.sleep(30)
         pipelines = agent.pipelines.list(per_page=100)
         try:
-            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_main}"))
+            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_default}"))
             print(f"Pipeline found: {pipeline.web_url}")
             break
         except StopIteration as e:
@@ -997,8 +868,8 @@ def test_merge_queue(ctx):
         pipeline.cancel()
     pr.edit(state="closed")
     ctx.run(f"git checkout {current_branch}", hide=True)
-    ctx.run(f"git branch -D {test_main}", hide=True)
-    ctx.run(f"git push origin :{test_main}", hide=True)
+    ctx.run(f"git branch -D {test_default}", hide=True)
+    ctx.run(f"git push origin :{test_default}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
 
@@ -1027,7 +898,7 @@ def compare_to_itself(ctx):
     ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
     # The branch must exist in gitlab to be able to "compare_to"
     # Push an empty commit to prevent linking this pipeline to the actual PR
-    ctx.run("git commit -m 'Compare to itself' --allow-empty", hide=True)
+    ctx.run("git commit -m 'Initial push of the compare/to branch' --allow-empty", hide=True)
     ctx.run(f"git push origin {new_branch}")
 
     from tasks.libs.releasing.json import load_release_json
@@ -1040,7 +911,7 @@ def compare_to_itself(ctx):
         with open(file, 'w') as f:
             f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
 
-    ctx.run("git commit -am 'Compare to itself'", hide=True)
+    ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6
     compare_to_pipeline = None

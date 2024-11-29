@@ -10,22 +10,21 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
 // TestUpgrade tests upgrading the agent from LAST_STABLE_VERSION to WINDOWS_AGENT_VERSION
 func TestUpgrade(t *testing.T) {
-	// incident-30584
-	flake.Mark(t)
 	s := &testUpgradeSuite{}
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	require.NoError(t, err, "should get last stable agent package from env")
@@ -334,14 +333,18 @@ func (s *testUpgradeFromV5Suite) installAgent5() {
 	s.Require().NoError(err, "should install agent 5")
 
 	// get agent info
+	// in loop because the agent may not be ready immediately after install/start
 	installPath := windowsAgent.DefaultInstallPath
-	cmd := fmt.Sprintf(`& "%s\embedded\python.exe" "%s\agent\agent.py" info`, installPath, installPath)
-	out, err := host.Execute(cmd)
-	s.Require().NoError(err, "should get agent info")
-	s.T().Logf("Agent 5 info:\n%s", out)
+	s.Assert().EventuallyWithT(func(t *assert.CollectT) {
+		cmd := fmt.Sprintf(`& "%s\embedded\python.exe" "%s\agent\agent.py" info`, installPath, installPath)
+		out, err := host.Execute(cmd)
+		if !assert.NoError(t, err, "should get agent info") {
+			return
+		}
+		s.T().Logf("Agent 5 info:\n%s", out)
+		assert.Contains(t, out, agentPackage.AgentVersion(), "info should have agent 5 version")
+	}, 5*time.Minute, 5*time.Second, "should get agent 5 info")
 
-	// basic checks to ensure agent is functioning
-	s.Assert().Contains(out, agentPackage.AgentVersion(), "info should have agent 5 version")
 	confPath := `C:\ProgramData\Datadog\datadog.conf`
 	exists, err := host.FileExists(confPath)
 	s.Require().NoError(err, "should check if datadog.conf exists")

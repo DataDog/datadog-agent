@@ -52,7 +52,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err = addDDAgentGroup(ctx); err != nil {
 		return fmt.Errorf("error creating dd-agent group: %w", err)
 	}
-	if addDDAgentUser(ctx) != nil {
+	if err = addDDAgentUser(ctx); err != nil {
 		return fmt.Errorf("error creating dd-agent user: %w", err)
 	}
 	err = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent").Run()
@@ -74,6 +74,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 	err = os.MkdirAll("/opt/datadog-packages/run", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages/run: %w", err)
+	}
+	// Run directory can already be created by the RC client
+	err = os.Chmod("/opt/datadog-packages/run", 0755)
+	if err != nil {
+		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
 	}
 	err = os.MkdirAll("/opt/datadog-packages/run/locks", 0777)
 	if err != nil {
@@ -103,13 +108,13 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 	// Enforce that the directory exists. It should be created by the bootstrapper but
 	// older versions don't do it
-	err = os.MkdirAll("/opt/datadog-installer/tmp", 0755)
+	err = os.MkdirAll("/opt/datadog-packages/tmp", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /opt/datadog-installer/tmp: %w", err)
+		return fmt.Errorf("error creating /opt/datadog-packages/tmp: %w", err)
 	}
-	err = os.Chown("/opt/datadog-installer/tmp", ddAgentUID, ddAgentGID)
+	err = os.Chown("/opt/datadog-packages/tmp", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /opt/datadog-installer/tmp: %w", err)
+		return fmt.Errorf("error changing owner of /opt/datadog-packages/tmp: %w", err)
 	}
 	// Create installer path symlink
 	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")

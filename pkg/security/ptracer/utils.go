@@ -11,7 +11,6 @@ package ptracer
 import (
 	"bufio"
 	"bytes"
-	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Funcs mainly copied from github.com/DataDog/datadog-agent/pkg/security/utils/cgroup.go
@@ -74,7 +74,7 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 
 }
 
-func getContainerIDFromProcFS(cgroupPath string) (string, error) {
+func getContainerIDFromProcFS(cgroupPath string) (containerutils.ContainerID, error) {
 	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
 	if err != nil {
 		return "", err
@@ -88,11 +88,11 @@ func getContainerIDFromProcFS(cgroupPath string) (string, error) {
 	return "", nil
 }
 
-func getCurrentProcContainerID() (string, error) {
+func getCurrentProcContainerID() (containerutils.ContainerID, error) {
 	return getContainerIDFromProcFS("/proc/self/cgroup")
 }
 
-func getProcContainerID(pid int) (string, error) {
+func getProcContainerID(pid int) (containerutils.ContainerID, error) {
 	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
 }
 
@@ -132,7 +132,7 @@ func simpleHTTPRequest(uri string) ([]byte, error) {
 		path = "/"
 	}
 
-	req := fmt.Sprintf("GET %s?%s HTTP/1.1\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
+	req := fmt.Sprintf("GET %s?%s HTTP/1.0\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
 
 	_, err = client.Write([]byte(req))
 	if err != nil {
@@ -459,7 +459,7 @@ func microsecsToNanosecs(secs uint64) uint64 {
 }
 
 func getModuleName(reader io.ReaderAt) (string, error) {
-	elf, err := elf.NewFile(reader)
+	elf, err := safeelf.NewFile(reader)
 	if err != nil {
 		return "", err
 	}

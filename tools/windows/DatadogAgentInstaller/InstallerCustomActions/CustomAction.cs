@@ -49,12 +49,6 @@ namespace Datadog.InstallerCustomActions
         }
 
         [CustomAction]
-        public static ActionResult WriteConfig(Session session)
-        {
-            return Datadog.CustomActions.ConfigCustomActions.WriteConfig(session);
-        }
-
-        [CustomAction]
         public static ActionResult ProcessDdAgentUserCredentials(Session session)
         {
             return Datadog.CustomActions.ProcessUserCustomActions.ProcessDdAgentUserCredentials(session);

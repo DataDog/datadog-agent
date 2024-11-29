@@ -17,7 +17,7 @@ import (
 	"testing"
 )
 
-//go:embed syscall_tester/bin
+//go:embed all:syscall_tester/bin
 var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
@@ -62,11 +62,7 @@ func runSyscallTesterFunc(ctx context.Context, t *testing.T, path string, args .
 	output, err := sideTester.CombinedOutput()
 
 	if err != nil {
-		t.Error(err)
-		output := string(output)
-		if output != "" {
-			t.Error(output)
-		}
+		t.Fatalf("failed to run syscall tester: %v, output: %s", err, string(output))
 	}
 	return err
 }

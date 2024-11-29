@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -187,15 +186,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			activeTypes := make([]model.EventType, len(activeEventTypes))
-			for i, eventType := range activeEventTypes {
-				activeTypes[i] = eventType
-			}
-			if !slices.Contains(activeTypes, model.FileOpenEventType) {
-				// add open to the list of expected event types because mmaped files being present in the dump
-				activeTypes = append(activeTypes, model.FileOpenEventType)
-			}
-			if !isEventTypesStringSlicesEqual(activeTypes, presentEventTypes) {
+			if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
 				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeEventTypes, presentEventTypes)
 			}
 			dump = nextDump

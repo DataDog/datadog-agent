@@ -127,7 +127,7 @@ func TestUserGroup(t *testing.T) {
 
 	for _, distroTest := range distroTests {
 		t.Run(distroTest.name, func(t *testing.T) {
-			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name)
+			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name, "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -143,10 +143,10 @@ func TestUserGroup(t *testing.T) {
 				test.WaitSignals(t, func() error {
 					out, err := dockerWrapper.Command(testCommand.cmd[0], testCommand.cmd[1:], nil).CombinedOutput()
 					if err != nil {
-						t.Logf(string(out))
+						t.Log(string(out))
 					}
 					return err
-				}, func(event *model.Event, rule *rules.Rule) error {
+				}, func(_ *model.Event, rule *rules.Rule) error {
 					assertTriggeredRule(t, rule, testCommand.rules[i])
 					i++
 					if i < len(testCommand.rules) {
