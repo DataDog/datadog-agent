@@ -3,55 +3,47 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package localkubernetes contains the provisioner for the local Kubernetes based environments
-package localkubernetes
+// Package localhost contains the provisioner for the local Host based environments
+package localhost
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/resources/local"
 
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	localpodman "github.com/DataDog/test-infra-definitions/scenarios/local/podman"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
-	provisionerBaseID = "aws-kind-"
-	defaultVMName     = "kind"
+	provisionerBaseID = "local-host-"
+	defaultName       = "podman-host"
 )
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name              string
-	agentOptions      []kubernetesagentparams.Option
+	agentOptions      []agentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
-	workloadAppFuncs  []WorkloadAppFunc
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
-		name:              defaultVMName,
-		agentOptions:      []kubernetesagentparams.Option{},
+		name:              defaultName,
+		agentOptions:      []agentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
 	}
 }
-
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
 // ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
@@ -65,7 +57,7 @@ func WithName(name string) ProvisionerOption {
 }
 
 // WithAgentOptions adds options to the agent
-func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
+func WithAgentOptions(opts ...agentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = opts
 		return nil
@@ -96,55 +88,56 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	}
 }
 
-// WithWorkloadApp adds a workload app to the environment
-func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
-		return nil
-	}
+// PodmanProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
+func PodmanProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutAgent(), WithoutFakeIntake())
+
+	return PodmanProvisioner(mergedOpts...)
 }
 
-// Provisioner creates a new provisioner
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
+// PodmanProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
+func PodmanProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutFakeIntake())
+
+	return PodmanProvisioner(mergedOpts...)
+}
+
+// PodmanProvisioner creates a new provisioner
+func PodmanProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
 		_ = optional.ApplyOptions(params, opts)
 
-		return KindRunFunc(ctx, env, params)
+		return PodmanRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
 	return provisioner
 }
 
-// KindRunFunc is the Pulumi run function that runs the provisioner
-func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
-
+// PodmanRunFunc is the Pulumi run function that runs the provisioner
+func PodmanRunFunc(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
 	localEnv, err := local.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, params.name, localEnv.KubernetesVersion())
+	vm, err := localpodman.NewVM(localEnv, params.name)
 	if err != nil {
 		return err
 	}
 
-	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
-	if err != nil {
-		return err
-	}
-
-	kubeProvider, err := kubernetes.NewProvider(ctx, localEnv.CommonNamer().ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
-		EnableServerSideApply: pulumi.Bool(true),
-		Kubeconfig:            kindCluster.KubeConfig,
-	})
+	err = vm.Export(ctx, &env.RemoteHost.HostOutput)
 	if err != nil {
 		return err
 	}
@@ -160,7 +153,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 
 		if params.agentOptions != nil {
-			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 	} else {
@@ -168,23 +161,13 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	}
 
 	if params.agentOptions != nil {
-		kindClusterName := ctx.Stack()
-		helmValues := fmt.Sprintf(`
-datadog:
-  kubelet:
-    tlsVerify: false
-  clusterName: "%s"
-agents:
-  useHostNetwork: true
-`, kindClusterName)
-
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
-		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := helm.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agentOptions := []agentparams.Option{agentparams.WithHostname("localdocker-vm")}
+		agentOptions = append(agentOptions, params.agentOptions...)
+		agent, err := agent.NewHostAgent(&localEnv, vm, agentOptions...)
 		if err != nil {
 			return err
 		}
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
 		if err != nil {
 			return err
 		}
@@ -192,12 +175,8 @@ agents:
 		env.Agent = nil
 	}
 
-	for _, appFunc := range params.workloadAppFuncs {
-		_, err := appFunc(&localEnv, kubeProvider)
-		if err != nil {
-			return err
-		}
-	}
+	// explicit set the updater as nil as we do not use it
+	env.Updater = nil
 
 	return nil
 }
