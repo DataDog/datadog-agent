@@ -533,7 +533,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(string(event.ContainerContext.ContainerID))
+	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -1267,7 +1267,7 @@ func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 }
 
 // GetEventTags returns the event tags
-func (p *EBPFProbe) GetEventTags(containerID string) []string {
+func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 

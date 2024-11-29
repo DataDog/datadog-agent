@@ -632,7 +632,7 @@ func (p *EBPFLessProbe) DumpProcessCache(withArgs bool) (string, error) {
 func (p *EBPFLessProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
 // GetEventTags returns the event tags
-func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
+func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
