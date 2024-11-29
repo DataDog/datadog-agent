@@ -7,6 +7,8 @@ package remotetaggerimpl
 
 import (
 	"context"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,9 @@ import (
 )
 
 func TestStart(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestStart is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	grpcServer, authToken, err := grpc.NewMockGrpcSecureServer("5001")
 	require.NoError(t, err)
 	defer grpcServer.Stop()
