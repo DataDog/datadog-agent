@@ -5,10 +5,11 @@
 
 //go:build windows
 
-package service
+package packages
 
 import (
 	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )

@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package service
+package packages
 
 import (
 	"context"
