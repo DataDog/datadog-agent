@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -85,9 +86,9 @@ type istioMonitor struct {
 	processMonitor *monitor.ProcessMonitor
 }
 
-func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
+func newIstioMonitor(c *config.Config, mgr *manager.Manager) (*istioMonitor, error) {
 	if !c.EnableIstioMonitoring {
-		return nil
+		return nil, nil
 	}
 
 	m := &istioMonitor{
@@ -106,16 +107,15 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EnablePeriodicScanNewProcesses: true,
 	}
-
-	m.processMonitor = monitor.GetProcessMonitor()
-
 	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, istioAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, m.processMonitor)
 	if err != nil {
-		log.Errorf("Cannot create uprobe attacher: %v", err)
+		return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)
 	}
 
 	m.attacher = attacher
-	return m
+	m.processMonitor = monitor.GetProcessMonitor()
+
+	return m, nil
 }
 
 // Start the istioMonitor
@@ -124,7 +124,14 @@ func (m *istioMonitor) Start() {
 		return
 	}
 
-	_ = m.attacher.Start()
+	if m.attacher == nil {
+		log.Errorf("Istio monitoring is enabled but the attacher is nil")
+	}
+
+	if err := m.attacher.Start(); err != nil {
+		log.Errorf("Cannot start istio attacher: %s", err)
+	}
+
 	log.Info("Istio monitoring enabled")
 }
 
