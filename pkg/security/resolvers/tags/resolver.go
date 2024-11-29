@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Event defines the tags event type
@@ -25,8 +24,6 @@ const (
 
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
-	Start(ctx context.Context) error
-	Stop() error
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 }
@@ -73,31 +70,13 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 }
 
 // Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context) error {
-	if t.tagger == nil {
-		return nil
-	}
-
-	go func() {
-		if err := t.tagger.Start(ctx); err != nil {
-			log.Errorf("failed to init tagger: %s", err)
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		_ = t.tagger.Stop()
-	}()
-
+func (t *DefaultResolver) Start(_ context.Context) error {
 	return nil
 }
 
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
-	if t.tagger == nil {
-		return nil
-	}
-	return t.tagger.Stop()
+	return nil
 }
 
 // NewDefaultResolver returns a new default tags resolver
