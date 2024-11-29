@@ -515,8 +515,7 @@ func FindTraceesByTracerPid(pid uint32) ([]uint32, error) {
 }
 
 var isNsPidAvailable = sync.OnceValue(func() bool {
-	selfStatus := filepath.Join(kernel.ProcFSRoot(), "self", "status")
-	content, err := os.ReadFile(selfStatus)
+	content, err := os.ReadFile("/proc/self/status")
 	if err != nil {
 		return false
 	}
