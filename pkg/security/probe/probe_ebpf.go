@@ -810,12 +810,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if pce != nil {
 			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
 			if err == nil && path != "" {
-				path = filepath.Dir(string(path))
-				pce.CGroup.CGroupID = containerutils.CGroupID(path)
-				pce.Process.CGroup.CGroupID = containerutils.CGroupID(path)
+				cgroupID := containerutils.CGroupID(filepath.Dir(string(path)))
+				pce.CGroup.CGroupID = cgroupID
+				pce.Process.CGroup.CGroupID = cgroupID
 				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
 				if cgroupFlags.IsContainer() {
-					containerID, _ := containerutils.GetContainerFromCgroup(path)
+					containerID, _ := containerutils.GetContainerFromCgroup(cgroupID)
 					pce.ContainerID = containerutils.ContainerID(containerID)
 					pce.Process.ContainerID = containerutils.ContainerID(containerID)
 				}
