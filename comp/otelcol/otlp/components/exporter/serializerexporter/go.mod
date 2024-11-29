@@ -73,19 +73,19 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.21.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.113.0
-	github.com/stretchr/testify v1.9.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.114.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.1.8
-	go.opentelemetry.io/collector/component v0.113.0
-	go.opentelemetry.io/collector/config/confignet v1.19.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.113.0 // indirect
-	go.opentelemetry.io/collector/confmap v1.19.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.113.0
-	go.opentelemetry.io/collector/exporter v0.113.0
-	go.opentelemetry.io/collector/extension v0.113.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.19.0
-	go.opentelemetry.io/collector/receiver v0.113.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.113.0 // indirect
+	go.opentelemetry.io/collector/component v0.114.0
+	go.opentelemetry.io/collector/config/confignet v1.20.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.114.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.20.0 // indirect
+	go.opentelemetry.io/collector/consumer v0.114.0
+	go.opentelemetry.io/collector/exporter v0.114.0
+	go.opentelemetry.io/collector/extension v0.114.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.20.0
+	go.opentelemetry.io/collector/receiver v0.114.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.114.0 // indirect
 	go.uber.org/multierr v1.11.0
 )
 
@@ -95,7 +95,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
@@ -104,13 +104,13 @@ require (
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3 // indirect
@@ -121,19 +121,19 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.57.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
@@ -192,7 +192,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -201,14 +201,14 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector/config/configretry v1.19.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumerprofiles v0.113.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.113.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterprofiles v0.113.0 // indirect
-	go.opentelemetry.io/collector/extension/experimental/storage v0.113.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.113.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.113.0 // indirect
-	go.opentelemetry.io/collector/receiver/receiverprofiles v0.113.0 // indirect
+	go.opentelemetry.io/collector/config/configretry v1.20.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumerprofiles v0.114.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.114.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterprofiles v0.114.0 // indirect
+	go.opentelemetry.io/collector/extension/experimental/storage v0.114.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.114.0 // indirect
+	go.opentelemetry.io/collector/pipeline v0.114.0 // indirect
+	go.opentelemetry.io/collector/receiver/receiverprofiles v0.114.0 // indirect
 	go.opentelemetry.io/otel v1.32.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.49.0 // indirect
 	go.opentelemetry.io/otel/metric v1.32.0 // indirect
@@ -234,21 +234,27 @@ require (
 )
 
 require (
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.113.0
-	go.opentelemetry.io/collector/exporter/exportertest v0.113.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.114.0
+	go.opentelemetry.io/collector/component/componenttest v0.114.0
+	go.opentelemetry.io/collector/exporter/exportertest v0.114.0
+)
+
+require (
+	github.com/hashicorp/go-version v1.7.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.20.0 // indirect
 )
 
 require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
-	go.opentelemetry.io/collector/client v1.19.0 // indirect
-	go.opentelemetry.io/collector/config/configauth v0.113.0 // indirect
-	go.opentelemetry.io/collector/config/configcompression v1.19.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.113.0 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.19.0 // indirect
-	go.opentelemetry.io/collector/config/configtls v1.19.0 // indirect
-	go.opentelemetry.io/collector/config/internal v0.113.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.113.0 // indirect
-	go.opentelemetry.io/collector/extension/auth v0.113.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.113.0 // indirect
+	go.opentelemetry.io/collector/client v1.20.0 // indirect
+	go.opentelemetry.io/collector/config/configauth v0.114.0 // indirect
+	go.opentelemetry.io/collector/config/configcompression v1.20.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.114.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.20.0 // indirect
+	go.opentelemetry.io/collector/config/configtls v1.20.0 // indirect
+	go.opentelemetry.io/collector/config/internal v0.114.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.114.0 // indirect
+	go.opentelemetry.io/collector/extension/auth v0.114.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.114.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
 )

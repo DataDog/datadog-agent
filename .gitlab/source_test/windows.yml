@@ -16,7 +16,7 @@
     - If ($FAST_TESTS -eq "true") { $FAST_TESTS_FLAG="--only-impacted-packages" }
     - >
       docker run --rm
-      -m 16384M
+      -m 24576M
       --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
       -e DD_ENV=prod

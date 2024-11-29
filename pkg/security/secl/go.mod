@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/security/secl
 go 1.22.0
 
 require (
-	github.com/Masterminds/semver/v3 v3.3.0
+	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/participle v0.7.1
 	github.com/davecgh/go-spew v1.1.1
@@ -16,7 +16,7 @@ require (
 	github.com/jellydator/ttlcache/v3 v3.3.0
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/cast v1.7.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/sys v0.27.0
 	golang.org/x/text v0.20.0

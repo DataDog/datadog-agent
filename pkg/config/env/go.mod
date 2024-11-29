@@ -15,7 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc.3
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
@@ -36,7 +36,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
 	github.com/spf13/afero v1.1.2 // indirect
-	github.com/spf13/cast v1.3.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect

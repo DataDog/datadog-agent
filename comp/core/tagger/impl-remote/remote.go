@@ -97,7 +97,7 @@ type Options struct {
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
-	remoteTagger, err := NewRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
+	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
 
 	if err != nil {
 		return Provides{}, err
@@ -116,9 +116,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}, nil
 }
 
-// NewRemoteTagger creates a new remote tagger.
-// TODO: (components) remove once we pass the remote tagger instance to pkg/security/resolvers/tags/resolver.go
-func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component) (tagger.Component, error) {
+func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component) (tagger.Component, error) {
 	telemetryStore := telemetry.NewStore(telemetryComp)
 
 	target, err := params.RemoteTarget(cfg)
@@ -185,15 +183,6 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	}
 
 	t.client = pb.NewAgentSecureClient(t.conn)
-
-	err = t.startTaggerStream(noTimeout)
-	if err != nil {
-		// tagger stopped before being connected
-		if errors.Is(err, errTaggerStreamNotStarted) {
-			return nil
-		}
-		return err
-	}
 
 	t.log.Info("remote tagger initialized successfully")
 

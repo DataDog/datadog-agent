@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -24,16 +23,6 @@ import (
 type FakeTagger struct {
 	sync.Mutex
 	containerIDs []string
-}
-
-// Start the tagger
-func (fr *FakeTagger) Start(_ context.Context) error {
-	return nil
-}
-
-// Stop the tagger
-func (fr *FakeTagger) Stop() error {
-	return nil
 }
 
 // Tag returns the tags for the given id
@@ -53,6 +42,11 @@ func (fr *FakeTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([]stri
 	return append(fakeTags, fmt.Sprintf("image_name:fake_ubuntu_%d", len(fr.containerIDs))), nil
 }
 
+// GlobalTags returns the global tags
+func (fr *FakeTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
 // NewFakeTaggerDifferentImageNames returns a new tagger
 func NewFakeTaggerDifferentImageNames() tags.Tagger {
 	return &FakeTagger{}
@@ -63,19 +57,14 @@ func NewFakeTaggerDifferentImageNames() tags.Tagger {
 // FakeMonoTagger represents a fake mono tagger
 type FakeMonoTagger struct{}
 
-// Start the tagger
-func (fmr *FakeMonoTagger) Start(_ context.Context) error {
-	return nil
-}
-
-// Stop the tagger
-func (fmr *FakeMonoTagger) Stop() error {
-	return nil
-}
-
 // Tag returns the tags for the given id
 func (fmr *FakeMonoTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([]string, error) {
 	return []string{"container_id:" + entity.GetID(), "image_name:fake_ubuntu", "image_tag:latest"}, nil
+}
+
+// GlobalTags returns the global tags
+func (fmr *FakeMonoTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
 }
 
 // NewFakeMonoTagger returns a new tags tagger
@@ -91,16 +80,6 @@ type FakeManualTagger struct {
 	containerToSelector map[string]*cgroupModel.WorkloadSelector
 	cpt                 int
 	nextSelectors       []*cgroupModel.WorkloadSelector
-}
-
-// Start the tagger
-func (fmr *FakeManualTagger) Start(_ context.Context) error {
-	return nil
-}
-
-// Stop the tagger
-func (fmr *FakeManualTagger) Stop() error {
-	return nil
 }
 
 // SpecifyNextSelector specifies the next image name and tag to be resolved
@@ -148,6 +127,11 @@ func (fmr *FakeManualTagger) Tag(entity types.EntityID, _ types.TagCardinality) 
 	}
 	fmr.containerToSelector[containerID] = selector
 	return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}, nil
+}
+
+// GlobalTags returns the global tags
+func (fmr *FakeManualTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
 }
 
 // NewFakeManualTagger returns a new tagger
