@@ -23,7 +23,7 @@ from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
-from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
+from tasks.libs.common.utils import REPO_PATH, color_message, gitlab_section, running_in_ci
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
@@ -66,6 +66,9 @@ def run(
     test_washer=False,
     agent_image="",
     cluster_agent_image="",
+    logs_post_processing=False,
+    logs_post_processing_test_depth=1,
+    logs_folder="e2e_logs",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -164,6 +167,15 @@ def run(
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
         )
 
+    if logs_post_processing:
+        post_processed_output = post_process_output(
+            test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
+        )
+
+        os.makedirs(logs_folder, exist_ok=True)
+        write_result_to_log_files(post_processed_output, logs_folder)
+        pretty_print_logs(post_processed_output)
+
     if not success:
         raise Exit(code=1)
 
@@ -251,6 +263,45 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
         print(f"Failed to destroy stack {stack}")
+
+
+def post_process_output(path: str, test_depth: int = 1):
+    """
+    Post process the test results to add the test run name
+    """
+    logs_per_test = {}
+    with open(path) as f:
+        idx = 0
+        for line in f.readlines():
+            idx += 1
+            print(idx)
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+            if json_line["Package"] not in logs_per_test:
+                logs_per_test[json_line["Package"]] = {}
+            if "/".join(json_line["Test"].split("/")[0:test_depth]) not in logs_per_test[json_line["Package"]]:
+                logs_per_test[json_line["Package"]][json_line["Test"].split("/")[0]] = []
+            if "===" in json_line["Output"]:
+                continue
+
+            logs_per_test[json_line["Package"]][json_line["Test"].split("/")[0]].append(json_line["Output"])
+
+    return logs_per_test
+
+
+def write_result_to_log_files(logs_per_test, log_folder):
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            with open(f"{log_folder}/{package.replace('/', '-')}.{test.replace('/', '-')}.log", "w") as f:
+                f.write("".join(logs))
+
+
+def pretty_print_logs(logs_per_test):
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
+                print("".join(logs))
 
 
 @task
