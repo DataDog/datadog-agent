@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -86,7 +87,7 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 	evt.Container.ID = msg.ContainerContext.ID
 
 	if tagger != nil {
-		tags, err := tags.GetTagsOfContainer(tagger, msg.ContainerContext.ID)
+		tags, err := tags.GetTagsOfContainer(tagger, containerutils.ContainerID(msg.ContainerContext.ID))
 		if err != nil {
 			seclog.Errorf("Failed to get tags for container %s: %v", msg.ContainerContext.ID, err)
 		} else {
