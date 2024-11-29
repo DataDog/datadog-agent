@@ -16,17 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type cdnHTTP struct {
+type fetcherHTTP struct {
 	client              *remoteconfig.HTTPClient
 	currentRootsVersion uint64
 	hostTagsGetter      hostTagsGetter
 	env                 *env.Env
 }
 
-func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
+func newHTTPFetcher(env *env.Env, configDBPath string) (fetcher, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
 		env.Site,
@@ -36,7 +35,7 @@ func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &cdnHTTP{
+	return &fetcherHTTP{
 		client:              client,
 		currentRootsVersion: 1,
 		hostTagsGetter:      newHostTagsGetter(env),
@@ -44,51 +43,13 @@ func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 	}, nil
 }
 
-// Get gets the configuration from the CDN.
-func (c *cdnHTTP) Get(ctx context.Context, pkg string) (cfg Config, err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
-	span.SetTag("cdn_type", "cdn")
-	defer func() {
-		spanErr := err
-		if spanErr == ErrProductNotSupported {
-			spanErr = nil
-		}
-		span.Finish(tracer.WithError(spanErr))
-	}()
-
-	switch pkg {
-	case "datadog-agent":
-		orderedLayers, err := c.get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cfg, err = newAgentConfig(orderedLayers...)
-		if err != nil {
-			return nil, err
-		}
-	case "datadog-apm-inject":
-		orderedLayers, err := c.get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderedLayers...)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, ErrProductNotSupported
-	}
-
-	return cfg, nil
-}
-
 // Close cleans up the CDN's resources
-func (c *cdnHTTP) Close() error {
+func (c *fetcherHTTP) close() error {
 	return c.client.Close()
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnHTTP) get(ctx context.Context) ([][]byte, error) {
+func (c *fetcherHTTP) get(ctx context.Context) ([][]byte, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
 		ctx,
 		[]string{"AGENT_CONFIG"},

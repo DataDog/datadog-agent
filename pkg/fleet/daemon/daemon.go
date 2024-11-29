@@ -73,7 +73,7 @@ type daemonImpl struct {
 	env           *env.Env
 	installer     installer.Installer
 	rc            *remoteConfig
-	cdn           cdn.CDN
+	cdn           *cdn.CDN
 	catalog       catalog
 	requests      chan remoteAPIRequest
 	requestsWG    sync.WaitGroup
@@ -122,7 +122,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	return newDaemon(rc, installer, env, cdn), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn cdn.CDN) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,
@@ -573,15 +573,15 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
-func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (string, error) {
+func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (*pbgo.PoliciesState, error) {
 	if !d.env.RemotePolicies {
-		return "", nil
+		return nil, nil
 	}
 	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return config.Version(), nil
+	return config.State(), nil
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
@@ -614,13 +614,13 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		cs, hasConfig := configState[pkg]
 		if hasConfig {
-			p.StableConfigVersion = cs.Stable
-			p.ExperimentConfigVersion = cs.Experiment
+			p.StableConfigState = cs.StablePoliciesState
+			p.ExperimentConfigState = cs.ExperimentPoliciesState
 		}
 
-		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
-		if err == nil {
-			p.RemoteConfigVersion = configVersion
+		configState, err := d.resolveRemoteConfigVersion(ctx, pkg)
+		if err == nil && configState != nil {
+			p.RemoteConfigState = configState
 		} else if err != cdn.ErrProductNotSupported {
 			log.Warnf("could not get remote config version: %v", err)
 		}

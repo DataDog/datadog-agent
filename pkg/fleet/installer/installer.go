@@ -72,7 +72,7 @@ type installerImpl struct {
 	m sync.Mutex
 
 	env        *env.Env
-	cdn        cdn.CDN
+	cdn        *cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -308,8 +308,8 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	if err != nil {
 		return fmt.Errorf("could not get cdn config: %w", err)
 	}
-	if config.Version() != version {
-		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
+	if config.State().GetVersion() != version {
+		return fmt.Errorf("version mismatch: expected %s, got %s", config.State().GetVersion(), version)
 	}
 
 	tmpDir, err := i.packages.MkdirTemp()
@@ -619,7 +619,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 		if err != nil {
 			return fmt.Errorf("could not write %s config: %w", pkg, err)
 		}
-		err = i.configs.Create(pkg, config.Version(), tmpDir)
+		err = i.configs.Create(pkg, config.State().GetVersion(), tmpDir)
 		if err != nil {
 			return fmt.Errorf("could not create %s repository: %w", pkg, err)
 		}
