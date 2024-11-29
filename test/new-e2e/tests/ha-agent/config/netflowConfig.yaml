@@ -12,3 +12,7 @@ network_devices:
       port: 4739
     - flow_type: sflow5
       port: 6343
+
+ha_agent:
+  enabled: true
+  group: alex-e2e-group01
