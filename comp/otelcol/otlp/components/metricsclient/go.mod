@@ -7,7 +7,7 @@ replace github.com/DataDog/datadog-agent/pkg/trace => ../../../../../pkg/trace
 require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.61.0-rc.9
 	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/metric v1.32.0
 	go.opentelemetry.io/otel/sdk/metric v1.32.0
