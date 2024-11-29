@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -24,12 +26,15 @@ import (
 func Run(t testing.TB, cfg LifecycleConfig) error {
 	var err error
 	var ctx context.Context
+	var scanner *testutil.PatternScanner
 	for i := 0; i < cfg.Retries(); i++ {
 		t.Helper()
 		// Ensuring no previous instances exists.
 		killPreviousInstances(cfg)
 
-		scanner := testutil.NewScanner(cfg.LogPattern(), make(chan struct{}, 1))
+		//TODO: in the following PR move the scanner to be a field of the LifecycleConfig
+		scanner, err = testutil.NewScanner(cfg.LogPattern(), testutil.NoPattern, make(chan struct{}, 1))
+		require.NoError(t, err, "failed to create pattern scanner")
 		// attempt to start the container/s
 		ctx, err = run(t, cfg, scanner)
 		if err != nil {
