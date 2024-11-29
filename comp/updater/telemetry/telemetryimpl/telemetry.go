@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	fleettelemetry "github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

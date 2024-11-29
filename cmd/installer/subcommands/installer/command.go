@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"

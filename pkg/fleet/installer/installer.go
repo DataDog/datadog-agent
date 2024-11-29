@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"

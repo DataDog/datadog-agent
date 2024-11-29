@@ -24,8 +24,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"

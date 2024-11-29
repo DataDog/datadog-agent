@@ -11,7 +11,7 @@ import (
 	"errors"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
 var (

@@ -15,7 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
