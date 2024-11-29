@@ -7,7 +7,6 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -23,7 +22,7 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
@@ -34,14 +33,14 @@ func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (
 	}
 
 	if opts.EBPFLessEnabled {
-		pp, err := NewEBPFLessProbe(p, config, opts, telemetry)
+		pp, err := NewEBPFLessProbe(p, config, opts)
 		if err != nil {
 			return nil, err
 		}
 		p.PlatformProbe = pp
 		p.agentContainerContext = acc
 	} else {
-		pp, err := NewEBPFProbe(p, config, opts, telemetry)
+		pp, err := NewEBPFProbe(p, config, opts)
 		if err != nil {
 			return nil, err
 		}

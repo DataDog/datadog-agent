@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -62,12 +63,15 @@ type JKillActionReport struct {
 }
 
 // IsResolved return if the action is resolved
-func (k *KillActionReport) IsResolved() bool {
+func (k *KillActionReport) IsResolved() error {
 	k.RLock()
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	return k.Signal != "SIGKILL" || k.resolved || k.Status == KillActionStatusRuleDisarmed
+	if k.Signal != "SIGKILL" || k.resolved || k.Status == KillActionStatusRuleDisarmed {
+		return nil
+	}
+	return fmt.Errorf("kill action current state: %+v", k)
 }
 
 // ToJSON marshal the action

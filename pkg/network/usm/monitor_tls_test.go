@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"io"
 	"math/rand"
 	nethttp "net/http"
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -46,6 +46,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 type tlsSuite struct {
@@ -69,6 +70,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 	/* enable protocol classification : TLS */
@@ -111,8 +113,16 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				require.NoError(t, err)
 
 				dir = path.Join(dir, "testdata", "musl")
-				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
-					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
+				scanner, err := globalutils.NewScanner(regexp.MustCompile("started"), globalutils.NoPattern)
+				require.NoError(t, err, "failed to create pattern scanner")
+				dockerCfg := dockerutils.NewComposeConfig("musl-alpine",
+					dockerutils.DefaultTimeout,
+					dockerutils.DefaultRetries,
+					scanner,
+					dockerutils.EmptyEnv,
+					path.Join(dir, "/docker-compose.yml"))
+				err = dockerutils.Run(t, dockerCfg)
+				require.NoError(t, err)
 
 				rawout, err := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", "musl-alpine-1").Output()
 				require.NoError(t, err)
@@ -278,6 +288,7 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 	t := s.T()
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
@@ -337,6 +348,7 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 	t := s.T()
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 
@@ -896,6 +908,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	require.NoError(t, err)
 
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
 

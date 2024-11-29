@@ -106,6 +106,7 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 
 func (s *usmGRPCSuite) getConfig() *config.Config {
 	cfg := config.New()
+	cfg.EnableIstioMonitoring = false
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS

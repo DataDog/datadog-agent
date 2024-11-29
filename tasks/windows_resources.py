@@ -1,4 +1,5 @@
 import os
+import sys
 
 from invoke import task
 
@@ -10,28 +11,33 @@ MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
 @task
 def build_messagetable(
     ctx,
+    target='pe-x86-64',
+    host_target='',  # prefix of the toolchain used to cross-compile, for instance x86_64-w64-mingw32
 ):
     """
     Build the header and resource for the MESSAGETABLE shared between agent binaries.
     """
-    windres_target = 'pe-x86-64'
-
     messagefile = MESSAGESTRINGS_MC_PATH
 
     root = os.path.dirname(messagefile)
 
     # Generate the message header and resource file
-    command = f"windmc --target {windres_target} -r {root} -h {root} {messagefile}"
+    windmc = "windmc"
+    if not host_target and sys.platform.startswith('linux'):
+        host_target = "x86_64-w64-mingw32"
+
+    if host_target:
+        windmc = host_target + "-" + windmc
+
+    command = f"{windmc} --target {target} -r {root} -h {root} {messagefile}"
     ctx.run(command)
 
-    build_rc(ctx, f'{root}/messagestrings.rc')
+    build_rc(ctx, f'{root}/messagestrings.rc', target=target, host_target=host_target)
 
 
-def build_rc(ctx, rc_file, vars=None, out=None):
+def build_rc(ctx, rc_file, vars=None, out=None, target='pe-x86-64', host_target=''):
     if vars is None:
         vars = {}
-
-    windres_target = 'pe-x86-64'
 
     if out is None:
         root = os.path.dirname(rc_file)
@@ -39,7 +45,14 @@ def build_rc(ctx, rc_file, vars=None, out=None):
 
     # Build the binary resource
     # go automatically detects+includes .syso files
-    command = f"windres --target {windres_target} -i {rc_file} -O coff -o {out}"
+    windres = "windres"
+    if not host_target and sys.platform.startswith('linux'):
+        host_target = "x86_64-w64-mingw32"
+
+    if host_target:
+        windres = host_target + "-" + windres
+
+    command = f"{windres} --target {target} -i {rc_file} -O coff -o {out}"
     for key, value in vars.items():
         command += f" --define {key}={value}"
 

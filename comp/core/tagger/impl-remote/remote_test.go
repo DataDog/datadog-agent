@@ -7,6 +7,8 @@ package remotetaggerimpl
 
 import (
 	"context"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,9 @@ import (
 )
 
 func TestStart(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestStart is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	grpcServer, authToken, err := grpc.NewMockGrpcSecureServer("5001")
 	require.NoError(t, err)
 	defer grpcServer.Stop()
@@ -39,7 +44,7 @@ func TestStart(t *testing.T) {
 	log := logmock.New(t)
 	telemetry := nooptelemetry.GetCompatComponent()
 
-	remoteTagger, err := NewRemoteTagger(params, cfg, log, telemetry)
+	remoteTagger, err := newRemoteTagger(params, cfg, log, telemetry)
 	require.NoError(t, err)
 	err = remoteTagger.Start(context.TODO())
 	require.NoError(t, err)
@@ -61,7 +66,7 @@ func TestStartDoNotBlockIfServerIsNotAvailable(t *testing.T) {
 	log := logmock.New(t)
 	telemetry := nooptelemetry.GetCompatComponent()
 
-	remoteTagger, err := NewRemoteTagger(params, cfg, log, telemetry)
+	remoteTagger, err := newRemoteTagger(params, cfg, log, telemetry)
 	require.NoError(t, err)
 	err = remoteTagger.Start(context.TODO())
 	require.NoError(t, err)
