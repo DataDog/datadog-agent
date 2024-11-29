@@ -35,7 +35,7 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
+from tasks.libs.releasing.documentation import release_entry_for
 
 BOT_NAME = "github-actions[bot]"
 
@@ -138,11 +138,7 @@ def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7"
     """
 
     git_ref = git_ref or get_default_branch()
-    use_release_entries = ""
     major_versions = []
-
-    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
-        use_release_entries = "--use-release-entries "
 
     if release_version_6 != "":
         major_versions.append("6")
@@ -152,7 +148,7 @@ def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7"
 
     raise Exit(
         f"""The pipeline.trigger task is obsolete. Use:
-    pipeline.run --git-ref {git_ref} --deploy --major-versions "{','.join(major_versions)}" --repo-branch {repo_branch} {use_release_entries}
+    pipeline.run --git-ref {git_ref} --deploy --major-versions "{','.join(major_versions)}" --repo-branch {repo_branch}
 instead.""",
         1,
     )
@@ -216,7 +212,6 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    use_release_entries=False,
     major_versions=None,
     repo_branch="dev",
     deploy=False,
@@ -239,9 +234,6 @@ def run(
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
-
-    By default, the nightly release.json entries (nightly and nightly-a7) are used.
-    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -266,7 +258,7 @@ def run(
       inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
@@ -274,12 +266,8 @@ def run(
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
-    if use_release_entries:
-        release_version_6 = release_entry_for(6)
-        release_version_7 = release_entry_for(7)
-    else:
-        release_version_6 = nightly_entry_for(6)
-        release_version_7 = nightly_entry_for(7)
+    release_version_6 = release_entry_for(6)
+    release_version_7 = release_entry_for(7)
 
     if major_versions:
         print(

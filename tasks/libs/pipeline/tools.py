@@ -116,8 +116,8 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
 def trigger_agent_pipeline(
     repo: Project,
     ref=None,
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
+    release_version_6="a6",
+    release_version_7="a7",
     branch="nightly",
     deploy=False,
     deploy_installer=False,

@@ -84,7 +84,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    release_version="nightly",
+    release_version="a7",
     major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
@@ -187,7 +187,7 @@ def build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    release_version="nightly",
+    release_version="a7",
     major_version='7',
     omnibus_s3_cache=False,
     hardened_runtime=False,
@@ -284,7 +284,7 @@ def build(
             use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
                 cache_state = None
-                cache_key = omnibus_compute_cache_key(ctx)
+                cache_key = omnibus_compute_cache_key(ctx, release_version)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
@@ -356,7 +356,7 @@ def manifest(
     base_dir=None,
     gem_path=None,
     skip_sign=False,
-    release_version="nightly",
+    release_version="a7",
     major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
