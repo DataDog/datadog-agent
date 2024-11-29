@@ -70,7 +70,7 @@ ddflare_extension_ocb_build:
     - chmod +x /tmp/otel-ci/ocb
   script:
     - echo 'Building collector with OCB and test ddflare extension'
-    - /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml
+    - /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-output.log 2>&1
     - grep -q 'Compiled' ocb-output.log || (echo "OCB failed to compile" && exit 1)
     - "grep -q '{\"binary\": \"/tmp/otel-ci/otelcol-custom/otelcol-custom\"}' ocb-output.log || (echo \"OCB failed to compile\" && exit 1)"
     - /tmp/otel-ci/otelcol-custom/otelcol-custom --config /tmp/otel-ci/collector-config.yaml > otelcol-custom.log 2>&1 &
