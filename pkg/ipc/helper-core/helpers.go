@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// coreimpl provide functions ...
 package coreimpl
 
 import (
@@ -19,7 +20,7 @@ import (
 // 	return server.NewIPCServer(s, NewConfigResolver(), options...)
 // }
 
-func GetCertPath() string {
+func getCertPath() string {
 	config := pkgconfigsetup.Datadog()
 	if config.GetString("auth_token_file_path") != "" {
 		return config.GetString("auth_token_file_path")
@@ -29,11 +30,11 @@ func GetCertPath() string {
 
 // GetServerTLSConfig provide a tls.Config that dynamically resolve
 // the IPC certificate use to prove identity to API clients.
-// Under the hood it retreive or create the certificate file
+// Under the hood it retrieve or create the certificate file
 func GetServerTLSConfig() *tls.Config {
 	return &tls.Config{
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			cert, key, err := cert.CreateOrFetchAgentIPCCert(GetCertPath())
+			cert, key, err := cert.CreateOrFetchAgentIPCCert(getCertPath())
 			if err != nil {
 				return nil, err
 			}
@@ -48,11 +49,14 @@ func GetServerTLSConfig() *tls.Config {
 	}
 }
 
+// GetClientTLSConfig provide a tls.Config that dynamically resolve
+// the IPC certificate use to prove identity to API clients.
+// Under the hood it retrieve or create the certificate file
 func GetClientTLSConfig() (*tls.Config, error) {
 
 	// Using Fetch function and not CreateOrFetch because if the cert haven't been created yet
 	// it means that no IPC servers has started yet.
-	cert, _, err := cert.CreateOrFetchAgentIPCCert(GetCertPath())
+	cert, _, err := cert.CreateOrFetchAgentIPCCert(getCertPath())
 	if err != nil {
 		return nil, err
 	}

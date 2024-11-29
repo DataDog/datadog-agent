@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package cert provide useful functions to generate certificates
 package cert
 
 import (
@@ -24,8 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GenerateKeyPair create a public/private keypair
-func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
+func generateKeyPair(bits int) (*rsa.PrivateKey, error) {
 	privKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		return nil, fmt.Errorf("generating random key: %v", err)
@@ -34,8 +34,7 @@ func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
 	return privKey, nil
 }
 
-// CertTemplate create x509 certificate template
-func CertTemplate() (*x509.Certificate, error) {
+func certTemplate() (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -57,19 +56,19 @@ func CertTemplate() (*x509.Certificate, error) {
 	return &template, nil
 }
 
-// GenerateRootCert generates a root certificate
+// GenerateCertKeyPair generates a root certificate
 func GenerateCertKeyPair(hosts []string, bits int) ([]byte, []byte, error) {
 	// print the caller to identify what is calling this function
 	if _, file, line, ok := runtime.Caller(1); ok {
 		log.Infof("[%s:%d] Generating root certificate for hosts %v", file, line, strings.Join(hosts, ", "))
 	}
 
-	rootCertTmpl, err := CertTemplate()
+	rootCertTmpl, err := certTemplate()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	rootKey, err := GenerateKeyPair(bits)
+	rootKey, err := generateKeyPair(bits)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -98,13 +97,13 @@ func GenerateCertKeyPair(hosts []string, bits int) ([]byte, []byte, error) {
 	return certPEM, keyPEM, nil
 }
 
-// FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// FetchAgentIPCCert gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func FetchAgentIPCCert(destDir string) ([]byte, []byte, error) {
 	return fetchAgentIPCCert(destDir, false)
 }
 
-// CreateOrFetchToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// CreateOrFetchAgentIPCCert gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func CreateOrFetchAgentIPCCert(destDir string) ([]byte, []byte, error) {
 	return fetchAgentIPCCert(destDir, true)

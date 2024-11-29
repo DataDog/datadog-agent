@@ -77,7 +77,7 @@ func (server *apiServer) startCMDServer(
 
 	clientTLSConfig, err := coreipc.GetClientTLSConfig()
 	if err != nil {
-		return fmt.Errorf("unable to retreive the Agent IPC certificate for initializing GRPC client: %v", err)
+		return fmt.Errorf("unable to retrieve the Agent IPC certificate for initializing GRPC client: %v", err)
 	}
 
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(clientTLSConfig))}
