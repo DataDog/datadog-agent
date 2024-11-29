@@ -85,7 +85,7 @@ tests_windows-x64:
   artifacts:
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+      - $CI_PROJECT_DIR/test/new-e2e/tests/security-agent-functional/artifacts
 
 .tests_windows_secagent:
   stage: source_test

@@ -118,7 +118,7 @@ variables:
   # avoids accidentally overwriting files when downloading artifacts from
   # both RPM and SUSE rpm jobs.
   OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
-  DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test
+  DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/new-e2e/tests
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent

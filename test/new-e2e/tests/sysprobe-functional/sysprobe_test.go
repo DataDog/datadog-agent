@@ -50,9 +50,7 @@ func (v *vmSuite) SetupSuite() {
 	currDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	testDir := filepath.Join(reporoot, "test")
-	v.testspath = filepath.Join(testDir, "files", "default", "tests")
+	v.testspath = filepath.Join(currDir, "artifacts")
 }
 
 func (v *vmSuite) TestSystemProbeNPMSuite() {
