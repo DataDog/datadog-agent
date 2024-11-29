@@ -142,6 +142,8 @@ modules:
   pkg/errors: default
   pkg/gohai:
     importable: false
+  pkg/ipc: default
+  pkg/ipc/helper-core: default
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false

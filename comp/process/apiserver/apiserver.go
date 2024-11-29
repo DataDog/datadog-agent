@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	coreipc "github.com/DataDog/datadog-agent/pkg/ipc/helper-core"
 )
 
 var _ Component = (*apiserver)(nil)
@@ -54,6 +55,7 @@ func newApiServer(deps dependencies) Component {
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,
 			IdleTimeout:  timeout,
+			TLSConfig:    coreipc.GetServerTLSConfig(),
 		},
 	}
 

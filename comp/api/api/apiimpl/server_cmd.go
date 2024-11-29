@@ -7,8 +7,6 @@ package apiimpl
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"time"
@@ -26,6 +24,7 @@ import (
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	coreipc "github.com/DataDog/datadog-agent/pkg/ipc/helper-core"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -35,8 +34,6 @@ const cmdServerShortName string = "CMD"
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
-	tlsConfig *tls.Config,
-	tlsCertPool *x509.CertPool,
 	tmf observability.TelemetryMiddlewareFactory,
 	cfg config.Component,
 ) (err error) {
@@ -54,7 +51,7 @@ func (server *apiServer) startCMDServer(
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
+		grpc.Creds(credentials.NewTLS(coreipc.GetServerTLSConfig())),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		grpc.MaxRecvMsgSize(maxMessageSize),
@@ -78,11 +75,12 @@ func (server *apiServer) startCMDServer(
 		remoteAgentRegistry: server.remoteAgentRegistry,
 	})
 
-	dcreds := credentials.NewTLS(&tls.Config{
-		ServerName: cmdAddr,
-		RootCAs:    tlsCertPool,
-	})
-	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
+	clientTLSConfig, err := coreipc.GetClientTLSConfig()
+	if err != nil {
+		return fmt.Errorf("unable to retreive the Agent IPC certificate for initializing GRPC client: %v", err)
+	}
+
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(clientTLSConfig))}
 
 	// starting grpc gateway
 	ctx := context.Background()
@@ -132,7 +130,7 @@ func (server *apiServer) startCMDServer(
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,
-		tlsConfig,
+		coreipc.GetServerTLSConfig(),
 		s,
 		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second),
 	)

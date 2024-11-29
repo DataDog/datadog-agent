@@ -82,6 +82,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/ipc => ./pkg/ipc
+	github.com/DataDog/datadog-agent/pkg/ipc/helper-core => ./pkg/ipc/helper-core
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
@@ -601,6 +603,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
+	github.com/DataDog/datadog-agent/pkg/ipc/helper-core v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
@@ -798,6 +801,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/ipc v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.59.0 // indirect
