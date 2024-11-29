@@ -19,9 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	protocolstestutil "github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // mutex protecting build process
