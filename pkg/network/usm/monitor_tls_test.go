@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"io"
 	"math/rand"
 	nethttp "net/http"
@@ -112,10 +113,12 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				require.NoError(t, err)
 
 				dir = path.Join(dir, "testdata", "musl")
+				scanner, err := globalutils.NewScanner(regexp.MustCompile("started"), globalutils.NoPattern)
+				require.NoError(t, err, "failed to create pattern scanner")
 				dockerCfg := dockerutils.NewComposeConfig("musl-alpine",
 					dockerutils.DefaultTimeout,
 					dockerutils.DefaultRetries,
-					regexp.MustCompile("started"),
+					scanner,
 					dockerutils.EmptyEnv,
 					path.Join(dir, "/docker-compose.yml"))
 				err = dockerutils.Run(t, dockerCfg)
