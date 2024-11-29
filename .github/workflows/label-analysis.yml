@@ -102,45 +102,24 @@ jobs:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
+      - name: Setup Python3
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12.6"
+          cache: "pip"
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install python dependencies
+        run: pip3 install -r requirements.txt
       - name: Check qa/[done|no-code-change] labels are not set together
-        run: |
-          qa_labels=()
-          for label in $LABELS; do
-            if [[ "$label" == "qa/done" ]]; then
-              qa_labels+=("qa/done")
-            fi
-            if [[ "$label" == "qa/no-code-change" ]]; then
-              qa_labels+=("qa/no-code-change")
-            fi
-            if [[ "$label" == "qa/rc-required" ]]; then
-              qa_labels+=("qa/rc-required")
-            fi
-          done
-          qa_labels_length=${#qa_labels[@]}
-          doc_lines=()
-          doc_lines+=("You must set one of:")
-          doc_lines+=("- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities")
-          doc_lines+=("  Examples: code owner changes, e2e test framework changes, documentation changes")
-          doc_lines+=("- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed.")
-          doc_lines+=("  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge.")
-          doc_lines+=("  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet.")
-          doc_lines+=("- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment")
-          doc_lines+=("")
-          doc_lines+=("See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details.")
-          docs=$(printf "%s\n" "${doc_lines[@]}")
-          if [ $qa_labels_length -eq 0 ]; then
-            echo "No QA label set"
-            echo $docs
-            exit 1
-          fi
-          if [ $qa_labels_length -gt 1 ]; then
-            echo "More than one QA label set"
-            echo "$docs"
-            exit 1
-          fi
-          echo "QA label set to ${qa_labels[0]}" 
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+        run: |
+          invoke -e github.check-qa-labels -l "$LABELS"
+
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
