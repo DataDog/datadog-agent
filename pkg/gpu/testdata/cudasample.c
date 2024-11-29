@@ -65,8 +65,9 @@ int main(int argc, char **argv) {
 
     // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)
-    fprintf(stderr, "CUDA calls made. Press Enter to continue...\n");
-    getchar();  // Wait for user input without consuming CPU
+    fprintf(stderr, "CUDA calls made.\n");
+    fprintf(stderr, "Press Enter to continue...\n");
+    pause();  // Wait for signal to finish the process
 
     return 0;
 }
