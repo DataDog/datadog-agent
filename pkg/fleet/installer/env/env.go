@@ -7,7 +7,6 @@
 package env
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,9 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -215,32 +211,6 @@ func FromEnv() *Env {
 		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
-	}
-}
-
-// FromConfig returns an Env struct with values from the configuration.
-func FromConfig(config model.Reader) *Env {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	hostname, err := hostname.Get(ctx)
-	if err != nil {
-		hostname = "unknown"
-	}
-	return &Env{
-		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
-		Site:                 config.GetString("site"),
-		RemoteUpdates:        config.GetBool("remote_updates"),
-		RemotePolicies:       config.GetBool("remote_policies"),
-		Mirror:               config.GetString("installer.mirror"),
-		RegistryOverride:     config.GetString("installer.registry.url"),
-		RegistryAuthOverride: config.GetString("installer.registry.auth"),
-		RegistryUsername:     config.GetString("installer.registry.username"),
-		RegistryPassword:     config.GetString("installer.registry.password"),
-		Tags:                 utils.GetConfiguredTags(config, false),
-		Hostname:             hostname,
-		HTTPProxy:            config.GetString("proxy.http"),
-		HTTPSProxy:           config.GetString("proxy.https"),
-		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 	}
 }
 
