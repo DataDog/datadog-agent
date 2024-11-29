@@ -181,16 +181,10 @@ func RunSampleInDockerWithArgs(t *testing.T, name sampleName, image dockerImage,
 	var dockerPID int64
 	var dockerContainerID string
 
-	// The docker container might take a bit to start, so we retry until we get the PID
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerPID, err = dockerutils.GetMainPID(containerName)
-		assert.NoError(c, err)
-	}, 1*time.Second, 100*time.Millisecond, "failed to get docker PID")
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerContainerID, err = dockerutils.GetContainerID(containerName)
-		assert.NoError(c, err)
-	}, 1*time.Second, 100*time.Millisecond, "failed to get docker container ID")
+	dockerPID, err = dockerutils.GetMainPID(containerName)
+	assert.NoError(t, err, "failed to get docker PID")
+	dockerContainerID, err = dockerutils.GetContainerID(containerName)
+	assert.NoError(t, err, "failed to get docker container ID")
 
 	log.Debugf("Sample binary %s running in Docker container %s (CID=%s) with PID %d", name, containerName, dockerContainerID, dockerPID)
 
