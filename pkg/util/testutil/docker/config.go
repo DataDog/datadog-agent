@@ -87,7 +87,7 @@ type baseConfig struct {
 	name           string                   // Container name for docker or an alias for docker-compose
 	timeout        time.Duration            // Timeout for the entire operation.
 	retries        int                      // Number of retries for starting.
-	patternScanner *testutil.PatternScanner // Regex pattern to match logs for readiness.
+	patternScanner *testutil.PatternScanner // Used to monitor container logs for known patterns.
 	env            []string                 // Environment variables to set.
 }
 
