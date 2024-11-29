@@ -85,7 +85,7 @@ tests_windows-x64:
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/test/new-e2e/tests/security-agent-functional/artifacts
+      - $CI_PROJECT_DIR/test/new-e2e/tests/sysprobe-functional/artifacts
 
 .tests_windows_secagent:
   stage: source_test
