@@ -120,9 +120,6 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 // For example, if api key is not found in otel config, it can be retrieved from core
 // agent config instead.
 func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
-	if coreCfg == nil {
-		return
-	}
 	stringMapConf := conf.ToStringMap()
 	exporters, ok := stringMapConf["exporters"]
 	if !ok {
@@ -140,7 +137,7 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			}
 			datadogMap, ok := datadog.(map[string]any)
 			if !ok {
-				// datadog section is there, but there is nothing in it. We
+				// datadog section is there, but there is nothing in it. We 
 				// need to add it so we can add to it.
 				exporterMap[exporter] = make(map[string]any)
 				datadogMap = exporterMap[exporter].(map[string]any)
@@ -168,15 +165,18 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			}
 			// this is the only reference to Requires.Conf
 			// TODO: add logic to either fail or log message if api key not found
-			if (apiKey == nil || apiKey == "") && coreCfg.Get("api_key") != nil {
-				apiMap["key"] = coreCfg.Get("api_key")
-			}
+			if coreCfg != nil {
+				// Set api key if current API key is [(unset OR empty string) AND core config
+				// has an API key set].
+				if (apiKey == nil || apiKey == "") && coreCfg.Get("api_key") != nil {
+					apiMap["key"] = coreCfg.Get("api_key")
+				}
 
-			apiSite := apiMap["site"]
-			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
-				apiMap["site"] = coreCfg.Get("site")
+				apiSite := apiMap["site"]
+				if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
+					apiMap["site"] = coreCfg.Get("site")
+				}
 			}
-
 		}
 	}
 	*conf = *confmap.NewFromStringMap(stringMapConf)

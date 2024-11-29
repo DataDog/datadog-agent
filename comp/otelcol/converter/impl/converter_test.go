@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -237,7 +236,7 @@ func TestConvert(t *testing.T) {
 			r := Requires{}
 			if tc.agentConfig != "" {
 				f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				acfg := config.NewMockFromYAML(t, string(f))
 				r.Conf = acfg
 			}
@@ -263,25 +262,24 @@ func TestConvert(t *testing.T) {
 	// test using newConverter function to simulate ocb environment
 	nopLogger := zap.NewNop()
 	for _, tc := range tests {
-		if tc.agentConfig != "" {
-			continue
+		if tc.agentConfig == "" {
+			t.Run(tc.name, func(t *testing.T) {
+				converter := newConverter(confmap.ConverterSettings{Logger: nopLogger})
+
+				resolver, err := newResolver(uriFromFile(tc.provided))
+				assert.NoError(t, err)
+				conf, err := resolver.Resolve(context.Background())
+				assert.NoError(t, err)
+
+				converter.Convert(context.Background(), conf)
+
+				resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
+				assert.NoError(t, err)
+				confResult, err := resolverResult.Resolve(context.Background())
+				assert.NoError(t, err)
+
+				assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+			})
 		}
-		t.Run(tc.name, func(t *testing.T) {
-			converter := newConverter(confmap.ConverterSettings{Logger: nopLogger})
-
-			resolver, err := newResolver(uriFromFile(tc.provided))
-			assert.NoError(t, err)
-			conf, err := resolver.Resolve(context.Background())
-			assert.NoError(t, err)
-
-			converter.Convert(context.Background(), conf)
-
-			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
-			assert.NoError(t, err)
-			confResult, err := resolverResult.Resolve(context.Background())
-			assert.NoError(t, err)
-
-			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
-		})
 	}
 }
