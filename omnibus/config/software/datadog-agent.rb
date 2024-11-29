@@ -85,14 +85,14 @@ build do
     command "inv -e rtloader.install"
 
     include_sds = ""
-    if linux_target?
+    if linux_target? && !heroku_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
-
+    agent_bin = ""
     if heroku_target?
-      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
+      agent_bin = "--agent-bin=bin/agent/core-agent"
     end
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{agent_bin}", env: env
   end
 
   if osx_target?
