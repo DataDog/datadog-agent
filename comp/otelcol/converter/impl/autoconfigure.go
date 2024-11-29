@@ -132,7 +132,11 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 	if !ok {
 		return
 	}
-	for exporter, _ := range exporterMap {
+	reg, err := regexp.Compile(secretRegex)
+	if err != nil {
+		return
+	}
+	for exporter := range exporterMap {
 		if componentName(exporter) == "datadog" {
 			datadog, ok := exporterMap[exporter]
 			if !ok {
@@ -156,11 +160,12 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			if !ok {
 				return
 			}
+			var match bool
 			apiKey, ok := apiMap["key"]
 			if ok {
 				key, ok := apiKey.(string)
 				if ok && key != "" {
-					match, _ := regexp.MatchString(secretRegex, apiKey.(string))
+					match = reg.Match([]byte(key))
 					if !match {
 						return
 					}
@@ -168,7 +173,7 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			}
 			// this is the only reference to Requires.Conf
 			// TODO: add logic to either fail or log message if api key not found
-			if (apiKey == nil || apiKey == "") && coreCfg.Get("api_key") != nil {
+			if (apiKey == nil || apiKey == "" || match) && coreCfg.Get("api_key") != nil {
 				apiMap["key"] = coreCfg.Get("api_key")
 			}
 

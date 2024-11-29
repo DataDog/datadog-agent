@@ -171,6 +171,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/unset/acfg.yaml",
 		},
 		{
+			name:           "dd-core-cfg/apikey/secret",
+			provided:       "dd-core-cfg/apikey/secret/config.yaml",
+			expectedResult: "dd-core-cfg/apikey/secret/config-result.yaml",
+			agentConfig:    "dd-core-cfg/apikey/secret/acfg.yaml",
+		},
+		{
 			name:           "dd-core-cfg/apikey/api-set-key-not-present",
 			provided:       "dd-core-cfg/apikey/api-set-key-not-present/config.yaml",
 			expectedResult: "dd-core-cfg/apikey/api-set-key-not-present/config-result.yaml",
