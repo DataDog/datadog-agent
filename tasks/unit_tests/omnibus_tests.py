@@ -89,7 +89,7 @@ class TestOmnibusCache(unittest.TestCase):
         self.assertRunLines(
             [
                 # We copied the cache from remote cache
-                r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\w+/slug /tmp/\S+/omnibus-git-cache-bundle',
+                r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\w+/slug \S+/omnibus-git-cache-bundle',
                 # We cloned the repo
                 r'git clone --mirror /tmp/\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
                 # We listed the tags to get current cache state
