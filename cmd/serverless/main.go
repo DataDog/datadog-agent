@@ -19,6 +19,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-factory"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -78,6 +80,7 @@ func main() {
 	err := fxutil.OneShot(
 		runAgent,
 		taggernoop.Module(),
+		compressionfx.ModuleFactory(),
 	)
 
 	if err != nil {
@@ -86,7 +89,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component) {
+func runAgent(tagger tagger.Component, compressionFactory compression.Factory) {
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
@@ -125,7 +128,7 @@ func runAgent(tagger tagger.Component) {
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
-	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
+	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compressionFactory)
 
 	// start appsec
 	appsecProxyProcessor := startAppSec(serverlessDaemon)
@@ -298,7 +301,7 @@ func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcess
 	return appsecProxyProcessor
 }
 
-func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
+func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component, compressionFactory compression.Factory) {
 	defer wg.Done()
 	if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
@@ -322,7 +325,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger)
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compressionFactory)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}
