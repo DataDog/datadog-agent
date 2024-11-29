@@ -17,3 +17,15 @@ func newAncestorsIterator[T any](iter *ProcessAncestorsIterator, ctx *eval.Conte
 
 	return results
 }
+
+func newAncestorsIteratorArray[T any](iter *ProcessAncestorsIterator, ctx *eval.Context, ev *Event, perIter func(ev *Event, pce *ProcessCacheEntry) []T) []T {
+	results := make([]T, 0, ctx.CachedAncestorsCount)
+	ancestorsCount := 0
+	for pce := iter.Front(ctx); pce != nil; pce = iter.Next() {
+		results = append(results, perIter(ev, pce)...)
+		ancestorsCount++
+	}
+	ctx.CachedAncestorsCount = ancestorsCount
+
+	return results
+}

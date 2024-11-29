@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
@@ -28,10 +27,7 @@ import (
 func TestAWSIMDSv1Request(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -101,10 +97,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 func TestAWSIMDSv1Response(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -179,13 +172,10 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	})
 }
 
-func TestNoAWSIMDSv1Response(t *testing.T) {
+func TestAWSIMDSv1NoResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -249,10 +239,7 @@ func TestNoAWSIMDSv1Response(t *testing.T) {
 func TestAWSIMDSv2Request(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -332,10 +319,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 func TestGCPIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -410,10 +394,7 @@ func TestGCPIMDS(t *testing.T) {
 func TestAzureIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -488,10 +469,7 @@ func TestAzureIMDS(t *testing.T) {
 func TestIBMIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -566,10 +544,7 @@ func TestIBMIMDS(t *testing.T) {
 func TestOracleIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -644,10 +619,7 @@ func TestOracleIMDS(t *testing.T) {
 func TestIMDSProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-	})
+	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {

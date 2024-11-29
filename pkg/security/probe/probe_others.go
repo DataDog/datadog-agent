@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -97,7 +98,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *Probe) RefreshUserCache(_ string) error {
+func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 	return nil
 }
 
