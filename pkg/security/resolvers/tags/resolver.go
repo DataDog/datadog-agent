@@ -36,9 +36,9 @@ type Tagger interface {
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id string) []string
-	ResolveWithErr(fid string) ([]string, error)
-	GetValue(id string, tag string) string
+	Resolve(id containerutils.ContainerID) []string
+	ResolveWithErr(fid containerutils.ContainerID) ([]string, error)
+	GetValue(id containerutils.ContainerID, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -47,14 +47,14 @@ type DefaultResolver struct {
 }
 
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id string) []string {
+func (t *DefaultResolver) Resolve(id containerutils.ContainerID) []string {
 	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
-	return GetTagsOfContainer(t.tagger, containerutils.ContainerID(id))
+func (t *DefaultResolver) ResolveWithErr(id containerutils.ContainerID) ([]string, error) {
+	return GetTagsOfContainer(t.tagger, id)
 }
 
 // GetTagsOfContainer returns the tags for the given container id
@@ -69,7 +69,7 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id string, tag string) string {
+func (t *DefaultResolver) GetValue(id containerutils.ContainerID, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
