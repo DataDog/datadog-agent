@@ -582,11 +582,11 @@ def add_required_checks(_, branch: str, check: str, force: bool = False):
 
 
 @task
-def check_qa_labels(_, labels_string: str):
+def check_qa_labels(_, labels: str):
     """
     Check if the PR has one of qa/[done|no-code-change|rc-required] label
     """
-    labels = set(labels_string.split(" "))
+    labels = set(labels.split(" "))
     all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
     qa_labels = all_qa_labels.intersection(labels)
     docs = "\n".join(
