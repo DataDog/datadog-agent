@@ -45,7 +45,7 @@ BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
-TEST_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
+E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
@@ -950,11 +950,11 @@ def go_package_dirs(packages, build_tags):
     return [p for p in target_packages if len(p) > 0]
 
 
-BUILD_COMMIT = os.path.join(TEST_ARTIFACT_DIR, "build.commit")
+BUILD_COMMIT = os.path.join(E2E_ARTIFACT_DIR, "build.commit")
 
 
 def clean_build(ctx):
-    if not os.path.exists(TEST_ARTIFACT_DIR):
+    if not os.path.exists(E2E_ARTIFACT_DIR):
         return True
 
     if not os.path.exists(BUILD_COMMIT):
@@ -986,8 +986,8 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
 
     # Clean up previous build
-    if os.path.exists(TEST_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
-        shutil.rmtree(TEST_ARTIFACT_DIR)
+    if os.path.exists(E2E_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
+        shutil.rmtree(E2E_ARTIFACT_DIR)
     elif packages != "":
         packages = [full_pkg_path(name) for name in packages.split(",")]
         # make sure valid packages were provided.
@@ -1000,13 +1000,13 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     if os.path.exists(BUILD_COMMIT):
         os.remove(BUILD_COMMIT)
 
-    os.makedirs(TEST_ARTIFACT_DIR, exist_ok=True)
+    os.makedirs(E2E_ARTIFACT_DIR, exist_ok=True)
 
     # clean target_packages only
     for pkg_dir in target_packages:
         test_dir = pkg_dir.lstrip(os.getcwd())
-        if os.path.exists(os.path.join(TEST_ARTIFACT_DIR, test_dir)):
-            shutil.rmtree(os.path.join(TEST_ARTIFACT_DIR, test_dir))
+        if os.path.exists(os.path.join(E2E_ARTIFACT_DIR, test_dir)):
+            shutil.rmtree(os.path.join(E2E_ARTIFACT_DIR, test_dir))
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside:
@@ -1015,7 +1015,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     # test/files/default/tests/pkg/ebpf/testsuite
     # test/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(TEST_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
+        target_path = os.path.join(E2E_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
@@ -1064,7 +1064,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
         f"{gopath}/bin/gotestsum",
     ]
 
-    files_dir = os.path.join(TEST_ARTIFACT_DIR, "..")
+    files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
     for cf in copy_files:
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
