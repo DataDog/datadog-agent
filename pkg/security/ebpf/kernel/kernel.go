@@ -332,8 +332,7 @@ func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
 }
 
-// HaveFentrySupport returns whether the kernel supports fentry probes
-func (k *Version) HaveFentrySupport() bool {
+func (k *Version) commonFentryCheck(funcName string) bool {
 	if features.HaveProgramType(ebpf.Tracing) != nil {
 		return false
 	}
@@ -341,7 +340,7 @@ func (k *Version) HaveFentrySupport() bool {
 	spec := &ebpf.ProgramSpec{
 		Type:       ebpf.Tracing,
 		AttachType: ebpf.AttachTraceFEntry,
-		AttachTo:   "vfs_open",
+		AttachTo:   funcName,
 		Instructions: asm.Instructions{
 			asm.LoadImm(asm.R0, 0, asm.DWord),
 			asm.Return(),
@@ -364,6 +363,16 @@ func (k *Version) HaveFentrySupport() bool {
 	defer link.Close()
 
 	return true
+}
+
+// HaveFentrySupport returns whether the kernel supports fentry probes
+func (k *Version) HaveFentrySupport() bool {
+	return k.commonFentryCheck("vfs_open")
+}
+
+// HaveFentrySupportWithStructArgs returns whether the kernel supports fentry probes with struct arguments
+func (k *Version) HaveFentrySupportWithStructArgs() bool {
+	return k.commonFentryCheck("audit_set_loginuid")
 }
 
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available

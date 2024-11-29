@@ -196,9 +196,19 @@ func (p *EBPFProbe) selectFentryMode() {
 
 	supported := p.kernelVersion.HaveFentrySupport()
 	if !supported {
+		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+		return
 	}
-	p.useFentry = supported
+
+	structArgsSupported := p.kernelVersion.HaveFentrySupportWithStructArgs()
+	if !structArgsSupported {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return
+	}
+
+	p.useFentry = true
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
