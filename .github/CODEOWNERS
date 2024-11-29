@@ -331,6 +331,7 @@
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
 /pkg/api/                               @DataDog/agent-shared-components
+/pkg/ipc/                               @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/commonchecks/                      @DataDog/agent-metrics-logs
