@@ -97,28 +97,53 @@ jobs:
           exit 1
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
-  skip-qa-check:
+  qa-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check qa/[done|no-code-change] labels are not set together
         run: |
-          is_qa_done=1
-          is_qa_no_code_change=1
+          qa_labels=()
           for label in $LABELS; do
             if [[ "$label" == "qa/done" ]]; then
-              is_qa_done=0
+              qa_labels+=("qa/done")
             fi
             if [[ "$label" == "qa/no-code-change" ]]; then
-              is_qa_no_code_change=0
+              qa_labels+=("qa/no-code-change")
+            fi
+            if [[ "$label" == "qa/rc-required" ]]; then
+              qa_labels+=("qa/rc-required")
             fi
           done
-          if [ $is_qa_done -eq 0 ] && [ $is_qa_no_code_change -eq 0 ]; then
-            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
+          qa_labels_length=${#qa_labels[@]}
+          if [ $qa_labels_length -eq 0 ]; then
+            echo "Missing qa label."
+            echo "You must set one of:"
+            echo "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities"
+            echo "  Examples: code owner changes, e2e test framework changes, documentation changes"
+            echo "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed."
+            echo "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge."
+            echo "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet."
+            echo "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment"
+            echo ""
+            echo "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details."
             exit 1
           fi
-          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"
+          if [ $qa_labels_length -gt 1 ]; then
+            echo "More than one qa label set."
+            echo "You must set one of:"
+            echo "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities"
+            echo "  Examples: code owner changes, e2e test framework changes, documentation changes"
+            echo "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed."
+            echo "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge."
+            echo "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet."
+            echo "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment"
+            echo ""
+            echo "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details."
+            exit 1
+          fi
+          echo "QA label set to ${qa_labels[0]}" 
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
   agenttelemetry-list-change-ack-check:
