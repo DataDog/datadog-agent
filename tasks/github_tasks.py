@@ -454,7 +454,7 @@ def pr_merge_dd_event_sender(
 
     tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
     labels = set(github.get_pr_labels(pr.number))
-    all_qa_labels = {'qa/done', 'qa/no-code-change'}
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
     qa_labels = all_qa_labels.intersection(labels)
     if len(qa_labels) == 0:
         tags.append('qa_label:missing')
