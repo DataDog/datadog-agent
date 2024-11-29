@@ -194,15 +194,13 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	supported := p.kernelVersion.HaveFentrySupport()
-	if !supported {
+	if !p.kernelVersion.HaveFentrySupport() {
 		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
 		return
 	}
 
-	structArgsSupported := p.kernelVersion.HaveFentrySupportWithStructArgs()
-	if !structArgsSupported {
+	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
 		p.useFentry = false
 		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
 		return
