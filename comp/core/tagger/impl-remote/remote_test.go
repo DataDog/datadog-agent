@@ -39,7 +39,7 @@ func TestStart(t *testing.T) {
 	log := logmock.New(t)
 	telemetry := nooptelemetry.GetCompatComponent()
 
-	remoteTagger, err := NewRemoteTagger(params, cfg, log, telemetry)
+	remoteTagger, err := newRemoteTagger(params, cfg, log, telemetry)
 	require.NoError(t, err)
 	err = remoteTagger.Start(context.TODO())
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestStartDoNotBlockIfServerIsNotAvailable(t *testing.T) {
 	log := logmock.New(t)
 	telemetry := nooptelemetry.GetCompatComponent()
 
-	remoteTagger, err := NewRemoteTagger(params, cfg, log, telemetry)
+	remoteTagger, err := newRemoteTagger(params, cfg, log, telemetry)
 	require.NoError(t, err)
 	err = remoteTagger.Start(context.TODO())
 	require.NoError(t, err)

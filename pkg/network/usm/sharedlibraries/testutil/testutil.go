@@ -19,9 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	protocolstestutil "github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // mutex protecting build process
@@ -31,7 +31,8 @@ var mux sync.Mutex
 // handle to the given paths.
 func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(programExecutable, paths...)
-	patternScanner := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), make(chan struct{}, 1))
+	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern, make(chan struct{}, 1))
+	require.NoError(t, err, "failed to create pattern scanner")
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner
 

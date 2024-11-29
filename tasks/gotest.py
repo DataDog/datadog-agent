@@ -255,7 +255,6 @@ def test(
     race=False,
     profile=False,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     cpus=None,
     major_version='7',
@@ -303,7 +302,6 @@ def test(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )
@@ -514,12 +512,13 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
             modules_to_test[best_module_path] = GoModule(best_module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
         modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = get_default_modules()[module].test_targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
@@ -752,16 +751,17 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
 
+    default_modules = get_default_modules()
     for package in packages:
         module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in get_default_modules() or not get_default_modules()[module_path].should_test():
+        if module_path not in default_modules or not default_modules[module_path].should_test():
             continue
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in get_default_modules()[module_path].test_targets:
+        for target in default_modules[module_path].test_targets:
             if normpath(os.path.join(module_path, target)) in package:
                 targeted = True
                 break
@@ -784,12 +784,13 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
             modules_to_test[module_path] = GoModule(module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
         modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = get_default_modules()[module].test_targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags

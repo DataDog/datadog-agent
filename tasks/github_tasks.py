@@ -18,9 +18,10 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
@@ -36,7 +37,7 @@ def concurrency_key():
     current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
+    if re.search(rf'^({get_default_branch()}|\d+\.\d+\.x)$', current_ref):
         return None
 
     return current_ref
@@ -68,7 +69,7 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
 def trigger_macos(
     _,
     workflow_type="build",
-    datadog_agent_ref=DEFAULT_BRANCH,
+    datadog_agent_ref=None,
     release_version="nightly-a7",
     major_version="7",
     destination=".",
@@ -79,6 +80,13 @@ def trigger_macos(
     test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
+    """
+    Args:
+        datadog_agent_ref: If None, will be the default branch.
+    """
+
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
+
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
             # Provide the release version to be able to fetch the associated
@@ -538,3 +546,36 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
             print(
                 "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
             )
+
+
+@task
+def get_required_checks(_, branch: str = "main"):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (read).
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    required_checks = gh.get_branch_required_checks(branch)
+    print(required_checks)
+
+
+@task(iterable=['check'])
+def add_required_checks(_, branch: str, check: str, force: bool = False):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (write).
+
+    Use it like this:
+    inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not check:
+        raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
+
+    gh = GithubAPI()
+    gh.add_branch_required_check(branch, check, force)

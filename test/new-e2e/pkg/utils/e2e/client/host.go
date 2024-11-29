@@ -85,7 +85,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 	host := &Host{
 		context:              context,
 		username:             hostOutput.Username,
-		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, 22),
+		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
