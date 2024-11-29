@@ -441,17 +441,17 @@ class TestCheckQALabels(unittest.TestCase):
         testcases: list[TestCheckQALabelsCase] = [
             TestCheckQALabelsCase(
                 name="No QA labels",
-                labels=["team/team-a"],
+                labels="team/team-a",
                 expected_error="No QA label set.",
             ),
             TestCheckQALabelsCase(
                 name="Multiple labels",
-                labels=["qa/done", "qa/no-code-change", "team/team-b"],
+                labels="qa/done qa/no-code-change team/team-b",
                 expected_error="More than one QA label set.",
             ),
             TestCheckQALabelsCase(
                 name="Single label",
-                labels=["qa/done", "team/team-a", "changelog/yes"],
+                labels="qa/done team/team-a changelog/yes",
             ),
         ]
 
