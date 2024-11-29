@@ -118,7 +118,7 @@ jobs:
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
         run: |
-          invoke -e github.check-qa-labels -l "${LABELS[@]}"
+          inv -e github.check-qa-labels -labels "${LABELS[@]}"
 
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
