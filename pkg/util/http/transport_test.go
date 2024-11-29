@@ -193,6 +193,28 @@ func TestCreateHTTPTransport(t *testing.T) {
 	assert.Equal(t, transport.TLSHandshakeTimeout, time.Second)
 }
 
+func TestCreateHTTP1Transport(t *testing.T) {
+	c := configmock.New(t)
+
+	transport := CreateHTTPTransport(c)
+	require.NotNil(t, transport)
+
+	assert.Nil(t, transport.TLSNextProto)
+}
+
+func TestCreateHTTP2Transport(t *testing.T) {
+	c := configmock.New(t)
+
+	transport := CreateHTTPTransport(c, WithHTTP2())
+	require.NotNil(t, transport)
+
+	assert.NotNil(t, transport.TLSNextProto)
+	assert.Contains(t, transport.TLSNextProto, "h2", "TLSNextProto should indicate HTTP/2 support")
+
+	assert.Contains(t, transport.TLSClientConfig.NextProtos, "h2", "NextProtos should prefer HTTP/2")
+	assert.Contains(t, transport.TLSClientConfig.NextProtos, "http/1.1", "NextProtos should allow fallback to HTTP/1.1")
+}
+
 func TestNoProxyWarningMap(t *testing.T) {
 	setupTest(t)
 

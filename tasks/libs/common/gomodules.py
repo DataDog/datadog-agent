@@ -7,13 +7,13 @@ import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import ClassVar
 
 import yaml
 
 import tasks
+from tasks.libs.common.utils import agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):
@@ -305,13 +305,14 @@ class GoModule:
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
-@lru_cache
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """Load the default modules from the modules.yml file.
 
     Args:
         base_dir: Root directory of the agent repository ('.' by default).
     """
+
+    base_dir = base_dir or agent_working_directory()
 
     return Configuration.from_file(base_dir).modules
 
