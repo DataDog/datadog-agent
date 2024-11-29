@@ -6,6 +6,7 @@ require go.opentelemetry.io/collector/extension v0.114.0
 
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
 	go.opentelemetry.io/collector/component v0.114.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.114.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.20.0 // indirect

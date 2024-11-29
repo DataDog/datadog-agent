@@ -31,7 +31,7 @@ var mux sync.Mutex
 // handle to the given paths.
 func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(programExecutable, paths...)
-	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern, make(chan struct{}, 1))
+	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner

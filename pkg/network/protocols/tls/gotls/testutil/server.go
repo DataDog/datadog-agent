@@ -6,6 +6,8 @@
 package testutil
 
 import (
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
 
@@ -21,10 +23,12 @@ func RunServer(t testing.TB, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("https-gotls",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"),
+		scanner,
 		env,
 		dir+"/../testdata/docker-compose.yml")
 	return dockerutils.Run(t, dockerCfg)

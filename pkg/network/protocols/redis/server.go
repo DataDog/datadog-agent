@@ -11,6 +11,7 @@ package redis
 
 import (
 	"fmt"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -42,10 +43,12 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 		env = append(env, args)
 	}
 
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(".*Ready to accept connections"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("redis",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		regexp.MustCompile(".*Ready to accept connections"),
+		scanner,
 		env,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)

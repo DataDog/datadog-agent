@@ -84,7 +84,7 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 	evt := EBPFLessHelloMsgEvent{
 		NSID: msg.NSID,
 	}
-	evt.Container.ID = msg.ContainerContext.ID
+	evt.Container.ID = string(msg.ContainerContext.ID)
 
 	if tagger != nil {
 		tags, err := tags.GetTagsOfContainer(tagger, containerutils.ContainerID(msg.ContainerContext.ID))

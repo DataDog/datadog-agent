@@ -7,6 +7,7 @@ package amqp
 
 import (
 	"fmt"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -46,10 +47,12 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 
 	dir, _ := httpUtils.CurDir()
 
+	scanner, err := globalutils.NewScanner(startupRegexp, globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("amqp",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		startupRegexp,
+		scanner,
 		env,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)

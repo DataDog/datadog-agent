@@ -7,6 +7,8 @@ package mongo
 
 import (
 	"fmt"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -31,10 +33,12 @@ func RunServer(t testing.TB, serverAddress, serverPort string) error {
 		"MONGO_PASSWORD=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("mongo",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)),
+		scanner,
 		env,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)

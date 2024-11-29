@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.22.2
 )
 
