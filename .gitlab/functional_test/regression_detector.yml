@@ -1,6 +1,6 @@
 single-machine-performance-regression_detector:
   stage: functional_test
-  timeout: 1h10m
+  timeout: 3h10m
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
@@ -23,7 +23,6 @@ single-machine-performance-regression_detector:
     when: always
   variables:
     SMP_VERSION: 0.18.2
-    RUNNER_SCRIPT_TIMEOUT: 300m
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
