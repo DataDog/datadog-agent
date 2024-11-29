@@ -85,7 +85,7 @@ build do
     command "inv -e rtloader.install"
 
     include_sds = ""
-    if linux_target?
+    if linux_target? && !heroku_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
     agent_bin = ""
