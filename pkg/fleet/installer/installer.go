@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
@@ -227,30 +228,48 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrNotEnoughDiskSpace,
+			fmt.Errorf("not enough disk space: %w", err),
+		)
 	}
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could create temporary directory: %w", err),
+		)
 	}
 	defer os.RemoveAll(tmpDir)
 	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not extract package layers: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not extract package layer: %w", err),
+		)
 	}
 	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
-		return fmt.Errorf("could not extract package config layer: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not extract package config layer: %w", err),
+		)
 	}
 	repository := i.packages.Get(pkg.Name)
 	err = repository.SetExperiment(pkg.Version, tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not set experiment: %w", err),
+		)
 	}
 
 	return i.startExperiment(ctx, pkg.Name)
@@ -267,7 +286,10 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		// will kill the current process, delete the experiment first.
 		err := repository.DeleteExperiment()
 		if err != nil {
-			return fmt.Errorf("could not delete experiment: %w", err)
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not delete experiment: %w", err),
+			)
 		}
 		err = i.stopExperiment(ctx, pkg)
 		if err != nil {
@@ -280,7 +302,10 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		}
 		err = repository.DeleteExperiment()
 		if err != nil {
-			return fmt.Errorf("could not delete experiment: %w", err)
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not delete experiment: %w", err),
+			)
 		}
 	}
 	return nil
@@ -306,27 +331,42 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 
 	config, err := i.cdn.Get(ctx, pkg)
 	if err != nil {
-		return fmt.Errorf("could not get cdn config: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not get cdn config: %w", err),
+		)
 	}
 	if config.Version() != version {
-		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version),
+		)
 	}
 
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not create temporary directory: %w", err),
+		)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	err = config.Write(tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not write agent config: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not write agent config: %w", err),
+		)
 	}
 
 	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(version, tmpDir)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not set experiment: %w", err),
+		)
 	}
 
 	switch runtime.GOOS {
@@ -349,7 +389,10 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	repository := i.configs.Get(pkg)
 	err = repository.DeleteExperiment()
 	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not delete experiment: %w", err),
+		)
 	}
 	return nil
 }
@@ -362,7 +405,10 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	repository := i.configs.Get(pkg)
 	err := repository.PromoteExperiment()
 	if err != nil {
-		return fmt.Errorf("could not promote experiment: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not promote experiment: %w", err),
+		)
 	}
 	return i.promoteExperiment(ctx, pkg)
 }
