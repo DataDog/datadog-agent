@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -52,14 +51,11 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	var pipelineMonitor *metrics.TelemetryPipelineMonitor = metrics.NewTelemetryPipelineMonitor("shared_sender")
 	status := NewStatusProvider()
 
-	// buffer 2 payloads per pipeline max
-	senderInput := make(chan *message.Payload, 50)
-
 	// create a shared sender
 	// * it doesn't support serverless but the serverless pipeline creates its own sender
 	// * it buffers payload in the channel between the strategy & the sender
 	mainDestinations := pipeline.GetDestinations(a.endpoints, destinationsCtx, pipelineMonitor, false, nil, status, a.config)
-	sharedSender := sender.NewSharedSender(a.config.GetInt("logs_config.shared_senders"), a.config, senderInput, auditor, mainDestinations,
+	sharedSender := sender.NewSharedSender(a.config.GetInt("logs_config.shared_senders"), a.config, auditor, mainDestinations,
 		a.config.GetInt("logs_config.payload_channel_size"), nil, nil, pipelineMonitor)
 
 	// setup the pipeline provider that provides pairs of processor and sender

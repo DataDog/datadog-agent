@@ -86,6 +86,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	} else {
 		senderImpl = sharedSender
 	}
+
 	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverless, flushWg, senderImpl.PipelineMonitor())
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))

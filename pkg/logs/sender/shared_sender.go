@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"math"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -30,37 +31,48 @@ type PipelineComponent interface {
 type SharedSender struct {
 	senders []*Sender
 
-	inputChan chan *message.Payload
+	inputs []chan *message.Payload
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
+
+	idx int
 }
 
 // NewSharedSender returns a new sender.
 func NewSharedSender(sendersCount int,
-	config pkgconfigmodel.Reader, inputChan chan *message.Payload, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
+	config pkgconfigmodel.Reader, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
 	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *SharedSender {
 	var senders []*Sender
 
+	inputsCount := int(math.Ceil(float64(sendersCount) / 2))
+	inputs := make([]chan *message.Payload, inputsCount)
+	log.Infof("shared sender creating %d inputs", len(inputs))
+	for i := 0; i < len(inputs); i++ {
+		log.Info("input created")
+		inputs[i] = make(chan *message.Payload, 2)
+	}
+
 	for i := 0; i < sendersCount; i++ {
-		sender := NewSender(config, inputChan, auditor, destinations, bufferSize,
+		sender := NewSender(config, inputs[i%inputsCount], auditor, destinations, bufferSize,
 			senderDoneChan, flushWg, pipelineMonitor)
 		sender.isShared = true
 		senders = append(senders, sender)
 	}
 
-	log.Infof("created a shared sender with %d senders", len(senders))
+	log.Infof("created a shared sender with %d senders and %d inputs", len(senders), len(inputs))
 	return &SharedSender{
 		senders:         senders,
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("shared_sender"),
-		inputChan:       inputChan,
+		inputs:          inputs,
 	}
 }
 
 // In is the input channel of the shared sender
 func (s *SharedSender) In() chan *message.Payload {
-	return s.inputChan
+	s.idx += 1
+	return s.inputs[s.idx%len(s.inputs)]
 }
 
 // PipelineMonitor returns the pipeline monitor of the shared senders.
@@ -81,5 +93,7 @@ func (s *SharedSender) Stop() {
 	for _, s := range s.senders {
 		s.Stop()
 	}
-	close(s.inputChan)
+	for i := range s.inputs {
+		close(s.inputs[i])
+	}
 }
