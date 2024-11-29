@@ -43,7 +43,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0-rc.4
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (

@@ -10,7 +10,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0-rc.4
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.22.2
 )
 

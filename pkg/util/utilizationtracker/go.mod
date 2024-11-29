@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/benbjohnson/clock v1.3.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
