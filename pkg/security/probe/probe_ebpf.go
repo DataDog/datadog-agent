@@ -1084,7 +1084,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			pidToResolve := event.PTrace.PID
 
 			if pidToResolve == 0 { // resolve the PID given as argument instead
-				if event.ContainerContext.ContainerID == "" {
+				containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
 					pidToResolve = event.PTrace.NSPID
 				} else {
 					// 1. get the pid namespace of the tracer
