@@ -1,6 +1,6 @@
-single-machine-performance-regression_detector:
+single-machine-performance-regression_detector_otel:
   stage: functional_test
-  timeout: 1h10m
+  timeout: 3h10m
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
@@ -98,7 +98,8 @@ single-machine-performance-regression_detector:
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
-    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
+    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-ot-beta-amd64
+    - BASELINE_IMAGE=${COMPARISON_IMAGE}
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID}"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
@@ -268,7 +269,7 @@ single-machine-performance-regression_detector-pr-comment:
       - pr_comment_payload.json # for debugging PR commenter JSON payload bugs
   variables:
     # Not using the entrypoint script for the pr-commenter image
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false       
   allow_failure: true # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     # Prevent posting empty Regression Detector report if Markdown report is not found or
