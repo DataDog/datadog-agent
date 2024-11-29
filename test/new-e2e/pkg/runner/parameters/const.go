@@ -41,6 +41,8 @@ const (
 	GCPPrivateKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPathSuffix)
 	//GCPPublicKeyPath public ssh key path
 	GCPPublicKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PublicKeyPathSuffix)
+	// LocalPublicKeyPath public ssh key path
+	LocalPublicKeyPath StoreKey = "local_public_key_path"
 	// PulumiPassword config file parameter name
 	PulumiPassword StoreKey = "pulumi_password"
 	// SkipDeleteOnFailure keep the stack on test failure

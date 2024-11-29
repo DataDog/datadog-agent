@@ -39,6 +39,7 @@ type ConfigParams struct {
 	AWS       AWS    `yaml:"aws"`
 	Azure     Azure  `yaml:"azure"`
 	GCP       GCP    `yaml:"gcp"`
+	Local     Local  `yaml:"local"`
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
@@ -69,6 +70,11 @@ type GCP struct {
 	PublicKeyPath      string `yaml:"publicKeyPath"`
 	PrivateKeyPath     string `yaml:"privateKeyPath"`
 	PrivateKeyPassword string `yaml:"privateKeyPassword"`
+}
+
+// Local instance contains local related parameters
+type Local struct {
+	PublicKeyPath string `yaml:"publicKeyPath"`
 }
 
 // Agent instance contains agent related parameters
@@ -162,6 +168,8 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.GCP.PrivateKeyPath
 	case GCPPublicKeyPath:
 		value = s.config.ConfigParams.GCP.PublicKeyPath
+	case LocalPublicKeyPath:
+		value = s.config.ConfigParams.Local.PublicKeyPath
 	case StackParameters:
 		value = s.stackParamsJSON
 	case ExtraResourcesTags:
