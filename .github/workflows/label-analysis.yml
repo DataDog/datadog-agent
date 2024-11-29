@@ -117,30 +117,25 @@ jobs:
             fi
           done
           qa_labels_length=${#qa_labels[@]}
+          doc_lines=()
+          doc_lines+=("You must set one of:")
+          doc_lines+=("- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities")
+          doc_lines+=("  Examples: code owner changes, e2e test framework changes, documentation changes")
+          doc_lines+=("- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed.")
+          doc_lines+=("  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge.")
+          doc_lines+=("  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet.")
+          doc_lines+=("- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment")
+          doc_lines+=("")
+          doc_lines+=("See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details.")
+          docs=$(printf "%s\n" "${doc_lines[@]}")
           if [ $qa_labels_length -eq 0 ]; then
-            echo "Missing qa label."
-            echo "You must set one of:"
-            echo "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities"
-            echo "  Examples: code owner changes, e2e test framework changes, documentation changes"
-            echo "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed."
-            echo "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge."
-            echo "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet."
-            echo "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment"
-            echo ""
-            echo "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details."
+            echo "No QA label set"
+            echo $docs
             exit 1
           fi
           if [ $qa_labels_length -gt 1 ]; then
-            echo "More than one qa label set."
-            echo "You must set one of:"
-            echo "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities"
-            echo "  Examples: code owner changes, e2e test framework changes, documentation changes"
-            echo "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed."
-            echo "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge."
-            echo "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet."
-            echo "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment"
-            echo ""
-            echo "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details."
+            echo "More than one QA label set"
+            echo "$docs"
             exit 1
           fi
           echo "QA label set to ${qa_labels[0]}" 
