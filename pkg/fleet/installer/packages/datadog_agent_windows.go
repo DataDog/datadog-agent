@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// package packages provides a way to interact with os services
 package packages
 
 import (

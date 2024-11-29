@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-// package packages contains the install/upgrades/uninstall logic for packages
 package packages
 
 import (
