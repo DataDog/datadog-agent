@@ -104,3 +104,9 @@ func TestDdTags(t *testing.T) {
 	assert.Equal(t, "value5", mergedTags["key5"])
 	assert.Equal(t, "value6", mergedTags["key6"])
 }
+
+func TestWithoutHighCardinalityTags(t *testing.T) {
+	tags := map[string]string{"key1": "value1", "key2": "value2", "container_id": "abc", "replica_name": "abc"}
+	filteredTags := WithoutHighCardinalityTags(tags)
+	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, filteredTags)
+}
