@@ -40,6 +40,7 @@ type Sender struct {
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
+	isShared       bool
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -73,7 +74,9 @@ func (s *Sender) Start() {
 // Stop stops the sender,
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
-	close(s.inputChan)
+	if !s.isShared {
+		close(s.inputChan)
+	}
 }
 
 // In returns the Sender input chan.

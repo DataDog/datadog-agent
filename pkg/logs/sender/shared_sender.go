@@ -32,7 +32,6 @@ type SharedSender struct {
 
 	inputChan chan *message.Payload
 
-	sharedInputChan chan *message.Payload
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 }
@@ -43,10 +42,10 @@ func NewSharedSender(sendersCount int,
 	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *SharedSender {
 	var senders []*Sender
 
-	sharedInputChan := make(chan *message.Payload, 20)
 	for i := 0; i < sendersCount; i++ {
-		sender := NewSender(config, sharedInputChan, auditor, destinations, bufferSize,
+		sender := NewSender(config, inputChan, auditor, destinations, bufferSize,
 			senderDoneChan, flushWg, pipelineMonitor)
+		sender.isShared = true
 		senders = append(senders, sender)
 	}
 
@@ -56,7 +55,6 @@ func NewSharedSender(sendersCount int,
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("shared_sender"),
 		inputChan:       inputChan,
-		sharedInputChan: sharedInputChan,
 	}
 }
 
@@ -75,16 +73,6 @@ func (s *SharedSender) Start() {
 	for _, sender := range s.senders {
 		sender.Start()
 	}
-	go s.run()
-}
-
-func (s *SharedSender) run() {
-	log.Info("shared sender starting")
-	for payload := range s.inputChan {
-		s.utilization.Start()
-		s.sharedInputChan <- payload
-		s.utilization.Stop()
-	}
 }
 
 // Stop stops all shared senders.
@@ -93,5 +81,5 @@ func (s *SharedSender) Stop() {
 	for _, s := range s.senders {
 		s.Stop()
 	}
-	close(s.sharedInputChan)
+	close(s.inputChan)
 }
