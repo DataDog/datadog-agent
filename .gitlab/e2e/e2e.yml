@@ -48,11 +48,11 @@
     E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
     # Azure SSH Key configuration
-    E2E_AZURE_SSH_PUBLIC_KEY_PATH: /tmp/agent-qa-azure-ssh-key.pub
-    E2E_AZURE_SSH_PRIVATE_KEY_PATH: /tmp/agent-qa-azure-ssh-key
+    E2E_AZURE_PUBLIC_KEY_PATH: /tmp/agent-qa-azure-ssh-key.pub
+    E2E_AZURE_PRIVATE_KEY_PATH: /tmp/agent-qa-azure-ssh-key
     # GCP SSH Key configuration
-    E2E_GCP_SSH_PUBLIC_KEY_PATH: /tmp/agent-qa-gcp-ssh-key.pub
-    E2E_GCP_SSH_PRIVATE_KEY_PATH: /tmp/agent-qa-gcp-ssh-key
+    E2E_GCP_PUBLIC_KEY_PATH: /tmp/agent-qa-gcp-ssh-key.pub
+    E2E_GCP_PRIVATE_KEY_PATH: /tmp/agent-qa-gcp-ssh-key
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
