@@ -1,13 +1,11 @@
 import os
 from datetime import datetime
-from multiprocessing import Manager, Pool
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
-from tasks.libs.common.git import get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
     _get_deb_uncompressed_size,
@@ -15,23 +13,22 @@ from tasks.libs.package.size import (
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_size
+from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_sizes
 
 
 @task
-def check_size(ctx, filename: str = 'package_sizes.json'):
-    packages = retrieve_package_sizes(ctx, filename)
-    if get_current_branch(ctx) == DEFAULT_BRANCH:
-        # Initialize to default values before writing in parallel to the dict
-        ancestor = get_common_ancestor(ctx, DEFAULT_BRANCH)
-        packages[ancestor] = PACKAGE_SIZE_TEMPLATE
-        packages[ancestor]['timestamp'] = int(datetime.now().timestamp())
-    # Check size of packages in parallel
-    with Manager() as manager:
-        package_sizes = manager.dict(packages)
-        with Pool() as pool:
-            pool.starmap(compare, [(ctx, package_sizes, *package) for package in list_packages(PACKAGE_SIZE_TEMPLATE)])
-        upload_package_size(ctx, package_sizes, filename)
+def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
+    package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
+    if get_current_branch(ctx) == get_default_branch():
+        # Initialize to default values
+        ancestor = get_common_ancestor(ctx, get_default_branch())
+        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
+        package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
+    # Check size of packages
+    for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
+        compare(ctx, package_sizes, *package_info)
+    if get_current_branch(ctx) == get_default_branch():
+        upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
 
 
 @task

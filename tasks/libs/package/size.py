@@ -6,7 +6,7 @@ from invoke import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
-from tasks.libs.common.git import DEFAULT_BRANCH, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.utils import get_package_path
 
@@ -154,16 +154,20 @@ def compute_package_size_metrics(
 
 
 def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
+    """
+    Compare (or update) a package size with the ancestor package size.
+    """
     mb = 1000000
     if os_name == 'suse':
         dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
+        path = f'{dir}/{flavor}_7*_{arch}.rpm'
     else:
         dir = os.environ['OMNIBUS_PACKAGE_DIR']
-    path = f'{dir}/{flavor}_7*_{arch}.{os_name}'
+        path = f'{dir}/{flavor}_7*_{arch}.{os_name}'
     package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
     branch = get_current_branch(ctx)
     ancestor = get_common_ancestor(ctx, branch)
-    if branch == DEFAULT_BRANCH:
+    if branch == get_default_branch():
         package_sizes[ancestor][arch][flavor][os_name] = package_size
         return
     previous_size = get_previous_size(package_sizes, ancestor, arch, flavor, os_name)
@@ -174,7 +178,7 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
     stable_package_size_mb = previous_size / mb
     threshold_mb = threshold / mb
     diff_mb = diff / mb
-    message = f"""{os_name} size increase is OK:
+    message = f"""{flavor}-{arch}-{os_name} size increase is OK:
   New package size is {new_package_size_mb:.2f}MB
   Ancestor package ({ancestor}) size is {stable_package_size_mb:.2f}MB
   Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
@@ -187,6 +191,9 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
 
 
 def get_previous_size(package_sizes, ancestor, arch, flavor, os_name):
+    """
+    Get the size of the package for the given ancestor, or the earliest ancestor if the given ancestor is not found.
+    """
     if ancestor in package_sizes:
         commit = ancestor
     else:

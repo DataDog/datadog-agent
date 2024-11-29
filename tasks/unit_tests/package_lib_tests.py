@@ -106,7 +106,7 @@ class TestProduceSizeStats(unittest.TestCase):
 
 
 class TestListPackages(unittest.TestCase):
-    def test_na_package(self):
+    def test_no_package(self):
         template = {}
         self.assertEqual(list_packages(template), [])
 
@@ -118,8 +118,18 @@ class TestListPackages(unittest.TestCase):
         template = {"key": {"key2": 42}}
         self.assertEqual(list_packages(template), [["key", "key2", 42]])
 
+    def test_ignore_timestamp_root(self):
+        template = {"key": {"key2": 42}, "timestamp": 1234567890}
+        self.assertEqual(list_packages(template), [["key", "key2", 42]])
+
+    def test_ignore_timestamp_nested(self):
+        template = {"key": {"key2": 42, "timestamp": 1234567890}}
+        self.assertEqual(list_packages(template), [["key", "key2", 42]])
+
 
 class TestGetPreviousSize(unittest.TestCase):
+    package_sizes = {}
+
     def setUp(self) -> None:
         with open('tasks/unit_tests/testdata/package_sizes.json') as f:
             self.package_sizes = json.load(f)
@@ -136,22 +146,24 @@ class TestGetPreviousSize(unittest.TestCase):
 
 class TestGetUncompressedSize(unittest.TestCase):
     def test_get_deb_uncompressed_size(self):
-        package = 'datadog-agent.deb'
-        c = MockContext(run={f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42)})
-        self.assertEqual(_get_uncompressed_size(c, package, 'deb'), 43008)
+        flavor = 'datadog-agent.deb'
+        c = MockContext(run={f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42)})
+        self.assertEqual(_get_uncompressed_size(c, flavor, 'deb'), 43008)
 
     def test_get_rpm_uncompressed_size(self):
-        package = 'datadog-agent.rpm'
-        c = MockContext(run={f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(42)})
-        self.assertEqual(_get_uncompressed_size(c, package, 'rpm'), 42)
+        flavor = 'datadog-agent.rpm'
+        c = MockContext(run={f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(42)})
+        self.assertEqual(_get_uncompressed_size(c, flavor, 'rpm'), 42)
 
     def test_get_suse_uncompressed_size(self):
-        package = 'datadog-agent.rpm'
-        c = MockContext(run={f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(69)})
-        self.assertEqual(_get_uncompressed_size(c, package, 'suse'), 69)
+        flavor = 'datadog-agent.rpm'
+        c = MockContext(run={f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(69)})
+        self.assertEqual(_get_uncompressed_size(c, flavor, 'suse'), 69)
 
 
 class TestCompare(unittest.TestCase):
+    package_sizes = {}
+
     def setUp(self) -> None:
         with open('tasks/unit_tests/testdata/package_sizes.json') as f:
             self.package_sizes = json.load(f)
@@ -160,17 +172,18 @@ class TestCompare(unittest.TestCase):
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
     @patch('builtins.print')
     def test_on_main(self, mock_print):
-        package = 'datadog-agent'
+        flavor = 'datadog-agent'
         c = MockContext(
             run={
                 'git rev-parse --abbrev-ref HEAD': Result('main'),
                 'git merge-base main main': Result('12345'),
-                f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(69),
+                f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(69),
             }
         )
         self.package_sizes['12345'] = PACKAGE_SIZE_TEMPLATE
-        compare(c, self.package_sizes, 'amd64', package, 'deb', 2001)
+        self.assertEqual(self.package_sizes['12345']['amd64']['datadog-agent']['deb'], 140000000)
+        compare(c, self.package_sizes, 'amd64', flavor, 'deb', 2001)
         self.assertEqual(self.package_sizes['12345']['amd64']['datadog-agent']['deb'], 43008)
         mock_print.assert_not_called()
 
@@ -178,17 +191,17 @@ class TestCompare(unittest.TestCase):
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-heroku-agent'))
     @patch('builtins.print')
     def test_on_branch_ok(self, mock_print):
-        package = 'datadog-heroku-agent'
+        flavor, arch, os_name = 'datadog-heroku-agent', 'arm64', 'suse'
         c = MockContext(
             run={
                 'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu main': Result('25'),
-                f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(69000000),
+                f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
         )
-        compare(c, self.package_sizes, 'arm64', package, 'suse', 70000000)
-        mock_print.assert_called_with("""suse size increase is OK:
+        compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
+        mock_print.assert_called_with(f"""{flavor}-{arch}-{os_name} size increase is OK:
   New package size is 69.00MB
   Ancestor package (25) size is 68.00MB
   Diff is 1.00MB (max allowed diff: 70.00MB)""")
@@ -197,17 +210,17 @@ class TestCompare(unittest.TestCase):
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-heroku-agent'))
     @patch('builtins.print')
     def test_on_branch_ko(self, mock_print):
-        package = 'datadog-heroku-agent'
+        flavor = 'datadog-heroku-agent'
         c = MockContext(
             run={
                 'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu main': Result('25'),
-                f"dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {package} | grep Size | cut -d : -f 2 | xargs": Result(139000000),
+                f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(139000000),
             }
         )
         with self.assertRaises(Exit):
-            compare(c, self.package_sizes, 'arm64', package, 'suse', 70000000)
+            compare(c, self.package_sizes, 'arm64', flavor, 'suse', 70000000)
             mock_print.assert_called_with("""suse size increase is too large:
   New package size is 139.00MB
   Ancestor package (25) size is 68.00MB

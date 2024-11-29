@@ -29,11 +29,12 @@ def list_packages(template, parent=""):
         if isinstance(value, dict):
             packs += list_packages(value, parent + [key])
         else:
-            packs.append(parent + [key, value])
+            if key != "timestamp":
+                packs.append(parent + [key, value])
     return packs
 
 
-def retrieve_package_sizes(ctx, package_size_file):
+def retrieve_package_sizes(ctx, package_size_file: str, distant: bool = True):
     """
     Retrieve the stored document in aws s3, or create it
     The content of the file is the following:
@@ -47,10 +48,11 @@ def retrieve_package_sizes(ctx, package_size_file):
                     "suse": 123456}}}
     """
     try:
-        ctx.run(
-            f"{AWS_S3_CP_CMD} {PACKAGE_SIZE_S3_CI_BUCKET_URL}/{package_size_file} {package_size_file}",
-            hide=True,
-        )
+        if distant:
+            ctx.run(
+                f"{AWS_S3_CP_CMD} {PACKAGE_SIZE_S3_CI_BUCKET_URL}/{package_size_file} {package_size_file}",
+                hide=True,
+            )
         with open(package_size_file) as f:
             package_sizes = json.load(f)
     except UnexpectedExit as e:
@@ -61,13 +63,14 @@ def retrieve_package_sizes(ctx, package_size_file):
     return package_sizes
 
 
-def upload_package_size(ctx, package_sizes: dict, package_size_file: str):
+def upload_package_sizes(ctx, package_sizes: dict, package_size_file: str, distant: bool = True):
     """
     Save the package_sizes dict to a file and upload it to the CI bucket
     """
     with open(package_size_file, "w") as f:
         json.dump(package_sizes, f)
-    ctx.run(
-        f"{AWS_S3_CP_CMD} {package_size_file} {PACKAGE_SIZE_S3_CI_BUCKET_URL}/{package_size_file}",
-        hide="stdout",
-    )
+    if distant:
+        ctx.run(
+            f"{AWS_S3_CP_CMD} {package_size_file} {PACKAGE_SIZE_S3_CI_BUCKET_URL}/{package_size_file}",
+            hide="stdout",
+        )
