@@ -9,8 +9,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/log v0.60.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/config/model v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.0-rc.7
 	github.com/DataDog/viper v1.13.5
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/afero v1.11.0
@@ -21,7 +21,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.0-rc.7 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
