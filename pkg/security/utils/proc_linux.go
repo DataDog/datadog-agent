@@ -549,19 +549,19 @@ func TryToResolveTraceePid(hostTracerPID, NsTraceePid uint32) (uint32, error) {
 			return 0, fmt.Errorf("Failed to resolve tracee PID namespace: %v", err)
 		}
 		return pid, nil
-	} else {
-		/*
-		   Otherwise, we look at all process matching the tracer PID. And as a tracer can attach
-		   to multiple tracees, we return a result only if we found only one.
-		*/
-
-		traceePids, err := FindTraceesByTracerPid(hostTracerPID)
-		if err != nil {
-			return 0, fmt.Errorf("Failed to find tracee pids matching tracer pid: %v", err)
-		}
-		if len(traceePids) == 1 {
-			return traceePids[0], nil
-		}
 	}
+
+	/*
+	   Otherwise, we look at all process matching the tracer PID. And as a tracer can attach
+	   to multiple tracees, we return a result only if we found only one.
+	*/
+	traceePids, err := FindTraceesByTracerPid(hostTracerPID)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to find tracee pids matching tracer pid: %v", err)
+	}
+	if len(traceePids) == 1 {
+		return traceePids[0], nil
+	}
+
 	return 0, errors.New("Unable to resolve host tracee PID")
 }
