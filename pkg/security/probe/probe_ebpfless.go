@@ -48,7 +48,7 @@ type client struct {
 	conn          net.Conn
 	probe         *EBPFLessProbe
 	nsID          uint64
-	containerID   string
+	containerID   containerutils.ContainerID
 	containerName string
 }
 
@@ -62,7 +62,7 @@ type EBPFLessProbe struct {
 	sync.Mutex
 
 	Resolvers         *resolvers.EBPFLessResolvers
-	containerContexts map[string]*ebpfless.ContainerContext
+	containerContexts map[containerutils.ContainerID]*ebpfless.ContainerContext
 
 	// Constants and configuration
 	opts         Opts
@@ -675,7 +675,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
 		processKiller:     processKiller,
-		containerContexts: make(map[string]*ebpfless.ContainerContext),
+		containerContexts: make(map[containerutils.ContainerID]*ebpfless.ContainerContext),
 	}
 
 	resolversOpts := resolvers.Opts{
