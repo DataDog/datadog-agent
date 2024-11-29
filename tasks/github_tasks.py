@@ -495,7 +495,7 @@ def extract_test_qa_description(pr_body: str) -> str:
     pr_body_lines = pr_body.splitlines()
     index_of_test_qa_section = -1
     for i, line in enumerate(pr_body_lines):
-        if line.startswith('### Describe how to test'):
+        if line.startswith('### Describe how you validated your changes'):
             index_of_test_qa_section = i
             break
     if index_of_test_qa_section == -1:
