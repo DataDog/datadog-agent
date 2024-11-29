@@ -38,7 +38,8 @@ const (
 // dockerImage represents the Docker image to use for running the sample binary.
 type dockerImage string
 
-var sampleStartedPattern = regexp.MustCompile("Starting CudaSample program")
+var startedPattern = regexp.MustCompile("Starting CudaSample program")
+var finishedPattern = regexp.MustCompile("CUDA calls made")
 
 const (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
@@ -96,7 +97,6 @@ func getDefaultArgs() SampleArgs {
 
 func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (cmd *exec.Cmd, err error) {
 	command = append(command, args.getCLIArgs()...)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -108,7 +108,8 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (c
 		}
 	})
 
-	scanner := procutil.NewScanner(sampleStartedPattern, make(chan struct{}, 1))
+	scanner, err := procutil.NewScanner(startedPattern, finishedPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	defer func() {
 		//print the cudasample log in case there was an error
 		if err != nil {
@@ -162,11 +163,13 @@ func RunSampleInDocker(t *testing.T, name sampleName, image dockerImage) (int, s
 func RunSampleInDockerWithArgs(t *testing.T, name sampleName, image dockerImage, args SampleArgs) (int, string) {
 	builtBin := getBuiltSamplePath(t, name)
 	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
+	scanner, err := procutil.NewScanner(startedPattern, finishedPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerConfig := dockerutils.NewRunConfig(containerName,
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		sampleStartedPattern,
+		scanner,
 		args.getEnv(),
 		string(image),
 		builtBin,
@@ -177,7 +180,7 @@ func RunSampleInDockerWithArgs(t *testing.T, name sampleName, image dockerImage,
 
 	var dockerPID int64
 	var dockerContainerID string
-	var err error
+
 	// The docker container might take a bit to start, so we retry until we get the PID
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dockerPID, err = dockerutils.GetMainPID(containerName)

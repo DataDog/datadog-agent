@@ -11,10 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -120,12 +119,6 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
-	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
-	// so that we can time out correctly
-	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, cmd.Process.Pid)
-	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
-
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
@@ -156,12 +149,6 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	require.NoError(t, err)
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
-	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
-	// so that we can time out correctly
-	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, cmd.Process.Pid)
-	}, 60*time.Second, 500*time.Millisecond, "process not stopped")
-
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
@@ -181,12 +168,6 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
-
-	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
-	// so that we can time out correctly
-	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, pid)
-	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 
 	// Check that the stream handlers have the correct container ID assigned
 	for key, handler := range probe.consumer.streamHandlers {
