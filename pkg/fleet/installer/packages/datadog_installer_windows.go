@@ -5,10 +5,12 @@
 
 //go:build windows
 
-package service
+// Package packages contains the install/upgrades/uninstall logic for packages
+package packages
 
 import (
 	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
