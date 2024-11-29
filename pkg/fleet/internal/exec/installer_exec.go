@@ -15,11 +15,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -197,40 +193,6 @@ func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 		return fmt.Errorf("error running setup: %w\n%s", err, stderr.String())
 	}
 	return nil
-}
-
-// AvailableDiskSpace returns the available disk space.
-func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
-	return repositories.AvailableDiskSpace()
-}
-
-// State returns the state of a package.
-func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
-	return repositories.Get(pkg).GetState()
-}
-
-// States returns the states of all packages.
-func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
-	states, err := repositories.GetStates()
-	log.Debugf("repositories states: %v", states)
-	return states, err
-}
-
-// ConfigState returns the state of a package's configuration.
-func (i *InstallerExec) ConfigState(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
-	return repositories.Get(pkg).GetState()
-}
-
-// ConfigStates returns the states of all packages' configurations.
-func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
-	states, err := repositories.GetStates()
-	log.Debugf("config repositories states: %v", states)
-	return states, err
 }
 
 // Close cleans up any resources.

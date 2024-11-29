@@ -41,12 +41,6 @@ const (
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
 
-	AvailableDiskSpace() (uint64, error)
-	State(pkg string) (repository.State, error)
-	States() (map[string]repository.State, error)
-	ConfigState(pkg string) (repository.State, error)
-	ConfigStates() (map[string]repository.State, error)
-
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
@@ -107,31 +101,6 @@ func NewInstaller(env *fleetEnv.Env) (Installer, error) {
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
 	}, nil
-}
-
-// AvailableDiskSpace returns the available disk space.
-func (i *installerImpl) AvailableDiskSpace() (uint64, error) {
-	return i.packages.AvailableDiskSpace()
-}
-
-// State returns the state of a package.
-func (i *installerImpl) State(pkg string) (repository.State, error) {
-	return i.packages.GetState(pkg)
-}
-
-// States returns the states of all packages.
-func (i *installerImpl) States() (map[string]repository.State, error) {
-	return i.packages.GetStates()
-}
-
-// ConfigState returns the state of a package.
-func (i *installerImpl) ConfigState(pkg string) (repository.State, error) {
-	return i.configs.GetState(pkg)
-}
-
-// ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates() (map[string]repository.State, error) {
-	return i.configs.GetStates()
 }
 
 // IsInstalled checks if a package is installed.

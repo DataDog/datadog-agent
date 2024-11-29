@@ -70,6 +70,8 @@ type daemonImpl struct {
 
 	env           *env.Env
 	installer     installer.Installer
+	packages      *repository.Repositories
+	configs       *repository.Repositories
 	rc            *remoteConfig
 	cdn           cdn.CDN
 	catalog       catalog
@@ -110,6 +112,8 @@ func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cd
 		env:           env,
 		rc:            rc,
 		installer:     installer,
+		packages:      repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
+		configs:       repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 		cdn:           cdn,
 		requests:      make(chan remoteAPIRequest, 32),
 		catalog:       catalog{},
@@ -125,7 +129,7 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	return d.installer.States()
+	return d.packages.GetStates()
 }
 
 // GetRemoteConfigState returns the remote config state.
@@ -442,12 +446,12 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	s, err := d.installer.State(request.Package)
+	s, err := d.packages.GetState(request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
 
-	c, err := d.installer.ConfigState(request.Package)
+	c, err := d.configs.GetState(request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get installer config state: %w", err)
 	}
@@ -572,18 +576,18 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if ok {
 		d.requestsState[request.Package] = *request
 	}
-	state, err := d.installer.States()
+	state, err := d.packages.GetStates()
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer state: %v", err)
 		return
 	}
-	configState, err := d.installer.ConfigStates()
+	configState, err := d.configs.GetStates()
 	if err != nil {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
-	availableSpace, err := d.installer.AvailableDiskSpace()
+	availableSpace, err := d.packages.AvailableDiskSpace()
 	if err != nil {
 		log.Errorf("could not get available size: %v", err)
 	}
