@@ -89,9 +89,9 @@ class TestOmnibusCache(unittest.TestCase):
         self.assertRunLines(
             [
                 # We copied the cache from remote cache
-                r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\w+/slug /tmp/omnibus-git-cache-bundle',
+                r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\w+/slug /tmp/\S+/omnibus-git-cache-bundle',
                 # We cloned the repo
-                r'git clone --mirror /tmp/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
+                r'git clone --mirror /tmp/\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
                 # We listed the tags to get current cache state
                 r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
                 # We ran omnibus
@@ -112,7 +112,7 @@ class TestOmnibusCache(unittest.TestCase):
     def test_cache_miss(self):
         self.mock_ctx.set_result_for(
             'run',
-            re.compile(r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\S* /tmp/omnibus-git-cache-bundle'),
+            re.compile(r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\S* /tmp/\S+/omnibus-git-cache-bundle'),
             Result(exited=1),
         )
         self.mock_ctx.set_result_for(
@@ -146,8 +146,8 @@ class TestOmnibusCache(unittest.TestCase):
                 # Listed tags for cache comparison
                 r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
                 # And we created and uploaded the new cache
-                r'git -C omnibus-git-cache/opt/datadog-agent bundle create /tmp/omnibus-git-cache-bundle --tags',
-                r'aws s3 cp (\S* )?/tmp/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
+                r'git -C omnibus-git-cache/opt/datadog-agent bundle create /tmp/\S+/omnibus-git-cache-bundle --tags',
+                r'aws s3 cp (\S* )?/tmp/\S+/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
             ],
         )
 
