@@ -304,6 +304,7 @@ func createDemuxDepsWithOrchestratorFwd(
 		TestDeps:         deps.TestDeps,
 		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
+		Compressor:       deps.Compressor,
 		EventPlatformFwd: deps.Eventplatform,
 	}
 }
