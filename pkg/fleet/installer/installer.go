@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
-	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
@@ -71,7 +71,7 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
-	env        *fleetEnv.Env
+	env        *env.Env
 	cdn        cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
@@ -83,7 +83,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *fleetEnv.Env) (Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -100,7 +100,7 @@ func NewInstaller(env *fleetEnv.Env) (Installer, error) {
 		env:        env,
 		cdn:        cdn,
 		db:         db,
-		downloader: oci.NewDownloader(env, fleetEnv.GetHTTPClient()),
+		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 

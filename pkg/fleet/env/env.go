@@ -9,6 +9,9 @@ package env
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -17,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"golang.org/x/net/http/httpproxy"
 )
 
 const (
@@ -49,6 +53,9 @@ const (
 	envHTTPSProxy          = "HTTPS_PROXY"
 	envDDNoProxy           = "DD_PROXY_NO_PROXY"
 	envNoProxy             = "NO_PROXY"
+
+	// install script
+	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
 )
 
 var defaultEnv = Env{
@@ -79,6 +86,22 @@ type ApmLibLanguage string
 
 // ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
 type ApmLibVersion string
+
+const (
+	// APMInstrumentationEnabledAll enables APM instrumentation for all containers.
+	APMInstrumentationEnabledAll = "all"
+	// APMInstrumentationEnabledDocker enables APM instrumentation for Docker containers.
+	APMInstrumentationEnabledDocker = "docker"
+	// APMInstrumentationEnabledHost enables APM instrumentation for the host.
+	APMInstrumentationEnabledHost = "host"
+	// APMInstrumentationNotSet is the default value when the environment variable is not set.
+	APMInstrumentationNotSet = "not_set"
+)
+
+// InstallScriptEnv contains the environment variables for the install script.
+type InstallScriptEnv struct {
+	APMInstrumentationEnabled string
+}
 
 // Env contains the configuration for the installer.
 type Env struct {
@@ -119,6 +142,32 @@ type Env struct {
 	NoProxy    string
 }
 
+// HTTPClient returns an HTTP client with the proxy settings from the environment.
+func (e *Env) HTTPClient() *http.Client {
+	proxyConfig := &httpproxy.Config{
+		HTTPProxy:  e.HTTPProxy,
+		HTTPSProxy: e.HTTPSProxy,
+		NoProxy:    e.NoProxy,
+	}
+	proxyFunc := func(r *http.Request) (*url.URL, error) {
+		return proxyConfig.ProxyFunc()(r.URL)
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			Proxy:                 proxyFunc,
+		},
+	}
+	return client
+}
+
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
@@ -150,7 +199,9 @@ func FromEnv() *Env {
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 		AgentUserName:     getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
 
-		InstallScript: installScriptEnvFromEnv(),
+		InstallScript: InstallScriptEnv{
+			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+		},
 
 		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
 		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),

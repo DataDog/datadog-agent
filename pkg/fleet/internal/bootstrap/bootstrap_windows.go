@@ -15,14 +15,14 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
-func install(ctx context.Context, env *fleetEnv.Env, url string, experiment bool) error {
+func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
 	err := paths.CreateInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
@@ -47,8 +47,8 @@ func install(ctx context.Context, env *fleetEnv.Env, url string, experiment bool
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
-func downloadInstaller(ctx context.Context, env *fleetEnv.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
-	downloader := oci.NewDownloader(env, fleetEnv.GetHTTPClient())
+func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
