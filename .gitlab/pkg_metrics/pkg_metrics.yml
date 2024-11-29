@@ -179,3 +179,29 @@ check_pkg_size-arm64-a7:
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
       )
+
+new_check_pkg_size:
+  stage: pkg_metrics
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - agent_deb-x64-a7
+    - iot_agent_deb-x64
+    - dogstatsd_deb-x64
+    - agent_heroku_deb-x64-a7
+    - agent_rpm-x64-a7
+    - iot_agent_rpm-x64
+    - dogstatsd_rpm-x64
+    - agent_suse-x64-a7
+    - dogstatsd_suse-x64
+    - iot_agent_suse-x64
+    - agent_deb-arm64-a7
+    - iot_agent_deb-arm64
+    - dogstatsd_deb-arm64
+    - agent_rpm-arm64-a7
+    - iot_agent_rpm-arm64
+  script:
+    - inv package.check-size

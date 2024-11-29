@@ -22,6 +22,9 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
     if get_current_branch(ctx) == get_default_branch():
         # Initialize to default values
         ancestor = get_common_ancestor(ctx, get_default_branch())
+        if ancestor in package_sizes:
+            # The test already ran on this commit
+            return
         package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
