@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -88,7 +89,10 @@ func (t *LinuxResolver) checkTags(pendingWorkload *pendingWorkload) {
 				select {
 				case t.workloadsWithoutTags <- pendingWorkload:
 				default:
+					seclog.Warnf("Failed to requeue workload %s for tags retrieval", workload.ContainerID)
 				}
+			} else {
+				seclog.Debugf("Failed to resolve tags for workload %s", workload.ContainerID)
 			}
 			return
 		}
