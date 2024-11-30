@@ -142,5 +142,3 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "ubuntu-20-04"
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-22-04"
-      - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-23-04"
