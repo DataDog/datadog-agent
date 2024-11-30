@@ -65,6 +65,8 @@ int main(int argc, char **argv) {
 
     // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)
+
+    //this line is used as a market by patternScanner to indicate the end of the program
     fprintf(stderr, "CUDA calls made.\n");
     fprintf(stderr, "Press Enter to continue...\n");
     pause();  // Wait for signal to finish the process
