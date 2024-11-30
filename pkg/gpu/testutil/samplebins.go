@@ -58,11 +58,10 @@ type SampleArgs struct { //nolint:revive // TODO
 }
 
 func (a *SampleArgs) getEnv() []string {
-	env := []string{}
 	if a.CudaVisibleDevicesEnv != "" {
-		env = append(env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv))
+		return []string{fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv)}
 	}
-	return env
+	return nil
 }
 
 func (a *SampleArgs) getCLIArgs() []string {
@@ -89,7 +88,7 @@ func getBuiltSamplePath(t *testing.T, sample sampleName) string {
 // getDefaultArgs returns the default arguments for the sample binary
 func getDefaultArgs() SampleArgs {
 	return SampleArgs{
-		StartWaitTimeSec:      5,
+		StartWaitTimeSec:      6,
 		CudaVisibleDevicesEnv: "",
 		SelectedDevice:        0,
 	}
@@ -131,7 +130,7 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (c
 		select {
 		case <-ctx.Done():
 			if err = ctx.Err(); err != nil {
-				return nil, fmt.Errorf("failed to start the container %s due to: %w", command[0], err)
+				return nil, fmt.Errorf("failed to start the process %s due to: %w", command[0], err)
 			}
 		case <-scanner.DoneChan:
 			return cmd, nil
