@@ -14,8 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Extract extracts a tar archive to the given destination path
@@ -25,7 +23,6 @@ import (
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
 func Extract(reader io.Reader, destinationPath string, maxSize int64) error {
-	log.Debugf("Extracting archive to %s", destinationPath)
 	tr := tar.NewReader(io.LimitReader(reader, maxSize))
 	for {
 		header, err := tr.Next()
@@ -66,11 +63,8 @@ func Extract(reader io.Reader, destinationPath string, maxSize int64) error {
 		case tar.TypeLink:
 			// we currently don't support hard links in the installer
 		default:
-			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
 	}
-
-	log.Debugf("Successfully extracted archive to %s", destinationPath)
 	return nil
 }
 

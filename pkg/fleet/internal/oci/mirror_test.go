@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci/fixtures"
 	"github.com/stretchr/testify/require"
 )
 

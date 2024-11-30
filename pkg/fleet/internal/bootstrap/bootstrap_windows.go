@@ -48,7 +48,7 @@ func install(ctx context.Context, env *fleetEnv.Env, url string, experiment bool
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *fleetEnv.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
-	downloader := oci.NewDownloader(env, fleetEnv.GetHTTPClient())
+	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)

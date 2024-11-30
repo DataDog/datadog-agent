@@ -100,7 +100,7 @@ func NewInstaller(env *fleetEnv.Env) (Installer, error) {
 		env:        env,
 		cdn:        cdn,
 		db:         db,
-		downloader: oci.NewDownloader(env, fleetEnv.GetHTTPClient()),
+		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 

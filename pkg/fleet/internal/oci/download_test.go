@@ -19,7 +19,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci/fixtures"
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/google"
