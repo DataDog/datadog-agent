@@ -5,8 +5,7 @@
 
 //go:build windows
 
-// Package service provides a way to interact with os services
-package service
+package packages
 
 // IsSystemdRunning noop
 func IsSystemdRunning() (running bool, err error) {

@@ -22,8 +22,8 @@ import (
 
 	fleetEnv "github.com/DataDog/datadog-agent/pkg/fleet/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -522,7 +522,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 		return fmt.Errorf("APM injector is not installed")
 	}
 
-	err = service.InstrumentAPMInjector(ctx, method)
+	err = packages.InstrumentAPMInjector(ctx, method)
 	if err != nil {
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
@@ -542,7 +542,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("APM injector is not installed")
 	}
 
-	err = service.UninstrumentAPMInjector(ctx, method)
+	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
@@ -585,9 +585,9 @@ func (i *installerImpl) Close() error {
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.StartAgentExperiment(ctx)
+		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StartInstallerExperiment(ctx)
+		return packages.StartInstallerExperiment(ctx)
 	default:
 		return nil
 	}
@@ -596,9 +596,9 @@ func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.StopAgentExperiment(ctx)
+		return packages.StopAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StopInstallerExperiment(ctx)
+		return packages.StopInstallerExperiment(ctx)
 	default:
 		return nil
 	}
@@ -607,9 +607,9 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.PromoteAgentExperiment(ctx)
+		return packages.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.PromoteInstallerExperiment(ctx)
+		return packages.PromoteInstallerExperiment(ctx)
 	default:
 		return nil
 	}
@@ -618,11 +618,11 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
 	switch pkg {
 	case packageDatadogInstaller:
-		return service.SetupInstaller(ctx)
+		return packages.SetupInstaller(ctx)
 	case packageDatadogAgent:
-		return service.SetupAgent(ctx, args)
+		return packages.SetupAgent(ctx, args)
 	case packageAPMInjector:
-		return service.SetupAPMInjector(ctx)
+		return packages.SetupAPMInjector(ctx)
 	default:
 		return nil
 	}
@@ -631,11 +631,11 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.RemoveAgent(ctx)
+		return packages.RemoveAgent(ctx)
 	case packageAPMInjector:
-		return service.RemoveAPMInjector(ctx)
+		return packages.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
-		return service.RemoveInstaller(ctx)
+		return packages.RemoveInstaller(ctx)
 	default:
 		return nil
 	}

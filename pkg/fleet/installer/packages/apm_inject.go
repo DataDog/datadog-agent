@@ -5,8 +5,7 @@
 
 //go:build !windows
 
-// Package service provides a way to interact with os services
-package service
+package packages
 
 import (
 	"bytes"
@@ -19,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
