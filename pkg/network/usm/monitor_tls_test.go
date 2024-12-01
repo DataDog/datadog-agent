@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"io"
 	"math/rand"
 	nethttp "net/http"
@@ -46,6 +45,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
