@@ -81,7 +81,10 @@ func TestMonitorProtocolFail(t *testing.T) {
 			patchProtocolMock(t, tt.spec)
 
 			cfg := config.New()
+			cfg.EnableGoTLSSupport = false
 			cfg.EnableHTTPMonitoring = true
+			cfg.EnableIstioMonitoring = false
+
 			monitor, err := NewMonitor(cfg, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
