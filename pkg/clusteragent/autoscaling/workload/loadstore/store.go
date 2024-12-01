@@ -15,10 +15,11 @@ import (
 
 // StoreInfo represents the store information, like memory usage and entity count.
 type StoreInfo struct {
-	TotalEntityCount       uint64
-	currentTime            Timestamp
-	EntityStatsByLoadName  map[string]StatsResult
-	EntityStatsByNamespace map[string]StatsResult
+	TotalEntityCount        uint64
+	currentTime             Timestamp
+	EntityStatsByLoadName   map[string]StatsResult
+	EntityStatsByNamespace  map[string]StatsResult
+	EntityStatsByDeployment map[string]StatsResult
 }
 
 type StatsResult struct {
@@ -72,6 +73,7 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 			EntityName: "",
 			Namespace:  "",
 			LoadName:   metricName,
+			Deployment: "",
 		}
 		for _, resource := range resources {
 			if resource.Type == "host" {
@@ -88,6 +90,8 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 			case "container_id":
 				entity.SourceID = v
 				entity.EntityType = ContainerType
+			case "kube_deployment":
+				entity.Deployment = v
 			}
 		}
 		if entity.LoadName == "" || entity.Host == "" || entity.EntityType == UnknownType || entity.Namespace == "" || entity.SourceID == "" {

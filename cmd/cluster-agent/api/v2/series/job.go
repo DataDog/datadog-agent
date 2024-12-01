@@ -43,6 +43,13 @@ var (
 		"Number of entities by namespaces in the store",
 		commonOpts,
 	)
+	telemetryWorkloadDeploymentEntities = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"store_deployment_entities",
+		[]string{"deployment"},
+		"Number of entities by kube_deployment in the store",
+		commonOpts,
+	)
 	telemetryWorkloadJobQueueLength = telemetry.NewCounterWithOpts(
 		subsystem,
 		"store_job_queue_length",
@@ -125,6 +132,9 @@ func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 				}
 				for k, v := range info.EntityStatsByNamespace {
 					telemetryWorkloadNamespaceEntities.Set(float64(v.Count), k)
+				}
+				for k, v := range info.EntityStatsByDeployment {
+					telemetryWorkloadDeploymentEntities.Set(float64(v.Count), k)
 				}
 				log.Infof("Store info: %+v", info)
 			}
