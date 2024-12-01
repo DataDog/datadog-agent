@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,16 +51,10 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 		nil)
 	tracker := tailers.NewTailerTracker()
 
-	DefaultAuditorTTL := 23
-	defaultRunPath := "/opt/datadog-agent/run"
-	health := health.RegisterLiveness("logs-agent")
-	// No op auditor
-	auditorTTL := time.Duration(DefaultAuditorTTL) * time.Hour
-	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
-
+	a := auditor.NewNullAuditor()
 	pipelineProvider.Start()
 	sourceProvider := sources.GetInstance()
-	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
+	fileLauncher.Start(sourceProvider, pipelineProvider, a, tracker)
 
 	lnchrs.AddLauncher(fileLauncher)
 	outputChan := pipelineProvider.GetOutputChan()
