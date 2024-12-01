@@ -30,6 +30,15 @@ func (f *loadNameFilter) IsIncluded(entity *Entity) bool {
 	return f.loadName == entity.LoadName
 }
 
+type deploymentFilter struct {
+	deployment string
+}
+
+// IsIncluded returns true if the entity's load name is included.
+func (f *deploymentFilter) IsIncluded(entity *Entity) bool {
+	return f.deployment == entity.Deployment
+}
+
 // ANDEntityFilter implements a logical AND between given filters
 type ANDEntityFilter struct {
 	Filters []entityFilter
