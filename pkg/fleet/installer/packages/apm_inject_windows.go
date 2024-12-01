@@ -5,8 +5,7 @@
 
 //go:build windows
 
-// Package service provides a way to interact with os services
-package service
+package packages
 
 import "context"
 

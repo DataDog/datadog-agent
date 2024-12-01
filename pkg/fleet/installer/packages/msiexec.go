@@ -5,15 +5,16 @@
 
 //go:build windows
 
-package service
+package packages
 
 import (
 	"fmt"
+	"os/exec"
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
-	"os/exec"
-	"path/filepath"
 )
 
 func msiexec(target, product, operation string, args []string) (*exec.Cmd, error) {

@@ -5,7 +5,8 @@
 
 //go:build !windows
 
-package service
+// Package packages contains the install/upgrades/uninstall logic for packages
+package packages
 
 import (
 	"context"
