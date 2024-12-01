@@ -69,25 +69,21 @@ func TestAddFileSource(t *testing.T) {
 	configSource := GetInstance()
 	addedChan, _ := configSource.SubscribeForType("file")
 
-	// Start a goroutine to listen on addedChan
-	done := make(chan *LogSource)
+	// Add the file source
 	go func() {
-		select {
-		case added := <-addedChan:
-			done <- added
-		case <-time.After(10 * time.Second):
-			t.Error("No source added to channel")
-		}
+		err := configSource.AddFileSource(tempFile.Name())
+		assert.NoError(t, err)
 	}()
 
-	// Add the file source
-	err := configSource.AddFileSource(tempFile.Name())
-	assert.NoError(t, err)
-
-	added := <-done
-	assert.NotNil(t, added)
-	assert.Equal(t, "file", added.Config.Type)
-	assert.Equal(t, "/tmp/test.log", added.Config.Path)
+	// Read directly from the channel
+	select {
+	case added := <-addedChan:
+		assert.NotNil(t, added)
+		assert.Equal(t, "file", added.Config.Type)
+		assert.Equal(t, "/tmp/test.log", added.Config.Path)
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timeout waiting for source addition of type 'file'")
+	}
 }
 
 func TestSubscribeForTypeConfig(t *testing.T) {
@@ -99,24 +95,19 @@ func TestSubscribeForTypeConfig(t *testing.T) {
 	configSource := GetInstance()
 	addedChan, _ := configSource.SubscribeForType("file")
 
-	// Start a goroutine to listen on addedChan
-	done := make(chan *LogSource)
+	// Add the file source
 	go func() {
-		select {
-		case added := <-addedChan:
-			done <- added
-		case <-time.After(10 * time.Second):
-			t.Error("No source added to channel")
-		}
+		err := configSource.AddFileSource(tempFile.Name())
+		assert.NoError(t, err)
 	}()
 
-	// Add the file source
-	err := configSource.AddFileSource(tempFile.Name())
-	assert.NoError(t, err)
-
-	// Validate the source received through the channel
-	added := <-done
-	assert.NotNil(t, added)
-	assert.Equal(t, "file", added.Config.Type)
-	assert.Equal(t, "/tmp/test.log", added.Config.Path)
+	// Read directly from the channel
+	select {
+	case added := <-addedChan:
+		assert.NotNil(t, added)
+		assert.Equal(t, "file", added.Config.Type)
+		assert.Equal(t, "/tmp/test.log", added.Config.Path)
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timeout waiting for source addition of type 'file'")
+	}
 }
