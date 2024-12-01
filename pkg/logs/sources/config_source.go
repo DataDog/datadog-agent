@@ -15,7 +15,6 @@ import (
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
 // This class implements the SourceProvider interface
 type ConfigSources struct {
-	mu          sync.Mutex
 	sources     []*LogSource
 	added       []chan *LogSource
 	addedByType map[string][]chan *LogSource
@@ -68,15 +67,12 @@ func (s *ConfigSources) AddFileSource(path string) error {
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
 	configSource := GetInstance()
-	configSource.mu.Lock()
 	configSource.sources = append(configSource.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
-		configSource.mu.Unlock()
 		return
 	}
 	streams := configSource.added
 	streamsForType := configSource.addedByType[source.Config.Type]
-	configSource.mu.Unlock()
 	for _, stream := range streams {
 		stream <- source
 	}
@@ -97,8 +93,6 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource
 // Any sources added before this call are delivered from a new goroutine.
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
 	configSource := GetInstance()
-	configSource.mu.Lock()
-	defer configSource.mu.Unlock()
 
 	added = make(chan *LogSource)
 
