@@ -73,6 +73,7 @@ func TestSubscribeForTypeAndAddFileSource(t *testing.T) {
 		assert.Equal(t, "file", added.Config.Type)
 		assert.Equal(t, "/tmp/test.log", added.Config.Path)
 	}()
+
 	err := configSource.AddFileSource(tempFile.Name())
 	assert.NoError(t, err)
 }
