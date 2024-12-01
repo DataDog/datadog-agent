@@ -33,6 +33,8 @@ import (
 	"golang.org/x/net/http2"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -304,7 +306,10 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 		}
 		return image, nil
 	}
-	return nil, fmt.Errorf("no matching image found in the index")
+	return nil, installerErrors.Wrap(
+		installerErrors.ErrPackageNotFound,
+		fmt.Errorf("no matching image found in the index"),
+	)
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.

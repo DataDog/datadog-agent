@@ -552,7 +552,7 @@ func setRequestDone(ctx context.Context, err error) {
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
-		state.Err = installerErrors.From(err)
+		state.Err = installerErrors.FromErr(err)
 	}
 }
 
