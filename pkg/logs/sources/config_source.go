@@ -82,8 +82,7 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	}
 }
 
-// SubscribeAll returns a channel carrying notifications of all added sources.
-// Any sources added before this call are delivered from a new goroutine.
+// SubscribeAll is required for the SourceProvider interface
 func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource) {
 	return
 }
@@ -112,10 +111,7 @@ func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSour
 	return
 }
 
-// GetAddedForType returns a channel carrying notifications of new sources
-// with the given type.
-//
-// Any sources added before this call are delivered from a new goroutine.
+// GetAddedForType is required for the SourceProvider interface
 func (s *ConfigSources) GetAddedForType(_ string) chan *LogSource {
 	return nil
 }
