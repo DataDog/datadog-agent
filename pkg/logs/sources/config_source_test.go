@@ -1,8 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
 package sources
 
 import (
@@ -62,40 +57,61 @@ func CreateTestFile(tempDir string) *os.File {
 
 func TestAddFileSource(t *testing.T) {
 	tempDir := "tmp/"
-	tempFile := CreateTestFile("tmp/")
+	tempFile := CreateTestFile(tempDir)
 	defer os.RemoveAll(tempDir)
 	defer os.Remove(tempFile.Name())
 
-	// Add the file source
 	configSource := GetInstance()
+	addedChan, _ := configSource.SubscribeForType("file")
+
+	// Start a goroutine to listen on addedChan
+	done := make(chan *LogSource)
+	go func() {
+		select {
+		case added := <-addedChan:
+			done <- added
+		case <-time.After(1 * time.Second):
+			t.Error("No source added to channel")
+		}
+	}()
+
+	// Add the file source
 	err := configSource.AddFileSource(tempFile.Name())
 	assert.NoError(t, err)
 
-	// Validate source added
-	assert.Len(t, configSource.sources, 1)
-	assert.Equal(t, "file", configSource.sources[0].Config.Type)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "/tmp/test.log", configSource.sources[0].Config.Path)
+	added := <-done
+	assert.NotNil(t, added)
+	assert.Equal(t, "file", added.Config.Type)
+	assert.Equal(t, "/tmp/test.log", added.Config.Path)
 }
 
 func TestSubscribeForTypeConfig(t *testing.T) {
-	configSource := GetInstance()
 	tempDir := "tmp/"
-	tempFile := CreateTestFile("tmp/")
+	tempFile := CreateTestFile(tempDir)
 	defer os.RemoveAll(tempDir)
 	defer os.Remove(tempFile.Name())
+
+	configSource := GetInstance()
+	addedChan, _ := configSource.SubscribeForType("file")
+
+	// Start a goroutine to listen on addedChan
+	done := make(chan *LogSource)
+	go func() {
+		select {
+		case added := <-addedChan:
+			done <- added
+		case <-time.After(1 * time.Second):
+			t.Error("No source added to channel")
+		}
+	}()
 
 	// Add the file source
 	err := configSource.AddFileSource(tempFile.Name())
 	assert.NoError(t, err)
 
-	addedChan, _ := configSource.SubscribeForType("file")
-
-	select {
-	case added := <-addedChan:
-		assert.Equal(t, "file", added.Config.Type)
-	case <-time.After(1 * time.Second):
-		t.Fatal("Timeout waiting for source addition of type 'file'")
-	}
+	// Validate the source received through the channel
+	added := <-done
+	assert.NotNil(t, added)
+	assert.Equal(t, "file", added.Config.Type)
+	assert.Equal(t, "/tmp/test.log", added.Config.Path)
 }

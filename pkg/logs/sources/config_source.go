@@ -15,8 +15,6 @@ import (
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
 // This class implements the SourceProvider interface
 type ConfigSources struct {
-	sources     []*LogSource
-	added       []chan *LogSource
 	addedByType map[string][]chan *LogSource
 }
 
@@ -67,16 +65,10 @@ func (s *ConfigSources) AddFileSource(path string) error {
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
 	configSource := GetInstance()
-	configSource.sources = append(configSource.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
-	streams := configSource.added
 	streamsForType := configSource.addedByType[source.Config.Type]
-	for _, stream := range streams {
-		stream <- source
-	}
-
 	for _, stream := range streamsForType {
 		stream <- source
 	}
@@ -99,15 +91,6 @@ func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSour
 		configSource.addedByType[sourceType] = []chan *LogSource{}
 	}
 	configSource.addedByType[sourceType] = append(configSource.addedByType[sourceType], added)
-	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
-	go func() {
-		for _, source := range existingSources {
-			if source.Config.Type == sourceType {
-				added <- source
-			}
-		}
-	}()
-
 	return
 }
 
