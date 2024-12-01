@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"math"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -40,27 +39,25 @@ type SharedSender struct {
 }
 
 // NewSharedSender returns a new sender.
-func NewSharedSender(sendersCount int,
+func NewSharedSender(pipelinesCount int, sendersPerPipeline int,
 	config pkgconfigmodel.Reader, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
 	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *SharedSender {
 	var senders []*Sender
 
-	inputsCount := int(math.Ceil(float64(sendersCount) / 2))
-	inputs := make([]chan *message.Payload, inputsCount)
+	inputs := make([]chan *message.Payload, pipelinesCount)
 	log.Infof("shared sender creating %d inputs", len(inputs))
-	for i := 0; i < len(inputs); i++ {
-		log.Info("input created")
-		inputs[i] = make(chan *message.Payload, 2)
+	for i := 0; i < pipelinesCount; i++ {
+		inputs[i] = make(chan *message.Payload, sendersPerPipeline+1)
+		log.Infof("input created for pipeline %d", i)
+		for j := 0; j < sendersPerPipeline; j++ {
+			sender := NewSender(config, inputs[i], auditor, destinations, bufferSize,
+				senderDoneChan, flushWg, pipelineMonitor)
+			sender.isShared = true
+			senders = append(senders, sender)
+		}
+		log.Infof("created %d senders for input %d", sendersPerPipeline, i)
 	}
 
-	for i := 0; i < sendersCount; i++ {
-		sender := NewSender(config, inputs[i%inputsCount], auditor, destinations, bufferSize,
-			senderDoneChan, flushWg, pipelineMonitor)
-		sender.isShared = true
-		senders = append(senders, sender)
-	}
-
-	log.Infof("created a shared sender with %d senders and %d inputs", len(senders), len(inputs))
 	return &SharedSender{
 		senders:         senders,
 		pipelineMonitor: pipelineMonitor,
@@ -71,7 +68,8 @@ func NewSharedSender(sendersCount int,
 
 // In is the input channel of the shared sender
 func (s *SharedSender) In() chan *message.Payload {
-	s.idx += 1
+	s.idx++
+	log.Infof("redistributed to input %d", s.idx%len(s.inputs))
 	return s.inputs[s.idx%len(s.inputs)]
 }
 
