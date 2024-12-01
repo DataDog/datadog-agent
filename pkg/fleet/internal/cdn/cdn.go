@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )

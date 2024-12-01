@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
