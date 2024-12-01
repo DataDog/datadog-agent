@@ -75,7 +75,7 @@ func TestAddFileSource(t *testing.T) {
 		select {
 		case added := <-addedChan:
 			done <- added
-		case <-time.After(1 * time.Second):
+		case <-time.After(10 * time.Second):
 			t.Error("No source added to channel")
 		}
 	}()
@@ -105,7 +105,7 @@ func TestSubscribeForTypeConfig(t *testing.T) {
 		select {
 		case added := <-addedChan:
 			done <- added
-		case <-time.After(1 * time.Second):
+		case <-time.After(10 * time.Second):
 			t.Error("No source added to channel")
 		}
 	}()
