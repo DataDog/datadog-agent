@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -65,6 +66,10 @@ type testdeps struct {
 }
 
 func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
+	// Overriding the path where the cert used for IPCs are stored
+	tmpDest := os.TempDir()
+	params.Overrides["ipc_cert_file_path"] = filepath.Join(tmpDest, "ipc_cert")
+
 	return fxutil.Test[testdeps](
 		t,
 		Module(),

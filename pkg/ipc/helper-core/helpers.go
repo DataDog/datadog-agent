@@ -22,10 +22,10 @@ import (
 
 func getCertPath() string {
 	config := pkgconfigsetup.Datadog()
-	if config.GetString("auth_token_file_path") != "" {
-		return config.GetString("auth_token_file_path")
+	if configPath := config.GetString("ipc_cert_file_path"); configPath != "" {
+		return configPath
 	}
-	return filepath.Join(filepath.Dir(config.ConfigFileUsed()))
+	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), "ipc_cert")
 }
 
 // GetServerTLSConfig provide a tls.Config that dynamically resolve

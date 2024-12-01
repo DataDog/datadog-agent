@@ -16,7 +16,6 @@ import (
 	"math/big"
 	"net"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -109,11 +108,9 @@ func CreateOrFetchAgentIPCCert(destDir string) ([]byte, []byte, error) {
 	return fetchAgentIPCCert(destDir, true)
 }
 
-func fetchAgentIPCCert(destDir string, certCreationAllowed bool) ([]byte, []byte, error) {
-	filePath := filepath.Join(destDir, "ipc")
-
+func fetchAgentIPCCert(certPath string, certCreationAllowed bool) ([]byte, []byte, error) {
 	// Create a new token if it doesn't exist and if permitted by calling func
-	if _, e := os.Stat(filePath + ".cert"); os.IsNotExist(e) && certCreationAllowed {
+	if _, e := os.Stat(certPath + ".cert"); os.IsNotExist(e) && certCreationAllowed {
 		// print the caller to identify what is calling this function
 		if _, file, line, ok := runtime.Caller(2); ok {
 			log.Infof("[%s:%d] Creating a new IPC certificate", file, line)
@@ -128,21 +125,21 @@ func fetchAgentIPCCert(destDir string, certCreationAllowed bool) ([]byte, []byte
 		}
 
 		// Write the auth token to the auth token file (platform-specific)
-		e = saveIPCCertKey(cert, key, filePath)
+		e = saveIPCCertKey(cert, key, certPath)
 		if e != nil {
 			return nil, nil, fmt.Errorf("error writing authentication token file on fs: %s", e)
 		}
-		log.Infof("Saved a new  IPC certificate/key pair to %s", filePath)
+		log.Infof("Saved a new  IPC certificate/key pair to %s", certPath)
 
 		return cert, key, nil
 	}
 
 	// Read the token
-	cert, e := os.ReadFile(filePath + ".cert")
+	cert, e := os.ReadFile(certPath + ".cert")
 	if e != nil {
 		return nil, nil, fmt.Errorf("unable to read authentication token file: %s", e.Error())
 	}
-	key, e := os.ReadFile(filePath + ".key")
+	key, e := os.ReadFile(certPath + ".key")
 	if e != nil {
 		return nil, nil, fmt.Errorf("unable to read authentication token file: %s", e.Error())
 	}
