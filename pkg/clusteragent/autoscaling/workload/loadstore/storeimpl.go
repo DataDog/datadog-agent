@@ -82,18 +82,20 @@ type dataItem struct {
 
 // EntityStore stores entities to values, hash keys to entities mapping.
 type EntityStore struct {
-	key2ValuesMap map[uint64]*dataItem // Maps hash key to a entity and its values
-	lock          sync.RWMutex         // Protects access to store and entityMap
-	namespaces    map[string]struct{}  // Set of namespaces
-	loadNames     map[string]struct{}  // Set of load names
+	key2ValuesMap   map[uint64]*dataItem // Maps hash key to a entity and its values
+	lock            sync.RWMutex         // Protects access to store and entityMap
+	namespaces      map[string]struct{}  // Set of namespaces
+	loadNames       map[string]struct{}  // Set of load names
+	deploymentNames map[string]struct{}  // Set of deployment names
 }
 
 // NewEntityStore creates a new EntityStore.
 func NewEntityStore(ctx context.Context) *EntityStore {
 	store := EntityStore{
-		key2ValuesMap: make(map[uint64]*dataItem),
-		namespaces:    make(map[string]struct{}),
-		loadNames:     make(map[string]struct{}),
+		key2ValuesMap:   make(map[uint64]*dataItem),
+		namespaces:      make(map[string]struct{}),
+		loadNames:       make(map[string]struct{}),
+		deploymentNames: make(map[string]struct{}),
 	}
 	store.startCleanupInBackground(ctx)
 	return &store
@@ -106,6 +108,7 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 	for entity, value := range entities {
 		es.namespaces[entity.Namespace] = struct{}{}
 		es.loadNames[entity.LoadName] = struct{}{}
+		es.deploymentNames[entity.Deployment] = struct{}{}
 		hash := hashEntityToUInt64(entity)
 		data, exists := es.key2ValuesMap[hash]
 		if !exists {
@@ -145,6 +148,14 @@ func (es *EntityStore) GetEntitiesStatsByNamespace(namespace string) StatsResult
 	es.lock.RLock() // Lock for writing
 	defer es.lock.RUnlock()
 	filter := namespaceFilter{namespace: namespace}
+	return es.calculateStatsByFilter(newANDEntityFilter(&filter))
+}
+
+// GetEntitiesByDeployment to get all entities by deployment
+func (es *EntityStore) GetEntitiesStatsByDeployment(deployment string) StatsResult {
+	es.lock.RLock() // Lock for writing
+	defer es.lock.RUnlock()
+	filter := deploymentFilter{deployment: deployment}
 	return es.calculateStatsByFilter(newANDEntityFilter(&filter))
 }
 
@@ -237,10 +248,11 @@ func (es *EntityStore) GetStoreInfo() StoreInfo {
 	es.lock.RLock()
 	defer es.lock.RUnlock()
 	storeInfo := StoreInfo{
-		TotalEntityCount:       0,
-		currentTime:            getCurrentTime(),
-		EntityStatsByLoadName:  make(map[string]StatsResult),
-		EntityStatsByNamespace: make(map[string]StatsResult),
+		TotalEntityCount:        0,
+		currentTime:             getCurrentTime(),
+		EntityStatsByLoadName:   make(map[string]StatsResult),
+		EntityStatsByNamespace:  make(map[string]StatsResult),
+		EntityStatsByDeployment: make(map[string]StatsResult),
 	}
 	// Constructing the information string
 	storeInfo.TotalEntityCount = uint64(len(es.key2ValuesMap))
@@ -252,6 +264,11 @@ func (es *EntityStore) GetStoreInfo() StoreInfo {
 	for loadName := range es.loadNames {
 		loadNameFilter := loadNameFilter{loadName: loadName}
 		storeInfo.EntityStatsByLoadName[loadName] = es.calculateStatsByFilter(newANDEntityFilter(&loadNameFilter))
+	}
+
+	for deployment := range es.deploymentNames {
+		deploymentFilter := deploymentFilter{deployment: deployment}
+		storeInfo.EntityStatsByDeployment[deployment] = es.calculateStatsByFilter(newANDEntityFilter(&deploymentFilter))
 	}
 	return storeInfo
 }

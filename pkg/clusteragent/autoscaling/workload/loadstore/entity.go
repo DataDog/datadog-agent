@@ -42,6 +42,7 @@ type Entity struct {
 	EntityName string // display_container_name
 	Namespace  string
 	LoadName   string
+	Deployment string
 }
 
 // String returns a string representation of the Entity.
@@ -53,13 +54,14 @@ func (e *Entity) String() string {
 			"  EntityName: %s,"+
 			"  EntityType: %d,"+
 			"  Host: %s,"+
-			"  Namespace: %s",
-		hashEntityToUInt64(e), e.SourceID, e.LoadName, e.EntityName, e.EntityType, e.Host, e.Namespace)
+			"  Namespace: %s,"+
+			"  Deployment: %s",
+		hashEntityToUInt64(e), e.SourceID, e.LoadName, e.EntityName, e.EntityType, e.Host, e.Namespace, e.Deployment)
 }
 
 // MemoryUsage returns the memory usage of the entity in bytes.
 func (e *Entity) MemoryUsage() uint32 {
-	return uint32(len(e.SourceID)) + uint32(len(e.Host)) + uint32(len(e.EntityName)) + uint32(len(e.Namespace)) + uint32(len(e.LoadName)) + uint32(unsafe.Sizeof(e.EntityType))
+	return uint32(len(e.SourceID)) + uint32(len(e.Host)) + uint32(len(e.EntityName)) + uint32(len(e.Namespace)) + uint32(len(e.LoadName)) + uint32(unsafe.Sizeof(e.EntityType)) + uint32(len(e.Deployment))
 }
 
 // EntityValue represents a value with a timestamp.
