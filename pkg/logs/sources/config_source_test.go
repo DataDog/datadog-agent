@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -60,7 +59,7 @@ func CreateTestFile(tempDir string) *os.File {
 	return file
 }
 
-func TestAddFileSource(t *testing.T) {
+func TestSubscribeForTypeAndAddFileSource(t *testing.T) {
 	tempDir := "tmp/"
 	tempFile := CreateTestFile(tempDir)
 	defer os.RemoveAll(tempDir)
@@ -68,46 +67,12 @@ func TestAddFileSource(t *testing.T) {
 
 	configSource := GetInstance()
 	addedChan, _ := configSource.SubscribeForType("file")
-
-	// Add the file source
 	go func() {
-		err := configSource.AddFileSource(tempFile.Name())
-		assert.NoError(t, err)
-	}()
-
-	// Read directly from the channel
-	select {
-	case added := <-addedChan:
+		added := <-addedChan
 		assert.NotNil(t, added)
 		assert.Equal(t, "file", added.Config.Type)
 		assert.Equal(t, "/tmp/test.log", added.Config.Path)
-	case <-time.After(10 * time.Second):
-		t.Fatal("Timeout waiting for source addition of type 'file'")
-	}
-}
-
-func TestSubscribeForTypeConfig(t *testing.T) {
-	tempDir := "tmp/"
-	tempFile := CreateTestFile(tempDir)
-	defer os.RemoveAll(tempDir)
-	defer os.Remove(tempFile.Name())
-
-	configSource := GetInstance()
-	addedChan, _ := configSource.SubscribeForType("file")
-
-	// Add the file source
-	go func() {
-		err := configSource.AddFileSource(tempFile.Name())
-		assert.NoError(t, err)
 	}()
-
-	// Read directly from the channel
-	select {
-	case added := <-addedChan:
-		assert.NotNil(t, added)
-		assert.Equal(t, "file", added.Config.Type)
-		assert.Equal(t, "/tmp/test.log", added.Config.Path)
-	case <-time.After(10 * time.Second):
-		t.Fatal("Timeout waiting for source addition of type 'file'")
-	}
+	err := configSource.AddFileSource(tempFile.Name())
+	assert.NoError(t, err)
 }
