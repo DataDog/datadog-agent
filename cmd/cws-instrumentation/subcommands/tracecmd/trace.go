@@ -9,7 +9,6 @@
 package tracecmd
 
 import (
-	"bufio"
 	"fmt"
 	"math"
 	"os"
@@ -172,20 +171,11 @@ func Command() []*cobra.Command {
 						}
 
 						cmd := exec.Command(executable, args...)
-						stderr, err := cmd.StderrPipe()
-						if err != nil {
-							fmt.Fprintf(os.Stderr, "unable to start: %s", err)
-							return
-						}
+						cmd.Stderr = os.Stdout // redirect stderr to stdout
+
 						if err = cmd.Start(); err != nil {
 							fmt.Fprintf(os.Stderr, "unable to start: %s", err)
 							return
-						}
-
-						scanner := bufio.NewScanner(stderr)
-						scanner.Split(bufio.ScanLines)
-						for scanner.Scan() {
-							fmt.Println(scanner.Text())
 						}
 
 						if err = cmd.Wait(); err != nil {
