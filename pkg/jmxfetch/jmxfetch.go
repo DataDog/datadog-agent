@@ -507,7 +507,7 @@ func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
 		return
 	}
 
-	if !env.IsContainerized() && false {
+	if !env.IsContainerized() {
 		log.Infof("Running JMXFetch using system Java runtime, Agent FIPS-mode is ignored")
 		return
 	}
