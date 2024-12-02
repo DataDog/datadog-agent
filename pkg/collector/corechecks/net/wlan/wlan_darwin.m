@@ -70,6 +70,10 @@ typedef struct {
     int rssi;
     const char *ssid;
     const char *bssid;
+    int channel;
+    int noise;
+    double transmitRate;
+    const char *securityType;
 } WiFiInfo;
 
 // GetWiFiInformation return wifi data
@@ -81,6 +85,47 @@ WiFiInfo GetWiFiInformation() {
     info.rssi = (int)wifiInterface.rssiValue;
     info.ssid = [[wifiInterface ssid] UTF8String];
     info.bssid = [[wifiInterface bssid] UTF8String];
+    info.channel = (int)wifiInterface.wlanChannel.channelNumber;
+    info.noise = (int)wifiInterface.noiseMeasurement;
+    info.transmitRate = wifiInterface.transmitRate;
+
+    CWSecurity security = wifiInterface.security;
+    const char *securityStr = "";
+
+    switch (security) {
+        case kCWSecurityNone:
+            securityStr = "None";
+            break;
+        case kCWSecurityWEP:
+            securityStr = "WEP";
+            break;
+        case kCWSecurityWPAPersonal:
+            securityStr = "WPA Personal";
+            break;
+        case kCWSecurityWPAPersonalMixed:
+            securityStr = "WPA/WPA2 Personal";
+            break;
+        case kCWSecurityWPA2Personal:
+            securityStr = "WPA2 Personal";
+            break;
+        case kCWSecurityWPA3Personal:
+            securityStr = "WPA3 Personal";
+            break;
+        case kCWSecurityWPAEnterprise:
+            securityStr = "WPA Enterprise";
+            break;
+        case kCWSecurityWPA2Enterprise:
+            securityStr = "WPA2 Enterprise";
+            break;
+        case kCWSecurityWPA3Enterprise:
+            securityStr = "WPA3 Enterprise";
+            break;
+        default:
+            securityStr = "Unknown";
+            break;
+    }
+
+    info.securityType = securityStr;
 
     return info;
 }
