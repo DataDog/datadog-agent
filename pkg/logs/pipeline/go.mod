@@ -74,7 +74,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
 

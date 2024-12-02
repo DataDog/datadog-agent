@@ -75,7 +75,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.57.1
 	github.com/golang/protobuf v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/fx v1.23.0
 	golang.org/x/text v0.20.0

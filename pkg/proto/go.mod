@@ -9,12 +9,12 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/google/gofuzz v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/stretchr/testify v1.9.0
-	github.com/tinylib/msgp v1.2.4
-	github.com/vmihailenco/msgpack/v4 v4.3.13
-	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
-	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.35.2
+	github.com/stretchr/testify v1.10.0
+	github.com/tinylib/msgp v1.1.8
+	github.com/vmihailenco/msgpack/v4 v4.3.12
+	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d
+	google.golang.org/grpc v1.59.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (

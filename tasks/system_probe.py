@@ -19,7 +19,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
@@ -739,6 +739,7 @@ def build_sysprobe_binary(
     install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
+    fips_mode=False,
     static=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
@@ -752,6 +753,7 @@ def build_sysprobe_binary(
     )
 
     build_tags = get_default_build_tags(build="system-probe")
+    build_tags = add_fips_tags(build_tags, fips_mode)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:

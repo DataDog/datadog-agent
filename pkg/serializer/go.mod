@@ -83,9 +83,9 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
-	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3
-	github.com/stretchr/testify v1.9.0
-	google.golang.org/protobuf v1.35.2
+	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
+	github.com/stretchr/testify v1.10.0
+	google.golang.org/protobuf v1.34.2
 )
 
 require (

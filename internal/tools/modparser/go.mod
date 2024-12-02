@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/internal/tools/modparser
 go 1.22.0
 
 require (
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/mod v0.22.0
 )
 

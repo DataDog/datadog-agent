@@ -24,9 +24,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3
-	github.com/benbjohnson/clock v1.3.5
-	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.23.0
+	github.com/benbjohnson/clock v1.3.0
+	github.com/stretchr/testify v1.10.0
+	go.uber.org/fx v1.22.2
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 	golang.org/x/sys v0.27.0
 	gopkg.in/yaml.v2 v2.4.0

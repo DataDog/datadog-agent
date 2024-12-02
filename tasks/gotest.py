@@ -255,7 +255,6 @@ def test(
     race=False,
     profile=False,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     cpus=None,
     major_version='7',
@@ -303,7 +302,6 @@ def test(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )

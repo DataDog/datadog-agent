@@ -468,3 +468,100 @@ func FindPidNamespace(nspid uint32, ns uint64) (uint32, error) {
 	}
 	return 0, errors.New("PID not found")
 }
+
+// GetTracerPid returns the tracer pid of the the givent root pid
+func GetTracerPid(pid uint32) (uint32, error) {
+	statusFile := StatusPath(pid)
+	content, err := os.ReadFile(statusFile)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read status file: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "TracerPid:") {
+			// Remove "NSpid:" prefix and trim spaces
+			line = strings.TrimPrefix(line, "TracerPid:")
+			line = strings.TrimSpace(line)
+
+			tracerPid, err := strconv.ParseUint(line, 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse TracerPid value: %w", err)
+			}
+			return uint32(tracerPid), nil
+		}
+	}
+	return 0, fmt.Errorf("TracerPid field not found")
+}
+
+// FindTraceesByTracerPid returns the process list being trced by the given tracer host PID
+func FindTraceesByTracerPid(pid uint32) ([]uint32, error) {
+	procPids, err := process.Pids()
+	if err != nil {
+		return nil, err
+	}
+
+	traceePids := []uint32{}
+	for _, procPid := range procPids {
+		tracerPid, err := GetTracerPid(uint32(procPid))
+		if err != nil {
+			continue
+		}
+		if tracerPid == pid {
+			traceePids = append(traceePids, uint32(procPid))
+		}
+	}
+	return traceePids, nil
+}
+
+var isNsPidAvailable = sync.OnceValue(func() bool {
+	content, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "NSpid:") {
+			return true
+		}
+	}
+	return false
+})
+
+// TryToResolveTraceePid tries to resolve and returnt the HOST tracee PID, given the HOST tracer PID and the namespaced tracee PID.
+func TryToResolveTraceePid(hostTracerPID, NsTraceePid uint32) (uint32, error) {
+	// Look if the NSpid status field is available or not (it should be, except for Centos7).
+	if isNsPidAvailable() {
+		/*
+		   If it's available, we will search for an host pid having the same PID namespace as the
+		   tracer, and having the corresponding NS PID in its status field
+		*/
+
+		// 1. get the pid namespace of the tracer
+		ns, err := GetProcessPidNamespace(hostTracerPID)
+		if err != nil {
+			return 0, fmt.Errorf("Failed to resolve PID namespace: %v", err)
+		}
+
+		// 2. find the host pid matching the arg pid with he tracer namespace
+		pid, err := FindPidNamespace(NsTraceePid, ns)
+		if err != nil {
+			return 0, fmt.Errorf("Failed to resolve tracee PID namespace: %v", err)
+		}
+		return pid, nil
+	}
+
+	/*
+	   Otherwise, we look at all process matching the tracer PID. And as a tracer can attach
+	   to multiple tracees, we return a result only if we found only one.
+	*/
+	traceePids, err := FindTraceesByTracerPid(hostTracerPID)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to find tracee pids matching tracer pid: %v", err)
+	}
+	if len(traceePids) == 1 {
+		return traceePids[0], nil
+	}
+
+	return 0, errors.New("Unable to resolve host tracee PID")
+}

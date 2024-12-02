@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (

@@ -17,7 +17,7 @@ require (
 	github.com/DataDog/viper v1.13.5
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/cast v1.7.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 	gopkg.in/yaml.v2 v2.4.0

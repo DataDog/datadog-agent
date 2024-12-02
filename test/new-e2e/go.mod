@@ -47,7 +47,7 @@ replace (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.137
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.2
@@ -60,10 +60,10 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241127134930-047dd64128b6
-	github.com/aws/aws-sdk-go-v2 v1.32.5
-	github.com/aws/aws-sdk-go-v2/config v1.28.5
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
+	github.com/DataDog/test-infra-definitions v0.0.0-20241129143439-1f340fd450e3
+	github.com/aws/aws-sdk-go-v2 v1.32.2
+	github.com/aws/aws-sdk-go-v2/config v1.27.40
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.7
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -76,11 +76,11 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v2 v2.8.1 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
 	github.com/pulumi/pulumi/sdk/v3 v3.140.0
 	github.com/samber/lo v1.47.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/crypto v0.29.0
 	golang.org/x/sys v0.27.0
@@ -224,7 +224,7 @@ require (
 	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.5 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.7 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.16.6 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.16.7 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -258,8 +258,8 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/oauth2 v0.23.0 // indirect
+	golang.org/x/net v0.31.0
+	golang.org/x/oauth2 v0.22.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/text v0.20.0
 	golang.org/x/time v0.8.0 // indirect
@@ -298,12 +298,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/creack/pty v1.1.20 // indirect
-	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0 // indirect
-	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
-	github.com/onsi/gomega v1.34.1 // indirect
+	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.67.0 // indirect
@@ -320,5 +315,6 @@ require (
 	go.opentelemetry.io/collector/pdata v1.20.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	google.golang.org/genproto v0.0.0-20240311173647-c811ad7063a7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
 )

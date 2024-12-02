@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.137
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/gogo/protobuf v1.3.2
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
