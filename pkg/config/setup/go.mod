@@ -28,8 +28,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 
-	github.com/DataDog/datadog-secret-backend => /Users/baptiste.foy/dd/datadog-secret-backend
-
 	// Internal deps fix version
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )

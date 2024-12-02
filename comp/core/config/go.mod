@@ -30,7 +30,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
-	github.com/DataDog/datadog-secret-backend => /Users/baptiste.foy/dd/datadog-secret-backend
+
 )
 
 require (

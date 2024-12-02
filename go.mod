@@ -19,7 +19,6 @@ retract (
 
 // Internal deps fix version
 replace (
-	github.com/DataDog/datadog-secret-backend => /Users/baptiste.foy/dd/datadog-secret-backend
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0

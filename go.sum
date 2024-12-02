@@ -156,6 +156,8 @@ github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI
 github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1 h1:17MXCuo1IacLeVzdmwV+92ANVrXkquObm0yxjen1eJ0=
 github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1/go.mod h1:5Xp66c0HGadP85lOQtb6oVuSvuL5ZSSowQM58hNtTi8=
+github.com/DataDog/datadog-secret-backend v0.1.13 h1:es2vj48tfJyRzZ+GI8PiGOlfmYkAaamgtMhH58J3OG4=
+github.com/DataDog/datadog-secret-backend v0.1.13/go.mod h1:A/9VkWpV70kcRMpuIUiWm61/fyYfpp8dJNkTo0ojb84=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11 h1:6vwU//TjBIghQKMgIP9UyIRhN/LWS1y8tYzvRnu8JZw=

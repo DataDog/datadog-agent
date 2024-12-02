@@ -339,7 +339,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
-	config.BindEnvAndSetDefault("secret_backend_config_file", "/etc/datadog-agent/secret-backend.yaml") // TODO: make it work on other OSes
+	config.BindEnvAndSetDefault("secret_backend_config_file", "/etc/datadog-agent/secret-backend.yaml")
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)

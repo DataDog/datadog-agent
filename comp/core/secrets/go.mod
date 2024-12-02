@@ -14,7 +14,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 
-	github.com/DataDog/datadog-secret-backend => /Users/baptiste.foy/dd/datadog-secret-backend
 )
 
 require (
