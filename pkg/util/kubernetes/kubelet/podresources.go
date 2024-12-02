@@ -53,7 +53,7 @@ func NewPodResourcesClient() (*PodResourcesClient, error) {
 }
 
 // NewPodResourcesClientWithSocket creates a new PodResourcesClient using the
-// provided socket path (must start with unix://)
+// provided socket path (must start with unix:// on Linux or npipe:// on Windows).
 func NewPodResourcesClientWithSocket(socket string) (*PodResourcesClient, error) {
 	conn, err := grpc.NewClient(
 		socket,
