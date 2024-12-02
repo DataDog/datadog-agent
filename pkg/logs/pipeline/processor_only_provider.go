@@ -60,15 +60,10 @@ func (p *processorOnlyProvider) ReconfigureSDSStandardRules(_ []byte) (bool, err
 	return false, nil
 }
 
-// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
-// configuration received through Remote Configuration.
-// Return true if all SDS scanners are active after applying this configuration.
 func (p *processorOnlyProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
 	return false, nil
 }
 
-// StopSDSProcessing reconfigures the pipeline removing the SDS scanning
-// from the processing steps.
 func (p *processorOnlyProvider) StopSDSProcessing() error {
 	return nil
 }
