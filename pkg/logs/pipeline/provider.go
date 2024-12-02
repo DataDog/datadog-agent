@@ -7,7 +7,6 @@ package pipeline
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,14 +59,6 @@ type provider struct {
 	cfg      pkgconfigmodel.Reader
 }
 
-// processorOnlyProvider implements the Provider provider interface and only contains the processor
-type processorOnlyProvider struct {
-	processor       *processor.Processor
-	inputChan       chan *message.Message
-	outputChan      chan *message.Message
-	pipelineMonitor *metrics.TelemetryPipelineMonitor
-}
-
 // NewProvider returns a new Provider
 func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg)
@@ -77,27 +67,6 @@ func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 // NewServerlessProvider returns a new Provider in serverless mode
 func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
-}
-
-// NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
-func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component) Provider {
-	chanSize := 100
-	outputChan := make(chan *message.Message, chanSize)
-	encoder := processor.JSONServerlessEncoder
-	inputChan := make(chan *message.Message, chanSize)
-	pipelineID := 0
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
-	processor := processor.New(cfg, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
-
-	p := &processorOnlyProvider{
-		processor:       processor,
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		pipelineMonitor: pipelineMonitor,
-	}
-
-	return p
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -134,10 +103,6 @@ func (p *provider) Start() {
 	}
 }
 
-func (p *processorOnlyProvider) Start() {
-	p.processor.Start()
-}
-
 // Stop stops all pipelines in parallel,
 // this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
@@ -148,10 +113,6 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
 	p.outputChan = nil
-}
-
-func (p *processorOnlyProvider) Stop() {
-	p.processor.Stop()
 }
 
 // return true if all processor SDS scanners are active.
@@ -193,35 +154,8 @@ func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderT
 	return allScannersActive, rerr
 }
 
-// return true if processor SDS scanners are active.
-func (p *processorOnlyProvider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
-	// Send a reconfiguration order to the running pipeline
-	order := sds.ReconfigureOrder{
-		Type:         orderType,
-		Config:       config,
-		ResponseChan: make(chan sds.ReconfigureResponse),
-	}
-
-	log.Debug("Sending SDS reconfiguration order:", string(order.Type))
-	p.processor.ReconfigChan <- order
-
-	// Receive response and determine if any errors occurred
-	resp := <-order.ResponseChan
-	scannerActive := resp.IsActive
-	var rerr error
-	if resp.Err != nil {
-		rerr = multierror.Append(rerr, resp.Err)
-	}
-
-	return scannerActive, rerr
-}
-
 // ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
 func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
-	return p.reconfigureSDS(standardRules, sds.StandardRules)
-}
-
-func (p *processorOnlyProvider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
 	return p.reconfigureSDS(standardRules, sds.StandardRules)
 }
 
@@ -232,23 +166,9 @@ func (p *provider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
 	return p.reconfigureSDS(config, sds.AgentConfig)
 }
 
-// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
-// configuration received through Remote Configuration.
-// Return true if all SDS scanners are active after applying this configuration.
-func (p *processorOnlyProvider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
-	return p.reconfigureSDS(config, sds.AgentConfig)
-}
-
 // StopSDSProcessing reconfigures the pipeline removing the SDS scanning
 // from the processing steps.
 func (p *provider) StopSDSProcessing() error {
-	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
-	return err
-}
-
-// StopSDSProcessing reconfigures the pipeline removing the SDS scanning
-// from the processing steps.
-func (p *processorOnlyProvider) StopSDSProcessing() error {
 	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
 	return err
 }
@@ -264,20 +184,8 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	return nextPipeline.InputChan
 }
 
-func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
-	return p.inputChan
-}
-
-func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return p.inputChan, p.pipelineMonitor
-}
-
 func (p *provider) GetOutputChan() chan *message.Message {
 	return nil
-}
-
-func (p *processorOnlyProvider) GetOutputChan() chan *message.Message {
-	return p.outputChan
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
@@ -301,9 +209,4 @@ func (p *provider) Flush(ctx context.Context) {
 			p.Flush(ctx)
 		}
 	}
-}
-
-// Flush flushes synchronously all the contained pipeline of this provider.
-func (p *processorOnlyProvider) Flush(ctx context.Context) {
-	p.processor.Flush(ctx)
 }
