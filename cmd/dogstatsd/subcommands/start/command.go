@@ -95,7 +95,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 	}
 
 	// local flags
-	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing dogstatsd.yaml")
 	startCmd.PersistentFlags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 
 	return startCmd
