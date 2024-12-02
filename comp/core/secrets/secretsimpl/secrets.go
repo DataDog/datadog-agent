@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	secretsbackends "github.com/DataDog/datadog-secret-backend/backend"
 )
 
 const auditFileBasename = "secret-audit-file.json"
@@ -106,6 +108,8 @@ type secretResolver struct {
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
+
+	backends secretsbackends.Backends
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -226,6 +230,12 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.auditFileMaxSize == 0 {
 		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
 	}
+
+	if _, err := os.Stat(params.ConfigPath); err == nil {
+		// TODO: Make secretsbackends.NewBackends return an error instead
+		// of exiting with a Fatal log message
+		r.backends = secretsbackends.NewBackends(params.ConfigPath)
+	}
 }
 
 func isEnc(str string) (bool, string) {
@@ -271,7 +281,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		log.Infof("Agent secrets is disabled by caller")
 		return nil, nil
 	}
-	if data == nil || r.backendCommand == "" {
+	if data == nil || (r.backendCommand == "" && len(r.backends.Backends) == 0) {
 		return data, nil
 	}
 

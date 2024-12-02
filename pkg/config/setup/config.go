@@ -339,6 +339,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
+	config.BindEnvAndSetDefault("secret_backend_config_file", "/etc/datadog-agent/secret-backend.yaml") // TODO: make it work on other OSes
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
@@ -2211,29 +2212,24 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		RemoveLinebreak:  config.GetBool("secret_backend_remove_trailing_line_break"),
 		RunPath:          config.GetString("run_path"),
 		AuditFileMaxSize: config.GetInt("secret_audit_file_max_size"),
+		ConfigPath:       config.GetString("secret_backend_config_file"),
 	})
 
-	if config.GetString("secret_backend_command") != "" {
-		// Viper doesn't expose the final location of the file it
-		// loads. Since we are searching for 'datadog.yaml' in multiple
-		// locations we let viper determine the one to use before
-		// updating it.
-		yamlConf, err := yaml.Marshal(config.AllSettings())
-		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
-		}
+	yamlConf, err := yaml.Marshal(config.AllSettings())
+	if err != nil {
+		return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+	}
 
-		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
-			if origin != settingOrigin {
-				return
-			}
-			if err := configAssignAtPath(config, settingPath, newValue); err != nil {
-				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
-			}
-		})
-		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+	secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
+		if origin != settingOrigin {
+			return
 		}
+		if err := configAssignAtPath(config, settingPath, newValue); err != nil {
+			log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
+		}
+	})
+	if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
+		return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 	}
 	log.Info("Finished resolving secrets")
 	return nil

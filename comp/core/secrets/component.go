@@ -15,6 +15,7 @@ import (
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
 	Command          string
+	ConfigPath       string
 	Arguments        []string
 	Timeout          int
 	MaxSize          int

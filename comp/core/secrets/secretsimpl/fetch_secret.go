@@ -109,25 +109,46 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		"version": secrets.PayloadVersion,
 		"secrets": secretsHandle,
 	}
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
-	}
-	output, err := r.execCommand(string(jsonPayload))
-	if err != nil {
-		return nil, err
+	secs := map[string]secrets.SecretVal{}
+
+	if r.backendCommand != "" {
+		jsonPayload, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
+		}
+		output, err := r.execCommand(string(jsonPayload))
+		if err != nil {
+			return nil, err
+		}
+
+		err = json.Unmarshal(output, &secs)
+		if err != nil {
+			r.tlmSecretUnmarshalError.Inc()
+			return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
+		}
 	}
 
-	secrets := map[string]secrets.SecretVal{}
-	err = json.Unmarshal(output, &secrets)
-	if err != nil {
-		r.tlmSecretUnmarshalError.Inc()
-		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
+	if len(r.backends.Backends) > 0 {
+		secretsOutput := r.backends.GetSecretOutputs(secretsHandle)
+		for path, secret := range secretsOutput {
+			var value string
+			var errMsg string
+			if secret.Value != nil {
+				value = *secret.Value
+			}
+			if secret.Error != nil {
+				errMsg = *secret.Error
+			}
+			secs[path] = secrets.SecretVal{
+				Value:    value,
+				ErrorMsg: errMsg,
+			}
+		}
 	}
 
 	res := map[string]string{}
 	for _, sec := range secretsHandle {
-		v, ok := secrets[sec]
+		v, ok := secs[sec]
 		if !ok {
 			r.tlmSecretResolveError.Inc("missing", sec)
 			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command", sec)
