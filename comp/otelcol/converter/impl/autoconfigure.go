@@ -162,11 +162,13 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 				return
 			}
 
+			// api::site
 			apiSite := apiMap["site"]
 			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
 				apiMap["site"] = coreCfg.Get("site")
 			}
 
+			// api::key
 			var match bool
 			apiKey, ok := apiMap["key"]
 			if ok {
@@ -186,7 +188,6 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 					}
 				}
 			}
-			// this is the only reference to Requires.Conf
 			// TODO: add logic to either fail or log message if api key not found
 			if (apiKey == nil || apiKey == "" || match) && coreCfg.Get("api_key") != nil {
 				apiMap["key"] = coreCfg.Get("api_key")
