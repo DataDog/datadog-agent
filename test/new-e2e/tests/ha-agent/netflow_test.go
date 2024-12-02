@@ -30,9 +30,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-//go:embed compose/netflowCompose.yaml
-var netflowCompose string
-
 //go:embed config/netflowConfig.yaml
 var datadogYaml string
 
@@ -94,7 +91,6 @@ func netflowDockerProvisioner() e2e.Provisioner {
 		composeDependencies := []pulumi.Resource{configCommand}
 		dockerAgent, err := agent.NewDockerAgent(&awsEnv, host, dockerManager,
 			dockeragentparams.WithFakeintake(fakeIntake),
-			dockeragentparams.WithExtraComposeManifest("netflow-generator", pulumi.String(netflowCompose)),
 			dockeragentparams.WithEnvironmentVariables(envVars),
 			dockeragentparams.WithPulumiDependsOn(pulumi.DependsOn(composeDependencies)),
 		)
@@ -107,65 +103,21 @@ func netflowDockerProvisioner() e2e.Provisioner {
 	}, nil)
 }
 
-type netflowDockerSuite12 struct {
+type netflowDockerSuite13 struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
 
-// TestNetflowSuite runs the netflow e2e suite
-func TestNetflowSuite(t *testing.T) {
-	e2e.Run(t, &netflowDockerSuite12{}, e2e.WithProvisioner(netflowDockerProvisioner()))
+// TestHaAgentSuite runs the netflow e2e suite
+func TestHaAgentSuite(t *testing.T) {
+	e2e.Run(t, &netflowDockerSuite13{}, e2e.WithProvisioner(netflowDockerProvisioner()))
 }
 
-// TestNetflow does some basic validation to confirm that the netflow-generator container is running and sending netflow data to the agent,
-// and that the agent container is sending netflow payloads to the fakeintake.
-func (s *netflowDockerSuite12) TestNetflow() {
-	const minFlows = 100
+func (s *netflowDockerSuite13) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-
 		tags := []string{"agent_group:test-group01"}
 		metrics, err := fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-		for _, metric := range metrics {
-			s.T().Logf("datadog.agent.running metric in fake intake: %+v", metric)
-		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
-
-		// Validate that flows_flushed metric(s) have been sent.
-		//metrics, err := fakeintake.FilterMetrics("datadog.netflow.aggregator.flows_flushed")
-		//assert.NoError(c, err)
-		//assert.Greater(c, len(metrics), 0, "no 'datadog.netflow.aggregator.flows_flushed' metrics")
-		//
-		//// Check that the sum of flows_flushed metrics >= minFlows.
-		//var totalFlowsFlushed float64
-		//for _, metric := range metrics {
-		//	for _, point := range metric.GetPoints() {
-		//		totalFlowsFlushed += point.GetValue()
-		//	}
-		//}
-		//assert.GreaterOrEqual(c, int(totalFlowsFlushed), minFlows, "did not receive >= %d 'datadog.netflow.aggregator.flows_flushed' metrics", minFlows)
-		//
-		//type ndmflowStats struct {
-		//	flowTypes   map[string]int
-		//	ipProtocols map[string]int
-		//}
-		//stats := ndmflowStats{make(map[string]int), make(map[string]int)}
-		//
-		//ndmflows, err := fakeintake.GetNDMFlows()
-		//assert.NoError(c, err)
-		//// Validate that the number netflow payloads sent by the agent and received by the fakeintake >= minFlows.
-		//assert.GreaterOrEqual(c, len(ndmflows), minFlows, "did not receive >= %d netflow payloads", minFlows)
-		//
-		//// The netflow-generator workload app sends netflow5 payloads for various types of flows.  Validate that the expected types of flows were received.
-		//for _, ndmflow := range ndmflows {
-		//	stats.flowTypes[ndmflow.FlowType]++
-		//	stats.ipProtocols[ndmflow.IPProtocol]++
-		//}
-		//s.T().Logf("flows_flushed metric shows that agent sent %d flows, fakeintake received %d ndmflows", int(totalFlowsFlushed), len(ndmflows))
-		//s.T().Logf("stats: %+v", stats)
-		//assert.Greater(c, stats.flowTypes["netflow5"], 0, "no netflow5 flows yet")
-		//assert.Greater(c, stats.ipProtocols["ICMP"], 0, "no ICMP flows yet")
-		//assert.Greater(c, stats.ipProtocols["UDP"], 0, "no UDP flows yet")
-		//assert.Greater(c, stats.ipProtocols["TCP"], 0, "no TCP flows yet")
 	}, 5*time.Minute, 10*time.Second)
 }
