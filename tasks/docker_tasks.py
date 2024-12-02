@@ -68,7 +68,7 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-CMD echo $HOME && whoami && ls -la /root && ls -la /root/.docker && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && docker login && echo "hihi" && /test.bin
+CMD  docker login --username "$DOCKER_USER" --password "$DOCKER_TOKEN" "$DOCKER_REGISTRY_URL" && echo "hihi" && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && echo "hihi" && /test.bin
 COPY test.bin /test.bin
 """
         )
@@ -81,6 +81,14 @@ COPY test.bin /test.bin
 
     scratch_volume = client.volumes.create()
 
+    # Passing Docker user, token and registry to the container to avoid rate limits
+    container_env = [
+        f"SCRATCH_VOLUME_NAME={scratch_volume.name}",
+        "SCRATCH_VOLUME_PATH=/tmp/scratch",
+        f"DOCKER_USER={os.environ.get('DOCKER_USER', '')}",
+        f"DOCKER_TOKEN={os.environ.get('DOCKER_TOKEN', '')}" f"DOCKER_REGISTRY={os.environ.get('DOCKER_REGISTRY', '')}",
+    ]
+
     test_container = client.containers.run(
         test_image.id,
         detach=True,
@@ -88,14 +96,12 @@ COPY test.bin /test.bin
         stderr=True,
         pid_mode="host",  # For origin detection
         cgroupns="host",  # To allow proper network mode detection in integration tests
-        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
+        environment=container_env,
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
             '/proc': {'bind': '/host/proc', 'mode': 'ro'},
             '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
             scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},
-            # Forwarding the Docker config to the container not to hit rate limits
-            '/root/.docker': {'bind': '/root/.docker', 'mode': 'rw'},
         },
     )
 

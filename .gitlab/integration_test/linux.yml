@@ -22,10 +22,11 @@ agent_integration_tests:
     # DockerHub login not to be rate-limited during the docker compose
     - echo $HOME
     - whoami
-    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
+    - DOCKER_USER=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?; export DOCKER_USER
+    - DOCKER_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token) || exit $?; export DOCKER_TOKEN
     - |
       cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g'
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
     - |
       cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g'
     - inv -e integration-tests --race --remote-docker
