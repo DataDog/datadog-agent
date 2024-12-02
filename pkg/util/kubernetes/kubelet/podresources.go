@@ -10,6 +10,7 @@ package kubelet
 import (
 	"context"
 	"fmt"
+	"runtime"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -44,7 +45,11 @@ func NewPodResourcesClient() (*PodResourcesClient, error) {
 		return nil, fmt.Errorf("kubernetes_kubelet_podresources_socket is not set")
 	}
 
-	return NewPodResourcesClientWithSocket("unix://" + podResourcesSocket)
+	socketPrefix := "unix://"
+	if runtime.GOOS == "windows" {
+		socketPrefix = "npipe://"
+	}
+	return NewPodResourcesClientWithSocket(socketPrefix + podResourcesSocket)
 }
 
 // NewPodResourcesClientWithSocket creates a new PodResourcesClient using the
@@ -79,7 +84,7 @@ func (c *PodResourcesClient) ListPodResources(ctx context.Context) ([]*podresour
 }
 
 // GetContainerToDevicesMap returns a map that contains all the containers and
-// the devices assigned to them. Only container with devices are included
+// the devices assigned to them. Only containers with devices are included
 func (c *PodResourcesClient) GetContainerToDevicesMap(ctx context.Context) (map[ContainerKey][]*podresourcesv1.ContainerDevices, error) {
 	pods, err := c.ListPodResources(ctx)
 	if err != nil {
