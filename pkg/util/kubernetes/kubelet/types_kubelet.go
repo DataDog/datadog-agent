@@ -233,8 +233,11 @@ type ContainerStatus struct {
 
 // ContainerResource contains the fields for an assigned resource to a container
 type ContainerResource struct {
+	// Name is the name of the resource as specified in the spec (e.g. nvidia.com/gpu)
 	Name string `json:"name,omitempty"`
-	ID   string `json:"id,omitempty"`
+
+	// ID is the unique ID of that resource. The format will depend on the resource provider
+	ID string `json:"id,omitempty"`
 }
 
 // IsPending returns if the container doesn't have an ID
