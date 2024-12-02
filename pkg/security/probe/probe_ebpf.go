@@ -206,6 +206,12 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
+	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return
+	}
+
 	p.useFentry = true
 }
 

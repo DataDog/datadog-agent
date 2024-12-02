@@ -19,7 +19,6 @@ const (
 
 func adjustUSM(cfg model.Config) {
 	if cfg.GetBool(smNS("enabled")) {
-		applyDefault(cfg, netNS("enable_http_monitoring"), true)
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)
 		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
 		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
@@ -28,6 +27,7 @@ func adjustUSM(cfg model.Config) {
 	}
 
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
+	applyDefault(cfg, smNS("enable_http_monitoring"), true)
 	deprecateBool(cfg, netNS("enable_https_monitoring"), smNS("tls", "native", "enabled"))
 	deprecateBool(cfg, smNS("enable_go_tls_support"), smNS("tls", "go", "enabled"))
 	applyDefault(cfg, smNS("tls", "go", "enabled"), true)

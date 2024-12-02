@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -373,6 +374,19 @@ func (k *Version) HaveFentrySupport() bool {
 // HaveFentrySupportWithStructArgs returns whether the kernel supports fentry probes with struct arguments
 func (k *Version) HaveFentrySupportWithStructArgs() bool {
 	return k.commonFentryCheck("audit_set_loginuid")
+}
+
+// HaveFentryNoDuplicatedWeakSymbols returns whether the kernel supports fentry probes with struct arguments
+func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
+	var symbol string
+	switch runtime.GOARCH {
+	case "amd64":
+		symbol = "__ia32_sys_setregid16"
+	default:
+		return true
+	}
+
+	return k.commonFentryCheck(symbol)
 }
 
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
