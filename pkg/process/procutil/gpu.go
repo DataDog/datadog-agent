@@ -4,3 +4,15 @@
 // Copyright 2024-present Datadog, Inc.
 
 package procutil
+
+import (
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+func NewGpuProbe(
+	config pkgconfigmodel.Reader,
+) {
+	nvml := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
+}
