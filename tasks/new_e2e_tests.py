@@ -268,7 +268,18 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
 def post_process_output(path: str, test_depth: int = 1):
     """
     Post process the test results to add the test run name
+    path: path to the test result json file
+    test_depth: depth of the test name to consider
+
+    By default the test_depth is set to 1, which means that the logs will be splitted depending on the test suite name.
+    If we use a single test suite to run multiple tests we can increase the test_depth to split the logs per test.
+    For example with:
+    TestPackages/run_ubuntu
+    TestPackages/run_centos
+    TestPackages/run_debian
+    We should set test_depth to 2 to avoid mixing all the logs of the different tested platform
     """
+
     logs_per_test = {}
     with open(path) as f:
         idx = 0
@@ -280,17 +291,17 @@ def post_process_output(path: str, test_depth: int = 1):
                 continue
             if json_line["Package"] not in logs_per_test:
                 logs_per_test[json_line["Package"]] = {}
+
             splitted_test = json_line["Test"].split("/")
-            if (
-                "/".join(splitted_test[0 : min(test_depth, len(splitted_test))])
-                not in logs_per_test[json_line["Package"]]
-            ):
-                logs_per_test[json_line["Package"]][json_line["Test"].split("/")[0]] = []
+            test_name = splitted_test[: min(test_depth, len(splitted_test))]
+
+            if "/".join(test_name) not in logs_per_test[json_line["Package"]]:
+                logs_per_test[json_line["Package"]]["/".join(test_name)] = []
             if "===" in json_line["Output"]:
                 continue
 
-            logs_per_test[json_line["Package"]][json_line["Test"].split("/")[0]].append(json_line["Output"])
-
+            logs_per_test[json_line["Package"]]["/".join(test_name)].append(json_line["Output"])
+    pretty_print_logs(logs_per_test)
     return logs_per_test
 
 
@@ -305,6 +316,7 @@ def pretty_print_logs(logs_per_test):
     for package, tests in logs_per_test.items():
         for test, logs in tests.items():
             with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
+                print("Complete logs for " + package + "." + test)
                 print("".join(logs))
 
 
