@@ -8,15 +8,14 @@ package ndmtmp
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	ddagg "github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
@@ -24,7 +23,7 @@ func TestBundleDependencies(t *testing.T) {
 		demultiplexerimpl.MockModule(),
 		orchestratorForwarderImpl.MockModule(),
 		defaultforwarder.MockModule(),
-		eventplatformmock.MockModule(),
+		eventplatformimpl.MockModule(),
 		core.MockBundle(),
 	)
 }

@@ -168,7 +168,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 
 	for mode, name := range map[bool]string{false: "without TLS", true: "with TLS"} {
 		t.Run(name, func(t *testing.T) {
-			if mode && !gotlsutils.GoTLSSupported(t, config.New()) {
+			if mode && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			if mode && isUnsupportedUbuntu(t) {
@@ -1265,7 +1265,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 		if isUnsupportedUbuntu(t) {
@@ -1494,7 +1494,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 		if isUnsupportedUbuntu(t) {
@@ -1619,13 +1619,11 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 }
 
 func getDefaultTestConfiguration(tls bool) *config.Config {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
-	if tls {
-		cfg.EnableGoTLSSupport = true
-		cfg.GoTLSExcludeSelf = true
-	}
+	cfg.EnableGoTLSSupport = tls
+	cfg.GoTLSExcludeSelf = tls
 	return cfg
 }
 
@@ -1725,8 +1723,9 @@ func TestLoadKafkaBinary(t *testing.T) {
 }
 
 func loadKafkaBinary(t *testing.T, debug bool) {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	// We don't have a way of enabling kafka without http at the moment
+	cfg.EnableGoTLSSupport = false
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug

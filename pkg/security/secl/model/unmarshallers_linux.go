@@ -1122,6 +1122,10 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		}
 		e.fillFromIMDSHeader(resp.Header, "")
 
+		if resp.StatusCode != http.StatusOK {
+			return len(data), ErrNoUsefulData
+		}
+
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
 			b := new(bytes.Buffer)

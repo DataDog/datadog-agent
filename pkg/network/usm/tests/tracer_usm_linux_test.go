@@ -119,7 +119,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -299,6 +299,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	t := s.T()
 	cfg := tracertestutil.Config()
 	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableGoTLSSupport = false
 	// USM cannot be enabled without a protocol.
 	cfg.EnableHTTPMonitoring = true
 	cfg.ProtocolClassificationEnabled = true
@@ -684,7 +685,11 @@ func testHTTPSClassification(t *testing.T, tr *tracer.Tracer, clientHost, target
 }
 
 func TestFullMonitorWithTracer(t *testing.T) {
-	cfg := config.New()
+	if !httpSupported() {
+		t.Skip("USM is not supported")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableKafkaMonitoring = true

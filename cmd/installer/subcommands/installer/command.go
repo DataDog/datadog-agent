@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -226,7 +226,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if site == "" {
 		site = config.Site
 	}
-	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer") // No sampling rules for commands
+	t, err := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
 		return nil

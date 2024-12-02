@@ -79,7 +79,7 @@ func (t *LinuxResolver) checkTags(workload *cgroupModel.CacheEntry) {
 
 // fetchTags fetches tags for the provided workload
 func (t *LinuxResolver) fetchTags(container *cgroupModel.CacheEntry) error {
-	newTags, err := t.ResolveWithErr(string(container.ContainerID))
+	newTags, err := t.ResolveWithErr(container.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", container.ContainerID, err)
 	}

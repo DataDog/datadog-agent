@@ -203,7 +203,6 @@ def get_build_flags(
     run_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
     headless_mode=False,
@@ -243,8 +242,6 @@ def get_build_flags(
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
-    if python_home_2:
-        ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome2={python_home_2} "
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
@@ -270,6 +267,10 @@ def get_build_flags(
     if rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
+
+    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+        # fake the minimum windows version
+        env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
@@ -322,7 +323,7 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux':
+    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
         # Enable lazy binding, which seems to be overridden when loading containerd
         # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
         extldflags += "-Wl,-z,lazy "
