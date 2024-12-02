@@ -8,8 +8,6 @@ package ha_agent
 
 import (
 	_ "embed"
-	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,109 +16,26 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/stretchr/testify/assert"
 
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
-
-//go:embed compose/netflowCompose.yaml
-var netflowCompose string
 
 //go:embed config/netflowConfig.yaml
 var datadogYaml string
 
-// netflowDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
-// with the netflow-generator running and sending netflow payloads to the agent
-func netflowDockerProvisioner() e2e.Provisioner {
-	return e2e.NewTypedPulumiProvisioner[environments.DockerHost]("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
-		name := "netflowvm"
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-
-		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.AmazonLinuxECSDefault))
-		if err != nil {
-			return err
-		}
-		host.Export(ctx, &env.RemoteHost.HostOutput)
-
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
-		if err != nil {
-			return err
-		}
-		fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-
-		filemanager := host.OS.FileManager()
-
-		createConfigDirCommand, configPath, err := filemanager.TempDirectory("config")
-		if err != nil {
-			return err
-		}
-
-		// update agent datadog.yaml config content at fakeintake address resolution
-		datadogYamlContent := fakeIntake.URL.ApplyT(func(url string) string {
-			return strings.ReplaceAll(datadogYaml, "FAKEINTAKE_URL", url)
-		}).(pulumi.StringOutput)
-
-		configCommand, err := filemanager.CopyInlineFile(datadogYamlContent, path.Join(configPath, "datadog.yaml"),
-			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
-		if err != nil {
-			return err
-		}
-
-		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
-		if err != nil {
-			return err
-		}
-
-		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
-		if err != nil {
-			return err
-		}
-		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
-		if err != nil {
-			return err
-		}
-
-		envVars := pulumi.StringMap{"CONFIG_DIR": pulumi.String(configPath)}
-		composeDependencies := []pulumi.Resource{configCommand}
-		dockerAgent, err := agent.NewDockerAgent(&awsEnv, host, dockerManager,
-			dockeragentparams.WithFakeintake(fakeIntake),
-			dockeragentparams.WithExtraComposeManifest("netflow-generator", pulumi.String(netflowCompose)),
-			dockeragentparams.WithEnvironmentVariables(envVars),
-			dockeragentparams.WithPulumiDependsOn(pulumi.DependsOn(composeDependencies)),
-		)
-		if err != nil {
-			return err
-		}
-		dockerAgent.Export(ctx, &env.Agent.DockerAgentOutput)
-
-		return err
-	}, nil)
-}
-
-type netflowDockerSuite23 struct {
+type netflowDockerSuite24 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestNetflowSuite runs the netflow e2e suite
 func TestNetflowSuite(t *testing.T) {
-	e2e.Run(t, &netflowDockerSuite23{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &netflowDockerSuite24{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(datadogYaml))),
 	))
 }
 
-func (s *netflowDockerSuite23) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
+func (s *netflowDockerSuite24) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.running metric")
