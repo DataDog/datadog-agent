@@ -68,7 +68,7 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-CMD  docker login --username "$DOCKER_USER" --password "$DOCKER_TOKEN" "$DOCKER_REGISTRY_URL" && echo "hihi" && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && echo "hihi" && /test.bin
+CMD echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL" && echo "hihi" && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && echo "hihi" && /test.bin
 COPY test.bin /test.bin
 """
         )
@@ -107,7 +107,6 @@ COPY test.bin /test.bin
 
     exit_code = test_container.wait()['StatusCode']
 
-    print("coucou" * 100)
     stdout_logs = test_container.logs(stdout=True, stderr=False, stream=False).decode(sys.stdout.encoding)
     stderr_logs = test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding)
 
