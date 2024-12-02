@@ -63,7 +63,7 @@ require (
 	github.com/DataDog/test-infra-definitions v0.0.0-20241129143439-1f340fd450e3
 	github.com/aws/aws-sdk-go-v2 v1.32.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.40
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.184.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.7
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -123,7 +123,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.47.4
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.0
 	github.com/aws/aws-sdk-go-v2/service/sso v1.23.4 // indirect
