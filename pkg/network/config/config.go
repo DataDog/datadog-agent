@@ -289,8 +289,8 @@ type Config struct {
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
 
-	// KernelBatchingEnabled enables the use of custom batching for eBPF perf events with perf buffers
-	KernelBatchingEnabled bool
+	// CustomBatchingEnabled enables the use of custom batching for eBPF perf events with perf buffers
+	CustomBatchingEnabled bool
 }
 
 // New creates a config for the network tracer
@@ -338,7 +338,7 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_protocol_classification")),
 
 		NPMRingbuffersEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ringbuffers")),
-		KernelBatchingEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_kernel_batching")),
+		CustomBatchingEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_custom_batching")),
 
 		EnableHTTPMonitoring:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),

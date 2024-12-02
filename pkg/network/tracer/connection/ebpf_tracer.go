@@ -205,8 +205,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
 	var extractor *batchExtractor
 
-	util.AddBoolConst(&mgrOptions, "batching_enabled", config.KernelBatchingEnabled)
-	if config.KernelBatchingEnabled {
+	util.AddBoolConst(&mgrOptions, "batching_enabled", config.CustomBatchingEnabled)
+	if config.CustomBatchingEnabled {
 		numCPUs, err := ebpf.PossibleCPU()
 		if err != nil {
 			return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
@@ -251,7 +251,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
 	var flusher perf.Flusher = connCloseEventHandler
-	if config.KernelBatchingEnabled {
+	if config.CustomBatchingEnabled {
 		flusher, err = newConnBatchManager(m, extractor, connPool, tr.closedPerfCallback)
 		if err != nil {
 			return nil, err
@@ -322,7 +322,7 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 			BufferSize: util.ComputeDefaultClosedConnRingBufferSize(),
 		},
 	}
-	if config.KernelBatchingEnabled {
+	if config.CustomBatchingEnabled {
 		eopts.PerfOptions.Watermark = 1
 		eopts.Handler = func(buf []byte) {
 			l := len(buf)

@@ -153,7 +153,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// 	enableProgram(enabled, sockFDLookupRet)
 		// }
 
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProgram(enabled, tcpCloseReturn)
 		}
 	}
@@ -168,7 +168,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
 
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpDestroySockReturn)
 		}
 	}
@@ -183,7 +183,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)
 
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpv6DestroySockReturn)
 		}
 	}

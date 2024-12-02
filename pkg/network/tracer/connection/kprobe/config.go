@@ -80,13 +80,13 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProbe(enabled, probes.TCPCloseFlushReturn)
 		}
 
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPDone)
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProbe(enabled, probes.TCPDoneFlushReturn)
 		}
 		enableProbe(enabled, probes.TCPFinishConnect)
@@ -102,7 +102,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProbe(enabled, probes.UDPDestroySockReturn)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IPMakeSkb, probes.IPMakeSkbPre4180, kv4180))
@@ -127,7 +127,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
-		if c.KernelBatchingEnabled {
+		if c.CustomBatchingEnabled {
 			enableProbe(enabled, probes.UDPv6DestroySockReturn)
 		}
 		if kv >= kv5180 || runtimeTracer {
@@ -196,7 +196,7 @@ func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute
 			},
 		},
 	}
-	if cfg.KernelBatchingEnabled {
+	if cfg.CustomBatchingEnabled {
 		tcs = append(tcs, manager.TailCallRoute{
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
