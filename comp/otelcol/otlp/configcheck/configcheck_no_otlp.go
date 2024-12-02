@@ -5,7 +5,8 @@
 
 //go:build !otlp
 
-package otlp
+// Package configcheck exposes helpers to fetch config.
+package configcheck
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
