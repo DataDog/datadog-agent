@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
@@ -174,6 +172,7 @@ func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext 
 	}
 	return errors
 }
+
 func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	if (metricTag.Column.OID != "" || metricTag.Column.Name != "") && (metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "") {
@@ -217,7 +216,7 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 		}
 	}
 	if len(metricTag.Mapping) > 0 && metricTag.Tag == "" {
-		log.Warnf("``tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping)
+		errors = append(errors, fmt.Sprintf("``tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping))
 	}
 	for _, transform := range metricTag.IndexTransform {
 		if transform.Start > transform.End {
