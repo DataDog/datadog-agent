@@ -7,7 +7,6 @@ package sources
 
 import (
 	"os"
-	"sync"
 
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
@@ -18,19 +17,11 @@ type ConfigSources struct {
 	addedByType map[string][]chan *LogSource
 }
 
-var (
-	instance *ConfigSources
-	once     sync.Once
-)
-
-// GetInstance provides a singleton instance of ConfigSources.
-func GetInstance() *ConfigSources {
-	once.Do(func() {
-		instance = &ConfigSources{
-			addedByType: make(map[string][]chan *LogSource),
-		}
-	})
-	return instance
+// NewConfigSources provides an instance of ConfigSources.
+func NewConfigSources() *ConfigSources {
+	return &ConfigSources{
+		addedByType: make(map[string][]chan *LogSource),
+	}
 }
 
 // AddFileSource gets a file from a file path and adds it as a source.
@@ -48,13 +39,12 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	if err != nil {
 		return err
 	}
-	configSource := GetInstance()
 	for _, cfg := range logsConfig {
 		if cfg.TailingMode == "" {
 			cfg.TailingMode = "beginning"
 		}
 		source := NewLogSource(cfg.Name, cfg)
-		configSource.AddSource(source)
+		s.AddSource(source)
 	}
 
 	return nil
@@ -64,11 +54,10 @@ func (s *ConfigSources) AddFileSource(path string) error {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
-	configSource := GetInstance()
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
-	streamsForType := configSource.addedByType[source.Config.Type]
+	streamsForType := s.addedByType[source.Config.Type]
 	for _, stream := range streamsForType {
 		stream <- source
 	}
@@ -83,14 +72,13 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource
 // of a specified type
 // Any sources added before this call are delivered from a new goroutine.
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
-	configSource := GetInstance()
 
 	added = make(chan *LogSource)
 
-	if _, exists := configSource.addedByType[sourceType]; !exists {
-		configSource.addedByType[sourceType] = []chan *LogSource{}
+	if _, exists := s.addedByType[sourceType]; !exists {
+		s.addedByType[sourceType] = []chan *LogSource{}
 	}
-	configSource.addedByType[sourceType] = append(configSource.addedByType[sourceType], added)
+	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
 	return
 }
 

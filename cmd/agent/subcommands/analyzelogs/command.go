@@ -35,8 +35,6 @@ type CliParams struct {
 
 	// CoreConfigPath represents the path to the core configuration file.
 	CoreConfigPath string
-
-	ConfigSource *sources.ConfigSources
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -44,7 +42,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams:   globalParams,
 		CoreConfigPath: defaultCoreConfigPath, // Set default path
-		ConfigSource:   sources.GetInstance(),
 	}
 
 	cmd := &cobra.Command{
@@ -72,15 +69,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
 func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
-	outputChan := agentimpl.SetUpLaunchers(config)
+	configSource := sources.NewConfigSources()
+	outputChan := agentimpl.SetUpLaunchers(config, configSource)
 
 	// Send paths to source provider
-	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
+	if err := configSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
 	// Add core config source
-	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
+	if err := configSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
 

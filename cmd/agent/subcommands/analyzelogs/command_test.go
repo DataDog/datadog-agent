@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -112,7 +111,6 @@ Auto-discovery IDs:
 	cliParams := &CliParams{
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
-		ConfigSource:   sources.GetInstance(),
 	}
 
 	// Wait for code to finish running before trying to read

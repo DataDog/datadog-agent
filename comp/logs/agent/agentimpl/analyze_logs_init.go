@@ -25,7 +25,7 @@ import (
 )
 
 // SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
-func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
+func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.ConfigSources) chan *message.Message {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
 		log.Errorf("Error while getting processing rules from config: %v", err)
@@ -53,7 +53,6 @@ func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 
 	a := auditor.NewNullAuditor()
 	pipelineProvider.Start()
-	sourceProvider := sources.GetInstance()
 	fileLauncher.Start(sourceProvider, pipelineProvider, a, tracker)
 
 	lnchrs.AddLauncher(fileLauncher)

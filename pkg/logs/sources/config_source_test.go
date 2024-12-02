@@ -13,12 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSingletonInstance(t *testing.T) {
-	instance1 := GetInstance()
-	instance2 := GetInstance()
-	assert.Equal(t, instance1, instance2, "GetInstance should return the same instance")
-}
-
 func CreateTestFile(tempDir string) *os.File {
 	// Ensure the directory exists
 	err := os.MkdirAll(tempDir, 0755)
@@ -65,7 +59,7 @@ func TestSubscribeForTypeAndAddFileSource(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	defer os.Remove(tempFile.Name())
 
-	configSource := GetInstance()
+	configSource := NewConfigSources()
 	addedChan, _ := configSource.SubscribeForType("file")
 	go func() {
 		added := <-addedChan
