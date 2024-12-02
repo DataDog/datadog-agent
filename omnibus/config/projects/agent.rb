@@ -211,7 +211,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU)
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end

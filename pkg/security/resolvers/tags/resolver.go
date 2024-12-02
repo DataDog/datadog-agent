@@ -10,9 +10,9 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Event defines the tags event type
@@ -25,8 +25,6 @@ const (
 
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
-	Start(ctx context.Context) error
-	Stop() error
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 }
@@ -35,9 +33,9 @@ type Tagger interface {
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id string) []string
-	ResolveWithErr(fid string) ([]string, error)
-	GetValue(id string, tag string) string
+	Resolve(id containerutils.ContainerID) []string
+	ResolveWithErr(fid containerutils.ContainerID) ([]string, error)
+	GetValue(id containerutils.ContainerID, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -46,58 +44,40 @@ type DefaultResolver struct {
 }
 
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id string) []string {
+func (t *DefaultResolver) Resolve(id containerutils.ContainerID) []string {
 	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
+func (t *DefaultResolver) ResolveWithErr(id containerutils.ContainerID) ([]string, error) {
 	return GetTagsOfContainer(t.tagger, id)
 }
 
 // GetTagsOfContainer returns the tags for the given container id
 // exported to share the code with other non-resolver users of tagger
-func GetTagsOfContainer(tagger Tagger, containerID string) ([]string, error) {
+func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) ([]string, error) {
 	if tagger == nil {
 		return nil, nil
 	}
 
-	entityID := types.NewEntityID(types.ContainerID, containerID)
+	entityID := types.NewEntityID(types.ContainerID, string(containerID))
 	return tagger.Tag(entityID, types.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id string, tag string) string {
+func (t *DefaultResolver) GetValue(id containerutils.ContainerID, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
 // Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context) error {
-	if t.tagger == nil {
-		return nil
-	}
-
-	go func() {
-		if err := t.tagger.Start(ctx); err != nil {
-			log.Errorf("failed to init tagger: %s", err)
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		_ = t.tagger.Stop()
-	}()
-
+func (t *DefaultResolver) Start(_ context.Context) error {
 	return nil
 }
 
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
-	if t.tagger == nil {
-		return nil
-	}
-	return t.tagger.Stop()
+	return nil
 }
 
 // NewDefaultResolver returns a new default tags resolver
