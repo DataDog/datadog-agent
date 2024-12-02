@@ -193,7 +193,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	c.npCollector.ScheduleConns(conns.Conns)
+	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
