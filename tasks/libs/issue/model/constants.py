@@ -1,4 +1,4 @@
-MODEL = "issue_auto_assign_model"
+MODEL = "/issue_auto_assign_model"
 BASE_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
 TEAMS = (
     'container-ecosystems',
