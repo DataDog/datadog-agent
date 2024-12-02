@@ -412,7 +412,7 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
         "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
         "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
         "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Trace Agentt": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
+        "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
     }
     tests_failures = {}
     for t_name, t in tests.items():

@@ -68,9 +68,14 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-ENTRYPOINT echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
-CMD echo "incoming" && echo "$DOCKER_TOKEN" | cut -c1-4 && echo "$DOCKER_USER" && echo "$DOCKER_REGISTRY_URL" && echo "done" && echo "hihi" && cat /root/.docker/config.json | sed 's/"auth": *"[^"]*"/"auth": "REDACTED"/g' && echo "dockerconfigcoming" && docker info && echo "dockerconfigending" && echo "hihi" && /test.bin
+
 COPY test.bin /test.bin
+
+# Authenticate to Docker Hub
+ENTRYPOINT echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
+
+# Run the tests
+CMD /test.bin
 """
         )
         # Handle optional testdata folder
