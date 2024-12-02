@@ -120,7 +120,6 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (c
 	cmd.Stdout = scanner
 	cmd.Stderr = scanner
 
-	log.Debugf("Running command %v, env=%v", command, env)
 	err = cmd.Start()
 	if err != nil {
 		return nil, err
@@ -133,6 +132,7 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (c
 				return nil, fmt.Errorf("failed to start the process %s due to: %w", command[0], err)
 			}
 		case <-scanner.DoneChan:
+			t.Logf("%s command succeeded", command)
 			return cmd, nil
 		case <-time.After(dockerutils.DefaultTimeout):
 			//setting the error explicitly to trigger the defer function
