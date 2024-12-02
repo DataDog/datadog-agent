@@ -84,6 +84,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			cfg.EnableGoTLSSupport = false
 			cfg.EnableHTTPMonitoring = true
 			cfg.EnableIstioMonitoring = false
+			cfg.EnableNativeTLSMonitoring = false
 
 			monitor, err := NewMonitor(cfg, nil)
 			skipIfNotSupported(t, err)
