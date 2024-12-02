@@ -16,6 +16,15 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+func (c *ntmConfig) leafAtPath(key string) LeafNode {
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return missingLeaf
+	}
+
+	return c.leafAtPathFromNode(key, c.root)
+}
+
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
 // Note that it returns the keys lowercased.

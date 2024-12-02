@@ -179,7 +179,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	key = strings.ToLower(key)
 
 	c.Lock()
-	previousValue := c.leafAtPath(key).Get()
+	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	parts := splitKey(key)
 
@@ -221,7 +221,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 		panic("cannot SetDefault() once the config has been marked as ready for use")
 	}
 	key = strings.ToLower(key)
-	c.knownKeys[key] = struct{}{}
+	c.addToKnownKeys(key)
 	c.setDefault(key, value)
 }
 
@@ -232,6 +232,15 @@ func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
 	c.Unlock()
 }
 
+func (c *ntmConfig) addToKnownKeys(key string) {
+	base := ""
+	keyParts := splitKey(key)
+	for _, part := range keyParts {
+		base = joinKey(base, part)
+		c.knownKeys[base] = struct{}{}
+	}
+}
+
 // SetKnown adds a key to the set of known valid config keys
 func (c *ntmConfig) SetKnown(key string) {
 	c.Lock()
@@ -240,8 +249,7 @@ func (c *ntmConfig) SetKnown(key string) {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
 
-	key = strings.ToLower(key)
-	c.knownKeys[key] = struct{}{}
+	c.addToKnownKeys(key)
 }
 
 // IsKnown returns whether a key is known
@@ -420,16 +428,7 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 	return slices.Clone(c.allSettings)
 }
 
-func (c *ntmConfig) leafAtPath(key string) LeafNode {
-	return c.leafAtPathFromNode(key, c.root)
-}
-
 func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
-	if !c.isReady() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return missingLeaf
-	}
-
 	pathParts := splitKey(key)
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -496,8 +495,12 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		c.configEnvVars[envvar] = key
 	}
 
-	c.knownKeys[key] = struct{}{}
-	c.setDefault(key, nil)
+	c.addToKnownKeys(key)
+	// Insert a default only if we don't already have one. Calling BindEnv after SetDefault should not overrides the
+	// default value.
+	if c.leafAtPathFromNode(key, c.defaults) == missingLeaf {
+		c.setDefault(key, nil)
+	}
 }
 
 // SetEnvKeyReplacer binds a replacer function for keys
