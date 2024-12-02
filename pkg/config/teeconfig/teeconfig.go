@@ -10,6 +10,7 @@ import (
 	"io"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -459,15 +460,12 @@ func (t *teeConfig) ConfigFileUsed() string {
 
 }
 
-//func (t *teeConfig) SetTypeByDefaultValue(in bool) {
-//	t.baseline.SetTypeByDefaultValue(in)
-//	t.compare.SetTypeByDefaultValue(in)
-//}
-
 // GetEnvVars implements the Config interface
 func (t *teeConfig) GetEnvVars() []string {
 	base := t.baseline.GetEnvVars()
 	compare := t.compare.GetEnvVars()
+	slices.Sort(base)
+	slices.Sort(compare)
 	compareResult("", "GetEnvVars", base, compare)
 	return base
 

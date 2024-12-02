@@ -79,7 +79,7 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) e
 	if err := yaml.Unmarshal(content, &obj); err != nil {
 		return err
 	}
-	c.warnings = append(c.warnings, loadYamlInto(c.defaults, target, obj, "")...)
+	c.warnings = append(c.warnings, loadYamlInto(c.schema, target, obj, "")...)
 	return nil
 }
 
@@ -113,7 +113,7 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 //
 // The function traverses a object loaded from YAML, checking if each node is known within the configuration.
 // If known, the value from the YAML blob is imported into the 'dest' tree. If unknown, a warning will be created.
-func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{}, path string) []string {
+func loadYamlInto(schema InnerNode, dest InnerNode, data map[string]interface{}, path string) []string {
 	if path != "" {
 		path = path + "."
 	}
@@ -123,8 +123,8 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 		key = strings.ToLower(key)
 		curPath := path + key
 
-		// check if the key is know in the defaults
-		defaultNode, err := defaults.GetChild(key)
+		// check if the key is know in the schema
+		defaultNode, err := schema.GetChild(key)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("unknown key from YAML: %s", curPath))
 			continue

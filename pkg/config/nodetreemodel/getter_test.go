@@ -24,7 +24,10 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 	assert.Equal(t,
 		map[string]interface{}{
 			"a":     struct{}{},
+			"b":     struct{}{},
 			"b.c":   struct{}{},
+			"d":     struct{}{},
+			"d.e":   struct{}{},
 			"d.e.f": struct{}{},
 		},
 		cfg.GetKnownKeysLowercased())
