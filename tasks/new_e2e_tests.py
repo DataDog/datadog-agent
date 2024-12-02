@@ -302,7 +302,6 @@ def post_process_output(path: str, test_depth: int = 1):
                 logs_per_test[json_line["Package"]] = {}
 
             test_name = splitted_test[: min(test_depth, len(splitted_test))]
-            print("Creating key", "/".join(test_name))
             logs_per_test[json_line["Package"]]["/".join(test_name)] = []
 
         for line in all_lines:
