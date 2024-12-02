@@ -439,7 +439,7 @@ func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	return c.IsKnown(key)
+	return c.GetSource(key) != model.SourceUnknown
 }
 
 // AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known

@@ -326,12 +326,14 @@ func TestIsSet(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
+	cfg.SetKnown("c")
 	cfg.BuildSchema()
 
 	cfg.Set("b", 123, model.SourceAgentRuntime)
 
-	assert.True(t, cfg.IsSet("b"))
 	assert.True(t, cfg.IsSet("a"))
+	assert.True(t, cfg.IsSet("b"))
+	assert.False(t, cfg.IsSet("c"))
 	assert.False(t, cfg.IsSet("unknown"))
 }
 
