@@ -87,7 +87,8 @@ COPY test.bin /test.bin
         f"SCRATCH_VOLUME_NAME={scratch_volume.name}",
         "SCRATCH_VOLUME_PATH=/tmp/scratch",
         f"DOCKER_USER={os.environ.get('DOCKER_USER', '')}",
-        f"DOCKER_TOKEN={os.environ.get('DOCKER_TOKEN', '')}" f"DOCKER_REGISTRY={os.environ.get('DOCKER_REGISTRY', '')}",
+        f"DOCKER_TOKEN={os.environ.get('DOCKER_TOKEN', '')}",
+        f"DOCKER_REGISTRY_URL={os.environ.get('DOCKER_REGISTRY_URL', '')}",
     ]
 
     test_container = client.containers.run(
