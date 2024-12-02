@@ -378,7 +378,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
 
     # Check that the current and update branches are valid
     current_branch = get_current_branch(ctx)
-    update_branch = f"release/{new_highest_version}"
+    update_branch = f"release/{new_highest_version}-{int(time.time())}"
 
     check_clean_branch_state(ctx, github, update_branch)
     if not check_base_branch(current_branch, new_highest_version):
