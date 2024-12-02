@@ -9,7 +9,6 @@ package analyzelogs
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -94,22 +93,15 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 		case msg := <-outputChan:
 			// Parse the JSON content
 			var parsedMessage struct {
-				Message struct {
-					Message string `json:"message"`
-				} `json:"message"`
+				Message string `json:"message"`
 			}
-
 			err := json.Unmarshal(msg.GetContent(), &parsedMessage)
 			if err != nil {
 				fmt.Printf("Failed to parse message: %v\n", err)
 				continue
 			}
 
-			// Convert literal \n to actual newlines, this happens when the config file has processing rules
-			processedMessage := strings.ReplaceAll(parsedMessage.Message.Message, `\n`, "\n")
-
-			// Print the processed message
-			fmt.Println(processedMessage)
+			fmt.Println(parsedMessage.Message)
 
 			// Reset the inactivity timer every time a message is processed
 			if !idleTimer.Stop() {
