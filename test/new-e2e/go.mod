@@ -46,13 +46,13 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/version v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/test/fakeintake v0.61.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/version v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/test/fakeintake v0.61.0-rc.2
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -98,8 +98,8 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.61.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.61.0-rc.1
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.61.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.61.0-rc.2
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -288,8 +288,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.61.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.61.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.61.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.61.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/aws/aws-sdk-go v1.50.36
 	github.com/aws/session-manager-plugin v0.0.0-20241010233726-61cf1288c7c6
@@ -298,7 +298,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.61.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.61.0-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
