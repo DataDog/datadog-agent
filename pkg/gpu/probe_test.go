@@ -20,7 +20,6 @@ import (
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type probeTestSuite struct {
@@ -72,9 +71,6 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	probe := s.getProbe()
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
 
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
@@ -89,7 +85,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 		}
 
 		return handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
-	}, 10*time.Second, 500*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
@@ -117,10 +113,12 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+	//TODO: change this check to  count telemetry counter of the consumer (once added).
+	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
+	require.Eventually(t, func() bool {
+		return len(probe.consumer.streamHandlers) == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -150,9 +148,12 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
 	require.NoError(t, err)
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+
+	//TODO: change this check to  count telemetry counter of the consumer (once added).
+	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
+	require.Eventually(t, func() bool {
+		return len(probe.consumer.streamHandlers) == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -171,7 +172,6 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	probe := s.getProbe()
 
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
 
 	// Check that the stream handlers have the correct container ID assigned
 	for key, handler := range probe.consumer.streamHandlers {
