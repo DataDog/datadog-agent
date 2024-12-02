@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -31,6 +32,8 @@ type dependencies struct {
 	Lc fx.Lifecycle
 
 	Log log.Component
+
+	At authtoken.Component
 
 	APIServerDeps api.APIServerDeps
 }
@@ -54,6 +57,7 @@ func newApiServer(deps dependencies) Component {
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,
 			IdleTimeout:  timeout,
+			TLSConfig:    deps.At.GetTLSServerConfig(),
 		},
 	}
 
