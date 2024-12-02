@@ -36,7 +36,7 @@
 /Makefile.trace                         @DataDog/agent-delivery
 
 /mkdocs.yml                             @DataDog/agent-devx-infra
-/release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
+/release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /repository.datadog.yml                 @DataDog/agent-devx-infra
@@ -220,7 +220,6 @@
 /cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
-/cmd/serverless/dependencies*.txt       @DataDog/serverless @DataDog/agent-shared-components
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
 /cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
@@ -373,6 +372,7 @@
 /pkg/clusteragent/autoscaling/          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
+/pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-metrics-logs
@@ -465,6 +465,8 @@
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/util/testutil/flake                @DataDog/agent-devx-loops
+/pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
+/pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/linters/                           @DataDog/agent-devx-loops

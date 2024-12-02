@@ -75,7 +75,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.57.1
 	github.com/golang/protobuf v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/fx v1.22.2
 	golang.org/x/text v0.20.0
@@ -134,7 +134,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

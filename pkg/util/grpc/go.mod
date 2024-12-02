@@ -40,7 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/net v0.31.0
 	google.golang.org/grpc v1.59.0
 )
@@ -86,7 +86,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.5.1 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect

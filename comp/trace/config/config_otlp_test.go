@@ -20,7 +20,7 @@ import (
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {
-	config := buildConfigComponent(t, fx.Replace(corecomp.MockParams{
+	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
 		Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 	}))
 	cfg := config.Object()

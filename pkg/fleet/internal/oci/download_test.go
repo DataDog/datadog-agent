@@ -10,6 +10,7 @@ package oci
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
@@ -26,20 +27,27 @@ import (
 
 type testDownloadServer struct {
 	*fixtures.Server
+	m *testMirrorServer
 }
 
 func newTestDownloadServer(t *testing.T) *testDownloadServer {
+	s := fixtures.NewServer(t)
 	return &testDownloadServer{
-		Server: fixtures.NewServer(t),
+		Server: s,
+		m:      newTestMirrorServer(s),
 	}
 }
 
+func (s *testDownloadServer) DownloaderWithMirror() *Downloader {
+	return NewDownloader(&env.Env{Mirror: s.m.URL() + "/mirror"}, http.DefaultClient)
+}
+
 func (s *testDownloadServer) Downloader() *Downloader {
-	return NewDownloader(&env.Env{}, s.Client())
+	return NewDownloader(&env.Env{}, http.DefaultClient)
 }
 
 func (s *testDownloadServer) DownloaderWithEnv(env *env.Env) *Downloader {
-	return NewDownloader(env, s.Client())
+	return NewDownloader(env, http.DefaultClient)
 }
 
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
@@ -53,6 +61,22 @@ func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
 func TestDownload(t *testing.T) {
 	s := newTestDownloadServer(t)
 	d := s.Downloader()
+
+	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
+	tmpDir := t.TempDir()
+	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	assert.NoError(t, err)
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
+}
+
+func TestDownloadMirror(t *testing.T) {
+	s := newTestDownloadServer(t)
+	defer s.Close()
+	d := s.DownloaderWithMirror()
 
 	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)

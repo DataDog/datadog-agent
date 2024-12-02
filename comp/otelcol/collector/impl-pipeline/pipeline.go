@@ -24,6 +24,7 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -87,7 +88,7 @@ type collectorImpl struct {
 }
 
 func (c *collectorImpl) start(context.Context) error {
-	on := otlp.IsEnabled(c.config)
+	on := configcheck.IsEnabled(c.config)
 	c.inventoryAgent.Set(otlpEnabled, on)
 	if !on {
 		return nil
@@ -151,10 +152,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: collector.start,
 		OnStop:  collector.stop,
 	})
-
+	timeoutCallback := func(flaretypes.FlareBuilder) time.Duration {
+		return time.Second * time.Duration(reqs.Config.GetInt("otelcollector.flare.timeout"))
+	}
 	return Provides{
 		Comp:           collector,
-		FlareProvider:  flaretypes.NewProvider(collector.fillFlare),
+		FlareProvider:  flaretypes.NewProviderWithTimeout(collector.fillFlare, timeoutCallback),
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
 }
