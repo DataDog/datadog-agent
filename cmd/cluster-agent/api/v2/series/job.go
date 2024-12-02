@@ -29,27 +29,14 @@ const (
 var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
-	telemetryWorkloadLoadnameEntities = telemetry.NewGaugeWithOpts(
+	telemetryWorkloadEntities = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"store_load_entities",
-		[]string{"loadname"},
-		"Number of entities by load names in the store",
+		[]string{"namespace", "deployment", "loadname"},
+		"Number of entities in the store",
 		commonOpts,
 	)
-	telemetryWorkloadNamespaceEntities = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"store_namespace_entities",
-		[]string{"namespace"},
-		"Number of entities by namespaces in the store",
-		commonOpts,
-	)
-	telemetryWorkloadDeploymentEntities = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"store_deployment_entities",
-		[]string{"deployment"},
-		"Number of entities by kube_deployment in the store",
-		commonOpts,
-	)
+
 	telemetryWorkloadJobQueueLength = telemetry.NewCounterWithOpts(
 		subsystem,
 		"store_job_queue_length",
@@ -127,16 +114,14 @@ func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 				return
 			case <-infoTicker.C:
 				info := jq.store.GetStoreInfo()
-				for k, v := range info.EntityStatsByLoadName {
-					telemetryWorkloadLoadnameEntities.Set(float64(v.Count), k)
+				statsResults := info.StatsResults
+				for _, statsResult := range statsResults {
+					log.Infof("statsResult: %v", *statsResult)
+					telemetryWorkloadEntities.Set(float64(statsResult.Count),
+						statsResult.Namespace,
+						statsResult.Deployment,
+						statsResult.LoadName)
 				}
-				for k, v := range info.EntityStatsByNamespace {
-					telemetryWorkloadNamespaceEntities.Set(float64(v.Count), k)
-				}
-				for k, v := range info.EntityStatsByDeployment {
-					telemetryWorkloadDeploymentEntities.Set(float64(v.Count), k)
-				}
-				log.Infof("Store info: %+v", info)
 			}
 		}
 	}()
