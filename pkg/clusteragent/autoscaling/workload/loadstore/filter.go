@@ -18,7 +18,7 @@ type namespaceFilter struct {
 
 // IsIncluded returns true if the entity's namespace is included.
 func (f *namespaceFilter) IsIncluded(entity *Entity) bool {
-	return f.namespace == entity.Namespace
+	return f.namespace == "" || f.namespace == entity.Namespace
 }
 
 type loadNameFilter struct {
@@ -27,7 +27,7 @@ type loadNameFilter struct {
 
 // IsIncluded returns true if the entity's load name is included.
 func (f *loadNameFilter) IsIncluded(entity *Entity) bool {
-	return f.loadName == entity.LoadName
+	return f.loadName == "" || f.loadName == entity.LoadName
 }
 
 type deploymentFilter struct {
@@ -36,7 +36,7 @@ type deploymentFilter struct {
 
 // IsIncluded returns true if the entity's load name is included.
 func (f *deploymentFilter) IsIncluded(entity *Entity) bool {
-	return f.deployment == entity.Deployment
+	return f.deployment == "" || f.deployment == entity.Deployment
 }
 
 // ANDEntityFilter implements a logical AND between given filters
@@ -47,17 +47,15 @@ type ANDEntityFilter struct {
 // IsIncluded returns true if the entity is included by all filters.
 func (f *ANDEntityFilter) IsIncluded(entity *Entity) bool {
 	for _, filter := range f.Filters {
-		if filter.IsIncluded(entity) {
-			return true
+		if !filter.IsIncluded(entity) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func newANDEntityFilter(filters ...entityFilter) *ANDEntityFilter {
 	f := &ANDEntityFilter{}
-	for _, filter := range filters {
-		f.Filters = append(f.Filters, filter)
-	}
+	f.Filters = append(f.Filters, filters...)
 	return f
 }
