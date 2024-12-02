@@ -21,7 +21,9 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -227,6 +229,54 @@ func TestProvider_Provide(t *testing.T) {
 						tags: []string{"instance_tag:something", "kube_namespace:default",
 							"pod_name:long-running-init", "kube_container_name:init"},
 					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.working_set",
+						value: 80461824,
+						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
+							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.usage",
+						value: 85618688,
+						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
+							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.working_set",
+						value: 52338688,
+						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
+							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.usage",
+						value: 52842496,
+						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
+							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.working_set",
+						value: 68685824,
+						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
+							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.usage",
+						value: 69447680,
+						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
+							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.working_set",
+						value: 229376,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.usage",
+						value: 229376,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
 				},
 				rateMetrics: []metrics{
 					{
@@ -246,50 +296,14 @@ func TestProvider_Provide(t *testing.T) {
 							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
 					},
 					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 80461824,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 85618688,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
 						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
 						value: 6361765000,
 						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
 							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
 					},
 					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 52338688,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 52842496,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
 						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
 						value: 6903135000,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 68685824,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 69447680,
 						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
 							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
 					},
@@ -309,18 +323,6 @@ func TestProvider_Provide(t *testing.T) {
 						tags: []string{"instance_tag:something", "kube_namespace:default",
 							"pod_name:long-running-init", "kube_container_name:init"},
 					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 229376,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 229376,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
-					},
 				},
 				err: nil,
 			},
@@ -333,10 +335,12 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+			fakeTagger := taggerMock.SetupFakeTagger(t)
+
 			for entity, tags := range entityTags {
-				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+				entityID := taggertypes.NewEntityID(prefix, id)
+				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}
 			store := creatFakeStore(t)
 			kubeletMock := mock.NewKubeletMock()
@@ -361,6 +365,7 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 

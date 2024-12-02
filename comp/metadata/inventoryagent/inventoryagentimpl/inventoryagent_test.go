@@ -13,10 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
-
-	"github.com/stretchr/testify/assert"
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,6 +27,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -132,7 +132,7 @@ func TestInitData(t *testing.T) {
 		"system_probe_config.enable_co_re":                     true,
 		"system_probe_config.enable_runtime_compiler":          true,
 		"system_probe_config.enable_kernel_header_download":    true,
-		"system_probe_config.allow_precompiled_fallback":       true,
+		"system_probe_config.allow_prebuilt_fallback":          true,
 		"system_probe_config.telemetry_enabled":                true,
 		"system_probe_config.max_conns_per_message":            10,
 		"system_probe_config.disable_ipv6":                     false,
@@ -472,6 +472,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		return "", fmt.Errorf("some error")
 	}
 
+	isPrebuiltDeprecated := prebuilt.IsDeprecated()
+
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSystemProbeMetadata()
 
@@ -481,15 +483,15 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cws_security_profiles_enabled"].(bool))
 	assert.True(t, ia.data["feature_cws_remote_config_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
+	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
@@ -497,7 +499,9 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.True(t, ia.data["system_probe_core_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+	if runtime.GOOS == "linux" {
+		assert.Equal(t, !isPrebuiltDeprecated, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+	}
 	assert.False(t, ia.data["system_probe_telemetry_enabled"].(bool))
 	assert.Equal(t, 600, ia.data["system_probe_max_connections_per_message"].(int))
 	assert.True(t, ia.data["system_probe_track_tcp_4_connections"].(bool))
@@ -614,7 +618,7 @@ system_probe_config:
   enable_co_re: true
   enable_runtime_compiler: true
   enable_kernel_header_download: true
-  allow_precompiled_fallback: true
+  allow_prebuilt_fallback: true
   telemetry_enabled: true
   max_conns_per_message: 123
 

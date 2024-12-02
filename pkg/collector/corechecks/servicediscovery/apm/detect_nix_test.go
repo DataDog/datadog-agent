@@ -11,8 +11,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestInjected(t *testing.T) {
@@ -79,9 +82,29 @@ func Test_javaDetector(t *testing.T) {
 			result: None,
 		},
 		{
-			name:   "cmdline",
+			name:   "cmdline - dd-java-agent.jar",
 			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-java-agent.jar", "-Ddd.profiling.enabled=true"},
 			result: Provided,
+		},
+		{
+			name:   "cmdline - dd-trace-agent.jar",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-trace-agent.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name:   "cmdline - datadog.jar",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name:   "cmdline - datadog only in does not match",
+			args:   []string{"java", "-foo", "path/to/data dog/datadog", "-Ddd.profiling.enabled=true"},
+			result: None,
+		},
+		{
+			name:   "cmdline - jar only in does not match",
+			args:   []string{"java", "-foo", "path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
+			result: None,
 		},
 		{
 			name: "CATALINA_OPTS",
@@ -94,7 +117,8 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, envs.NewVariables(d.envs), nil)
+			ctx := usm.NewDetectionContext(d.args, envs.NewVariables(d.envs), nil)
+			result := javaDetector(ctx)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -131,7 +155,9 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, envs.NewVariables(nil), d.contextMap)
+			ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
+			ctx.ContextMap = d.contextMap
+			result := nodeDetector(ctx)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -231,7 +257,8 @@ func TestDotNetDetector(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var result Instrumentation
 			if test.maps == "" {
-				result = dotNetDetector(0, nil, envs.NewVariables(test.envs), nil)
+				ctx := usm.NewDetectionContext(nil, envs.NewVariables(test.envs), nil)
+				result = dotNetDetector(ctx)
 			} else {
 				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
 			}
@@ -244,31 +271,66 @@ func TestGoDetector(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getuid() != 0 {
 		t.Skip("skipping test; requires root privileges")
 	}
+
+	tests := []struct {
+		program string
+		build   func(string, string) (string, error)
+		binary  string
+		pid     int
+	}{
+		{
+			program: "instrumented",
+			build:   usmtestutil.BuildGoBinaryWrapper,
+		},
+		{
+			program: "instrumented",
+			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
+		},
+		{
+			program: "instrumented2",
+			build:   usmtestutil.BuildGoBinaryWrapper,
+		},
+		{
+			program: "instrumented2",
+			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
+		},
+	}
+
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
-	require.NoError(t, err)
-	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
-	require.NoError(t, err)
 
-	cmdWithSymbols := exec.Command(serverBinWithSymbols)
-	require.NoError(t, cmdWithSymbols.Start())
-	t.Cleanup(func() {
-		_ = cmdWithSymbols.Process.Kill()
-	})
+	for i, test := range tests {
+		binary, err := test.build(filepath.Join(curDir, "testutil"), test.program)
+		require.NoError(t, err)
 
-	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
-	require.NoError(t, cmdWithoutSymbols.Start())
-	t.Cleanup(func() {
-		_ = cmdWithoutSymbols.Process.Kill()
-	})
+		cmd := exec.Command(binary)
+		require.NoError(t, cmd.Start())
+		t.Cleanup(func() {
+			_ = cmd.Process.Kill()
+			cmd.Wait()
+		})
+		require.Eventually(t, func() bool {
+			if cmd.Process.Pid == 0 {
+				return false
+			}
+			f, err := os.Open(kernel.HostProc(strconv.Itoa(cmd.Process.Pid), "exe"))
+			if err == nil {
+				_ = f.Close()
+				return true
+			}
+			return false
+		}, time.Second*10, time.Millisecond*100)
+		tests[i].pid = cmd.Process.Pid
+	}
 
-	result := goDetector(os.Getpid(), nil, envs.NewVariables(nil), nil)
+	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
+	ctx.Pid = os.Getpid()
+	result := goDetector(ctx)
 	require.Equal(t, None, result)
 
-	result = goDetector(cmdWithSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
-	require.Equal(t, Provided, result)
-
-	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
-	require.Equal(t, Provided, result)
+	for _, binary := range tests {
+		ctx.Pid = binary.pid
+		result = goDetector(ctx)
+		require.Equal(t, Provided, result)
+	}
 }

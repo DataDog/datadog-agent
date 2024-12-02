@@ -13,6 +13,9 @@ create_release_qa_cards              @DataDog/agent-devx-infra
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
+# Deps fetch
+fetch_openjdk                        @DataDog/agent-metrics-logs
+
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
@@ -24,8 +27,6 @@ prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-shared-components
-# Golang test dependecies diff
-golang_deps_test                     @DataDog/agent-shared-components
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/ebpf-platform
 golang_deps_commenter                @DataDog/ebpf-platform
@@ -77,11 +78,11 @@ deploy_windows_testing*              @DataDog/agent-delivery
 kitchen_windows*                     @DataDog/windows-agent
 
 # Image build
-docker_build*                        @DataDog/container-integrations
+docker_build*                        @DataDog/agent-delivery
 
 # Image scan
-scan_*                               @DataDog/container-integrations
-dca_scan_*                           @DataDog/container-integrations
+scan_*                               @Datadog/agent-delivery
+dca_scan_*                           @Datadog/agent-delivery
 
 # Check deploy
 # Do not notify on these jobs, they're expected to fail on duplicate
@@ -89,24 +90,24 @@ dca_scan_*                           @DataDog/container-integrations
 check_already_deployed_version_*     @DataDog/do-not-notify
 
 # Dev container deploy
-dca_dev_branch*                        @DataDog/container-integrations
-dca_dev_master*                        @DataDog/container-integrations
+dca_dev_branch*                        @Datadog/agent-delivery
+dca_dev_master*                        @Datadog/agent-delivery
 cws_instrumentation_dev_branch*        @DataDog/agent-security
-dev_branch*                            @DataDog/container-integrations
-dev_master*                            @DataDog/container-integrations
-dev_nightly*                           @DataDog/container-integrations
+dev_branch*                            @Datadog/agent-delivery
+dev_master*                            @Datadog/agent-delivery
+dev_nightly*                           @Datadog/agent-delivery
 qa_agent*                              @DataDog/agent-devx-loops
 qa_cws_instrumentation*                @DataDog/agent-devx-loops
 qa_dca*                                @DataDog/agent-devx-loops
 qa_dogstatsd*                          @DataDog/agent-devx-loops
 
 # Internal image deploy
-docker_trigger_internal*                     @DataDog/container-integrations
-docker_trigger_cluster_agent_internal*       @DataDog/container-integrations
+docker_trigger_internal*                     @Datadog/agent-delivery
+docker_trigger_cluster_agent_internal*       @Datadog/agent-delivery
 docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 
 # Internal kubernetes deploy
-internal_kubernetes_deploy*            @DataDog/container-integrations
+internal_kubernetes_deploy*            @Datadog/agent-delivery
 
 # Deploy packages
 deploy_agent*                          @DataDog/agent-delivery
@@ -119,7 +120,7 @@ windows_bootstrapper_deploy             @DataDog/windows-agent
 qa_*_oci                               @DataDog/agent-delivery
 
 # Deploy containers
-deploy_containers*                     @DataDog/container-integrations
+deploy_containers*                     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -132,6 +133,9 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-agent
 integration_tests_otel        @DataDog/opentelemetry
 docker_image_build_otel       @DataDog/opentelemetry
+ddflare_extension_ocb_build   @DataDog/opentelemetry
+agent_integration_tests       @DataDog/container-integrations
+docker_integration_tests      @DataDog/container-integrations
 
 # Functional test
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
@@ -147,31 +151,9 @@ k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
-new-e2e-containers*                    @DataDog/container-integrations
-new-e2e-agent-subcommands*             @DataDog/agent-shared-components
-new-e2e-agent-shared-components*       @DataDog/agent-shared-components
-new-e2e-language-detection*            @DataDog/processes
-new-e2e-process*                       @DataDog/processes
-new-e2e-agent-platform*                @DataDog/container-ecosystems @DataDog/agent-delivery
-new-e2e-platform-integrations*         @DataDog/agent-delivery @DataDog/platform-integrations
-new-e2e-aml*                           @DataDog/agent-metrics-logs
-new-e2e-apm*                           @DataDog/agent-apm
-new-e2e-discovery*                     @Datadog/universal-service-monitoring
-new-e2e-ndm*                           @DataDog/network-device-monitoring
-new-e2e-npm*                           @DataDog/Networks
-new-e2e-cws*                           @DataDog/agent-security
-new-e2e-orchestrator*                  @DataDog/container-app
-new-e2e-otel*                          @DataDog/opentelemetry
-e2e_pre_test*                          @DataDog/agent-devx-loops
-new-e2e-remote-config*                 @DataDog/remote-config
-new-e2e-installer*                     @DataDog/fleet
-new-e2e-installer-windows              @DataDog/windows-agent
-new-e2e-windows*                       @DataDog/windows-agent
-new-e2e-windows-systemprobe            @DataDog/windows-kernel-integrations
-new-e2e-windows-security-agent         @DataDog/windows-kernel-integrations
-new-e2e_windows_powershell_module_test @DataDog/windows-kernel-integrations
-new-e2e-eks-cleanup-on-failure         @DataDog/agent-devx-loops
-new-e2e-gpu*                           @DataDog/ebpf-platform
+e2e_pre_test*                     @DataDog/agent-devx-loops
+new-e2e*                          @DataDog/multiple
+
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform

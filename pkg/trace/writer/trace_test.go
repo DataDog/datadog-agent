@@ -251,7 +251,9 @@ func TestResetBuffer(t *testing.T) {
 		ContainerID: string(make([]byte, 50*1e6)),
 	}
 
+	w.mu.Lock()
 	w.tracerPayloads = append(w.tracerPayloads, bigPayload)
+	w.mu.Unlock()
 
 	runtime.GC()
 	runtime.ReadMemStats(&m)

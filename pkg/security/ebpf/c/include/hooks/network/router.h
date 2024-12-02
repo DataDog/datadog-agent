@@ -9,14 +9,14 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     // route DNS requests
     if (is_event_enabled(EVENT_DNS)) {
         if (pkt->l4_protocol == IPPROTO_UDP && pkt->translated_ns_flow.flow.dport == htons(53)) {
-            tail_call_to_classifier(skb, DNS_REQUEST);
+            bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST);
         }
     }
 
     // route IMDS requests
     if (is_event_enabled(EVENT_IMDS)) {
         if (pkt->l4_protocol == IPPROTO_TCP && ((pkt->ns_flow.flow.saddr[0] & 0xFFFFFFFF) == get_imds_ip() || (pkt->ns_flow.flow.daddr[0] & 0xFFFFFFFF) == get_imds_ip())) {
-            tail_call_to_classifier(skb, IMDS_REQUEST);
+            bpf_tail_call_compat(skb, &classifier_router, IMDS_REQUEST);
         }
     }
 

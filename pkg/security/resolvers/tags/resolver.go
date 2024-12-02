@@ -8,46 +8,34 @@ package tags
 
 import (
 	"context"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
-	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Event defines the tags event type
+type Event int
+
+const (
+	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
+	WorkloadSelectorResolved Event = iota
 )
 
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
-	Start(ctx context.Context) error
-	Stop() error
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
-}
-
-type nullTagger struct{}
-
-func (n *nullTagger) Start(_ context.Context) error {
-	return nil
-}
-
-func (n *nullTagger) Stop() error {
-	return nil
-}
-
-func (n *nullTagger) Tag(_ string, _ types.TagCardinality) ([]string, error) {
-	return nil, nil
+	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
+	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 }
 
 // Resolver represents a cache resolver
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id string) []string
-	ResolveWithErr(id string) ([]string, error)
-	GetValue(id string, tag string) string
+	Resolve(id containerutils.ContainerID) []string
+	ResolveWithErr(fid containerutils.ContainerID) ([]string, error)
+	GetValue(id containerutils.ContainerID, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -55,64 +43,50 @@ type DefaultResolver struct {
 	tagger Tagger
 }
 
-// Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context) error {
-	go func() {
-		if err := t.tagger.Start(ctx); err != nil {
-			log.Errorf("failed to init tagger: %s", err)
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		_ = t.tagger.Stop()
-	}()
-
-	return nil
-}
-
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id string) []string {
-	// container id for ecs task are composed of task id + container id.
-	// use only the container id part for the tag resolution.
-	if els := strings.Split(id, "-"); len(els) == 2 {
-		id = els[1]
-	}
-
-	entityID := types.NewEntityID(types.ContainerID, id)
-	tags, _ := t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+func (t *DefaultResolver) Resolve(id containerutils.ContainerID) []string {
+	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
-	entityID := types.NewEntityID(types.ContainerID, id)
-	return t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+func (t *DefaultResolver) ResolveWithErr(id containerutils.ContainerID) ([]string, error) {
+	return GetTagsOfContainer(t.tagger, id)
+}
+
+// GetTagsOfContainer returns the tags for the given container id
+// exported to share the code with other non-resolver users of tagger
+func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) ([]string, error) {
+	if tagger == nil {
+		return nil, nil
+	}
+
+	entityID := types.NewEntityID(types.ContainerID, string(containerID))
+	return tagger.Tag(entityID, types.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id string, tag string) string {
+func (t *DefaultResolver) GetValue(id containerutils.ContainerID, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
+}
+
+// Start the resolver
+func (t *DefaultResolver) Start(_ context.Context) error {
+	return nil
 }
 
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
-	return t.tagger.Stop()
+	return nil
 }
 
-// NewResolver returns a new tags resolver
-func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
-	if config.RemoteTaggerEnabled {
-		options, err := remote.NodeAgentOptionsForSecurityResolvers(pkgconfigsetup.Datadog())
-		if err != nil {
-			log.Errorf("unable to configure the remote tagger: %s", err)
-		} else {
-			return &DefaultResolver{
-				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry), types.NewMatchAllFilter()),
-			}
-		}
+// NewDefaultResolver returns a new default tags resolver
+func NewDefaultResolver(tagger Tagger) *DefaultResolver {
+	if tagger == nil {
+		seclog.Errorf("initializing tags resolver with nil tagger")
 	}
+
 	return &DefaultResolver{
-		tagger: &nullTagger{},
+		tagger: tagger,
 	}
 }

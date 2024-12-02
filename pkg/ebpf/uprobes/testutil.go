@@ -56,7 +56,7 @@ type MockFileRegistry struct {
 }
 
 // Register is a mock implementation of the FileRegistry.Register method.
-func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error {
+func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error { //nolint:revive // TODO
 	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
 	return args.Error(0)
 }
@@ -78,6 +78,11 @@ func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	return args.Get(0).(map[uint32]struct{})
 }
 
+// Log is a mock implementation of the FileRegistry.Log method.
+func (m *MockFileRegistry) Log() {
+	m.Called()
+}
+
 // MockBinaryInspector is a mock implementation of the BinaryInspector interface.
 type MockBinaryInspector struct {
 	mock.Mock
@@ -92,6 +97,29 @@ func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolReq
 // Cleanup is a mock implementation of the BinaryInspector.Cleanup method.
 func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 	_ = m.Called(fpath)
+}
+
+type mockProcessMonitor struct {
+	mock.Mock
+}
+
+func (m *mockProcessMonitor) SubscribeExec(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+func (m *mockProcessMonitor) SubscribeExit(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+// Create a new mockProcessMonitor that accepts any callback and returns a no-op function
+func newMockProcessMonitor() *mockProcessMonitor {
+	pm := &mockProcessMonitor{}
+	pm.On("SubscribeExec", mock.Anything).Return(func() {})
+	pm.On("SubscribeExit", mock.Anything).Return(func() {})
+
+	return pm
 }
 
 // === Test utils

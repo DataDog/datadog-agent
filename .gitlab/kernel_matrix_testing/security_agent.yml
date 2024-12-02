@@ -32,7 +32,6 @@ kmt_setup_env_secagent_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: security-agent
-    TEST_SETS: cws_host,cws_docker
 
 kmt_setup_env_secagent_x64:
   extends:
@@ -45,7 +44,6 @@ kmt_setup_env_secagent_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: security-agent
-    TEST_SETS: cws_host,cws_docker
 
 .upload_secagent_tests:
   stage: kernel_matrix_testing_prepare
@@ -87,7 +85,7 @@ upload_secagent_tests_x64:
   extends:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
@@ -97,13 +95,13 @@ upload_secagent_tests_arm64:
   extends:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
 
-.kmt_run_secagent_tests:
+.kmt_run_secagent_tests_base:
   extends: .kmt_run_tests
   allow_failure: true
   stage: kernel_matrix_testing_security_agent
@@ -112,10 +110,14 @@ upload_secagent_tests_arm64:
   variables:
     TEST_COMPONENT: security-agent
 
+.kmt_run_secagent_tests:
+  extends: .kmt_run_secagent_tests_base
+  allow_failure: true
+
 kmt_run_secagent_tests_x64:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -129,8 +131,8 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_18.04"
           - "ubuntu_20.04"
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -153,10 +155,90 @@ kmt_run_secagent_tests_x64:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
 
+kmt_run_secagent_tests_x64_required:
+  extends:
+    - .kmt_run_secagent_tests_base
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_24.10"
+        TEST_SET: [cws_req]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+kmt_run_secagent_tests_x64_ad:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+        TEST_SET: [cws_ad]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+kmt_run_secagent_tests_x64_ebpfless:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+        TEST_SET: [cws_el,cws_el_ns]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+kmt_run_secagent_tests_x64_fentry:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "amazon_2023"
+        TEST_SET: [cws_fentry]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
 kmt_run_secagent_tests_x64_docker:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -170,8 +252,8 @@ kmt_run_secagent_tests_x64_docker:
           - "ubuntu_18.04"
           - "ubuntu_20.04"
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -194,7 +276,7 @@ kmt_run_secagent_tests_x64_docker:
 kmt_run_secagent_tests_arm64:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -206,8 +288,8 @@ kmt_run_secagent_tests_arm64:
     matrix:
       - TAG:
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
@@ -220,15 +302,15 @@ kmt_run_secagent_tests_arm64:
           - "rocky_8.5"
           - "rocky_9.3"
           - "opensuse_15.5"
-        TEST_SET: ["cws_host"]
+        TEST_SET: [cws_host]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
 
-kmt_run_secagent_tests_arm64_docker:
+kmt_run_secagent_tests_arm64_ad:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -240,8 +322,68 @@ kmt_run_secagent_tests_arm64_docker:
     matrix:
       - TAG:
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
+        TEST_SET: [cws_ad]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+kmt_run_secagent_tests_arm64_ebpfless:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    - kmt_setup_env_secagent_arm64
+    - upload_dependencies_secagent_arm64
+    - upload_secagent_tests_arm64
+  variables:
+    ARCH: "arm64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+        TEST_SET: [cws_el,cws_el_ns]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+kmt_run_secagent_tests_arm64_fentry:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    - kmt_setup_env_secagent_arm64
+    - upload_dependencies_secagent_arm64
+    - upload_secagent_tests_arm64
+  variables:
+    ARCH: "arm64"
+  parallel:
+    matrix:
+      - TAG:
           - "ubuntu_24.04"
+        TEST_SET: [cws_fentry]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+kmt_run_secagent_tests_arm64_docker:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    - kmt_setup_env_secagent_arm64
+    - upload_dependencies_secagent_arm64
+    - upload_secagent_tests_arm64
+  variables:
+    ARCH: "arm64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+          - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
@@ -272,6 +414,10 @@ kmt_secagent_cleanup_arm64:
   needs:
     - kmt_setup_env_secagent_arm64
     - kmt_run_secagent_tests_arm64
+    - kmt_run_secagent_tests_arm64_ad
+    - kmt_run_secagent_tests_arm64_ebpfless
+    - kmt_run_secagent_tests_arm64_fentry
+    - kmt_run_secagent_tests_arm64_docker
     - upload_dependencies_secagent_arm64
     - upload_secagent_tests_arm64
   variables:
@@ -285,6 +431,11 @@ kmt_secagent_cleanup_x64:
   needs:
     - kmt_setup_env_secagent_x64
     - kmt_run_secagent_tests_x64
+    - kmt_run_secagent_tests_x64_required
+    - kmt_run_secagent_tests_x64_ad
+    - kmt_run_secagent_tests_x64_ebpfless
+    - kmt_run_secagent_tests_x64_fentry
+    - kmt_run_secagent_tests_x64_docker
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
   variables:

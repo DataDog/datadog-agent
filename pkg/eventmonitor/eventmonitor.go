@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -53,7 +52,7 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumerInterface
+	eventConsumers []EventConsumer
 	wg             sync.WaitGroup
 }
 
@@ -68,8 +67,8 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventConsumer registers an event handler
-func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+// AddEventConsumerHandler registers an event handler
+func (m *EventMonitor) AddEventConsumerHandler(consumer EventConsumerHandler) error {
 	for _, eventType := range consumer.EventTypes() {
 		if !slices.Contains(allowedEventTypes, eventType) {
 			return fmt.Errorf("event type (%s) not allowed", eventType)
@@ -80,7 +79,7 @@ func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 
@@ -224,7 +223,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts, telemetry telemetry.Component) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
 		opts.StatsdClient = procstatsd.Client
 	}
@@ -233,7 +232,7 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Op
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts, telemetry)
+	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts)
 	if err != nil {
 		return nil, err
 	}

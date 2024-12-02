@@ -53,7 +53,7 @@ func getProcessAPIAddressPort() (string, error) {
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCallback {
+func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -61,19 +61,19 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	 * is always better to not capture data containing secrets, than to scrub that data.
 	 */
 
-	providers := []flaretypes.FlareCallback{
-		provideExtraFiles,
-		provideSystemProbe,
-		provideConfigDump,
-		provideRemoteConfig,
-		getRegistryJSON,
-		getVersionHistory,
-		getWindowsData,
-		getExpVar,
-		provideInstallInfo,
-		provideAuthTokenPerm,
-		provideDiagnoses(diagnoseDeps),
-		provideContainers(diagnoseDeps),
+	providers := []*flaretypes.FlareFiller{
+		flaretypes.NewFiller(provideExtraFiles),
+		flaretypes.NewFiller(provideSystemProbe),
+		flaretypes.NewFiller(provideConfigDump),
+		flaretypes.NewFiller(provideRemoteConfig),
+		flaretypes.NewFiller(getRegistryJSON),
+		flaretypes.NewFiller(getVersionHistory),
+		flaretypes.NewFiller(getWindowsData),
+		flaretypes.NewFiller(getExpVar),
+		flaretypes.NewFiller(provideInstallInfo),
+		flaretypes.NewFiller(provideAuthTokenPerm),
+		flaretypes.NewFiller(provideDiagnoses(diagnoseDeps)),
+		flaretypes.NewFiller(provideContainers(diagnoseDeps)),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -86,10 +86,12 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 		"go-routine-dump.log": func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
 		"telemetry.log":       func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
 	} {
-		providers = append(providers, func(fb flaretypes.FlareBuilder) error {
-			fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
-			return nil
-		})
+		providers = append(providers, flaretypes.NewFiller(
+			func(fb flaretypes.FlareBuilder) error {
+				fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
+				return nil
+			},
+		))
 	}
 
 	return providers
@@ -150,6 +152,9 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
 		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)    // nolint:errcheck
 	}
 	return nil
 }
@@ -258,6 +263,15 @@ func getSystemProbeStats() ([]byte, error) {
 func getSystemProbeTelemetry() ([]byte, error) {
 	return sysprobe.GetSystemProbeTelemetry(getSystemProbeSocketPath())
 }
+func getSystemProbeConntrackCached() ([]byte, error) {
+	return sysprobe.GetSystemProbeConntrackCached(getSystemProbeSocketPath())
+}
+func getSystemProbeConntrackHost() ([]byte, error) {
+	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
+}
+func getSystemProbeBTFLoaderInfo() ([]byte, error) {
+	return sysprobe.GetSystemProbeBTFLoaderInfo(getSystemProbeSocketPath())
+}
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
 func getProcessAgentFullConfig() ([]byte, error) {
@@ -356,23 +370,22 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 			}
 			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
-		if ac, ok := deps.AC.Get(); ok {
-			diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, ac)
-			diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-			if err != nil && !diagCfg.RunLocal {
-				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
-				diagCfg.RunLocal = true
-				diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-				if err != nil {
-					fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-					return err
-				}
+		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
+		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		if err != nil && !diagCfg.RunLocal {
+			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+			diagCfg.RunLocal = true
+			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+			if err != nil {
+				fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+				return err
 			}
-			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
-		return fmt.Errorf("collector or autoDiscovery not found")
+		return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
+
 	}
 
 	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }

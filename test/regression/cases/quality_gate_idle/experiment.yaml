@@ -1,5 +1,7 @@
 # Agent 'out of the box' idle experiment. Represents an agent install with the
 # default configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle
 
 optimization_goal: memory
 erratic: false
@@ -7,6 +9,8 @@ erratic: false
 target:
   name: datadog-agent
   command: /bin/entrypoint.sh
+  cpu_allotment: 8
+  memory_allotment: 500MiB
 
   environment:
     DD_API_KEY: 00000001
@@ -32,7 +36,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "430.0 MiB"
+      upper_bound: "390.0 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

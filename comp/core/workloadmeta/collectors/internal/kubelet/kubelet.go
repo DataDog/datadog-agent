@@ -418,20 +418,19 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractSimpleGPUName(gpuName kubelet.ResourceName) string {
-	simpleName := ""
-	switch gpuName {
-	case kubelet.ResourceNvidiaGPU:
-		simpleName = "nvidia"
-	case kubelet.ResourceAMDGPU:
-		simpleName = "amd"
-	case kubelet.ResourceIntelGPUxe, kubelet.ResourceIntelGPUi915:
-		simpleName = "intel"
+func extractGPUVendor(gpuNamePrefix kubelet.ResourceName) string {
+	gpuVendor := ""
+	switch gpuNamePrefix {
+	case kubelet.ResourcePrefixNvidiaMIG, kubelet.ResourceGenericNvidiaGPU:
+		gpuVendor = "nvidia"
+	case kubelet.ResourcePrefixAMDGPU:
+		gpuVendor = "amd"
+	case kubelet.ResourcePrefixIntelGPU:
+		gpuVendor = "intel"
 	default:
-		simpleName = string(gpuName)
+		gpuVendor = string(gpuNamePrefix)
 	}
-
-	return simpleName
+	return gpuVendor
 }
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
@@ -446,10 +445,21 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 
 	// extract GPU resource info from the possible GPU sources
 	uniqueGPUVendor := make(map[string]bool)
-	for _, gpuResource := range kubelet.GetGPUResourceNames() {
-		if gpuReq, found := spec.Resources.Requests[gpuResource]; found {
-			resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-			uniqueGPUVendor[extractSimpleGPUName(gpuResource)] = true
+
+	resourceKeys := make([]kubelet.ResourceName, 0, len(spec.Resources.Requests))
+	for resourceName := range spec.Resources.Requests {
+		resourceKeys = append(resourceKeys, resourceName)
+	}
+
+	for _, gpuResourceName := range kubelet.GetGPUResourceNames() {
+		for _, resourceKey := range resourceKeys {
+			if strings.HasPrefix(string(resourceKey), string(gpuResourceName)) {
+				if gpuReq, found := spec.Resources.Requests[resourceKey]; found {
+					resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
+					uniqueGPUVendor[extractGPUVendor(gpuResourceName)] = true
+					break
+				}
+			}
 		}
 	}
 	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))

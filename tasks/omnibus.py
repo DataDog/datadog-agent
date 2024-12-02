@@ -85,13 +85,13 @@ def get_omnibus_env(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
     custom_config_dir=None,
+    fips_mode=False,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -101,9 +101,6 @@ def get_omnibus_env(
 
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
-
-    if int(major_version) > 6:
-        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
     env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
     for key in env_override:
@@ -125,7 +122,6 @@ def get_omnibus_env(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
     env['MAJOR_VERSION'] = major_version
-    env['PY_RUNTIMES'] = python_runtimes
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -137,6 +133,9 @@ def get_omnibus_env(
 
     if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
+
+    if fips_mode:
+        env['FIPS_MODE'] = 'true'
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -176,7 +175,6 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
@@ -193,6 +191,7 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
+    fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:
@@ -211,13 +210,13 @@ def build(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
         custom_config_dir=config_directory,
+        fips_mode=fips_mode,
     )
 
     if not target_project:
@@ -345,7 +344,6 @@ def manifest(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -359,7 +357,6 @@ def manifest(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -449,7 +446,7 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         else:
             if file_type != "application/x-mach-binary":
                 continue
-            with tempfile.TemporaryFile() as tmpfile:
+            with tempfile.NamedTemporaryFile() as tmpfile:
                 result = ctx.run(f'otool -l {file} > {tmpfile.name}', warn=True, hide=True)
                 if result.exited:
                     continue
