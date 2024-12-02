@@ -200,7 +200,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	}
 
 	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
+	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	pidStats := getMetricsEntry(key, stats)
