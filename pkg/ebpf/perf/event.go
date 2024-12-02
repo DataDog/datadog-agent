@@ -19,6 +19,8 @@ import (
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/ringbuf"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -30,6 +32,9 @@ var ringbufPool = ddsync.NewDefaultTypedPool[ringbuf.Record]()
 type Flusher interface {
 	Flush()
 }
+
+// compile time check to ensure this satisfies the Modifier interface
+var _ ddebpf.Modifier = (*EventHandler)(nil)
 
 // EventHandler abstracts consuming data from a perf buffer or ring buffer (depending on availability and options).
 // It handles upgrading maps from a ring buffer if desired, and unmarshalling into the desired data type.
@@ -93,8 +98,8 @@ func NewEventHandler(opts EventHandlerOptions) (*EventHandler, error) {
 	return e, nil
 }
 
-// Init must be called after ebpf-manager.Manager.LoadELF but before ebpf-manager.Manager.Init/InitWithOptions()
-func (e *EventHandler) Init(mgr *manager.Manager, mgrOpts *manager.Options) error {
+// BeforeInit implements the Modifier interface
+func (e *EventHandler) BeforeInit(mgr *manager.Manager, _ names.ModuleName, mgrOpts *manager.Options) error {
 	ms, _, _ := mgr.GetMapSpec(e.opts.MapName)
 	if ms == nil {
 		return fmt.Errorf("unable to find map spec %q", e.opts.MapName)
@@ -128,6 +133,15 @@ func (e *EventHandler) Init(mgr *manager.Manager, mgrOpts *manager.Options) erro
 	}
 	e.initPerfBuffer(mgr)
 	return nil
+}
+
+// AfterInit implements the Modifier interface
+func (e *EventHandler) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
+	return nil
+}
+
+func (e *EventHandler) String() string {
+	return "EventHandler"
 }
 
 // MapType returns the ebpf.MapType of the underlying events map

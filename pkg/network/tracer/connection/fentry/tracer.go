@@ -36,7 +36,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, ErrorNotSupported
 	}
 
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{})
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
@@ -91,12 +91,6 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 			})
 	}
 
-	if err := m.LoadELF(ar); err != nil {
-		return fmt.Errorf("failed to load ELF with ebpf manager: %w", err)
-	}
-	if err := connCloseEventHandler.Init(m.Manager, &o); err != nil {
-		return fmt.Errorf("error initializing closed connections event handler: %w", err)
-	}
 	util.AddBoolConst(&o, "ringbuffers_enabled", connCloseEventHandler.MapType() == ebpf.RingBuf)
-	return m.InitWithOptions(nil, &o)
+	return m.InitWithOptions(ar, &o)
 }

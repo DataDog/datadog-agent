@@ -143,7 +143,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 }
 
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*manager.Manager, func(), error) {
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{})
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
 	if err := initManager(m, runtimeTracer); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
@@ -223,18 +223,12 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			})
 	}
 
-	if err := m.LoadELF(buf); err != nil {
-		return nil, nil, fmt.Errorf("failed to load ELF with ebpf manager: %w", err)
-	}
-	if err := connCloseEventHandler.Init(m.Manager, &mgrOpts); err != nil {
-		return nil, nil, fmt.Errorf("error initializing closed connections event handler: %w", err)
-	}
 	usingRingBuffers := connCloseEventHandler.MapType() == ebpf.RingBuf
 	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", usingRingBuffers)
 	if features.HaveMapType(ebpf.RingBuf) != nil {
 		m.EnabledModifiers = append(m.EnabledModifiers, ddebpf.NewHelperCallRemover(asm.FnRingbufOutput))
 	}
-	if err := m.InitWithOptions(nil, &mgrOpts); err != nil {
+	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
