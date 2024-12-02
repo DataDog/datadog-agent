@@ -40,99 +40,172 @@ var _ ddebpf.Modifier = (*EventHandler)(nil)
 // It handles upgrading maps from a ring buffer if desired, and unmarshalling into the desired data type.
 type EventHandler struct {
 	f    Flusher
-	opts EventHandlerOptions
+	opts eventHandlerOptions
+	// mapName specifies the name of the map
+	mapName string
+	// handler is the callback for data received from the perf/ring buffer
+	handler func([]byte)
 }
 
-// EventHandlerOptions are the options controlling the EventHandler.
-// MapName and Handler are required options.
-type EventHandlerOptions struct {
-	// MapName specifies the name of the map. This field is required.
-	MapName string
-	// Handler is the callback for data received from the perf/ring buffer. This field is required.
-	Handler func([]byte)
+type mapMode uint8
 
-	// TelemetryEnabled specifies whether to collect usage telemetry from the perf/ring buffer.
-	TelemetryEnabled bool
-	// UseRingBuffer specifies whether to use a ring buffer
-	UseRingBuffer bool
-	// UpgradePerfBuffer specifies if you wish to upgrade a perf buffer to a ring buffer.
-	// This only takes effect if UseRingBuffer is true.
-	UpgradePerfBuffer bool
+const (
+	perfBufferOnly mapMode = iota
+	upgradePerfBuffer
+	ringBufferOnly
+)
 
-	PerfOptions    PerfBufferOptions
-	RingBufOptions RingBufferOptions
+// EventHandlerMode controls the mode in which the event handler operates
+type EventHandlerMode func(*EventHandler)
+
+// UsePerfBuffers will only use perf buffers and will not attempt any upgrades to ring buffers.
+func UsePerfBuffers(bufferSize int, perfMode PerfBufferMode) EventHandlerMode {
+	return func(e *EventHandler) {
+		e.opts.mode = perfBufferOnly
+		e.opts.perfBufferSize = bufferSize
+		perfMode(&e.opts.perfOptions)
+	}
 }
 
-// PerfBufferOptions are options specifically for perf buffers
+// UpgradePerfBuffers will upgrade to ring buffers if available, but will fall back to perf buffers if not.
+func UpgradePerfBuffers(perfBufferSize int, perfMode PerfBufferMode, ringBufferSize int) EventHandlerMode {
+	return func(e *EventHandler) {
+		e.opts.mode = upgradePerfBuffer
+		e.opts.perfBufferSize = perfBufferSize
+		e.opts.ringBufferSize = ringBufferSize
+		perfMode(&e.opts.perfOptions)
+	}
+}
+
+// UseRingBuffers will only use ring buffers.
+func UseRingBuffers(bufferSize int) EventHandlerMode {
+	return func(e *EventHandler) {
+		e.opts.mode = ringBufferOnly
+		e.opts.ringBufferSize = bufferSize
+	}
+}
+
+// EventHandlerOption is an option that applies to the event handler
+type EventHandlerOption func(*EventHandler)
+
+// SendTelemetry specifies whether to collect usage telemetry from the perf/ring buffer
+func SendTelemetry(enabled bool) EventHandlerOption {
+	return func(e *EventHandler) {
+		e.opts.telemetryEnabled = enabled
+	}
+}
+
+// eventHandlerOptions are the options controlling the EventHandler.
+type eventHandlerOptions struct {
+	// telemetryEnabled specifies whether to collect usage telemetry from the perf/ring buffer.
+	telemetryEnabled bool
+
+	mode mapMode
+
+	perfBufferSize int
+	ringBufferSize int
+
+	perfOptions perfBufferOptions
+}
+
+// PerfBufferMode is a mode for the perf buffer
 //
 //nolint:revive
-type PerfBufferOptions struct {
-	BufferSize int
+type PerfBufferMode func(*perfBufferOptions)
 
-	// Watermark - The reader will start processing samples once their sizes in the perf buffer
-	// exceed this value. Must be smaller than PerfRingBufferSize. Defaults to the manager value if not set.
-	Watermark int
-
-	// The number of events required in any per CPU buffer before
-	// Read will process data. This is mutually exclusive with Watermark.
-	// The default is zero, which means Watermark will take precedence.
-	WakeupEvents int
+// Watermark - The reader will start processing samples once their sizes in the perf buffer
+// exceed this value. Must be smaller than the perf buffer size.
+func Watermark(byteCount int) PerfBufferMode {
+	return func(opts *perfBufferOptions) {
+		opts.watermark = byteCount
+		opts.wakeupEvents = 0
+	}
 }
 
-// RingBufferOptions are options specifically for ring buffers
-type RingBufferOptions struct {
-	BufferSize int
+// WakeupEvents - The number of events required in any per CPU buffer before Read will process data.
+func WakeupEvents(count int) PerfBufferMode {
+	return func(opts *perfBufferOptions) {
+		opts.wakeupEvents = count
+		opts.watermark = 0
+	}
+}
+
+// perfBufferOptions are options specifically for perf buffers
+//
+//nolint:revive
+type perfBufferOptions struct {
+	watermark    int
+	wakeupEvents int
 }
 
 // NewEventHandler creates an event handler with the provided options
-func NewEventHandler(opts EventHandlerOptions) (*EventHandler, error) {
-	if opts.MapName == "" {
+func NewEventHandler(mapName string, handler func([]byte), mode EventHandlerMode, opts ...EventHandlerOption) (*EventHandler, error) {
+	if mapName == "" {
 		return nil, errors.New("invalid options: MapName is required")
 	}
-	if opts.Handler == nil {
+	if handler == nil {
 		return nil, errors.New("invalid options: Handler is required")
 	}
 	e := &EventHandler{
-		opts: opts,
+		mapName: mapName,
+		handler: handler,
+	}
+	mode(e)
+	for _, opt := range opts {
+		opt(e)
 	}
 	return e, nil
 }
 
 // BeforeInit implements the Modifier interface
 func (e *EventHandler) BeforeInit(mgr *manager.Manager, _ names.ModuleName, mgrOpts *manager.Options) error {
-	ms, _, _ := mgr.GetMapSpec(e.opts.MapName)
+	ms, _, _ := mgr.GetMapSpec(e.mapName)
 	if ms == nil {
-		return fmt.Errorf("unable to find map spec %q", e.opts.MapName)
+		return fmt.Errorf("unable to find map spec %q", e.mapName)
 	}
 
-	ringBuffersAvailable := features.HaveMapType(ebpf.RingBuf) == nil
-	if e.opts.UseRingBuffer && ringBuffersAvailable {
-		if e.opts.UpgradePerfBuffer {
-			// using ring buffers and upgrading from perf buffer
-			if ms.Type != ebpf.PerfEventArray {
-				return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.opts.MapName, ms.Type.String())
-			}
-			UpgradePerfBuffer(mgr, mgrOpts, e.opts.MapName)
-		} else {
-			// using ring buffers, but not upgrading from a perf buffer
-			if ms.Type != ebpf.RingBuf {
-				return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.opts.MapName, ms.Type.String())
-			}
+	ringBufErr := features.HaveMapType(ebpf.RingBuf)
+	if e.opts.mode == ringBufferOnly {
+		if ringBufErr != nil {
+			return ringBufErr
+		}
+		if ms.Type != ebpf.RingBuf {
+			return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.mapName, ms.Type.String())
 		}
 
-		// resize if necessary
-		if ms.MaxEntries != uint32(e.opts.RingBufOptions.BufferSize) {
-			ResizeRingBuffer(mgrOpts, e.opts.MapName, e.opts.RingBufOptions.BufferSize)
+		if ms.MaxEntries != uint32(e.opts.ringBufferSize) {
+			ResizeRingBuffer(mgrOpts, e.mapName, e.opts.ringBufferSize)
 		}
 		e.initRingBuffer(mgr)
 		return nil
 	}
 
-	if ms.Type != ebpf.PerfEventArray {
-		return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.opts.MapName, ms.Type.String())
+	if e.opts.mode == perfBufferOnly {
+		if ms.Type != ebpf.PerfEventArray {
+			return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.mapName, ms.Type.String())
+		}
+		e.initPerfBuffer(mgr)
+		return nil
 	}
-	e.initPerfBuffer(mgr)
-	return nil
+
+	if e.opts.mode == upgradePerfBuffer {
+		if ms.Type != ebpf.PerfEventArray {
+			return fmt.Errorf("map %q is not a perf buffer, got %q instead", e.mapName, ms.Type.String())
+		}
+		if ringBufErr == nil {
+			UpgradePerfBuffer(mgr, mgrOpts, e.mapName)
+			if ms.MaxEntries != uint32(e.opts.ringBufferSize) {
+				ResizeRingBuffer(mgrOpts, e.mapName, e.opts.ringBufferSize)
+			}
+			e.initRingBuffer(mgr)
+			return nil
+		}
+
+		e.initPerfBuffer(mgr)
+		return nil
+	}
+
+	return fmt.Errorf("unsupported EventHandlerMode %d", e.opts.mode)
 }
 
 // AfterInit implements the Modifier interface
@@ -176,18 +249,18 @@ func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) 
 func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
 	// remove any existing perf buffers from manager
 	mgr.PerfMaps = slices.DeleteFunc(mgr.PerfMaps, func(perfMap *manager.PerfMap) bool {
-		return perfMap.Name == e.opts.MapName
+		return perfMap.Name == e.mapName
 	})
 	pm := &manager.PerfMap{
-		Map: manager.Map{Name: e.opts.MapName},
+		Map: manager.Map{Name: e.mapName},
 		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: e.opts.PerfOptions.BufferSize,
-			Watermark:          e.opts.PerfOptions.Watermark,
-			WakeupEvents:       e.opts.PerfOptions.WakeupEvents,
+			PerfRingBufferSize: e.opts.perfBufferSize,
+			Watermark:          e.opts.perfOptions.watermark,
+			WakeupEvents:       e.opts.perfOptions.wakeupEvents,
 			RecordHandler:      e.perfRecordHandler,
 			LostHandler:        nil, // TODO do we need support for Lost?
 			RecordGetter:       perfPool.Get,
-			TelemetryEnabled:   e.opts.TelemetryEnabled,
+			TelemetryEnabled:   e.opts.telemetryEnabled,
 		},
 	}
 	mgr.PerfMaps = append(mgr.PerfMaps, pm)
@@ -198,20 +271,20 @@ func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
 func (e *EventHandler) perfRecordHandler(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
 	// record is only allowed to live for the duration of the callback. Put it back into the sync.Pool once done.
 	defer perfPool.Put(record)
-	e.opts.Handler(record.RawSample)
+	e.handler(record.RawSample)
 }
 
 func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
 	// remove any existing matching ring buffers from manager
 	mgr.RingBuffers = slices.DeleteFunc(mgr.RingBuffers, func(ringBuf *manager.RingBuffer) bool {
-		return ringBuf.Name == e.opts.MapName
+		return ringBuf.Name == e.mapName
 	})
 	rb := &manager.RingBuffer{
-		Map: manager.Map{Name: e.opts.MapName},
+		Map: manager.Map{Name: e.mapName},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler:    e.ringRecordHandler,
 			RecordGetter:     ringbufPool.Get,
-			TelemetryEnabled: e.opts.TelemetryEnabled,
+			TelemetryEnabled: e.opts.telemetryEnabled,
 		},
 	}
 	mgr.RingBuffers = append(mgr.RingBuffers, rb)
@@ -222,7 +295,7 @@ func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
 func (e *EventHandler) ringRecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
 	// record is only allowed to live for the duration of the callback. Put it back into the sync.Pool once done.
 	defer ringbufPool.Put(record)
-	e.opts.Handler(record.RawSample)
+	e.handler(record.RawSample)
 }
 
 // UpgradePerfBuffer upgrades a perf buffer to a ring buffer by creating a map spec editor

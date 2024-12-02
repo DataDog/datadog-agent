@@ -310,21 +310,11 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 		closedCallback(b)
 	})
 
-	eopts := perf.EventHandlerOptions{
-		MapName:           probes.ConnCloseEventMap,
-		TelemetryEnabled:  config.InternalTelemetryEnabled,
-		UseRingBuffer:     config.RingBufferSupportedNPM(),
-		UpgradePerfBuffer: true,
-		PerfOptions: perf.PerfBufferOptions{
-			BufferSize: util.ComputeDefaultClosedConnPerfBufferSize(),
-		},
-		RingBufOptions: perf.RingBufferOptions{
-			BufferSize: util.ComputeDefaultClosedConnRingBufferSize(),
-		},
-	}
+	handler := singleConnHandler
+	perfMode := perf.WakeupEvents(config.ClosedBufferWakeupCount)
 	if config.CustomBatchingEnabled {
-		eopts.PerfOptions.Watermark = 1
-		eopts.Handler = func(buf []byte) {
+		perfMode = perf.Watermark(1)
+		handler = func(buf []byte) {
 			l := len(buf)
 			switch {
 			case l >= netebpf.SizeofBatch:
@@ -344,12 +334,15 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 				log.Debugf("unexpected %q binary data of size %d bytes", probes.ConnCloseEventMap, l)
 			}
 		}
-	} else {
-		eopts.PerfOptions.WakeupEvents = config.ClosedBufferWakeupCount
-		eopts.Handler = singleConnHandler
 	}
 
-	return perf.NewEventHandler(eopts)
+	perfBufferSize := util.ComputeDefaultClosedConnPerfBufferSize()
+	mode := perf.UsePerfBuffers(perfBufferSize, perfMode)
+	if config.RingBufferSupportedNPM() {
+		mode = perf.UpgradePerfBuffers(perfBufferSize, perfMode, util.ComputeDefaultClosedConnRingBufferSize())
+	}
+
+	return perf.NewEventHandler(probes.ConnCloseEventMap, handler, mode, perf.SendTelemetry(config.InternalTelemetryEnabled))
 }
 
 func boolConst(name string, value bool) manager.ConstantEditor {
