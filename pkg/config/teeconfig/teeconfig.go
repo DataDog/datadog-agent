@@ -7,6 +7,7 @@
 package teeconfig
 
 import (
+	"fmt"
 	"io"
 	"reflect"
 	"runtime"
@@ -24,6 +25,12 @@ import (
 type teeConfig struct {
 	baseline model.Config
 	compare  model.Config
+}
+
+func getLocation(nbStack int) string {
+	_, file, line, _ := runtime.Caller(nbStack + 1)
+	fileParts := strings.Split(file, "DataDog/datadog-agent/")
+	return fmt.Sprintf("%s:%d", fileParts[len(fileParts)-1], line)
 }
 
 // NewTeeConfig constructs a new teeConfig
@@ -85,7 +92,7 @@ func (t *teeConfig) IsKnown(key string) bool {
 func (t *teeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	base := t.baseline.GetKnownKeysLowercased()
 	compare := t.compare.GetKnownKeysLowercased()
-	compareResult("", "GetKnownKeysLowercased", base, compare)
+	t.compareResult("", "GetKnownKeysLowercased", base, compare)
 	return base
 }
 
@@ -126,7 +133,7 @@ func (t *teeConfig) IsSet(key string) bool {
 	base := t.baseline.IsSet(key)
 	compare := t.compare.IsSet(key)
 	if base != compare {
-		log.Warnf("difference in config: IsSet(%s) -> base: %v | compare %v", key, base, compare)
+		log.Warnf("difference in config: IsSet(%s) -> base[%s]: %v | compare[%s]: %v | from %s", key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
 	}
 	return base
 }
@@ -157,11 +164,9 @@ func (t *teeConfig) AllKeysLowercased() []string {
 	return base
 }
 
-func compareResult(key, method string, base, compare interface{}) interface{} {
+func (t *teeConfig) compareResult(key, method string, base, compare interface{}) interface{} {
 	if !reflect.DeepEqual(base, compare) {
-		_, file, line, _ := runtime.Caller(2)
-		fileParts := strings.Split(file, "DataDog/datadog-agent/")
-		log.Warnf("difference in config: %s(%s) -> base: %v | compare %v from %s:%d", method, key, base, compare, fileParts[len(fileParts)-1], line)
+		log.Warnf("difference in config: %s(%s) -> base[%s]: %#v | compare[%s] %#v | from %s", method, key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
 	}
 	return compare
 }
@@ -170,14 +175,14 @@ func compareResult(key, method string, base, compare interface{}) interface{} {
 func (t *teeConfig) Get(key string) interface{} {
 	base := t.baseline.Get(key)
 	compare := t.compare.Get(key)
-	return compareResult(key, "Get", base, compare)
+	return t.compareResult(key, "Get", base, compare)
 }
 
 // GetAllSources returns the value of a key for each source
 func (t *teeConfig) GetAllSources(key string) []model.ValueWithSource {
 	base := t.baseline.GetAllSources(key)
 	compare := t.compare.GetAllSources(key)
-	compareResult(key, "GetAllSources", base, compare)
+	t.compareResult(key, "GetAllSources", base, compare)
 	return base
 }
 
@@ -185,7 +190,7 @@ func (t *teeConfig) GetAllSources(key string) []model.ValueWithSource {
 func (t *teeConfig) GetString(key string) string {
 	base := t.baseline.GetString(key)
 	compare := t.compare.GetString(key)
-	compareResult(key, "GetString", base, compare)
+	t.compareResult(key, "GetString", base, compare)
 	return base
 
 }
@@ -194,7 +199,7 @@ func (t *teeConfig) GetString(key string) string {
 func (t *teeConfig) GetBool(key string) bool {
 	base := t.baseline.GetBool(key)
 	compare := t.compare.GetBool(key)
-	compareResult(key, "GetBool", base, compare)
+	t.compareResult(key, "GetBool", base, compare)
 	return base
 
 }
@@ -203,7 +208,7 @@ func (t *teeConfig) GetBool(key string) bool {
 func (t *teeConfig) GetInt(key string) int {
 	base := t.baseline.GetInt(key)
 	compare := t.compare.GetInt(key)
-	compareResult(key, "GetInt", base, compare)
+	t.compareResult(key, "GetInt", base, compare)
 	return base
 
 }
@@ -212,7 +217,7 @@ func (t *teeConfig) GetInt(key string) int {
 func (t *teeConfig) GetInt32(key string) int32 {
 	base := t.baseline.GetInt32(key)
 	compare := t.compare.GetInt32(key)
-	compareResult(key, "GetInt32", base, compare)
+	t.compareResult(key, "GetInt32", base, compare)
 	return base
 
 }
@@ -221,7 +226,7 @@ func (t *teeConfig) GetInt32(key string) int32 {
 func (t *teeConfig) GetInt64(key string) int64 {
 	base := t.baseline.GetInt64(key)
 	compare := t.compare.GetInt64(key)
-	compareResult(key, "GetInt64", base, compare)
+	t.compareResult(key, "GetInt64", base, compare)
 	return base
 
 }
@@ -230,7 +235,7 @@ func (t *teeConfig) GetInt64(key string) int64 {
 func (t *teeConfig) GetFloat64(key string) float64 {
 	base := t.baseline.GetFloat64(key)
 	compare := t.compare.GetFloat64(key)
-	compareResult(key, "GetFloat64", base, compare)
+	t.compareResult(key, "GetFloat64", base, compare)
 	return base
 
 }
@@ -239,7 +244,7 @@ func (t *teeConfig) GetFloat64(key string) float64 {
 func (t *teeConfig) GetDuration(key string) time.Duration {
 	base := t.baseline.GetDuration(key)
 	compare := t.compare.GetDuration(key)
-	compareResult(key, "GetDuration", base, compare)
+	t.compareResult(key, "GetDuration", base, compare)
 	return base
 
 }
@@ -248,7 +253,7 @@ func (t *teeConfig) GetDuration(key string) time.Duration {
 func (t *teeConfig) GetStringSlice(key string) []string {
 	base := t.baseline.GetStringSlice(key)
 	compare := t.compare.GetStringSlice(key)
-	compareResult(key, "GetStringSlice", base, compare)
+	t.compareResult(key, "GetStringSlice", base, compare)
 	return base
 
 }
@@ -257,7 +262,7 @@ func (t *teeConfig) GetStringSlice(key string) []string {
 func (t *teeConfig) GetFloat64Slice(key string) []float64 {
 	base := t.baseline.GetFloat64Slice(key)
 	compare := t.compare.GetFloat64Slice(key)
-	compareResult(key, "GetFloat64Slice", base, compare)
+	t.compareResult(key, "GetFloat64Slice", base, compare)
 	return base
 
 }
@@ -266,7 +271,7 @@ func (t *teeConfig) GetFloat64Slice(key string) []float64 {
 func (t *teeConfig) GetStringMap(key string) map[string]interface{} {
 	base := t.baseline.GetStringMap(key)
 	compare := t.compare.GetStringMap(key)
-	compareResult(key, "GetStringMap", base, compare)
+	t.compareResult(key, "GetStringMap", base, compare)
 	return base
 
 }
@@ -275,7 +280,7 @@ func (t *teeConfig) GetStringMap(key string) map[string]interface{} {
 func (t *teeConfig) GetStringMapString(key string) map[string]string {
 	base := t.baseline.GetStringMapString(key)
 	compare := t.compare.GetStringMapString(key)
-	compareResult(key, "GetStringMapString", base, compare)
+	t.compareResult(key, "GetStringMapString", base, compare)
 	return base
 
 }
@@ -284,7 +289,7 @@ func (t *teeConfig) GetStringMapString(key string) map[string]string {
 func (t *teeConfig) GetStringMapStringSlice(key string) map[string][]string {
 	base := t.baseline.GetStringMapStringSlice(key)
 	compare := t.compare.GetStringMapStringSlice(key)
-	compareResult(key, "GetStringMapStringSlice", base, compare)
+	t.compareResult(key, "GetStringMapStringSlice", base, compare)
 	return base
 
 }
@@ -293,7 +298,7 @@ func (t *teeConfig) GetStringMapStringSlice(key string) map[string][]string {
 func (t *teeConfig) GetSizeInBytes(key string) uint {
 	base := t.baseline.GetSizeInBytes(key)
 	compare := t.compare.GetSizeInBytes(key)
-	compareResult(key, "GetSizeInBytes", base, compare)
+	t.compareResult(key, "GetSizeInBytes", base, compare)
 	return base
 
 }
@@ -302,7 +307,7 @@ func (t *teeConfig) GetSizeInBytes(key string) uint {
 func (t *teeConfig) GetSource(key string) model.Source {
 	base := t.baseline.GetSource(key)
 	compare := t.compare.GetSource(key)
-	compareResult(key, "GetSource", base, compare)
+	t.compareResult(key, "GetSource", base, compare)
 	return base
 
 }
@@ -387,7 +392,7 @@ func (t *teeConfig) AllSettings() map[string]interface{} {
 				continue
 			}
 			if !reflect.DeepEqual(base[key], compare[key]) {
-				log.Warnf("\titem %s: %v | %v", key, base[key], compare[key])
+				log.Warnf("\titem %s: %#v | %#v", key, base[key], compare[key])
 			}
 			log.Flush()
 		}
@@ -400,7 +405,7 @@ func (t *teeConfig) AllSettings() map[string]interface{} {
 func (t *teeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	base := t.baseline.AllSettingsWithoutDefault()
 	compare := t.compare.AllSettingsWithoutDefault()
-	compareResult("", "AllSettingsWithoutDefault", base, compare)
+	t.compareResult("", "AllSettingsWithoutDefault", base, compare)
 	return base
 
 }
@@ -409,7 +414,7 @@ func (t *teeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	base := t.baseline.AllSettingsBySource()
 	compare := t.compare.AllSettingsBySource()
-	compareResult("", "AllSettingsBySource", base, compare)
+	t.compareResult("", "AllSettingsBySource", base, compare)
 	return base
 
 }
@@ -455,7 +460,7 @@ func (t *teeConfig) SetConfigType(in string) {
 func (t *teeConfig) ConfigFileUsed() string {
 	base := t.baseline.ConfigFileUsed()
 	compare := t.compare.ConfigFileUsed()
-	compareResult("", "ConfigFileUsed", base, compare)
+	t.compareResult("", "ConfigFileUsed", base, compare)
 	return base
 
 }
@@ -466,7 +471,7 @@ func (t *teeConfig) GetEnvVars() []string {
 	compare := t.compare.GetEnvVars()
 	slices.Sort(base)
 	slices.Sort(compare)
-	compareResult("", "GetEnvVars", base, compare)
+	t.compareResult("", "GetEnvVars", base, compare)
 	return base
 
 }
@@ -493,13 +498,13 @@ func (t *teeConfig) Stringify(source model.Source) string {
 func (t *teeConfig) GetProxies() *model.Proxy {
 	base := t.baseline.GetProxies()
 	compare := t.compare.GetProxies()
-	compareResult("", "GetProxies", base, compare)
+	t.compareResult("", "GetProxies", base, compare)
 	return base
 }
 
 func (t *teeConfig) ExtraConfigFilesUsed() []string {
 	base := t.baseline.ExtraConfigFilesUsed()
 	compare := t.compare.ExtraConfigFilesUsed()
-	compareResult("", "ExtraConfigFilesUsed", base, compare)
+	t.compareResult("", "ExtraConfigFilesUsed", base, compare)
 	return base
 }
