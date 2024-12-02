@@ -265,7 +265,8 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print(f"Failed to destroy stack {stack}")
 
 
-def post_process_output(path: str, test_depth: int = 1):
+@task
+def post_process_output(ctx, path: str, test_depth: int = 1):
     """
     Post process the test results to add the test run name
     path: path to the test result json file
@@ -280,28 +281,48 @@ def post_process_output(path: str, test_depth: int = 1):
     We should set test_depth to 2 to avoid mixing all the logs of the different tested platform
     """
 
+    def is_parent(parent: list[str], child: list[str]) -> bool:
+        for i in range(len(parent)):
+            if parent[i] != child[i]:
+                return False
+        return True
+
     logs_per_test = {}
     with open(path) as f:
-        idx = 0
-        for line in f.readlines():
-            idx += 1
-            print(idx)
+        all_lines = f.readlines()
+
+        # Initalize logs_per_test with all test names
+        for line in all_lines:
             json_line = json.loads(line)
             if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+            splitted_test = json_line["Test"].split("/")
+            if len(splitted_test) < test_depth:
                 continue
             if json_line["Package"] not in logs_per_test:
                 logs_per_test[json_line["Package"]] = {}
 
-            splitted_test = json_line["Test"].split("/")
             test_name = splitted_test[: min(test_depth, len(splitted_test))]
+            print("Creating key", "/".join(test_name))
+            logs_per_test[json_line["Package"]]["/".join(test_name)] = []
 
-            if "/".join(test_name) not in logs_per_test[json_line["Package"]]:
-                logs_per_test[json_line["Package"]]["/".join(test_name)] = []
-            if "===" in json_line["Output"]:
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
                 continue
 
-            logs_per_test[json_line["Package"]]["/".join(test_name)].append(json_line["Output"])
-    pretty_print_logs(logs_per_test)
+            if "===" in json_line["Output"]:  # Ignore these lines that are produced when running test concurrently
+                continue
+
+            splitted_test = json_line["Test"].split("/")
+
+            if len(splitted_test) < test_depth:  # Append logs to all children tests
+                for test_name in logs_per_test[json_line["Package"]]:
+                    if is_parent(splitted_test, test_name.split("/")):
+                        logs_per_test[json_line["Package"]][test_name].append(json_line["Output"])
+                continue
+
+            logs_per_test[json_line["Package"]]["/".join(splitted_test[:test_depth])].append(json_line["Output"])
     return logs_per_test
 
 
