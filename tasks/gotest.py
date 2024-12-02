@@ -27,6 +27,7 @@ from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
+from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
@@ -43,6 +44,7 @@ from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
+from tasks.trace_agent import integration_tests as trace_integration_tests
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -408,9 +410,9 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
     tests = {
         "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        # "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        # "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        # "Trace Agentt": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
+        "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Trace Agentt": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
     }
     tests_failures = {}
     for t_name, t in tests.items():
