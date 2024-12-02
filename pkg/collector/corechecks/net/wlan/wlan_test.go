@@ -3,29 +3,52 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build test
 
 // //nolint:revive // TODO(PLINT) Fix revive linter
-package wlan_test
+package wlan
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan"
 	"github.com/stretchr/testify/mock"
 )
 
+var testGetWifiInfo = func() (WiFiInfo, error) {
+	return WiFiInfo{
+		Rssi:         10,
+		Ssid:         "test-ssid",
+		Bssid:        "test-bssid",
+		Channel:      1,
+		Noise:        1,
+		TransmitRate: 1.0,
+		SecurityType: "test-security-type",
+	}, nil
+}
+
+var testSetupLocationAccess = func() {
+}
+
 func TestWLANOK(t *testing.T) {
-	wlanCheck := new(wlan.WLANCheck)
+
+	// mock the functions
+	getWifiInfo = testGetWifiInfo
+	setupLocationAccess = testSetupLocationAccess
+	defer func() {
+		getWifiInfo = GetWiFiInfo
+		setupLocationAccess = SetupLocationAccess
+	}()
+
+	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 
-	mockSender.On("Gauge", "wlan.rssi", mock.Anything, mock.Anything, mock.Anything).Return().Times(1)
+	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
 	mockSender.On("Commit").Return().Times(1)
 	wlanCheck.Run()
 
