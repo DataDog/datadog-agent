@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "datadog-agent-dev"
+dynamic = ["version"]
+description = "Tool for developing the Datadog Agent"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+authors = [
+  { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
+]
+dependencies = [
+  "click~=8.1",
+  "find-exe~=0.1",
+  "msgspec~=0.18",
+  "msgspec-click~=0.2",
+  "platformdirs~=4.2",
+  "rich~=13.7",
+  "rich-click~=1.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/DataDog/datadog-agent/tree/main/deva"
+
+[project.scripts]
+deva = "deva.cli:main"
+
+[tool.hatch.version]
+path = "src/deva/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deva"]
