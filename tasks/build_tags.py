@@ -76,7 +76,6 @@ AGENT_TAGS = {
     "netcgo",
     "oracle",
     "orchestrator",
-    "otlp",
     "podman",
     "process",
     "python",
@@ -118,7 +117,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
+IOT_AGENT_TAGS = {"jetson", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = {"docker", "ec2", "gce", "kubelet"}
@@ -164,7 +163,7 @@ SERVERLESS_TAGS = {"serverless", "otlp"}
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap", "remotewmonly"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
+TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "netcgo", "podman"}
 
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
