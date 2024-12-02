@@ -7,12 +7,15 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 
 	"golang.org/x/exp/maps"
 
@@ -40,6 +43,10 @@ type atel struct {
 
 	cancelCtx context.Context
 	cancel    context.CancelFunc
+
+	prevPromMetricCounterValues   map[string]float64
+	prevPromMetricHistogramValues map[string]uint64
+	prevPromMetricValuesMU        sync.Mutex
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -128,6 +135,9 @@ func createAtel(
 		sender:  sender,
 		runner:  runner,
 		atelCfg: atelCfg,
+
+		prevPromMetricCounterValues:   make(map[string]float64),
+		prevPromMetricHistogramValues: make(map[string]uint64),
 	}
 }
 
@@ -189,8 +199,8 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 		tagsKey := ""
 
 		// if tags are defined, we need to create a key from them by dropping not specified
-		// in configuration tags. The key is constructed by conatenating specified tag names and values
-		// if the a timeseries has tags is not specified in
+		// in configuration tags. The key is constructed by concatenating specified tag names
+		// and values if a timeseries has tags is not specified
 		origTags := m.GetLabel()
 		if len(origTags) > 0 {
 			// sort tags (to have a consistent key for the same tag set)
@@ -245,6 +255,102 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	return maps.Values(amMap)
 }
 
+func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, metrics []*dto.Metric) []string {
+	keyNames := make([]string, 0, len(metrics))
+	for _, m := range metrics {
+		var keyName string
+		tags := m.GetLabel()
+		if len(tags) == 0 {
+			// start with the metric name
+			keyName = metricName
+		} else {
+			// Sort tags to stability of the key
+			sortedTags := cloneLabelsSorted(tags)
+			var builder strings.Builder
+
+			// start with the metric name plus the tags
+			builder.WriteString(metricName)
+			for _, tag := range sortedTags {
+				builder.WriteString(makeLabelPairKey(tag))
+			}
+			keyName = builder.String()
+		}
+
+		if mt == dto.MetricType_HISTOGRAM {
+			// add bucket names to the key
+			for _, bucket := range m.Histogram.GetBucket() {
+				keyNames = append(keyNames, fmt.Sprintf("%v:%v", keyName, bucket.GetUpperBound()))
+			}
+		} else {
+			keyNames = append(keyNames, keyName)
+		}
+	}
+
+	return keyNames
+}
+
+func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
+	if len(metrics) > 0 {
+		bucketCount := len(metrics[0].Histogram.GetBucket())
+		for i, m := range metrics {
+			// First, deduct the previous cumulative count from the current one
+			for j, b := range m.Histogram.GetBucket() {
+				key := keyNames[(i*bucketCount)+j]
+				curValue := b.GetCumulativeCount()
+
+				// Adjust the counter value if found
+				if prevValue, ok := prevPromMetricValues[key]; ok {
+					*b.CumulativeCount -= prevValue
+				}
+
+				// Upsert the cache of previous counter values
+				prevPromMetricValues[key] = curValue
+			}
+
+			// Then, de-cumulate next bucket value from the previous bucket values
+			var prevValue uint64
+			for _, b := range m.Histogram.GetBucket() {
+				curValue := b.GetCumulativeCount()
+				*b.CumulativeCount -= prevValue
+				prevValue = curValue
+			}
+		}
+	}
+}
+
+func convertPromCountersToDatadogCountersValues(metrics []*dto.Metric, prevPromMetricValues map[string]float64, keyNames []string) {
+	for i, m := range metrics {
+		key := keyNames[i]
+		curValue := m.GetCounter().GetValue()
+
+		// Adjust the counter value if found
+		if prevValue, ok := prevPromMetricValues[key]; ok {
+			*m.GetCounter().Value -= prevValue
+		}
+
+		// Upsert the cache of previous counter values
+		prevPromMetricValues[key] = curValue
+	}
+}
+
+// Convert ...
+//  1. Prom Counters from monotonic to non-monotonic by resetting the counter during this call
+//  2. Prom Histograms buckets counters from monotonic to non-monotonic by resetting the counter during this call
+func (a *atel) convertPromMetricToDatadogMetricsValues(mt dto.MetricType, metricName string, metrics []*dto.Metric) {
+	if len(metrics) > 0 && (mt == dto.MetricType_COUNTER || mt == dto.MetricType_HISTOGRAM) {
+		// Build the keys for the metrics (or buckets) to cache their previous values
+		keyNames := buildKeysForMetricsPreviousValues(mt, metricName, metrics)
+
+		a.prevPromMetricValuesMU.Lock()
+		defer a.prevPromMetricValuesMU.Unlock()
+		if mt == dto.MetricType_HISTOGRAM {
+			convertPromHistogramsToDatadogHistogramsValues(metrics, a.prevPromMetricHistogramValues, keyNames)
+		} else {
+			convertPromCountersToDatadogCountersValues(metrics, a.prevPromMetricCounterValues, keyNames)
+		}
+	}
+}
+
 func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.Metric) bool {
 	// filter out zero values if specified in the profile
 	if p.excludeZeroMetric && isZeroValueMetric(mt, m) {
@@ -288,12 +394,16 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		}
 	}
 
-	amt := a.aggregateMetricTags(mCfg, mt, fm)
-
 	// nothing to report
 	if len(fm) == 0 {
 		return nil
 	}
+
+	// Aggregate the metric tags
+	amt := a.aggregateMetricTags(mCfg, mt, fm)
+
+	// Convert Prom Metrics values to the corresponding Datadog metrics style values
+	a.convertPromMetricToDatadogMetricsValues(mt, mCfg.Name, amt)
 
 	return &agentmetric{
 		name:    mCfg.Name,
@@ -392,12 +502,18 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 		return nil, fmt.Errorf("unable to marshal agent telemetry payload: %w", err)
 	}
 
-	jsonPayloadScrubbed, err := scrubber.ScrubJSONString(string(jsonPayload))
+	jsonPayloadScrubbed, err := scrubber.ScrubJSON(jsonPayload)
 	if err != nil {
 		return nil, fmt.Errorf("unable to scrub agent telemetry payload: %w", err)
 	}
 
-	return []byte(jsonPayloadScrubbed), nil
+	var prettyPayload bytes.Buffer
+	err = json.Indent(&prettyPayload, jsonPayloadScrubbed, "", "\t")
+	if err != nil {
+		return nil, fmt.Errorf("unable to pretified agent telemetry payload: %w", err)
+	}
+
+	return prettyPayload.Bytes(), nil
 }
 
 // start is called by FX when the application starts.

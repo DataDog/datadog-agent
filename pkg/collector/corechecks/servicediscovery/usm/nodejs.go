@@ -62,14 +62,14 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
 				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
-					return NewServiceMetadata(value), true
+					return NewServiceMetadata(value, Nodejs), true
 				}
 
 				// We couldn't find a package.json, fall back to the script/link
 				// name since it should be better than just using "node".
 				base := filepath.Base(absFile)
 				name := strings.TrimSuffix(base, path.Ext(base))
-				return NewServiceMetadata(name), true
+				return NewServiceMetadata(name, CommandLine), true
 			}
 		}
 	}
