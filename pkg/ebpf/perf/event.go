@@ -189,6 +189,7 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 		e.initRingBuffer(mgr)
 		return nil
 	}
+	defer e.removeRingBufferHelperCalls(mgr, moduleName, mgrOpts)
 
 	if e.opts.mode == perfBufferOnly {
 		if ms.Type != ebpf.PerfEventArray {
@@ -212,11 +213,18 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 		}
 
 		e.initPerfBuffer(mgr)
-		// add helper call remover because ring buffers are not available
-		return ddebpf.NewHelperCallRemover(asm.FnRingbufOutput).BeforeInit(mgr, moduleName, mgrOpts)
+		return nil
 	}
 
 	return fmt.Errorf("unsupported EventHandlerMode %d", e.opts.mode)
+}
+
+func (e *EventHandler) removeRingBufferHelperCalls(mgr *manager.Manager, moduleName names.ModuleName, mgrOpts *manager.Options) {
+	if features.HaveMapType(ebpf.RingBuf) == nil {
+		return
+	}
+	// add helper call remover because ring buffers are not available
+	_ = ddebpf.NewHelperCallRemover(asm.FnRingbufOutput).BeforeInit(mgr, moduleName, mgrOpts)
 }
 
 func (e *EventHandler) setupConstant(mgrOpts *manager.Options) {
