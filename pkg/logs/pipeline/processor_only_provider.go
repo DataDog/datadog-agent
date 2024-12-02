@@ -9,8 +9,6 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -19,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
-	"github.com/DataDog/datadog-agent/pkg/logs/sds"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // processorOnlyProvider implements the Provider provider interface and only contains the processor
@@ -60,45 +56,21 @@ func (p *processorOnlyProvider) Stop() {
 	p.processor.Stop()
 }
 
-// return true if processor SDS scanners are active.
-func (p *processorOnlyProvider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
-	// Send a reconfiguration order to the running pipeline
-	order := sds.ReconfigureOrder{
-		Type:         orderType,
-		Config:       config,
-		ResponseChan: make(chan sds.ReconfigureResponse),
-	}
-
-	log.Debug("Sending SDS reconfiguration order:", string(order.Type))
-	p.processor.ReconfigChan <- order
-
-	// Receive response and determine if any errors occurred
-	resp := <-order.ResponseChan
-	scannerActive := resp.IsActive
-	var rerr error
-	if resp.Err != nil {
-		rerr = multierror.Append(rerr, resp.Err)
-	}
-
-	return scannerActive, rerr
-}
-
-func (p *processorOnlyProvider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
-	return p.reconfigureSDS(standardRules, sds.StandardRules)
+func (p *processorOnlyProvider) ReconfigureSDSStandardRules(_ []byte) (bool, error) {
+	return false, nil
 }
 
 // ReconfigureSDSAgentConfig reconfigures the pipeline with the given
 // configuration received through Remote Configuration.
 // Return true if all SDS scanners are active after applying this configuration.
-func (p *processorOnlyProvider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
-	return p.reconfigureSDS(config, sds.AgentConfig)
+func (p *processorOnlyProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
+	return false, nil
 }
 
 // StopSDSProcessing reconfigures the pipeline removing the SDS scanning
 // from the processing steps.
 func (p *processorOnlyProvider) StopSDSProcessing() error {
-	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
-	return err
+	return nil
 }
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
