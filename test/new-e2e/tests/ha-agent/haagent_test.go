@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package netflow contains e2e tests for netflow
-package ha_agent
+// Package haagent contains e2e tests for HA Agent feature
+package haagent
 
 import (
 	_ "embed"
@@ -29,8 +29,8 @@ type haAgentTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestNetflowSuite runs the netflow e2e suite
-func TestNetflowSuite(t *testing.T) {
+// TestHaAgentSuite runs the netflow e2e suite
+func TestHaAgentSuite(t *testing.T) {
 	e2e.Run(t, &haAgentTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(datadogYaml))),
 	))
