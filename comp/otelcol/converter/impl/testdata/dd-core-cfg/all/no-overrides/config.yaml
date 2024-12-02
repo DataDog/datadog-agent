@@ -14,7 +14,7 @@ processors:
 exporters:
   datadog:
     api: 
-      key: 333333
+      key: abc123
       site: us1.datadoghq.com
 
 extensions:

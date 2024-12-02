@@ -8,7 +8,6 @@ package converterimpl
 
 import (
 	"regexp"
-	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -175,11 +174,6 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 				var key string
 				if keyString, okString := apiKey.(string); okString {
 					key = keyString
-				} else {
-					// api::key can be int if "" were not set.
-					if keyInt, okInt := apiKey.(int); okInt {
-						key = strconv.Itoa(keyInt)
-					}
 				}
 				if ok && key != "" {
 					match = reg.Match([]byte(key))

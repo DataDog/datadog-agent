@@ -13,10 +13,10 @@ processors:
 exporters:
   datadog:
     api:
-      key: 777777777777777
+      key: ggggg77777
   datadog/2:
     api: 
-      key: 777777777777777
+      key: ggggg77777
 extensions:
   pprof/user-defined:
   health_check/user-defined:
