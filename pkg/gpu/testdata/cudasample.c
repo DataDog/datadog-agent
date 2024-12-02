@@ -68,7 +68,6 @@ int main(int argc, char **argv) {
 
     //this line is used as a market by patternScanner to indicate the end of the program
     fprintf(stderr, "CUDA calls made.\n");
-    fprintf(stderr, "Press Enter to continue...\n");
     pause();  // Wait for signal to finish the process
 
     return 0;
