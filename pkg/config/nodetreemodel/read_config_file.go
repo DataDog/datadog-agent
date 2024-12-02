@@ -76,8 +76,12 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 
 func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) error {
 	var obj map[string]interface{}
-	if err := yaml.Unmarshal(content, &obj); err != nil {
-		return err
+
+	if strictErr := yaml.UnmarshalStrict(content, &obj); strictErr != nil {
+		log.Errorf("warning reading config file: %v\n", strictErr)
+		if err := yaml.UnmarshalStrict(content, &obj); err != nil {
+			return err
+		}
 	}
 	c.warnings = append(c.warnings, loadYamlInto(c.schema, target, obj, "")...)
 	return nil
