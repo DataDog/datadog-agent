@@ -15,4 +15,6 @@ network_devices:
 
 ha_agent:
   enabled: true
-  group: alex-e2e-group01
+  group: test-group01
+
+log_level: debug
