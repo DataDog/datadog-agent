@@ -109,7 +109,8 @@ type secretResolver struct {
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
 
-	backends secretsbackends.Backends
+	backendsConfigPath string
+	backends           secretsbackends.Backends
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -231,10 +232,11 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
 	}
 
-	if _, err := os.Stat(params.ConfigPath); err == nil {
+	r.backendsConfigPath = params.ConfigPath
+	if _, err := os.Stat(r.backendsConfigPath); err == nil {
 		// TODO: Make secretsbackends.NewBackends return an error instead
 		// of exiting with a Fatal log message
-		r.backends = secretsbackends.NewBackends(params.ConfigPath)
+		r.backends = secretsbackends.NewBackends(r.backendsConfigPath)
 	}
 }
 
@@ -450,6 +452,11 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 func (r *secretResolver) Refresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+
+	// Reload the backends
+	if _, err := os.Stat(r.backendsConfigPath); err == nil {
+		r.backends = secretsbackends.NewBackends(r.backendsConfigPath)
+	}
 
 	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
