@@ -6,11 +6,12 @@
 package processor
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+
+	"github.com/goccy/go-json"
 )
 
 // JSONServerlessEncoder is a shared json encoder sending a struct message field

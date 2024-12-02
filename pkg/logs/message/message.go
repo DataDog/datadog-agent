@@ -7,12 +7,13 @@
 package message
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/goccy/go-json"
 )
 
 // TruncatedFlag is the flag that is added at the beginning

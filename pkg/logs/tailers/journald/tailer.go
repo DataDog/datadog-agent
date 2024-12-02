@@ -8,13 +8,13 @@
 package journald
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
 	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
+	"github.com/goccy/go-json"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
