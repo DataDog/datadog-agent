@@ -88,7 +88,7 @@ func getBuiltSamplePath(t *testing.T, sample sampleName) string {
 // getDefaultArgs returns the default arguments for the sample binary
 func getDefaultArgs() SampleArgs {
 	return SampleArgs{
-		StartWaitTimeSec:      6,
+		StartWaitTimeSec:      5,
 		CudaVisibleDevicesEnv: "",
 		SelectedDevice:        0,
 	}

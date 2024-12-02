@@ -20,6 +20,7 @@ import (
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type probeTestSuite struct {
@@ -71,6 +72,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	probe := s.getProbe()
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
 
@@ -115,6 +117,8 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
 
@@ -146,6 +150,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
 	require.NoError(t, err)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
 
@@ -166,6 +171,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	probe := s.getProbe()
 
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
 
 	// Check that the stream handlers have the correct container ID assigned
 	for key, handler := range probe.consumer.streamHandlers {
