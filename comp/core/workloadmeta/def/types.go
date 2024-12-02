@@ -453,6 +453,19 @@ func (cr ContainerResources) String(bool) string {
 	return sb.String()
 }
 
+// ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
+type ContainerAllocatedResource struct {
+	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
+	Name string
+
+	// ID is the unique ID of the resource, the format depends on the provider
+	ID string
+}
+
+func (c ContainerAllocatedResource) String() string {
+	return fmt.Sprintf("Name:%s, ID:%s", c.Name, c.ID)
+}
+
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
@@ -536,6 +549,10 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
+
+	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// PodResources API to query that data.
+	AllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -588,6 +605,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Allocated resources -----------")
+	for _, r := range c.AllocatedResources {
+		_, _ = fmt.Fprintln(&sb, r.String())
+	}
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)

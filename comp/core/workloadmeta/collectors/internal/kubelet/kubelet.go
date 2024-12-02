@@ -265,6 +265,14 @@ func (c *collector) parsePodContainers(
 			log.Debugf("cannot find spec for container %q", container.Name)
 		}
 
+		var allocatedResources []workloadmeta.ContainerAllocatedResource
+		for _, resource := range container.Resources {
+			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
+				Name: resource.Name,
+				ID:   resource.ID,
+			})
+		}
+
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
@@ -301,14 +309,15 @@ func (c *collector) parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:           image,
-				EnvVars:         env,
-				SecurityContext: containerSecurityContext,
-				Ports:           ports,
-				Runtime:         workloadmeta.ContainerRuntime(runtime),
-				State:           containerState,
-				Owner:           parent,
-				Resources:       resources,
+				Image:              image,
+				EnvVars:            env,
+				SecurityContext:    containerSecurityContext,
+				Ports:              ports,
+				Runtime:            workloadmeta.ContainerRuntime(runtime),
+				State:              containerState,
+				Owner:              parent,
+				Resources:          resources,
+				AllocatedResources: allocatedResources,
 			},
 		})
 	}
