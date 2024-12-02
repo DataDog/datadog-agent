@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -211,6 +212,11 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
 	}
 
+	err = ku.addContainerResourcesData(ctx, pods.Items)
+	if err != nil {
+		log.Errorf("Error adding container resources data: %s", err)
+	}
+
 	// ensure we dont have nil pods
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
@@ -232,11 +238,6 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 	pods.Items = tmpSlice
 
-	err = ku.addContainerResourcesData(ctx, pods.Items)
-	if err != nil {
-		log.Errorf("Error adding container resources data: %s", err)
-	}
-
 	// cache the podList to reduce pressure on the kubelet
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
@@ -257,30 +258,36 @@ func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) 
 	}
 
 	for _, pod := range pods {
-		for _, container := range pod.Status.AllContainers {
-			key := ContainerKey{
-				Namespace:     pod.Metadata.Namespace,
-				PodName:       pod.Metadata.Name,
-				ContainerName: container.Name,
-			}
-			devices, ok := containerToDevicesMap[key]
-			if !ok {
-				continue
-			}
-
-			for _, device := range devices {
-				name := device.GetResourceName()
-				for _, id := range device.GetDeviceIds() {
-					container.Resources = append(container.Resources, ContainerResource{
-						Name: name,
-						ID:   id,
-					})
-				}
-			}
-		}
+		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.InitContainers)
+		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.Containers)
 	}
 
 	return nil
+}
+
+func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[ContainerKey][]*podresourcesv1.ContainerDevices, pod *Pod, containers []ContainerStatus) {
+	for i := range containers {
+		container := &containers[i] // take the pointer so that we can modify the original
+		key := ContainerKey{
+			Namespace:     pod.Metadata.Namespace,
+			PodName:       pod.Metadata.Name,
+			ContainerName: container.Name,
+		}
+		devices, ok := containerToDevicesMap[key]
+		if !ok {
+			continue
+		}
+
+		for _, device := range devices {
+			name := device.GetResourceName()
+			for _, id := range device.GetDeviceIds() {
+				container.Resources = append(container.Resources, ContainerResource{
+					Name: name,
+					ID:   id,
+				})
+			}
+		}
+	}
 }
 
 // GetLocalPodList returns the list of pods running on the node.
