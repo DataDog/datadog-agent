@@ -22,6 +22,9 @@ const (
 	defaultMinCollectionInterval = 15
 )
 
+var getWifiInfo = GetWiFiInfo
+var setupLocationAccess = SetupLocationAccess
+
 // WLANCheck monitors the status of the WLAN interface
 type WLANCheck struct {
 	core.CheckBase
@@ -38,7 +41,7 @@ func (c *WLANCheck) Run() error {
 		return err
 	}
 	setupLocationAccess()
-	wifiInfo, err := GetWiFiInfo()
+	wifiInfo, err := getWifiInfo()
 	if err != nil {
 		log.Error(err)
 		sender.Commit()

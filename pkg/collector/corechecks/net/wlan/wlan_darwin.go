@@ -55,7 +55,7 @@ func GetWiFiInfo() (WiFiInfo, error) {
 	}, nil
 }
 
-func setupLocationAccess() {
+func SetupLocationAccess() {
 	C.InitLocationManager()
 	fmt.Println("Initialized Location Manager")
 
