@@ -46,7 +46,7 @@ After you have refactored, if needed, and listed the packages that you want to e
         - ./comp
     ```
 
-1. Run `inv modules.go-work` to generate the updated `go.work` file
+1. Run `inv modules.go-work` to generate the updated `go.work` file.
 
 ## Go nested modules tooling
 
