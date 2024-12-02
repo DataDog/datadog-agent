@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package fentry
+package fentry //nolint:revive // TODO
 
 import (
 	manager "github.com/DataDog/ebpf-manager"
@@ -21,7 +21,6 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPOngoingConnectPid},
-		{Name: probes.ConnCloseFlushed},
 		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},

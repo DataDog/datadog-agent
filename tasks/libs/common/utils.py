@@ -24,8 +24,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, DEFAULT_BRANCH, REPO_PATH
-from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
+from tasks.libs.common.git import get_commit_sha, get_default_branch
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
@@ -203,7 +203,6 @@ def get_build_flags(
     run_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
     headless_mode=False,
@@ -243,8 +242,6 @@ def get_build_flags(
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
-    if python_home_2:
-        ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome2={python_home_2} "
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
@@ -270,6 +267,10 @@ def get_build_flags(
     if rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
+
+    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+        # fake the minimum windows version
+        env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
@@ -322,7 +323,7 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux':
+    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
         # Enable lazy binding, which seems to be overridden when loading containerd
         # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
         extldflags += "-Wl,-z,lazy "
@@ -373,6 +374,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     Compute the version from the git tags, and set the appropriate compiler
     flags
     """
+
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
 
@@ -494,8 +496,8 @@ def environ(env):
 
 
 def is_pr_context(branch, pr_id, test_name):
-    if branch == DEFAULT_BRANCH:
-        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
+    if branch == get_default_branch():
+        print(f"Running on {get_default_branch()}, skipping check for {test_name}.")
         return False
     if not pr_id:
         print(f"PR not found, skipping check for {test_name}.")
@@ -749,3 +751,11 @@ def get_metric_origin(origin_product, origin_sub_product, origin_product_detail,
     if origin_field:
         return {"origin": metric_origin}
     return metric_origin
+
+
+def agent_working_directory():
+    """Returns the working directory for the current context (agent 6 / 7)."""
+
+    from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
+
+    return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY

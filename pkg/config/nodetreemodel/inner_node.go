@@ -63,7 +63,7 @@ func (n *innerNode) GetChild(key string) (Node, error) {
 
 // HasChild returns true if the node has a child for that given key
 func (n *innerNode) HasChild(key string) bool {
-	_, ok := n.children[key]
+	_, ok := n.children[strings.ToLower(key)]
 	return ok
 }
 
@@ -173,7 +173,7 @@ func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]in
 		child, _ := n.GetChild(k)
 		if leaf, ok := child.(LeafNode); ok {
 			if selector(leaf.Source()) {
-				res[k], _ = leaf.GetAny()
+				res[k] = leaf.Get()
 			}
 			continue
 		}

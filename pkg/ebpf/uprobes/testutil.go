@@ -56,7 +56,7 @@ type MockFileRegistry struct {
 }
 
 // Register is a mock implementation of the FileRegistry.Register method.
-func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error {
+func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error { //nolint:revive // TODO
 	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
 	return args.Error(0)
 }
@@ -76,6 +76,11 @@ func (m *MockFileRegistry) Clear() {
 func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	args := m.Called()
 	return args.Get(0).(map[uint32]struct{})
+}
+
+// Log is a mock implementation of the FileRegistry.Log method.
+func (m *MockFileRegistry) Log() {
+	m.Called()
 }
 
 // MockBinaryInspector is a mock implementation of the BinaryInspector interface.
