@@ -265,8 +265,7 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print(f"Failed to destroy stack {stack}")
 
 
-@task
-def post_process_output(ctx, path: str, test_depth: int = 1):
+def post_process_output(path: str, test_depth: int = 1):
     """
     Post process the test results to add the test run name
     path: path to the test result json file
