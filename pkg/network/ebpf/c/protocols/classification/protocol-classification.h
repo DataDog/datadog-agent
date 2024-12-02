@@ -152,7 +152,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    if (is_fully_classified(protocol_stack) ) {
         return;
     }
 
@@ -163,11 +163,23 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
+    tls_record_header_t tls_hdr = {0};
+
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, &tls_hdr)) {
         // TLS classification
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
-        // The connection is TLS encrypted, thus we cannot classify the protocol
-        // using the socket filter and therefore we can bail out;
+
+        // Parse TLS payload
+        tls_info_t *tags = get_or_create_tls_enhanced_tags(&skb_tup);
+        if (tags) {
+            parse_tls_payload(skb, skb_info.data_off, &tls_hdr, tags);
+        }
+        // The connection is TLS encrypted, thus we cannot further classify the protocol
+        // using the socket filter and can bail out;
+        return;
+    }
+
+    if(is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
     }
 

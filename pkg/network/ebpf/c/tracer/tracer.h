@@ -30,6 +30,13 @@ typedef enum {
 #define CONN_DIRECTION_MASK 0b11
 
 typedef struct {
+    __u16 chosen_version;     // 2 bytes
+    __u16 cipher_suite;       // 2 bytes
+    __u8  offered_versions;   // 1 byte (6 bits used)
+    __u8  reserved;           // 1 byte (for alignment or future use)
+} tls_info_t;
+
+typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u32 sent_packets;
@@ -54,6 +61,7 @@ typedef struct {
     protocol_stack_t protocol_stack;
     __u8 flags;
     __u8 direction;
+    tls_info_t tls_tags;
 } conn_stats_ts_t;
 
 // Connection flags

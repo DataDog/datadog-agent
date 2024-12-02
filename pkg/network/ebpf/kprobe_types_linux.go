@@ -32,7 +32,7 @@ type ConnStats struct {
 	Protocol_stack ProtocolStack
 	Flags          uint8
 	Direction      uint8
-	Pad_cgo_0      [6]byte
+	Tls_tags       TLSTags
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -102,6 +102,12 @@ type ProtocolStack struct {
 type ProtocolStackWrapper struct {
 	Stack   ProtocolStack
 	Updated uint64
+}
+type TLSTags struct {
+	Chosen_version   uint16
+	Cipher_suite     uint16
+	Offered_versions uint8
+	Reserved         uint8
 }
 
 type _Ctype_struct_sock uint64
