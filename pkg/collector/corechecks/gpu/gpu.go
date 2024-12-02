@@ -10,6 +10,7 @@ package gpu
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"gopkg.in/yaml.v2"
 
@@ -19,6 +20,8 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -44,18 +47,22 @@ type Check struct {
 	activeMetrics  map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
 	collectors     []nvidia.Collector      // collectors for NVML metrics
 	nvmlLib        nvml.Interface          // NVML library interface
+	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return newCheck(tagger)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(tagger tagger.Component) check.Check {
 	return &Check{
 		CheckBase:     core.NewCheckBase(CheckName),
 		config:        &CheckConfig{},
 		activeMetrics: make(map[model.StatsKey]bool),
+		tagger:        tagger,
 	}
 }
 
@@ -132,7 +139,8 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	for _, entry := range stats.Metrics {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
-		tags := getTagsForKey(key)
+		tags := m.getTagsForKey(key)
+		log.Warnf("key=%+v, tags=%v", key, tags)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
@@ -143,7 +151,7 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	// Remove the PIDs that we didn't see in this check
 	for key, active := range m.activeMetrics {
 		if !active {
-			tags := getTagsForKey(key)
+			tags := m.getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
 			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
@@ -155,12 +163,23 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	return nil
 }
 
-func getTagsForKey(key model.StatsKey) []string {
+func (m *Check) getTagsForKey(key model.StatsKey) []string {
 	// Per-PID metrics are subject to change due to high cardinality
-	return []string{
-		fmt.Sprintf("pid:%d", key.PID),
-		fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID),
+	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(key.PID)))
+	tags, err := m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting tags for process %d: %s", key.PID, err)
 	}
+	if len(tags) == 0 {
+		// Fallback to pid tag if the tagger failed, to avoid having untagged data.
+		// We check the length of the tags array as the tagger might return no tags with no error
+		tags = []string{fmt.Sprintf("pid:%d", key.PID)}
+	}
+
+	// GPU is still not included in workloadmeta data, so we need to add it manually
+	tags = append(tags, fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID))
+
+	return tags
 }
 
 func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
