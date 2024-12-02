@@ -339,7 +339,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
-	config.BindEnvAndSetDefault("secret_backend_command", "")
+	if runtime.GOOS == "windows" {
+		// TODO: remove this once the secret backend is supported on Windows
+		config.BindEnvAndSetDefault("secret_backend_command", "")
+	} else {
+		config.BindEnvAndSetDefault("secret_backend_command", filepath.Join(InstallPath, "embedded/bin/datadog-secret-backend"))
+	}
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 0)

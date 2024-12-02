@@ -198,6 +198,14 @@ build do
     end
   end
 
+  # Secrets backend
+  # TODO: remove this once the secret backend is supported on Windows
+  unless windows_target?
+    command "inv agent.get-datadog-secret-backend", :env => env
+    command "chmod 700 bin/datadog-secret-backend/datadog-secret-backend"
+    copy 'bin/datadog-secret-backend/datadog-secret-backend', "#{install_dir}/embedded/bin"
+  end
+
   if osx_target?
     # Launchd service definition
     erb source: "launchd.plist.example.erb",
