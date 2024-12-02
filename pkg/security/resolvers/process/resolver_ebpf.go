@@ -874,10 +874,9 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
 	if entry.ContainerID == "" {
-		containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
+		_, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 		if err == nil {
 			entry.CGroup.CGroupFlags = containerFlags
-			entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(containerID, containerFlags)
 		}
 	}
 

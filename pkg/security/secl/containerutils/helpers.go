@@ -76,12 +76,3 @@ func FindContainerID(s string) (ContainerID, uint64) {
 
 	return containerID, uint64(flags)
 }
-
-// GetCGroupContext returns the cgroup ID and the sanitized container ID from a container id/flags tuple
-func GetCGroupContext(containerID ContainerID, cgroupFlags CGroupFlags) (CGroupID, ContainerID) {
-	cgroupID := GetCgroupFromContainer(containerID, cgroupFlags)
-	if !cgroupFlags.IsContainer() {
-		containerID = ""
-	}
-	return CGroupID(cgroupID), ContainerID(containerID)
-}

@@ -33,7 +33,6 @@ func NewCacheEntry(containerID containerutils.ContainerID, cgroupFlags uint64, p
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		CGroupContext: model.CGroupContext{
-			CGroupID:    containerutils.GetCgroupFromContainer(containerID, containerutils.CGroupFlags(cgroupFlags)),
 			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
 		},
 		ContainerContext: model.ContainerContext{
