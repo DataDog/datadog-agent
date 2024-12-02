@@ -120,6 +120,10 @@ func Command() []*cobra.Command {
 
 			// attach mode
 			if n := len(params.PIDs); n > 0 {
+				if params.PIDPerTracer <= 0 {
+					return fmt.Errorf("%s option but be greater or equal to 1", pidPerTracer)
+				}
+
 				if n < params.PIDPerTracer {
 					return ptracer.Attach(params.PIDs, params.ProbeAddr, opts)
 				}
