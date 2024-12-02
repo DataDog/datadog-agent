@@ -51,7 +51,7 @@ func (s *haAgentTestSuite02) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMet
 		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
-	}, 5*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 3*time.Second)
 }
 
 func (s *haAgentTestSuite02) TestHaAgentAddedToRCListeners() {
