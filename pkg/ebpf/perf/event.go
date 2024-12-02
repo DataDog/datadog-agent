@@ -196,6 +196,7 @@ func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
 }
 
 func (e *EventHandler) perfRecordHandler(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
+	// record is only allowed to live for the duration of the callback. Put it back into the sync.Pool once done.
 	defer perfPool.Put(record)
 	e.opts.Handler(record.RawSample)
 }
@@ -219,6 +220,7 @@ func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
 }
 
 func (e *EventHandler) ringRecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
+	// record is only allowed to live for the duration of the callback. Put it back into the sync.Pool once done.
 	defer ringbufPool.Put(record)
 	e.opts.Handler(record.RawSample)
 }
