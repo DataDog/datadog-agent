@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/stretchr/testify/assert"
 
@@ -107,16 +109,18 @@ func netflowDockerProvisioner() e2e.Provisioner {
 	}, nil)
 }
 
-type netflowDockerSuite22 struct {
-	e2e.BaseSuite[environments.DockerHost]
+type netflowDockerSuite23 struct {
+	e2e.BaseSuite[environments.Host]
 }
 
 // TestNetflowSuite runs the netflow e2e suite
 func TestNetflowSuite(t *testing.T) {
-	e2e.Run(t, &netflowDockerSuite22{}, e2e.WithProvisioner(netflowDockerProvisioner()))
+	e2e.Run(t, &netflowDockerSuite23{}, e2e.WithProvisioner(awshost.Provisioner(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(datadogYaml))),
+	))
 }
 
-func (s *netflowDockerSuite22) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
+func (s *netflowDockerSuite23) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.running metric")
