@@ -55,9 +55,9 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/pkg/errors v0.9.1
-	github.com/secure-systems-lab/go-securesystemslib v0.7.0
+	github.com/secure-systems-lab/go-securesystemslib v0.8.0
 	github.com/stretchr/testify v1.10.0
-	go.etcd.io/bbolt v1.3.7
+	go.etcd.io/bbolt v1.3.11
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.35.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.69.1

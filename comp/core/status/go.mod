@@ -7,7 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/spf13/cast v1.7.0
 	github.com/stretchr/testify v1.10.0
-	go.uber.org/fx v1.22.2
+	go.uber.org/fx v1.23.0
 	golang.org/x/text v0.20.0
 )
 

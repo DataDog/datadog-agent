@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
 	github.com/pkg/errors v0.9.1
-	github.com/secure-systems-lab/go-securesystemslib v0.7.0
+	github.com/secure-systems-lab/go-securesystemslib v0.8.0
 	github.com/stretchr/testify v1.10.0
 )
 
