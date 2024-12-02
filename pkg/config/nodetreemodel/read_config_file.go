@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -19,7 +20,12 @@ import (
 
 func (c *ntmConfig) getConfigFile() string {
 	if c.configFile == "" {
-		return "datadog.yaml"
+		for _, path := range c.configPaths {
+			configFilePath := filepath.Join(path, c.configName+".yaml")
+			if _, err := os.Stat(configFilePath); err == nil {
+				return configFilePath
+			}
+		}
 	}
 	return c.configFile
 }
@@ -33,7 +39,8 @@ func (c *ntmConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
 
-	err := c.readInConfig(c.getConfigFile())
+	c.configFile = c.getConfigFile()
+	err := c.readInConfig(c.configFile)
 	if err != nil {
 		return err
 	}
