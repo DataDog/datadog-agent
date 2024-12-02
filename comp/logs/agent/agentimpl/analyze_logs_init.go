@@ -13,6 +13,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -34,13 +35,13 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
 	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, conf, nil)
-	// setup the launchers
 
+	// setup the launchers
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
-	fileLimits := 500
-	fileValidatePodContainer := false
-	fileScanPeriod := time.Duration(0.5 * float64(time.Second))
-	fileWildcardSelectionMode := "by_name"
+	fileLimits := pkgconfigsetup.Datadog().GetInt("logs_config.open_files_limit")
+	fileValidatePodContainer := pkgconfigsetup.Datadog().GetBool("logs_config.validate_pod_container_id")
+	fileScanPeriod := time.Duration(pkgconfigsetup.Datadog().GetFloat64("logs_config.file_scan_period") * float64(time.Second))
+	fileWildcardSelectionMode := pkgconfigsetup.Datadog().GetString("logs_config.file_wildcard_selection_mode")
 	fileLauncher := filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
