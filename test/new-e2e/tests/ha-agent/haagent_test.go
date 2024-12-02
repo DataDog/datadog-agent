@@ -22,21 +22,25 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-//go:embed config/datadog.yaml
-var datadogYaml string
-
-type haAgentTestSuite02 struct {
+type haAgentTestSuite03 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestHaAgentSuite runs the netflow e2e suite
 func TestHaAgentSuite(t *testing.T) {
-	e2e.Run(t, &haAgentTestSuite02{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(datadogYaml))),
+	// language=yaml
+	agentConfig := `
+ha_agent:
+    enabled: true
+    group: test-group01
+log_level: debug
+`
+	e2e.Run(t, &haAgentTestSuite03{}, e2e.WithProvisioner(awshost.Provisioner(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 	))
 }
 
-func (s *haAgentTestSuite02) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
+func (s *haAgentTestSuite03) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.running metric")
@@ -54,7 +58,7 @@ func (s *haAgentTestSuite02) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMet
 	}, 5*time.Minute, 3*time.Second)
 }
 
-func (s *haAgentTestSuite02) TestHaAgentAddedToRCListeners() {
+func (s *haAgentTestSuite03) TestHaAgentAddedToRCListeners() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
 		if !assert.NoError(c, err) {
