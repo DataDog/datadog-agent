@@ -6,11 +6,11 @@
 package processor
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/goccy/go-json"
 )
 
 const nanoToMillis = 1000000
