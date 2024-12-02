@@ -38,7 +38,7 @@ func applyCaptureDepth(params []ditypes.Parameter, maxDepth int) []ditypes.Param
 
 		if front.depth == maxDepth {
 			// max capture depth reached, remove parameters below this level.
-			front.param.ParameterPieces = []ditypes.Parameter{}
+			front.param.ParameterPieces = []*ditypes.Parameter{}
 			if front.param.Kind == uint(reflect.Struct) {
 				// struct size reflects the number of fields,
 				// setting to 0 tells the user space parsing not to
@@ -49,7 +49,7 @@ func applyCaptureDepth(params []ditypes.Parameter, maxDepth int) []ditypes.Param
 			for i := range front.param.ParameterPieces {
 				queue = append(queue, paramDepthCounter{
 					depth: front.depth + 1,
-					param: &front.param.ParameterPieces[i],
+					param: front.param.ParameterPieces[i],
 				})
 			}
 		}
@@ -57,8 +57,8 @@ func applyCaptureDepth(params []ditypes.Parameter, maxDepth int) []ditypes.Param
 	return params
 }
 
-func flattenParameters(params []ditypes.Parameter) []ditypes.Parameter {
-	flattenedParams := []ditypes.Parameter{}
+func flattenParameters(params []*ditypes.Parameter) []*ditypes.Parameter {
+	flattenedParams := []*ditypes.Parameter{}
 	for i := range params {
 		kind := reflect.Kind(params[i].Kind)
 		if kind == reflect.Slice || kind == reflect.String {
@@ -69,9 +69,9 @@ func flattenParameters(params []ditypes.Parameter) []ditypes.Parameter {
 			flattenedParams = append(flattenedParams, params[i])
 		} else if hasHeader(kind) {
 			paramHeader := params[i]
-			paramHeader.ParameterPieces = nil
 			flattenedParams = append(flattenedParams, paramHeader)
 			flattenedParams = append(flattenedParams, flattenParameters(params[i].ParameterPieces)...)
+			paramHeader.ParameterPieces = nil
 		} else if len(params[i].ParameterPieces) > 0 {
 			flattenedParams = append(flattenedParams, flattenParameters(params[i].ParameterPieces)...)
 		} else {

@@ -15,7 +15,7 @@ import (
 // TypeMap contains all the information about functions and their parameters
 type TypeMap struct {
 	// Functions maps fully-qualified function names to a slice of its parameters
-	Functions map[string]*[]Parameter
+	Functions map[string][]*Parameter
 
 	// FunctionsByPC places DWARF subprogram (function) entries in order by
 	// its low program counter which is necessary for resolving stack traces
@@ -38,7 +38,7 @@ type Parameter struct {
 	LocationExpressions []LocationExpression
 	FieldOffset         uint64
 	NotCaptureReason    NotCaptureReason
-	ParameterPieces     []Parameter
+	ParameterPieces     []*Parameter
 }
 
 func (p Parameter) String() string {

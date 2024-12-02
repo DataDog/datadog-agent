@@ -24,8 +24,11 @@ import (
 func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *ditypes.Parameter) []ditypes.LocationExpression {
 	expressions := []ditypes.LocationExpression{}
 	triePaths, expressionTargets := generateLocationVisitsMap(param)
+
 	// Go through each target type/field which needs to be captured
-	for pathToInstrumentationTarget, instrumentationTarget := range expressionTargets {
+	for i := range expressionTargets {
+		pathToInstrumentationTarget, instrumentationTarget := expressionTargets[i].TypePath, expressionTargets[i].Parameter
+
 		targetExpressions := []ditypes.LocationExpression{}
 		pathElements := []string{pathToInstrumentationTarget}
 		// pathElements gets populated with every individual stretch of the path to the instrumentation target
@@ -40,7 +43,17 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 
 		// Go through each path element of the instrumentation target
 		for i := range pathElements {
-			elementParam, ok := triePaths[pathElements[i]]
+			var (
+				ok           bool = false
+				elementParam *ditypes.Parameter
+			)
+
+			for n := range triePaths {
+				if triePaths[n].TypePath == pathElements[i] {
+					elementParam = triePaths[n].Parameter
+					ok = true
+				}
+			}
 			if !ok {
 				log.Infof("Path not found to target: %s", pathElements[i])
 				continue
@@ -53,7 +66,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if elementParam.TotalSize == 0 && len(elementParam.ParameterPieces) == 0 {
 						continue
 					}
-					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, &elementParam.ParameterPieces[0])
+					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					targetExpressions = append(targetExpressions,
 						// Read process stack address to the stack
 						ditypes.ReadRegisterLocationExpression(ditypes.StackRegister, 8),
@@ -96,11 +109,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						// Fields of the string are directly assigned
 						targetExpressions = append(targetExpressions,
 							// Read length to output buffer:
-							ditypes.DirectReadLocationExpression(&len),
+							ditypes.DirectReadLocationExpression(len),
 							ditypes.PopLocationExpression(1, 2),
 							// Read string dynamically:
-							ditypes.DirectReadLocationExpression(&str),
-							ditypes.DirectReadLocationExpression(&len),
+							ditypes.DirectReadLocationExpression(str),
+							ditypes.DirectReadLocationExpression(len),
 							ditypes.DereferenceDynamicToOutputLocationExpression(uint(limitsInfo.InstrumentationOptions.StringMaxSize)),
 						)
 					} else {
@@ -121,7 +134,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
-					expressionsToUseForEachSliceElement := GenerateLocationExpression(limitsInfo, &ptr.ParameterPieces[0])
+					expressionsToUseForEachSliceElement := GenerateLocationExpression(limitsInfo, ptr.ParameterPieces[0])
 
 					labelName := randomLabel()
 					if ptr.Location != nil && len.Location != nil {
@@ -129,16 +142,16 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						len.TotalSize = 2
 						targetExpressions = append(targetExpressions,
 							// Read slice length to output buffer:
-							ditypes.DirectReadLocationExpression(&len),
+							ditypes.DirectReadLocationExpression(len),
 							ditypes.PopLocationExpression(1, 2),
-							ditypes.DirectReadLocationExpression(&len),
+							ditypes.DirectReadLocationExpression(len),
 							ditypes.SetGlobalLimitVariable(uint(ditypes.SliceMaxLength)),
 						)
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							targetExpressions = append(targetExpressions,
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), labelName),
 								// Read the slice element:
-								ditypes.DirectReadLocationExpression(&ptr),
+								ditypes.DirectReadLocationExpression(ptr),
 								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
@@ -172,7 +185,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 					//FIXME: Do we need to limit lengths of arrays??
-					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, &elementParam.ParameterPieces[0])
+					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					for i := 0; i < len(elementParam.ParameterPieces); i++ {
 						targetExpressions = append(targetExpressions,
 							ditypes.CopyLocationExpression(),
@@ -192,16 +205,21 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 	return expressions
 }
 
+type ExpressionParamTuple struct {
+	TypePath  string
+	Parameter *ditypes.Parameter
+}
+
 // generateLocationVisitsMap follows the tree of parameters (parameter.ParameterPieces), and
 // collects string values of all the paths to nodes that need expressions (`needsExpressions`),
 // as well as all combinations of elements that can be achieved by walking the tree (`trieKeys`).
-func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys map[string]*ditypes.Parameter, needsExpressions map[string]*ditypes.Parameter) {
-	trieKeys = map[string]*ditypes.Parameter{}
-	needsExpressions = map[string]*ditypes.Parameter{}
+func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExpressions []ExpressionParamTuple) {
+	trieKeys = []ExpressionParamTuple{}
+	needsExpressions = []ExpressionParamTuple{}
 
 	var visit func(param *ditypes.Parameter, path string)
 	visit = func(param *ditypes.Parameter, path string) {
-		trieKeys[path+param.Type] = param
+		trieKeys = append(trieKeys, ExpressionParamTuple{path + param.Type, param})
 
 		if (len(param.ParameterPieces) == 0 ||
 			isBasicType(param.Kind) ||
@@ -209,13 +227,13 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys map[strin
 			param.Kind == uint(reflect.Slice)) &&
 			param.Kind != uint(reflect.Struct) &&
 			param.Kind != uint(reflect.Pointer) {
-			needsExpressions[path+param.Type] = param
+			needsExpressions = append(needsExpressions, ExpressionParamTuple{path + param.Type, param})
 			return
 		}
 
 		for i := range param.ParameterPieces {
 			newPath := path + param.Type + "@"
-			visit(&param.ParameterPieces[i], newPath)
+			visit(param.ParameterPieces[i], newPath)
 		}
 	}
 	visit(parameter, "")

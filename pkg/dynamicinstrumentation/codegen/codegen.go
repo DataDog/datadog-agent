@@ -30,8 +30,8 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		params := procInfo.TypeMap.Functions[probe.FuncName] //applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
 		if params != nil {
-			for i := range *params {
-				flattenedParams := flattenParameters([]ditypes.Parameter{(*params)[i]})
+			for i := range params {
+				flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
 				err := generateHeadersText(flattenedParams, out)
 				if err != nil {
 					return err
@@ -67,7 +67,7 @@ func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error)
 	}
 }
 
-func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
+func generateHeadersText(params []*ditypes.Parameter, out io.Writer) error {
 	for i := range params {
 		err := generateHeaderText(params[i], out)
 		if err != nil {
@@ -77,13 +77,13 @@ func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
 	return nil
 }
 
-func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
+func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
-		return generateSliceHeader(&param, out)
+		return generateSliceHeader(param, out)
 	} else if reflect.Kind(param.Kind) == reflect.String {
-		return generateStringHeader(&param, out)
+		return generateStringHeader(param, out)
 	} else { //nolint:revive // TODO
-		tmplt, err := resolveHeaderTemplate(&param)
+		tmplt, err := resolveHeaderTemplate(param)
 		if err != nil {
 			return err
 		}
@@ -98,9 +98,9 @@ func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
 	return nil
 }
 
-func generateParametersTextViaLocationExpressions(params []ditypes.Parameter, out io.Writer) error {
+func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, out io.Writer) error {
 	for i := range params {
-		collectedExpressions := collectLocationExpressions(&params[i])
+		collectedExpressions := collectLocationExpressions(params[i])
 		for _, locationExpression := range collectedExpressions {
 			locationExpression.InstructionID = randomID()
 			template, err := resolveLocationExpressionTemplate(locationExpression)
@@ -131,7 +131,7 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 		top = queue[0]
 		queue = queue[1:]
 		for i := range top.ParameterPieces {
-			queue = append(queue, &top.ParameterPieces[i])
+			queue = append(queue, top.ParameterPieces[i])
 		}
 		if len(top.LocationExpressions) > 0 {
 			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)

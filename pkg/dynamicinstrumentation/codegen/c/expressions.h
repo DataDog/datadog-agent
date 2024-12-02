@@ -285,12 +285,10 @@ static __always_inline int read_str_to_output(struct expression_context context,
     if (length > limit) {
         length = limit;
     }
-
     err = bpf_probe_read(&context.event->output[*(context.output_offset)], length, (char*)characterPointer);
     if (err != 0) {
         bpf_printk("error reading string: %d", err);
     }
-    // Have to check again to make sure the verifier knows
     if (length > limit) {
         length = limit;
     }
