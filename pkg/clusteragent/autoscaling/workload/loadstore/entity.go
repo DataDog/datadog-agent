@@ -77,3 +77,48 @@ func (ev *EntityValue) String() string {
 	readableTime := time.Unix(int64(ev.timestamp), 0).Local().Format(time.RFC3339)
 	return fmt.Sprintf("Value: %f, Timestamp: %s", ev.value, readableTime)
 }
+
+// EntityValueQueue represents a queue with a fixed capacity that removes the front element when full
+type EntityValueQueue struct {
+	data     []ValueType
+	avg      ValueType
+	head     int
+	tail     int
+	size     int
+	capacity int
+}
+
+// pushBack adds an element to the back of the queue.
+// If the queue is full, it removes the front element first.
+func (q *EntityValueQueue) pushBack(value ValueType) bool {
+	if q.size == q.capacity {
+		// Remove the front element
+		q.head = (q.head + 1) % q.capacity
+		q.size--
+	}
+
+	// Add the new element at the back
+	q.data[q.tail] = value
+	q.tail = (q.tail + 1) % q.capacity
+	q.size++
+	q.avg = q.average()
+	return true
+}
+
+// average calculates the average value of the queue.
+func (q *EntityValueQueue) average() ValueType {
+	if q.size == 0 {
+		return 0
+	}
+	sum := ValueType(0)
+	for i := 0; i < q.size; i++ {
+		index := (q.head + i) % q.capacity
+		sum += q.data[index]
+	}
+	return sum / ValueType(q.size)
+}
+
+// value returns the average value of the queue
+func (q *EntityValueQueue) value() ValueType {
+	return q.avg
+}

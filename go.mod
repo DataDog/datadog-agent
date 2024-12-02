@@ -651,8 +651,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.59.0
 =======
 	github.com/DataDog/datadog-agent/pkg/api v0.57.1
+<<<<<<< HEAD
 	github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/loadstore v0.0.1
 >>>>>>> e5b5b05bf4 (add load store)
+=======
+>>>>>>> 8416a0180a (support filter by namespace deployment)
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0

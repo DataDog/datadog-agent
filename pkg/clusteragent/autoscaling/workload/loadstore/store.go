@@ -15,22 +15,23 @@ import (
 
 // StoreInfo represents the store information, like memory usage and entity count.
 type StoreInfo struct {
-	TotalEntityCount        uint64
-	currentTime             Timestamp
-	EntityStatsByLoadName   map[string]StatsResult
-	EntityStatsByNamespace  map[string]StatsResult
-	EntityStatsByDeployment map[string]StatsResult
+	currentTime  Timestamp
+	StatsResults []*StatsResult
 }
 
+// StatsResult represents the statistics result for the entities aggregated by namespace, deployment, and load name.
 type StatsResult struct {
-	Count  uint64
-	Min    ValueType
-	P10    ValueType
-	Medium ValueType
-	Avg    ValueType
-	P95    ValueType
-	P99    ValueType
-	Max    ValueType
+	Namespace  string
+	Deployment string
+	LoadName   string
+	Count      int
+	Min        ValueType
+	P10        ValueType
+	Medium     ValueType
+	Avg        ValueType
+	P95        ValueType
+	P99        ValueType
+	Max        ValueType
 }
 
 // Store is an interface for in-memory storage of entities and their load metric values.
@@ -41,11 +42,8 @@ type Store interface {
 	// GetStoreInfo returns the store information.
 	GetStoreInfo() StoreInfo
 
-	// GetEntitiesStatsByNamespace to get entities stats by namespace
-	GetEntitiesStatsByNamespace(namespace string) StatsResult
-
-	// GetEntitiesStatsByLoadName to get entities stats by load load name
-	GetEntitiesStatsByLoadName(loadName string) StatsResult
+	// GetEntitiesStats to get all entities by given search filters
+	GetEntitiesStats(namespace string, deployment string, loadName string) StatsResult
 
 	//DeleteEntityByHashKey to delete entity by hash key
 	DeleteEntityByHashKey(hash uint64)
@@ -116,6 +114,4 @@ func ProcessLoadPayload(payload *gogen.MetricPayload, store Store) {
 	}
 	entities := createEntitiesFromPayload(payload)
 	store.SetEntitiesValues(entities)
-	payload = nil
-
 }
