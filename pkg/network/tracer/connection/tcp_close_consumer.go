@@ -32,13 +32,13 @@ type tcpCloseConsumer struct {
 	once     sync.Once
 	closed   chan struct{}
 
-	flusher      perf.Flushable
+	flusher      perf.Flusher
 	callback     func(*network.ConnectionStats)
 	releaser     ddsync.PoolReleaser[network.ConnectionStats]
 	flushChannel chan chan struct{}
 }
 
-func newTCPCloseConsumer(flusher perf.Flushable, releaser ddsync.PoolReleaser[network.ConnectionStats]) *tcpCloseConsumer {
+func newTCPCloseConsumer(flusher perf.Flusher, releaser ddsync.PoolReleaser[network.ConnectionStats]) *tcpCloseConsumer {
 	return &tcpCloseConsumer{
 		requests:     make(chan chan struct{}),
 		closed:       make(chan struct{}),

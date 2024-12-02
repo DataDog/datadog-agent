@@ -250,7 +250,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
-	var flusher perf.Flushable = connCloseEventHandler
+	var flusher perf.Flusher = connCloseEventHandler
 	if config.KernelBatchingEnabled {
 		flusher, err = newConnBatchManager(m, extractor, connPool, tr.closedPerfCallback)
 		if err != nil {

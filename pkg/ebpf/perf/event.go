@@ -26,15 +26,15 @@ import (
 var perfPool = ddsync.NewDefaultTypedPool[perf.Record]()
 var ringbufPool = ddsync.NewDefaultTypedPool[ringbuf.Record]()
 
-// Flushable is an interface for objects that support flushing
-type Flushable interface {
+// Flusher is an interface for objects that support flushing
+type Flusher interface {
 	Flush()
 }
 
 // EventHandler abstracts consuming data from a perf buffer or ring buffer (depending on availability and options).
 // It handles upgrading maps from a ring buffer if desired, and unmarshalling into the desired data type.
 type EventHandler struct {
-	f    Flushable
+	f    Flusher
 	opts EventHandlerOptions
 }
 
