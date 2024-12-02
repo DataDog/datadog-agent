@@ -342,7 +342,9 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 		mode = perf.UpgradePerfBuffers(perfBufferSize, perfMode, util.ComputeDefaultClosedConnRingBufferSize())
 	}
 
-	return perf.NewEventHandler(probes.ConnCloseEventMap, handler, mode, perf.SendTelemetry(config.InternalTelemetryEnabled))
+	return perf.NewEventHandler(probes.ConnCloseEventMap, handler, mode,
+		perf.SendTelemetry(config.InternalTelemetryEnabled),
+		perf.RingBufferConstantName("ringbuffers_enabled"))
 }
 
 func boolConst(name string, value bool) manager.ConstantEditor {

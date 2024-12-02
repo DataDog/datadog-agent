@@ -13,8 +13,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -223,11 +221,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			})
 	}
 
-	usingRingBuffers := connCloseEventHandler.MapType() == ebpf.RingBuf
-	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", usingRingBuffers)
-	if features.HaveMapType(ebpf.RingBuf) != nil {
-		m.EnabledModifiers = append(m.EnabledModifiers, ddebpf.NewHelperCallRemover(asm.FnRingbufOutput))
-	}
 	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}

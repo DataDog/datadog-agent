@@ -14,7 +14,6 @@ import (
 	"syscall"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -22,7 +21,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -41,7 +39,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
-		return initFentryTracer(ar, o, config, m, connCloseEventHandler)
+		return initFentryTracer(ar, o, config, m)
 	})
 
 	if err != nil {
@@ -52,7 +50,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 }
 
 // Use a function so someone doesn't accidentally use mgrOpts from the outer scope in LoadTracer
-func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager, connCloseEventHandler *perf.EventHandler) error {
+func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) error {
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledPrograms(config)
 	if err != nil {
@@ -91,6 +89,5 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 			})
 	}
 
-	util.AddBoolConst(&o, "ringbuffers_enabled", connCloseEventHandler.MapType() == ebpf.RingBuf)
 	return m.InitWithOptions(ar, &o)
 }

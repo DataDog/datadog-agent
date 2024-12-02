@@ -15,6 +15,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/ringbuf"
@@ -95,6 +96,13 @@ func SendTelemetry(enabled bool) EventHandlerOption {
 	}
 }
 
+// RingBufferConstantName provides a constant name that will be set whether ring buffers are in use
+func RingBufferConstantName(name string) EventHandlerOption {
+	return func(e *EventHandler) {
+		e.opts.ringBufferConstantName = name
+	}
+}
+
 // eventHandlerOptions are the options controlling the EventHandler.
 type eventHandlerOptions struct {
 	// telemetryEnabled specifies whether to collect usage telemetry from the perf/ring buffer.
@@ -103,9 +111,10 @@ type eventHandlerOptions struct {
 	mode mapMode
 
 	perfBufferSize int
-	ringBufferSize int
+	perfOptions    perfBufferOptions
 
-	perfOptions perfBufferOptions
+	ringBufferSize         int
+	ringBufferConstantName string
 }
 
 // PerfBufferMode is a mode for the perf buffer
@@ -158,11 +167,12 @@ func NewEventHandler(mapName string, handler func([]byte), mode EventHandlerMode
 }
 
 // BeforeInit implements the Modifier interface
-func (e *EventHandler) BeforeInit(mgr *manager.Manager, _ names.ModuleName, mgrOpts *manager.Options) error {
+func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleName, mgrOpts *manager.Options) (err error) {
 	ms, _, _ := mgr.GetMapSpec(e.mapName)
 	if ms == nil {
 		return fmt.Errorf("unable to find map spec %q", e.mapName)
 	}
+	defer e.setupConstant(mgrOpts)
 
 	ringBufErr := features.HaveMapType(ebpf.RingBuf)
 	if e.opts.mode == ringBufferOnly {
@@ -202,10 +212,29 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, _ names.ModuleName, mgrO
 		}
 
 		e.initPerfBuffer(mgr)
-		return nil
+		// add helper call remover because ring buffers are not available
+		return ddebpf.NewHelperCallRemover(asm.FnRingbufOutput).BeforeInit(mgr, moduleName, mgrOpts)
 	}
 
 	return fmt.Errorf("unsupported EventHandlerMode %d", e.opts.mode)
+}
+
+func (e *EventHandler) setupConstant(mgrOpts *manager.Options) {
+	if e.opts.ringBufferConstantName == "" || e.f == nil {
+		return
+	}
+
+	var val uint64
+	switch e.f.(type) {
+	case *manager.RingBuffer:
+		val = uint64(1)
+	default:
+		val = uint64(0)
+	}
+	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, manager.ConstantEditor{
+		Name:  e.opts.ringBufferConstantName,
+		Value: val,
+	})
 }
 
 // AfterInit implements the Modifier interface
@@ -215,19 +244,6 @@ func (e *EventHandler) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *mana
 
 func (e *EventHandler) String() string {
 	return "EventHandler"
-}
-
-// MapType returns the ebpf.MapType of the underlying events map
-// This is only valid after calling Init.
-func (e *EventHandler) MapType() ebpf.MapType {
-	switch e.f.(type) {
-	case *manager.PerfMap:
-		return ebpf.PerfEventArray
-	case *manager.RingBuffer:
-		return ebpf.RingBuf
-	default:
-		return ebpf.UnspecifiedMap
-	}
 }
 
 // Flush flushes the pending data from the underlying perfbuf/ringbuf
