@@ -28,9 +28,14 @@ type StatsKey struct {
 	DeviceUUID string `json:"device_uuid"`
 }
 
+type Metadata struct {
+	ContainerID string `json:"container_id"`
+}
+
 // StatsTuple is a single entry in the GPUStats array, as we cannot use a complex key in the map
 type StatsTuple struct {
 	Key                StatsKey
+	Metadata           Metadata
 	UtilizationMetrics UtilizationMetrics
 }
 

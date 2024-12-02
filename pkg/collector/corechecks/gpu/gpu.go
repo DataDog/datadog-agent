@@ -10,7 +10,6 @@ package gpu
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"gopkg.in/yaml.v2"
 
@@ -139,8 +138,7 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	for _, entry := range stats.Metrics {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
-		tags := m.getTagsForKey(key)
-		log.Warnf("key=%+v, tags=%v", key, tags)
+		tags := m.getTagsForKey(key, entry.Metadata)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
@@ -151,7 +149,7 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	// Remove the PIDs that we didn't see in this check
 	for key, active := range m.activeMetrics {
 		if !active {
-			tags := m.getTagsForKey(key)
+			tags := m.getTagsForKey(key, model.Metadata{})
 			snd.Gauge(metricNameMemory, 0, "", tags)
 			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
@@ -163,18 +161,16 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	return nil
 }
 
-func (m *Check) getTagsForKey(key model.StatsKey) []string {
+func (m *Check) getTagsForKey(key model.StatsKey, metadata model.Metadata) []string {
 	// Per-PID metrics are subject to change due to high cardinality
-	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(key.PID)))
+	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, metadata.ContainerID)
 	tags, err := m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
 	if err != nil {
 		log.Errorf("Error collecting tags for process %d: %s", key.PID, err)
 	}
-	if len(tags) == 0 {
-		// Fallback to pid tag if the tagger failed, to avoid having untagged data.
-		// We check the length of the tags array as the tagger might return no tags with no error
-		tags = []string{fmt.Sprintf("pid:%d", key.PID)}
-	}
+
+	// Add the PID as a tag
+	tags = append(tags, fmt.Sprintf("pid:%d", key.PID))
 
 	// GPU is still not included in workloadmeta data, so we need to add it manually
 	tags = append(tags, fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID))
