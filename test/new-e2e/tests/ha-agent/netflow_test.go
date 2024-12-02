@@ -103,28 +103,20 @@ func netflowDockerProvisioner() e2e.Provisioner {
 	}, nil)
 }
 
-type netflowDockerSuite16 struct {
+type netflowDockerSuite13 struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
 
 // TestHaAgentSuite runs the netflow e2e suite
 func TestHaAgentSuite(t *testing.T) {
-	e2e.Run(t, &netflowDockerSuite16{}, e2e.WithProvisioner(netflowDockerProvisioner()))
+	e2e.Run(t, &netflowDockerSuite13{}, e2e.WithProvisioner(netflowDockerProvisioner()))
 }
 
-func (s *netflowDockerSuite16) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
+func (s *netflowDockerSuite13) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.T().Logf("asserting datadog.agent.running metric has agent_group tag ...")
-		metrics, err := fakeClient.FilterMetrics("datadog.agent.running")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-		for _, metric := range metrics {
-			s.T().Logf("datadog.agent.running metric: %v", metric)
-		}
-
 		tags := []string{"agent_group:test-group01"}
-		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
+		metrics, err := fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 10*time.Second)
