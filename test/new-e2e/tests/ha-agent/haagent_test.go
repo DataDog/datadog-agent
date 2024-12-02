@@ -21,21 +21,21 @@ import (
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-//go:embed config/netflowConfig.yaml
+//go:embed config/datadog.yaml
 var datadogYaml string
 
-type netflowDockerSuite24 struct {
+type netflowDockerSuite25 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestNetflowSuite runs the netflow e2e suite
 func TestNetflowSuite(t *testing.T) {
-	e2e.Run(t, &netflowDockerSuite24{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &netflowDockerSuite25{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(datadogYaml))),
 	))
 }
 
-func (s *netflowDockerSuite24) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
+func (s *netflowDockerSuite25) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.running metric")
