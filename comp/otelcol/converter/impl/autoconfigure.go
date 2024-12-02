@@ -8,6 +8,7 @@ package converterimpl
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -160,14 +161,28 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			if !ok {
 				return
 			}
+
+			apiSite := apiMap["site"]
+			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
+				apiMap["site"] = coreCfg.Get("site")
+			}
+
 			var match bool
 			apiKey, ok := apiMap["key"]
 			if ok {
-				key, ok := apiKey.(string)
+				var key string
+				if keyString, okString := apiKey.(string); okString {
+					key = keyString
+				} else {
+					// api::key can be int if "" were not set.
+					if keyInt, okInt := apiKey.(int); okInt {
+						key = strconv.Itoa(keyInt)
+					}
+				}
 				if ok && key != "" {
 					match = reg.Match([]byte(key))
 					if !match {
-						return
+						continue
 					}
 				}
 			}
@@ -176,12 +191,6 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 			if (apiKey == nil || apiKey == "" || match) && coreCfg.Get("api_key") != nil {
 				apiMap["key"] = coreCfg.Get("api_key")
 			}
-
-			apiSite := apiMap["site"]
-			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
-				apiMap["site"] = coreCfg.Get("site")
-			}
-
 		}
 	}
 	*conf = *confmap.NewFromStringMap(stringMapConf)

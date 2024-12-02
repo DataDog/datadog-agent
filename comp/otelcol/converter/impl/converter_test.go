@@ -231,10 +231,28 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/all/no-overrides/acfg.yaml",
 		},
 		{
-			name:           "dd-core-cfg/all/set-all",
-			provided:       "dd-core-cfg/all/set-all/config.yaml",
-			expectedResult: "dd-core-cfg/all/set-all/config-result.yaml",
-			agentConfig:    "dd-core-cfg/all/set-all/acfg.yaml",
+			name:           "dd-core-cfg/all/set-all-api-section",
+			provided:       "dd-core-cfg/all/set-all-api-section/config.yaml",
+			expectedResult: "dd-core-cfg/all/set-all-api-section/config-result.yaml",
+			agentConfig:    "dd-core-cfg/all/set-all-api-section/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/all/set-all-key-site-section",
+			provided:       "dd-core-cfg/all/set-all-key-site-section/config.yaml",
+			expectedResult: "dd-core-cfg/all/set-all-key-site-section/config-result.yaml",
+			agentConfig:    "dd-core-cfg/all/set-all-key-site-section/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/all/set-all-no-api-section",
+			provided:       "dd-core-cfg/all/set-all-no-api-section/config.yaml",
+			expectedResult: "dd-core-cfg/all/set-all-no-api-section/config-result.yaml",
+			agentConfig:    "dd-core-cfg/all/set-all-no-api-section/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/none",
+			provided:       "dd-core-cfg/none/config.yaml",
+			expectedResult: "dd-core-cfg/none/config-result.yaml",
+			agentConfig:    "dd-core-cfg/none/acfg.yaml",
 		},
 	}
 

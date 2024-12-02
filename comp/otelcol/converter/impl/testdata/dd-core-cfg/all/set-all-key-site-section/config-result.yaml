@@ -13,8 +13,9 @@ processors:
 
 exporters:
   datadog:
-    api:
+    api: 
       key: 777777777777777
+      site: datadoghq.eu
 
 extensions:
   pprof/user-defined:

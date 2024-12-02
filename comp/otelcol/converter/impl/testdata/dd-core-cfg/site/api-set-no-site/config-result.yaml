@@ -14,6 +14,7 @@ processors:
 exporters:
   datadog:
     api:
+      key: 777777777777777
       site: datadoghq.eu
 
 extensions:
