@@ -8,6 +8,5 @@
 ---
 deprecations:
   - |
-    SNMP profiles containing metric_tags without a `tag` field
-    specified will now show an error and be ignored, as with any
-    other profile syntax error.
+    SNMP profiles containing metric_tags without a specified `tag` field
+    will now show an error and be ignored, similar to other profile syntax errors.
