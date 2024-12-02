@@ -25,28 +25,18 @@ import (
 //go:embed config/datadog.yaml
 var datadogYaml string
 
-type haAgentTestSuite struct {
+type haAgentTestSuite02 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestHaAgentSuite runs the netflow e2e suite
 func TestHaAgentSuite(t *testing.T) {
-	e2e.Run(t, &haAgentTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &haAgentTestSuite02{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(datadogYaml))),
 	))
-
-	// Two agents not supported by default provisioner
-	//   We can use a custom provisioner.
-	// customenv_with_two_vm_test.go
 }
 
-// How set valid API_KEY? which org?
-//     apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-//     require.NoError(a.T(), err, "Could not get API KEY")
-//     API KEY from SSM (aws)
-//
-
-func (s *haAgentTestSuite) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
+func (s *haAgentTestSuite02) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetric() {
 	fakeClient := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.running metric")
@@ -64,20 +54,12 @@ func (s *haAgentTestSuite) TestHaAgentGroupTag_PresentOnDatadogAgentRunningMetri
 	}, 5*time.Minute, 10*time.Second)
 }
 
-//func (s *haAgentTestSuite) TestHaAgentRCListener() {
-//	fakeClient := s.Env().FakeIntake.Client()
-//	s.EventuallyWithT(func(c *assert.CollectT) {
-//		s.T().Log("try assert datadog.agent.running metric")
-//		metrics, err := fakeClient.FilterLogs("datadog.agent.running")
-//		assert.NoError(c, err)
-//		assert.NotEmpty(c, metrics)
-//		for _, metric := range metrics {
-//			s.T().Logf("    datadog.agent.running metric in fake intake: %+v", metric)
-//		}
-//
-//		tags := []string{"agent_group:test-group01"}
-//		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-//		assert.NoError(c, err)
-//		assert.NotEmpty(c, metrics)
-//	}, 5*time.Minute, 10*time.Second)
-//}
+func (s *haAgentTestSuite02) TestHaAgentAddedToRCListeners() {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Contains(c, output, "Add onHaAgentUpdate RCListener")
+	}, 1*time.Minute, 1*time.Second)
+}
