@@ -929,13 +929,13 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 	pgClient := setupPGClient(t, serverAddress, isTLS)
-	defer func() {
+	t.Cleanup(func() {
 		if pgClient != nil {
 			_ = pgClient.RunQuery(dropTableQuery)
 			pgClient.Close()
 			pgClient = nil
 		}
-	}()
+	})
 
 	createLargeTable(t, pgClient, ebpf.MsgCountFirstBucket+ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
 	expectedBuckets := [ebpf.MsgCountNumBuckets]bool{}

@@ -39,16 +39,6 @@ typedef struct {
     __u32 data_off;
 } postgres_tail_call_state_t;
 
-typedef enum
-{
-    // reached end of TCP packet
-    READ_END = 0,
-    // successful read of message header
-    READ_OK = 1,
-    // detected TCP packet fragmentation
-    READ_FRAGMENTED = 2,
-} postgres_read_result_t;
-
 // Postgres communication operates via a continuous message stream.
 // Gather empirical statistics on the number of messages processed by the program.
 // These statistics enable optimization of the monitoring code.

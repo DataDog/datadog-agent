@@ -29,25 +29,18 @@ static __always_inline void postgres_batch_enqueue_wrapper(conn_tuple_t *tuple, 
     postgres_batch_enqueue(event);
 }
 
-// Reads a message header from the given context.
-// Returns the result of the read: successfully read header, end of packet reached, or fragmented message detected.
-static __always_inline postgres_read_result_t read_message_header(pktbuf_t pkt, struct pg_message_header* header) {
+// Reads a message header from the given context. Returns true if the header was read successfully, false otherwise.
+static __always_inline bool read_message_header(pktbuf_t pkt, struct pg_message_header* header) {
     u32 data_off = pktbuf_data_offset(pkt);
     u32 data_end = pktbuf_data_end(pkt);
-
-    if (data_off + sizeof(struct pg_message_header) <= data_end) {
-        // header fits within the buffer boundaries.
-        pktbuf_load_bytes(pkt, data_off, header, sizeof(struct pg_message_header));
-        // Converting the header to host byte order.
-        header->message_len = bpf_ntohl(header->message_len);
-
-        return READ_OK;
+    // Ensuring that the header is in the buffer.
+    if (data_off + sizeof(struct pg_message_header) > data_end) {
+        return false;
     }
-    if (data_off == data_end) {
-        return READ_END;
-    }
-    // the offset is outside the packet boundaries
-    return READ_FRAGMENTED;
+    pktbuf_load_bytes(pkt, data_off, header, sizeof(struct pg_message_header));
+    // Converting the header to host byte order.
+    header->message_len = bpf_ntohl(header->message_len);
+    return true;
 }
 
 // Handles a new query by creating a new transaction and storing it in the map.
@@ -133,6 +126,30 @@ static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
     return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
 }
 
+// update_msg_count_telemetry increases the corresponding counter of the telemetry bucket.
+static __always_inline void update_msg_count_telemetry(postgres_kernel_msg_count_t* pg_msg_counts, __u8 count) {
+    // This line can be interpreted as a step function of the difference, multiplied by the difference itself.
+    // The step function of the difference returns 0 if the difference is negative and 1 if it is positive.
+    // As a result, if the difference is negative, the output will be 0; if the difference is positive,
+    // the output will equal the difference.
+    count = count < PG_KERNEL_MSG_COUNT_FIRST_BUCKET ? 0 : count - PG_KERNEL_MSG_COUNT_FIRST_BUCKET;
+
+    // This line functions as a ceiling operation, ensuring that if the count is not a multiple of the bucket size,
+    // it is rounded up to the next bucket. Since eBPF does not support floating-point numbers, the implementation
+    // adds (bucket size - 1) to the count and then divides the result by the bucket size.
+    // This effectively simulates the ceiling function.
+    __u8 bucket_idx = (count + PG_KERNEL_MSG_COUNT_BUCKET_SIZE - 1) / PG_KERNEL_MSG_COUNT_BUCKET_SIZE;
+
+    // This line ensures that the bucket index stays within the range of 0 to PG_KERNEL_MSG_COUNT_NUM_BUCKETS.
+    // While not strictly necessary, we include this check to satisfy the verifier and to explicitly define a lower bound.
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+
+    // This line ensures that the bucket index remains within the range of 0 to PG_KERNEL_MSG_COUNT_NUM_BUCKETS,
+    // preventing any possibility of exceeding the upper bound.
+    bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS-1 : bucket_idx;
+    __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[bucket_idx], 1);
+}
+
 // Reads the first message header and decides what to do based on the
 // message tag. If the message is a new query, it stores the query in the in-flight map.
 // If the message is a parse message, we tail call to the dedicated process_parse_message program.
@@ -194,7 +211,7 @@ static __always_inline void postgres_handle_message(pktbuf_t pkt, conn_tuple_t *
 static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tuple_t *conn_tuple, __u8 tags) {
     // Read first message header
     struct pg_message_header header;
-    if (read_message_header(pkt, &header) != READ_OK) {
+    if (!read_message_header(pkt, &header)) {
         return;
     }
     // Advance the data offset to the end of the first message header.
@@ -225,7 +242,7 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
 // messages per call. When more messages exist beyond this limit, it uses tail call chaining to continue processing.
 static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple, postgres_kernel_msg_count_t* pg_msg_counts) {
     const __u32 zero = 0;
-    postgres_read_result_t read_result = READ_END;
+    bool read_result = false;
     bool found_command_complete = false;
     struct pg_message_header header;
 
@@ -254,7 +271,7 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
 #pragma unroll(POSTGRES_MAX_MESSAGES_PER_TAIL_CALL)
     for (; messages_count < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++messages_count) {
         read_result = read_message_header(pkt, &header);
-        if (read_result != READ_OK) {
+        if (read_result != true) {
             break;
         }
         if (header.message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
@@ -270,14 +287,7 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
 
     if (found_command_complete) {
         handle_command_complete(&conn_tuple, transaction);
-
-        // save messages counter in bucket.
-        __u8 bucket_idx = iteration_value->total_msg_count;
-        bucket_idx = bucket_idx < PG_KERNEL_MSG_COUNT_FIRST_BUCKET ? 0 : bucket_idx - PG_KERNEL_MSG_COUNT_FIRST_BUCKET;
-        bucket_idx = (bucket_idx + PG_KERNEL_MSG_COUNT_BUCKET_SIZE - 1) / PG_KERNEL_MSG_COUNT_BUCKET_SIZE;
-        bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
-        bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS-1 : bucket_idx;
-        __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[bucket_idx], 1);
+        update_msg_count_telemetry(pg_msg_counts, iteration_value->total_msg_count);
 
         return 0;
     }
@@ -285,17 +295,17 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
     if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
         // reached max messages, add counter and stop iterating.
         __sync_fetch_and_add(&pg_msg_counts->reached_max_messages, 1);
+    }
+    if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
+        // stop the iterator if the end of the TCP packet is reached.
         return 0;
     }
-    if (read_result == READ_FRAGMENTED) {
+    if (read_result == false) {
         // the packet was fragmented, add counter stop iterating.
         __sync_fetch_and_add(&pg_msg_counts->fragmented_packets, 1);
         return 0;
     }
-    if (read_result == READ_END) {
-        // stop the iterator if the end of the TCP packet is reached.
-        return 0;
-    }
+
     // We didn't find a command complete message, so we need to continue processing the packet.
     // We save the current data offset.
     iteration_value->data_off = pktbuf_data_offset(pkt);
@@ -334,7 +344,7 @@ int socket__postgres_handle(struct __sk_buff* skb) {
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
     struct pg_message_header header;
-    if (read_message_header(pkt, &header) != READ_OK) {
+    if (!read_message_header(pkt, &header)) {
         return 0;
     }
 
@@ -403,7 +413,7 @@ int uprobe__postgres_tls_handle(struct pt_regs *ctx) {
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, args);
     struct pg_message_header header;
-    if (read_message_header(pkt, &header) != READ_OK) {
+    if (!read_message_header(pkt, &header)) {
         return 0;
     }
 

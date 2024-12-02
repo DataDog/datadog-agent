@@ -194,16 +194,16 @@ func newKernelTelemetry() *kernelTelemetry {
 	kernelTel := &kernelTelemetry{
 		metricGroup: metricGroup,
 	}
-	kernelTel.reachedMaxMessages = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_max_messages")
-	kernelTel.fragmentedPackets = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_fragmented_packets")
+	kernelTel.reachedMaxMessages = libtelemetry.NewTLSAwareCounter(metricGroup, "max_messages")
+	kernelTel.fragmentedPackets = libtelemetry.NewTLSAwareCounter(metricGroup, "incomplete_messages")
 
 	for i := range kernelTel.msgCountBuckets {
-		kernelTel.msgCountBuckets[i] = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_bucket_"+(strconv.Itoa(i+1)))
+		kernelTel.msgCountBuckets[i] = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_bucket_"+strconv.Itoa(i+1))
 	}
 	return kernelTel
 }
 
-// update the Postgres message counter store with new counters from the kernel, return immediately if nothing to add.
+// update the postgres message counter store with new counters from the kernel, return immediately if nothing to add.
 func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS bool) {
 	if kernCounts == nil {
 		return
@@ -216,7 +216,8 @@ func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS 
 		v := kernCounts.Msg_count_buckets[i]
 		t.msgCountBuckets[i].Set(int64(v), isTLS)
 	}
-
-	s := t.metricGroup.Summary()
-	log.Debugf("postgres kernel telemetry, isTLS=%t, summary: %s", isTLS, s)
+	if log.ShouldLog(seelog.DebugLvl) {
+		s := t.metricGroup.Summary()
+		log.Debugf("postgres kernel telemetry, isTLS=%t, summary: %s", isTLS, s)
+	}
 }
