@@ -51,7 +51,7 @@ type ntmConfig struct {
 	// Bellow are all the different configuration layers. Each layers represents a source for our configuration.
 	// They are merge into the 'root' tree following order of importance (see pkg/model/viper.go:sourcesPriority).
 
-	// schema holds all the settings with or without value. Settings are added to the schema throught BindEnv and
+	// schema holds all the settings with or without value. Settings are added to the schema through BindEnv and
 	// SetDefault.
 	//
 	// This solved the difference between 'AllKeysLowercased' which returns the configuration schema and
@@ -439,7 +439,21 @@ func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	return c.GetSource(key) != model.SourceUnknown
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return false
+	}
+
+	pathParts := splitKey(key)
+	var curr Node = c.root
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return false
+		}
+		curr = next
+	}
+	return true
 }
 
 // AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
