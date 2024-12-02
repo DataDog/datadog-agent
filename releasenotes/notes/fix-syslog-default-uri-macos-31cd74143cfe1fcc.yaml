@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Use ``/var/run/syslog`` as the default syslog URI on macOS.
+    Use ``/var/run/syslog`` as the default syslog socket path on macOS.
