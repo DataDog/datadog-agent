@@ -529,8 +529,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 		return err
 	}
 
-	log.Debugf("Sent processes metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent processes metadata payload, content: %v", string(payload))
+	log.Debugf("Sent processes metadata payload, size: %d bytes, content: %v", len(payload), string(payload))
 	return nil
 }
 
