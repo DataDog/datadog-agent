@@ -63,7 +63,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 	fieldIDs := make([]bininspect.FieldIdentifier, 0)
 	for _, funcParams := range typeMap.Functions {
-		for _, param := range *funcParams {
+		for _, param := range funcParams {
 			fieldIDs = append(fieldIDs,
 				collectFieldIDs(param)...)
 		}
@@ -82,7 +82,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressions(r.Functions, procInfo)
-		correctStructSizes(*procInfo.TypeMap.Functions[functionName])
+		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
 	return nil
@@ -90,9 +90,9 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 // collectFieldIDs returns all struct fields if there are any amongst types of parameters
 // including if there's structs that are nested deep within complex types
-func collectFieldIDs(param ditypes.Parameter) []bininspect.FieldIdentifier {
+func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 	fieldIDs := []bininspect.FieldIdentifier{}
-	stack := append([]ditypes.Parameter{param}, param.ParameterPieces...)
+	stack := append([]*ditypes.Parameter{param}, param.ParameterPieces...)
 
 	for len(stack) != 0 {
 
@@ -147,11 +147,11 @@ func populateLocationExpressions(
 		if !ok || limitInfo == nil {
 			continue
 		}
-		for i := range *parameters {
+		for i := range parameters {
 			if i >= len(funcMetadata.Parameters) {
 				return errors.New("parameter metadata does not line up with parameter itself")
 			}
-			(*parameters)[i].LocationExpressions = GenerateLocationExpression(limitInfo, &(*parameters)[i])
+			parameters[i].LocationExpressions = GenerateLocationExpression(limitInfo, parameters[i])
 		}
 	}
 	return nil
@@ -160,7 +160,7 @@ func populateLocationExpressions(
 func putLocationsInParams(
 	paramMetadatas []bininspect.ParameterMetadata,
 	fieldLocations map[bininspect.FieldIdentifier]uint64,
-	funcMap map[string]*[]ditypes.Parameter,
+	funcMap map[string][]*ditypes.Parameter,
 	funcName string) {
 
 	params := funcMap[funcName]
@@ -177,20 +177,20 @@ func putLocationsInParams(
 		}
 	}
 
-	assignLocationsInOrder(*params, locations)
-	for i := range *params {
-		correctStructLocations(&(*params)[i], fieldLocations)
+	assignLocationsInOrder(params, locations)
+	for i := range params {
+		correctStructLocations(params[i], fieldLocations)
 	}
 	funcMap[funcName] = params
 }
 
-func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Location) {
+func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Location) {
 	stack := []*ditypes.Parameter{}
 	locationCounter := 0
 
 	// Start by pushing addresses of all parameters to stack
 	for i := range params {
-		stack = append(stack, &params[len(params)-1-i])
+		stack = append(stack, params[len(params)-1-i])
 	}
 
 	for {
@@ -203,7 +203,7 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 			current.Kind != uint(reflect.Array) &&
 			current.Kind != uint(reflect.Pointer) {
 			for i := range current.ParameterPieces {
-				stack = append(stack, &current.ParameterPieces[len(current.ParameterPieces)-1-i])
+				stack = append(stack, current.ParameterPieces[len(current.ParameterPieces)-1-i])
 			}
 		} else {
 			// Location fields are directly assigned instead of setting the whole
@@ -229,7 +229,7 @@ func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[b
 		}
 		offset := fieldLocations[fieldID]
 		structParam.ParameterPieces[i].FieldOffset = offset
-		correctStructLocations(&structParam.ParameterPieces[i], fieldLocations)
+		correctStructLocations(structParam.ParameterPieces[i], fieldLocations)
 	}
 }
 

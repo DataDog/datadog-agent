@@ -79,7 +79,7 @@ func convertProbe(probe *ditypes.Probe) ditypes.ProbeInSnapshot {
 	}
 }
 
-func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
+func convertCaptures(defs []*ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
 	return ditypes.Captures{
 		Entry: &ditypes.Capture{
 			Arguments: convertArgs(defs, captures),
@@ -87,7 +87,7 @@ func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditype
 	}
 }
 
-func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
+func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
 	notCapturedReason := "type unsupported"
 
 	args := make(map[string]*ditypes.CapturedValue)
@@ -104,17 +104,17 @@ func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
 	}
 }
 
-func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
+func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
 		var (
 			argName    string
 			captureDef *ditypes.Parameter
-			defPieces  []ditypes.Parameter
+			defPieces  []*ditypes.Parameter
 		)
 		if idx < len(defs) {
 			argName = defs[idx].Name
-			captureDef = &defs[idx]
+			captureDef = defs[idx]
 		}
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
@@ -149,9 +149,9 @@ func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.Captu
 		return nil
 	}
 
-	defs := []ditypes.Parameter{}
+	defs := []*ditypes.Parameter{}
 	for i := range capture.Fields {
-		defs = append(defs, ditypes.Parameter{
+		defs = append(defs, &ditypes.Parameter{
 			Name:      fmt.Sprintf("[%d]%s", i, capture.Fields[i].Type),
 			Type:      capture.Fields[i].Type,
 			Kind:      uint(capture.Fields[i].Kind),
@@ -174,8 +174,8 @@ func parseFuncName(funcName string) (string, string) {
 	return "", funcName
 }
 
-func getFunctionArguments(proc *ditypes.ProcessInfo, probe *ditypes.Probe) []ditypes.Parameter {
-	return *proc.TypeMap.Functions[probe.FuncName]
+func getFunctionArguments(proc *ditypes.ProcessInfo, probe *ditypes.Probe) []*ditypes.Parameter {
+	return proc.TypeMap.Functions[probe.FuncName]
 }
 
 func getProbeUUID(probeID string) string {

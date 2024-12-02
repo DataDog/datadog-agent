@@ -16,7 +16,7 @@ import (
 // functions that have been inlined in the binary
 type TypeMap struct {
 	// Functions maps fully-qualified function names to a slice of its parameters
-	Functions map[string]*[]Parameter
+	Functions map[string][]*Parameter
 
 	// InlinedFunctions maps program counters to a slice of dwarf entries used
 	// when resolving stack traces that include inlined functions
@@ -43,7 +43,7 @@ type Parameter struct {
 	LocationExpressions []LocationExpression
 	FieldOffset         uint64
 	NotCaptureReason    NotCaptureReason
-	ParameterPieces     []Parameter
+	ParameterPieces     []*Parameter
 }
 
 func (p Parameter) String() string {
