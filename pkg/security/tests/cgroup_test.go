@@ -91,6 +91,7 @@ func TestCGroup(t *testing.T) {
 			assertFieldEqual(t, event, "container.runtime", "")
 			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
 			assertFieldIsOneOf(t, event, "cgroup.id", "/memory/cg1")
+			assertFieldIsOneOf(t, event, "cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
 		})

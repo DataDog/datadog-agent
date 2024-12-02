@@ -99,6 +99,7 @@ type CGroupContext struct {
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
+	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`Version of the cgroup API`
 }
 
 // SyscallEvent contains common fields for all the event

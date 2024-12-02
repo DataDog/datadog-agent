@@ -550,6 +550,18 @@ func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGro
 	return ""
 }
 
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
+	if e.CGroupVersion == 0 {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID); filesystem == "cgroup2" {
+			e.CGroupVersion = 2
+		} else {
+			e.CGroupVersion = 1
+		}
+	}
+	return e.CGroupVersion
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
