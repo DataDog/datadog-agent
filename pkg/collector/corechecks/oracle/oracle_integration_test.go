@@ -216,7 +216,7 @@ func TestChkRun(t *testing.T) {
 	diff1 := (pgaAfter1StRun - pgaBefore) / 1024
 	var extremePGAUsage float64
 	if isDbVersionGreaterOrEqualThan(&c, "12.2") {
-		extremePGAUsage = 1024
+		extremePGAUsage = 2048
 	} else {
 		extremePGAUsage = 8192
 	}

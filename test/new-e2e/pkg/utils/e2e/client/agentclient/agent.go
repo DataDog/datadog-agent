@@ -59,6 +59,9 @@ type Agent interface {
 
 	// StatusWithError runs status command and returns a Status struct and error
 	StatusWithError(commandArgs ...AgentArgsOption) (*Status, error)
+
+	// JMX run the jmx command and returns a Status struct and error
+	JMX(commandArgs ...AgentArgsOption) (*Status, error)
 }
 
 // Status contains the Agent status content
