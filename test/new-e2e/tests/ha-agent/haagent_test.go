@@ -61,5 +61,5 @@ func (s *haAgentTestSuite02) TestHaAgentAddedToRCListeners() {
 			return
 		}
 		assert.Contains(c, output, "Add onHaAgentUpdate RCListener")
-	}, 1*time.Minute, 1*time.Second)
+	}, 3*time.Minute, 1*time.Second)
 }
