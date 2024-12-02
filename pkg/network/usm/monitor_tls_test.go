@@ -45,6 +45,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
@@ -111,10 +112,12 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				require.NoError(t, err)
 
 				dir = path.Join(dir, "testdata", "musl")
+				scanner, err := globalutils.NewScanner(regexp.MustCompile("started"), globalutils.NoPattern)
+				require.NoError(t, err, "failed to create pattern scanner")
 				dockerCfg := dockerutils.NewComposeConfig("musl-alpine",
 					dockerutils.DefaultTimeout,
 					dockerutils.DefaultRetries,
-					regexp.MustCompile("started"),
+					scanner,
 					dockerutils.EmptyEnv,
 					path.Join(dir, "/docker-compose.yml"))
 				err = dockerutils.Run(t, dockerCfg)

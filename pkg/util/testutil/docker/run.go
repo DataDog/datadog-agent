@@ -13,8 +13,6 @@ import (
 	"os/exec"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // Run starts the container/s and ensures their successful invocation
@@ -29,9 +27,8 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 		// Ensuring no previous instances exists.
 		killPreviousInstances(cfg)
 
-		scanner := testutil.NewScanner(cfg.LogPattern(), make(chan struct{}, 1))
 		// attempt to start the container/s
-		ctx, err = run(t, cfg, scanner)
+		ctx, err = run(t, cfg)
 		if err != nil {
 			t.Logf("could not start %s: %v", cfg.Name(), err)
 			//this iteration failed, retry
@@ -39,13 +36,13 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 		}
 
 		//check container logs for successful start
-		if err = checkReadiness(ctx, cfg, scanner); err == nil {
+		if err = checkReadiness(ctx, cfg); err == nil {
 			// target container/s started successfully, we can stop the retries loop and finish here
 			t.Logf("%s command succeeded. %s container is running", cfg.command(), cfg.Name())
 			return nil
 		}
 		t.Logf("[Attempt #%v] failed to start %s server: %v", i+1, cfg.Name(), err)
-		scanner.PrintLogs(t)
+		cfg.PatternScanner().PrintLogs(t)
 		time.Sleep(5 * time.Second)
 	}
 	return err
@@ -66,7 +63,7 @@ func killPreviousInstances(cfg LifecycleConfig) {
 	_ = c.Run()
 }
 
-func run(t testing.TB, cfg LifecycleConfig, scanner *testutil.PatternScanner) (context.Context, error) {
+func run(t testing.TB, cfg LifecycleConfig) (context.Context, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -75,8 +72,8 @@ func run(t testing.TB, cfg LifecycleConfig, scanner *testutil.PatternScanner) (c
 	//prepare the command
 	cmd := exec.CommandContext(ctx, cfg.command(), args...)
 	cmd.Env = append(cmd.Env, cfg.Env()...)
-	cmd.Stdout = scanner
-	cmd.Stderr = scanner
+	cmd.Stdout = cfg.PatternScanner()
+	cmd.Stderr = cfg.PatternScanner()
 
 	// run asynchronously and don't wait for the command to finish
 	if err := cmd.Start(); err != nil {
@@ -92,14 +89,14 @@ func run(t testing.TB, cfg LifecycleConfig, scanner *testutil.PatternScanner) (c
 	return ctx, nil
 }
 
-func checkReadiness(ctx context.Context, cfg LifecycleConfig, scanner *testutil.PatternScanner) error {
+func checkReadiness(ctx context.Context, cfg LifecycleConfig) error {
 	for {
 		select {
 		case <-ctx.Done():
 			if err := ctx.Err(); err != nil {
 				return fmt.Errorf("failed to start the container %s due to: %w", cfg.Name(), err)
 			}
-		case <-scanner.DoneChan:
+		case <-cfg.PatternScanner().DoneChan:
 			return nil
 		case <-time.After(cfg.Timeout()):
 			return fmt.Errorf("failed to start the container %s, reached timeout of %v", cfg.Name(), cfg.Timeout())

@@ -255,15 +255,14 @@ class GoModule:
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
 
-    # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
         """Return the module tag name for a given Agent version.
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
         >>> [mod.tag("7.27.0") for mod in mods]
-        [["6.27.0", "7.27.0"], ["pkg/util/log/v0.27.0"]]
+        [["7.27.0"], ["pkg/util/log/v0.27.0"]]
         """
         if self.path == ".":
-            return ["6" + agent_version[1:], "7" + agent_version[1:]]
+            return ["7" + agent_version[1:]]
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 

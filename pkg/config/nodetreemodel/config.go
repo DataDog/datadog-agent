@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -87,6 +86,8 @@ type ntmConfig struct {
 	configName string
 	configFile string
 	configType string
+	// configPaths is the set of path to look for the configuration file
+	configPaths []string
 
 	// configEnvVars is the set of env vars that are consulted for
 	// any given configuration key. Multiple env vars can be associated with one key
@@ -98,6 +99,8 @@ type ntmConfig struct {
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
+	// allSettings contains all settings that we have a value for in the default tree
+	allSettings []string
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
@@ -236,9 +239,9 @@ func (c *ntmConfig) SetKnown(key string) {
 	if c.isReady() {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
+
 	key = strings.ToLower(key)
 	c.knownKeys[key] = struct{}{}
-	c.setDefault(key, nil)
 }
 
 // IsKnown returns whether a key is known
@@ -294,6 +297,24 @@ func (c *ntmConfig) mergeAllLayers() error {
 	return nil
 }
 
+func computeAllSettings(node InnerNode, path string) []string {
+	knownKeys := []string{}
+	for _, name := range node.ChildrenKeys() {
+		newPath := joinKey(path, name)
+
+		child, _ := node.GetChild(name)
+		if _, ok := child.(LeafNode); ok {
+			knownKeys = append(knownKeys, newPath)
+		} else if inner, ok := child.(InnerNode); ok {
+			knownKeys = append(knownKeys, computeAllSettings(inner, newPath)...)
+		} else {
+			log.Errorf("unknown node type in the tree: %T", child)
+		}
+	}
+	slices.Sort(knownKeys)
+	return knownKeys
+}
+
 // BuildSchema is called when Setup is complete, and the config is ready to be used
 func (c *ntmConfig) BuildSchema() {
 	c.Lock()
@@ -303,6 +324,7 @@ func (c *ntmConfig) BuildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
 	}
+	c.allSettings = computeAllSettings(c.defaults, "")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -390,12 +412,12 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return c.IsKnown(key)
 }
 
-// AllKeysLowercased returns all keys lower-cased
+// AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
 
-	return maps.Keys(c.knownKeys)
+	return slices.Clone(c.allSettings)
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
@@ -578,10 +600,23 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 }
 
 // AddConfigPath adds another config for the given path
-func (c *ntmConfig) AddConfigPath(_in string) {
+func (c *ntmConfig) AddConfigPath(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.logErrorNotImplemented("AddConfigPath")
+
+	if !filepath.IsAbs(in) {
+		var err error
+		in, err = filepath.Abs(in)
+		if err != nil {
+			log.Errorf("could not get absolute path for configuration %q: %s", in, err)
+			return
+		}
+	}
+
+	in = filepath.Clean(in)
+	if !slices.Contains(c.configPaths, in) {
+		c.configPaths = append(c.configPaths, in)
+	}
 }
 
 // AddExtraConfigPaths allows adding additional configuration files
@@ -669,6 +704,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		ready:              atomic.NewBool(false),
 		configEnvVars:      map[string]string{},
 		knownKeys:          map[string]struct{}{},
+		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),

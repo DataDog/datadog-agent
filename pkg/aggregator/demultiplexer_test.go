@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -43,7 +43,7 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	deps := createDemuxDeps(t, opts)
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
@@ -59,12 +59,39 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts := demuxTestOptions()
 
-	deps := createDemuxDeps(t, opts)
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
-	require.NotNil(deps.EventPlatformFwd)
-	_, found := deps.OrchestratorFwd.Get()
+	_, found := deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
+	require.Equal(orchestratorForwarderSupport, found)
+	require.NotNil(deps.SharedForwarder)
+	demux.Stop(false)
+
+	// options no event platform forwarder
+
+	opts = demuxTestOptions()
+	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseEventPlatformForwarder: false})
+	demux = deps.Demultiplexer
+	require.NotNil(demux)
+	_, found = deps.EventPlatformFwd.Get()
+	require.False(found)
+	_, found = deps.OrchestratorFwd.Get()
+	require.Equal(orchestratorForwarderSupport, found)
+	require.NotNil(deps.SharedForwarder)
+	demux.Stop(false)
+
+	// options noop event platform forwarder
+
+	opts = demuxTestOptions()
+	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseNoopEventPlatformForwarder: true})
+	demux = deps.Demultiplexer
+	require.NotNil(demux)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
 	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
@@ -87,10 +114,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// needed feature above, we should have an orchestrator forwarder instantiated now
 
 	opts = demuxTestOptions()
-	deps = createDemuxDeps(t, opts)
+	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(deps.EventPlatformFwd)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -98,10 +126,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	params := orchestratorForwarderImpl.NewDisabledParams()
-	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params)
+	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(deps.EventPlatformFwd)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(deps.SharedForwarder)
@@ -111,10 +140,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	params = orchestratorForwarderImpl.NewNoopParams()
-	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params)
+	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(deps.EventPlatformFwd)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.True(found)
 	require.NotNil(deps.SharedForwarder)
@@ -127,7 +157,7 @@ func TestDemuxSerializerCreated(t *testing.T) {
 	// default options should have created all forwarders
 
 	opts := demuxTestOptions()
-	deps := createDemuxDeps(t, opts)
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
@@ -143,7 +173,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	deps := createDemuxDeps(t, opts)
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
@@ -243,8 +273,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	assert.Equal(4, pipelines)
 }
 
-func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions) aggregatorDeps {
-	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams())
+func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions, eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
+	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams(), eventPlatformParams)
 }
 
 type internalDemutiplexerDeps struct {
@@ -258,12 +288,12 @@ func createDemuxDepsWithOrchestratorFwd(
 	t *testing.T,
 	opts AgentDemultiplexerOptions,
 	orchestratorParams orchestratorForwarderImpl.Params,
-) aggregatorDeps {
+	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	modules := fx.Options(
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		orchestratorForwarderImpl.Module(orchestratorParams),
-		eventplatformfx.Module(),
+		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		compressionmock.MockModule(),
 		haagentmock.Module(),
