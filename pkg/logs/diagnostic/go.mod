@@ -82,6 +82,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

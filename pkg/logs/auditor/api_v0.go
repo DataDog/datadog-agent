@@ -7,10 +7,11 @@
 package auditor
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/goccy/go-json"
 )
 
 // v0: In the first version of the auditor, we were only recording file offsets

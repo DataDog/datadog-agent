@@ -618,7 +618,10 @@ require (
 	go.opentelemetry.io/collector/config/configtelemetry v0.114.0
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.114.0
+require (
+	github.com/goccy/go-json v0.10.3
+	go.opentelemetry.io/collector/component/componenttest v0.114.0
+)
 
 require (
 	go.opentelemetry.io/collector/extension/extensiontest v0.114.0 // indirect
@@ -855,7 +858,6 @@ require (
 	github.com/go-resty/resty/v2 v2.13.1 // indirect
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/go-zookeeper/zk v1.0.3 // indirect
-	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/goccy/go-yaml v1.11.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect

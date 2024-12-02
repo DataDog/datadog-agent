@@ -48,6 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
+	github.com/goccy/go-json v0.10.3
 	github.com/stretchr/testify v1.10.0
 )
 
