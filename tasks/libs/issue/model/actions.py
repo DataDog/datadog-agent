@@ -5,18 +5,16 @@ from tasks.libs.issue.assign import assign_with_rules
 from tasks.libs.issue.model.constants import BASE_MODEL, MODEL, TEAMS
 
 
-def generate_model():
+def fetch_data_and_train_model():
     gh = GithubAPI('DataDog/datadog-agent')
     d = gh.repo
     issues = []
     teams = []
-    n = 0
-    for i in d.get_issues(state='all'):
-        issues.append(f"{i.title} {i.body}".casefold())
-        teams.append(assign_with_rules(i, gh))
+    for id, issue in enumerate(d.get_issues(state='all')):
+        issues.append(f"{issue.title} {issue.body}".casefold())
+        teams.append(assign_with_rules(issue, gh))
         # Sleep to avoid hitting the rate limit
-        n += 1
-        if n % 2000 == 0:
+        if id % 2000 == 0:
             sleep(3600)
 
     train_the_model(teams, issues, "issue_auto_assign_model", 64, 5)

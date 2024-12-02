@@ -4,7 +4,7 @@ from invoke import task
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.issue.assign import assign_with_model, assign_with_rules
-from tasks.libs.issue.model.actions import generate_model
+from tasks.libs.issue.model.actions import fetch_data_and_train_model
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 
@@ -33,5 +33,5 @@ def assign_owner(_, issue_id, dry_run=False):
 
 
 @task
-def generate_the_model(_):
-    generate_model()
+def generate_model(_):
+    fetch_data_and_train_model()
