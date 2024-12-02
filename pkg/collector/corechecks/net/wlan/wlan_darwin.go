@@ -15,6 +15,10 @@ typedef struct {
     int rssi;
     const char *ssid;
     const char *bssid;
+    int channel;
+    int noise;
+    double transmitRate;
+    const char *securityType;
 } WiFiInfo;
 
 WiFiInfo GetWiFiInformation();
@@ -28,10 +32,27 @@ import (
 	"time"
 )
 
-type WiFiData struct {
-	rssi  int
-	ssid  string
-	bssid string
+type WiFiInfo struct {
+	Rssi         int     `json:"rssi"`
+	Ssid         string  `json:"ssid"`
+	Bssid        string  `json:"bssid"`
+	Channel      int     `json:"channel"`
+	Noise        int     `json:"noise"`
+	TransmitRate float64 `json:"transmit_rate"`
+	SecurityType string  `json:"security_type"`
+}
+
+func GetWiFiInfo() (WiFiInfo, error) {
+	info := C.GetWiFiInformation()
+	return WiFiInfo{
+		Rssi:         int(info.rssi),
+		Ssid:         C.GoString(info.ssid),
+		Bssid:        C.GoString(info.bssid),
+		Channel:      int(info.channel),
+		Noise:        int(info.noise),
+		TransmitRate: float64(info.transmitRate),
+		SecurityType: C.GoString(info.securityType),
+	}, nil
 }
 
 func setupLocationAccess() {
@@ -48,14 +69,4 @@ func setupLocationAccess() {
 	// Stop fetching location updates
 	C.StopLocationUpdates()
 	fmt.Println("Stopped Location Updates")
-}
-
-func queryWiFiRSSI() (WiFiData, error) {
-	wiFiData := C.GetWiFiInformation()
-	fmt.Println(wiFiData)
-	return WiFiData{
-		rssi:  int(wiFiData.rssi),
-		ssid:  C.GoString(wiFiData.ssid),
-		bssid: C.GoString(wiFiData.bssid),
-	}, nil
 }

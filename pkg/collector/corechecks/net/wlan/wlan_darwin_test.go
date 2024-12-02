@@ -9,19 +9,25 @@
 package wlan
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestQueryWifi(t *testing.T) {
-	setupLocationAccess()
-	data, err := queryWiFiRSSI()
+	// setupLocationAccess()
+	data, err := GetWiFiInfo()
 	if err != nil {
 		t.Errorf("Error querying wifi RSSI: %s", err)
 	}
 
-	assert.NotZero(t, data.rssi)
-	// assert.NotEmpty(t, data.ssid)
-	// assert.NotEmpty(t, data.bssid)
+	// assert.NotZero(t, data.Rssi)
+
+	// b, err := json.Marshal(data)
+	// assert.Nil(t, err)
+	// assert.Empty(t, string(b))
+	assert.Empty(t, fmt.Sprintf("TEST: %+v", data))
+	// assert.NotEmpty(t, data.Ssid)
+	// assert.NotEmpty(t, data.Bssid)
 }

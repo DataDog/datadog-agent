@@ -38,17 +38,17 @@ func (c *WLANCheck) Run() error {
 		return err
 	}
 	setupLocationAccess()
-	wifiData, err := queryWiFiRSSI()
+	wifiInfo, err := GetWiFiInfo()
 	if err != nil {
 		log.Error(err)
 		sender.Commit()
 		return err
 	}
 	tags := []string{}
-	tags = append(tags, "ssid:"+wifiData.ssid)
-	tags = append(tags, "bssid:"+wifiData.bssid)
+	tags = append(tags, "ssid:"+wifiInfo.Ssid)
+	tags = append(tags, "bssid:"+wifiInfo.Bssid)
 
-	sender.Gauge("wlan.rssi", float64(wifiData.rssi), "", tags)
+	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
 	sender.Commit()
 	return nil
 }
