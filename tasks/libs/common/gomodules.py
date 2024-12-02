@@ -7,13 +7,13 @@ import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import ClassVar
 
 import yaml
 
 import tasks
+from tasks.libs.common.utils import agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):
@@ -151,6 +151,8 @@ class GoModule:
     lint_targets: list[str] | None = None
     # Whether the module is an otel dependency or not
     used_by_otel: bool = False
+    # Used to load agent 6 modules from agent 7
+    legacy_go_mod_version: bool | None = None
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
@@ -165,6 +167,7 @@ class GoModule:
             importable=data.get("importable", default["importable"]),
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
+            legacy_go_mod_version=data.get("legacy_go_mod_version", default["legacy_go_mod_version"]),
         )
 
     @staticmethod
@@ -197,6 +200,7 @@ class GoModule:
             "importable": self.importable,
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
+            "legacy_go_mod_version": self.legacy_go_mod_version,
         }
 
         if remove_path:
@@ -251,15 +255,14 @@ class GoModule:
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
 
-    # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
         """Return the module tag name for a given Agent version.
         >>> mods = [GoModule("."), GoModule("pkg/util/log")]
         >>> [mod.tag("7.27.0") for mod in mods]
-        [["6.27.0", "7.27.0"], ["pkg/util/log/v0.27.0"]]
+        [["7.27.0"], ["pkg/util/log/v0.27.0"]]
         """
         if self.path == ".":
-            return ["6" + agent_version[1:], "7" + agent_version[1:]]
+            return ["7" + agent_version[1:]]
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
@@ -301,13 +304,14 @@ class GoModule:
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
-@lru_cache
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """Load the default modules from the modules.yml file.
 
     Args:
         base_dir: Root directory of the agent repository ('.' by default).
     """
+
+    base_dir = base_dir or agent_working_directory()
 
     return Configuration.from_file(base_dir).modules
 

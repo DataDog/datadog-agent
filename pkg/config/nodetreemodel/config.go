@@ -12,17 +12,13 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"path/filepath"
 
 	"github.com/DataDog/viper"
-	"github.com/mohae/deepcopy"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -48,7 +44,6 @@ var sources = []model.Source{
 // - contains metadata about known keys, env var support
 type ntmConfig struct {
 	sync.RWMutex
-	noimpl notImplementedMethods
 
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool
@@ -91,6 +86,8 @@ type ntmConfig struct {
 	configName string
 	configFile string
 	configType string
+	// configPaths is the set of path to look for the configuration file
+	configPaths []string
 
 	// configEnvVars is the set of env vars that are consulted for
 	// any given configuration key. Multiple env vars can be associated with one key
@@ -102,6 +99,8 @@ type ntmConfig struct {
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
+	// allSettings contains all settings that we have a value for in the default tree
+	allSettings []string
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
@@ -117,6 +116,12 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
+func (c *ntmConfig) logErrorNotImplemented(method string) error {
+	err := fmt.Errorf("not implemented: %s", method)
+	log.Error(err)
+	return err
+}
+
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -126,18 +131,6 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-// getValue gets a value, should only be called within a locked mutex
-func (c *ntmConfig) getValue(key string) (interface{}, error) {
-	return c.leafAtPath(key).GetAny()
-}
-
-func (c *ntmConfig) setValueSource(key string, newValue interface{}, source model.Source) { // nolint: unused // TODO fix
-	err := c.leafAtPath(key).SetWithSource(newValue, source)
-	if err != nil {
-		log.Errorf("%s", err)
-	}
-}
-
 func (c *ntmConfig) setDefault(key string, value interface{}) {
 	parts := splitKey(key)
 	// TODO: Ensure that for default tree, setting nil to a node will not override
@@ -145,34 +138,36 @@ func (c *ntmConfig) setDefault(key string, value interface{}) {
 	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
 }
 
-// Set assigns the newValue to the given key and marks it as originating from the given source
-func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
-	var tree InnerNode
-
-	// TODO: have a dedicated mapping in ntmConfig instead of a switch case
-	// TODO: Default and File source should use SetDefault or ReadConfig instead. Once the defaults are handle we
-	// should remove those two tree from here and consider this a bug.
+func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	switch source {
 	case model.SourceDefault:
-		tree = c.defaults
+		return c.defaults, nil
 	case model.SourceUnknown:
-		tree = c.unknown
+		return c.unknown, nil
 	case model.SourceFile:
-		tree = c.file
+		return c.file, nil
 	case model.SourceEnvVar:
-		tree = c.envs
+		return c.envs, nil
 	case model.SourceAgentRuntime:
-		tree = c.runtime
+		return c.runtime, nil
 	case model.SourceLocalConfigProcess:
-		tree = c.localConfigProcess
+		return c.localConfigProcess, nil
 	case model.SourceRC:
-		tree = c.remoteConfig
+		return c.remoteConfig, nil
 	case model.SourceFleetPolicies:
-		tree = c.fleetPolicies
+		return c.fleetPolicies, nil
 	case model.SourceCLI:
-		tree = c.cli
-	default:
-		log.Errorf("unknown source tree: %s\n", source)
+		return c.cli, nil
+	}
+	return nil, fmt.Errorf("unknown source tree: %s", source)
+}
+
+// Set assigns the newValue to the given key and marks it as originating from the given source
+func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		log.Errorf("unknown source: %s", source)
+		return
 	}
 
 	if !c.IsKnown(key) {
@@ -180,12 +175,15 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the key to lower case for the logs line and the notification
+	key = strings.ToLower(key)
+
 	c.Lock()
-	previousValue, _ := c.getValue(key)
+	previousValue := c.leafAtPath(key).Get()
 
 	parts := splitKey(key)
 
-	_, err := tree.SetAt(parts, newValue, source)
+	_, err = tree.SetAt(parts, newValue, source)
 	if err != nil {
 		log.Errorf("could not set '%s' invalid key: %s", key, err)
 	}
@@ -241,9 +239,9 @@ func (c *ntmConfig) SetKnown(key string) {
 	if c.isReady() {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
+
 	key = strings.ToLower(key)
 	c.knownKeys[key] = struct{}{}
-	c.setDefault(key, nil)
 }
 
 // IsKnown returns whether a key is known
@@ -265,28 +263,13 @@ func (c *ntmConfig) checkKnownKey(key string) {
 		return
 	}
 
+	key = strings.ToLower(key)
 	if _, ok := c.unknownKeys[key]; ok {
 		return
 	}
 
 	c.unknownKeys[key] = struct{}{}
 	log.Warnf("config key %v is unknown", key)
-}
-
-// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-// 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
-// Note that it returns the keys lowercased.
-func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
-
-	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	ret := make(map[string]interface{})
-	for key, value := range c.knownKeys {
-		ret[key] = value
-	}
-	return ret
 }
 
 func (c *ntmConfig) mergeAllLayers() error {
@@ -314,6 +297,24 @@ func (c *ntmConfig) mergeAllLayers() error {
 	return nil
 }
 
+func computeAllSettings(node InnerNode, path string) []string {
+	knownKeys := []string{}
+	for _, name := range node.ChildrenKeys() {
+		newPath := joinKey(path, name)
+
+		child, _ := node.GetChild(name)
+		if _, ok := child.(LeafNode); ok {
+			knownKeys = append(knownKeys, newPath)
+		} else if inner, ok := child.(InnerNode); ok {
+			knownKeys = append(knownKeys, computeAllSettings(inner, newPath)...)
+		} else {
+			log.Errorf("unknown node type in the tree: %T", child)
+		}
+	}
+	slices.Sort(knownKeys)
+	return knownKeys
+}
+
 // BuildSchema is called when Setup is complete, and the config is ready to be used
 func (c *ntmConfig) BuildSchema() {
 	c.Lock()
@@ -323,6 +324,19 @@ func (c *ntmConfig) BuildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
 	}
+	c.allSettings = computeAllSettings(c.defaults, "")
+}
+
+// Stringify stringifies the config, but only with the test build tag
+func (c *ntmConfig) Stringify(source model.Source) string {
+	c.Lock()
+	defer c.Unlock()
+	// only does anything if the build tag "test" is enabled
+	text, err := c.toDebugString(source)
+	if err != nil {
+		return fmt.Sprintf("Stringify error: %s", err)
+	}
+	return text
 }
 
 func (c *ntmConfig) isReady() bool {
@@ -398,22 +412,25 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return c.IsKnown(key)
 }
 
-// AllKeysLowercased returns all keys lower-cased
+// AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
 
-	return maps.Keys(c.knownKeys)
+	return slices.Clone(c.allSettings)
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
+	return c.leafAtPathFromNode(key, c.root)
+}
+
+func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
 	if !c.isReady() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
 	}
 
 	pathParts := splitKey(key)
-	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
@@ -442,224 +459,6 @@ func (c *ntmConfig) GetNode(key string) (Node, error) {
 		curr = next
 	}
 	return curr, nil
-}
-
-// Get returns a copy of the value for the given key
-func (c *ntmConfig) Get(key string) interface{} {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.getValue(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
-	// and we shouldn't ever return complex types like maps and slices that could be modified
-	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
-	return deepcopy.Copy(val)
-}
-
-// GetAllSources returns the value of a key for each source
-func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	vals := make([]model.ValueWithSource, len(sources))
-	c.logErrorNotImplemented("GetAllSources")
-	return vals
-}
-
-// GetString returns a string-typed value for the given key
-func (c *ntmConfig) GetString(key string) string {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	str, err := c.leafAtPath(key).GetString()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return str
-}
-
-// GetBool returns a bool-typed value for the given key
-func (c *ntmConfig) GetBool(key string) bool {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	b, err := c.leafAtPath(key).GetBool()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return b
-}
-
-// GetInt returns an int-typed value for the given key
-func (c *ntmConfig) GetInt(key string) int {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.leafAtPath(key).GetInt()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetInt32 returns an int32-typed value for the given key
-func (c *ntmConfig) GetInt32(key string) int32 {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.leafAtPath(key).GetInt()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return int32(val)
-}
-
-// GetInt64 returns an int64-typed value for the given key
-func (c *ntmConfig) GetInt64(key string) int64 {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.leafAtPath(key).GetInt()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return int64(val)
-}
-
-// GetFloat64 returns a float64-typed value for the given key
-func (c *ntmConfig) GetFloat64(key string) float64 {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.leafAtPath(key).GetFloat()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetTime returns a time-typed value for the given key
-func (c *ntmConfig) GetTime(key string) time.Time {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.leafAtPath(key).GetTime()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetDuration returns a duration-typed value for the given key
-func (c *ntmConfig) GetDuration(key string) time.Duration {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.leafAtPath(key).GetDuration()
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetStringSlice returns a string slice value for the given key
-func (c *ntmConfig) GetStringSlice(key string) []string {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.noimpl.GetStringSliceE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return slices.Clone(val)
-}
-
-// GetFloat64SliceE returns a float slice value for the given key, or an error
-func (c *ntmConfig) GetFloat64SliceE(key string) ([]float64, error) {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-
-	// We're using GetStringSlice because viper can only parse list of string from env variables
-	list, err := c.noimpl.GetStringSliceE(key)
-	if err != nil {
-		return nil, fmt.Errorf("'%v' is not a list", key)
-	}
-
-	res := []float64{}
-	for _, item := range list {
-		nb, err := strconv.ParseFloat(item, 64)
-		if err != nil {
-			return nil, fmt.Errorf("value '%v' from '%v' is not a float64", item, key)
-		}
-		res = append(res, nb)
-	}
-	return res, nil
-}
-
-// GetStringMap returns a map[string]interface value for the given key
-func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.noimpl.GetStringMapE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return deepcopy.Copy(val).(map[string]interface{})
-}
-
-// GetStringMapString returns a map[string]string value for the given key
-func (c *ntmConfig) GetStringMapString(key string) map[string]string {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.noimpl.GetStringMapStringE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return deepcopy.Copy(val).(map[string]string)
-}
-
-// GetStringMapStringSlice returns a map[string][]string value for the given key
-func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.noimpl.GetStringMapStringSliceE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return deepcopy.Copy(val).(map[string][]string)
-}
-
-// GetSizeInBytes returns the size in bytes of the filename for the given key
-func (c *ntmConfig) GetSizeInBytes(key string) uint {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.noimpl.GetSizeInBytesE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-func (c *ntmConfig) logErrorNotImplemented(method string) error {
-	err := fmt.Errorf("not implemented: %s", method)
-	log.Error(err)
-	return err
-}
-
-// GetSource returns the source of the given key
-func (c *ntmConfig) GetSource(key string) model.Source {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	return c.leafAtPath(key).Source()
 }
 
 // SetEnvPrefix sets the environment variable prefix to use
@@ -717,14 +516,25 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.logErrorNotImplemented("UnmarshalKey")
+	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
 }
 
 // MergeConfig merges in another config
-func (c *ntmConfig) MergeConfig(_in io.Reader) error {
+func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.logErrorNotImplemented("MergeConfig")
+
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
@@ -790,10 +600,23 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 }
 
 // AddConfigPath adds another config for the given path
-func (c *ntmConfig) AddConfigPath(_in string) {
+func (c *ntmConfig) AddConfigPath(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.logErrorNotImplemented("AddConfigPath")
+
+	if !filepath.IsAbs(in) {
+		var err error
+		in, err = filepath.Abs(in)
+		if err != nil {
+			log.Errorf("could not get absolute path for configuration %q: %s", in, err)
+			return
+		}
+	}
+
+	in = filepath.Clean(in)
+	if !slices.Contains(c.configPaths, in) {
+		c.configPaths = append(c.configPaths, in)
+	}
 }
 
 // AddExtraConfigPaths allows adding additional configuration files
@@ -854,22 +677,9 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
-// SetTypeByDefaultValue enables typing using default values
+// SetTypeByDefaultValue is a no-op
 func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("SetTypeByDefaultValue")
-}
-
-// GetEnvVars gets all environment variables
-func (c *ntmConfig) GetEnvVars() []string {
-	c.RLock()
-	defer c.RUnlock()
-	vars := make([]string, 0, len(c.configEnvVars))
-	for v := range c.configEnvVars {
-		vars = append(vars, v)
-	}
-	return vars
+	// do nothing: nodetreemodel always does this conversion
 }
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
@@ -892,9 +702,9 @@ func (c *ntmConfig) Object() model.Reader {
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
-		noimpl:             &notImplMethodsImpl{},
 		configEnvVars:      map[string]string{},
 		knownKeys:          map[string]struct{}{},
+		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
@@ -908,55 +718,11 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		envTransform:       make(map[string]func(string) interface{}),
 	}
 
-	config.SetTypeByDefaultValue(true)
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
 
 	return &config
-}
-
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (c *ntmConfig) CopyConfig(cfg model.Config) {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("CopyConfig")
-	if cfg, ok := cfg.(*ntmConfig); ok {
-		// TODO: Probably a bug, should be a deep copy, add a test and verify
-		c.root = cfg.root
-		c.envPrefix = cfg.envPrefix
-		c.envKeyReplacer = cfg.envKeyReplacer
-		c.proxies = cfg.proxies
-		c.configEnvVars = cfg.configEnvVars
-		c.unknownKeys = cfg.unknownKeys
-		c.notificationReceivers = cfg.notificationReceivers
-		return
-	}
-	panic("Replacement config must be an instance of ntmConfig")
-}
-
-// GetProxies returns the proxy settings from the configuration
-func (c *ntmConfig) GetProxies() *model.Proxy {
-	c.Lock()
-	hasProxies := c.proxies
-	c.Unlock()
-	if hasProxies != nil {
-		return hasProxies
-	}
-	if c.GetBool("fips.enabled") {
-		return nil
-	}
-	if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
-		return nil
-	}
-	p := &model.Proxy{
-		HTTP:    c.GetString("proxy.http"),
-		HTTPS:   c.GetString("proxy.https"),
-		NoProxy: c.GetStringSlice("proxy.no_proxy"),
-	}
-	c.proxies = p
-	return c.proxies
 }
 
 // ExtraConfigFilesUsed returns the additional config files used

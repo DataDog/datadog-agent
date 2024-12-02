@@ -50,7 +50,7 @@ func OtelSpanToDDSpanMinimal(
 	}
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelService(otelspan, otelres, true),
+		Service:  traceutil.GetOTelService(otelres, true),
 		Name:     operationName,
 		Resource: resourceName,
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
@@ -119,9 +119,8 @@ func OtelSpanToDDSpan(
 		}
 	}
 
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	if _, ok := ddspan.Meta["env"]; !ok {
-		if env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+		if env := traceutil.GetOTelEnv(otelres); env != "" {
 			ddspan.Meta["env"] = env
 		}
 	}
@@ -129,6 +128,7 @@ func OtelSpanToDDSpan(
 	if otelspan.Events().Len() > 0 {
 		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
 	}
+	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
@@ -146,7 +146,7 @@ func OtelSpanToDDSpan(
 		default:
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
-			if k != "http.method" && k != "http.status_code" {
+			if k != "http.method" && k != "http.status_code" && k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
 				SetMetaOTLP(ddspan, k, value)
 			}
 		}
@@ -194,6 +194,16 @@ func OtelSpanToDDSpan(
 	Status2Error(otelspan.Status(), otelspan.Events(), ddspan)
 
 	return ddspan
+}
+
+// TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
+func TagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan *pb.Span) {
+	for i := range otelspan.Events().Len() {
+		if otelspan.Events().At(i).Name() == "exception" {
+			ddspan.Meta["_dd.span_events.has_exception"] = "true"
+			return
+		}
+	}
 }
 
 // MarshalEvents marshals events into JSON.

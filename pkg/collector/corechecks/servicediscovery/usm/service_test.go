@@ -49,16 +49,17 @@ func TestExtractServiceMetadata(t *testing.T) {
 	require.NoError(t, err)
 	subUsmTestData := NewSubDirFS(usmFull)
 	tests := []struct {
-		name                       string
-		cmdline                    []string
-		envs                       map[string]string
-		lang                       language.Language
-		expectedGeneratedName      string
-		expectedDDService          string
-		expectedAdditionalServices []string
-		ddServiceInjected          bool
-		fs                         *SubDirFS
-		skipOnWindows              bool
+		name                        string
+		cmdline                     []string
+		envs                        map[string]string
+		lang                        language.Language
+		expectedGeneratedName       string
+		expectedDDService           string
+		expectedAdditionalServices  []string
+		expectedGeneratedNameSource ServiceNameSource
+		ddServiceInjected           bool
+		fs                          *SubDirFS
+		skipOnWindows               bool
 	}{
 		{
 			name:                  "empty",
@@ -75,108 +76,130 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			expectedGeneratedName: "my-server",
+			expectedGeneratedName:       "my-server",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "single arg executable with DD_SERVICE",
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			envs:                  map[string]string{"DD_SERVICE": "my-service"},
-			expectedDDService:     "my-service",
-			expectedGeneratedName: "my-server",
+			envs:                        map[string]string{"DD_SERVICE": "my-service"},
+			expectedDDService:           "my-service",
+			expectedGeneratedName:       "my-server",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "single arg executable with DD_TAGS",
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			envs:                  map[string]string{"DD_TAGS": "service:my-service"},
-			expectedDDService:     "my-service",
-			expectedGeneratedName: "my-server",
+			envs:                        map[string]string{"DD_TAGS": "service:my-service"},
+			expectedDDService:           "my-service",
+			expectedGeneratedName:       "my-server",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "single arg executable with special chars",
 			cmdline: []string{
 				"./-my-server.sh-",
 			},
-			expectedGeneratedName: "my-server",
+			expectedGeneratedName:       "my-server",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "sudo",
 			cmdline: []string{
 				"sudo", "-E", "-u", "dog", "/usr/local/bin/myApp", "-items=0,1,2,3", "-foo=bar",
 			},
-			expectedGeneratedName: "myApp",
+			expectedGeneratedName:       "myApp",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "python flask argument",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
-			lang:                  language.Python,
-			expectedGeneratedName: "flask",
-			envs:                  map[string]string{"PWD": "testdata/python"},
-			fs:                    &subUsmTestData,
+			lang:                        language.Python,
+			expectedGeneratedName:       "flask",
+			expectedGeneratedNameSource: Python,
+			envs:                        map[string]string{"PWD": "testdata/python"},
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "python - flask argument in path",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "testdata/python/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
-			lang:                  language.Python,
-			expectedGeneratedName: "flask",
-			fs:                    &subUsmTestData,
+			lang:                        language.Python,
+			expectedGeneratedName:       "flask",
+			expectedGeneratedNameSource: Python,
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "python flask in single argument",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			lang:                  language.Python,
-			envs:                  map[string]string{"PWD": "testdata/python"},
-			expectedGeneratedName: "flask",
-			fs:                    &subUsmTestData,
+			lang:                        language.Python,
+			envs:                        map[string]string{"PWD": "testdata/python"},
+			expectedGeneratedName:       "flask",
+			expectedGeneratedNameSource: Python,
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "python - module hello",
 			cmdline: []string{
 				"python3", "-m", "hello",
 			},
-			lang:                  language.Python,
-			expectedGeneratedName: "hello",
+			lang:                        language.Python,
+			expectedGeneratedName:       "hello",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "ruby - td-agent",
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
-			lang:                  language.Ruby,
-			expectedGeneratedName: "td-agent",
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "td-agent",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "java using the -jar flag to define the service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
 			},
-			lang:                  language.Java,
-			expectedGeneratedName: "myservice",
+			lang:                        language.Java,
+			expectedGeneratedName:       "myservice",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "java using the -jar flag to point to a .war",
+			cmdline: []string{
+				"java", "-Duser.home=/var/jenkins_home", "-Dhudson.lifecycle=hudson.lifecycle.ExitLifecycle", "-jar", "/usr/share/jenkins/jenkins.war", "--httpPort=8000",
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "jenkins",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "java class name as service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
-			lang:                  language.Java,
-			expectedGeneratedName: "HelloWorld",
+			lang:                        language.Java,
+			expectedGeneratedName:       "HelloWorld",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "java kafka",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
 			},
-			lang:                  language.Java,
-			expectedGeneratedName: "Kafka",
+			lang:                        language.Java,
+			expectedGeneratedName:       "Kafka",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "java parsing for org.apache projects with cassandra as the service",
@@ -186,16 +209,18 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-cp", "/etc/cassandra:/usr/share/cassandra/lib/HdrHistogram-2.1.9.jar:/usr/share/cassandra/lib/cassandra-driver-core-3.0.1-shaded.jar",
 				"org.apache.cassandra.service.CassandraDaemon",
 			},
-			lang:                  language.Java,
-			expectedGeneratedName: "cassandra",
+			lang:                        language.Java,
+			expectedGeneratedName:       "cassandra",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "java space in java executable path",
 			cmdline: []string{
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
-			lang:                  language.Java,
-			expectedGeneratedName: "cat",
+			lang:                        language.Java,
+			expectedGeneratedName:       "cat",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "node js with package.json not present",
@@ -207,17 +232,31 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
-			lang:                  language.Node,
-			expectedGeneratedName: "node",
+			lang:                        language.Node,
+			expectedGeneratedName:       "node",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "node js with a broken package.json",
 			cmdline: []string{
 				"/usr/bin/node",
-				"./testdata/inner/index.js",
+				"./testdata/inner/app.js",
 			},
-			lang:                  language.Node,
-			expectedGeneratedName: "node",
+			lang:                        language.Node,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+			fs:                          &subUsmTestData,
+		},
+		{
+			name: "node js with a broken package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"./testdata/inner/link",
+			},
+			lang:                        language.Node,
+			expectedGeneratedName:       "link",
+			expectedGeneratedNameSource: CommandLine,
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "node js with a valid package.json",
@@ -229,9 +268,32 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"./testdata/index.js",
 			},
-			lang:                  language.Node,
-			expectedGeneratedName: "my-awesome-package",
-			fs:                    &subUsmTestData,
+			lang:                        language.Node,
+			expectedGeneratedName:       "my-awesome-package",
+			fs:                          &subUsmTestData,
+			expectedGeneratedNameSource: Nodejs,
+		},
+		{
+			name: "nodejs .cjs with a valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"./testdata/foo.cjs",
+			},
+			lang:                        language.Node,
+			expectedGeneratedName:       "my-awesome-package",
+			expectedGeneratedNameSource: Nodejs,
+			fs:                          &subUsmTestData,
+		},
+		{
+			name: "nodejs .mjs with a valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"./testdata/bar.mjs",
+			},
+			lang:                        language.Node,
+			expectedGeneratedName:       "my-awesome-package",
+			expectedGeneratedNameSource: Nodejs,
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "node js with a symlink to a .js file and valid package.json",
@@ -243,10 +305,11 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/bins/broken",
 				"./testdata/bins/json-server",
 			},
-			lang:                  language.Node,
-			expectedGeneratedName: "json-server-package",
-			skipOnWindows:         true,
-			fs:                    &subUsmTestData,
+			lang:                        language.Node,
+			expectedGeneratedName:       "json-server-package",
+			expectedGeneratedNameSource: Nodejs,
+			skipOnWindows:               true,
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "node js with a valid nested package.json and cwd",
@@ -258,10 +321,11 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"index.js",
 			},
-			lang:                  language.Node,
-			envs:                  map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
-			fs:                    &subUsmTestData,
-			expectedGeneratedName: "my-awesome-package",
+			lang:                        language.Node,
+			envs:                        map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
+			fs:                          &subUsmTestData,
+			expectedGeneratedName:       "my-awesome-package",
+			expectedGeneratedNameSource: Nodejs,
 		},
 		{
 			name: "spring boot default options",
@@ -270,8 +334,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-jar",
 				springBootAppFullPath,
 			},
-			lang:                  language.Java,
-			expectedGeneratedName: "default-app",
+			lang:                        language.Java,
+			expectedGeneratedName:       "default-app",
+			expectedGeneratedNameSource: Spring,
 		},
 		{
 			name: "wildfly 18 standalone",
@@ -299,11 +364,12 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Djboss.home.dir=" + jbossTestAppRoot,
 				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone",
 			},
-			lang:                       language.Java,
-			expectedGeneratedName:      "jboss-modules",
-			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
-			fs:                         &sub,
-			envs:                       map[string]string{"PWD": "/sibiling"},
+			lang:                        language.Java,
+			expectedGeneratedName:       "jboss-modules",
+			expectedAdditionalServices:  []string{"my-jboss-webapp", "some_context_root", "web3"},
+			fs:                          &sub,
+			envs:                        map[string]string{"PWD": "/sibiling"},
+			expectedGeneratedNameSource: JBoss,
 		},
 		{
 			name: "wildfly 18 domain",
@@ -334,11 +400,12 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"" + jbossTestAppRoot + "/modules",
 				"org.jboss.as.server",
 			},
-			lang:                       language.Java,
-			expectedGeneratedName:      "jboss-modules",
-			expectedAdditionalServices: []string{"web3", "web4"},
-			fs:                         &sub,
-			envs:                       map[string]string{"PWD": "/sibiling"},
+			lang:                        language.Java,
+			expectedGeneratedName:       "jboss-modules",
+			expectedGeneratedNameSource: JBoss,
+			expectedAdditionalServices:  []string{"web3", "web4"},
+			fs:                          &sub,
+			envs:                        map[string]string{"PWD": "/sibiling"},
 		},
 		{
 			name: "weblogic 12",
@@ -358,19 +425,21 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Dweblogic.home=/u01/oracle/wlserver/server",
 				"weblogic.Server",
 			},
-			lang:                       language.Java,
-			envs:                       map[string]string{"PWD": weblogicTestAppRootAbsolute},
-			expectedGeneratedName:      "Server",
-			expectedAdditionalServices: []string{"my_context", "sample4", "some_context_root"},
+			lang:                        language.Java,
+			envs:                        map[string]string{"PWD": weblogicTestAppRootAbsolute},
+			expectedGeneratedName:       "Server",
+			expectedGeneratedNameSource: WebLogic,
+			expectedAdditionalServices:  []string{"my_context", "sample4", "some_context_root"},
 		},
 		{
 			name: "java with dd_service as system property",
 			cmdline: []string{
 				"/usr/bin/java", "-Ddd.service=custom", "-jar", "app.jar",
 			},
-			lang:                  language.Java,
-			expectedDDService:     "custom",
-			expectedGeneratedName: "app",
+			lang:                        language.Java,
+			expectedDDService:           "custom",
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			// The system property takes priority over the environment variable, see
@@ -379,10 +448,11 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/java", "-Ddd.service=dd-service-from-property", "-jar", "app.jar",
 			},
-			lang:                  language.Java,
-			envs:                  map[string]string{"DD_SERVICE": "dd-service-from-env"},
-			expectedDDService:     "dd-service-from-property",
-			expectedGeneratedName: "app",
+			lang:                        language.Java,
+			envs:                        map[string]string{"DD_SERVICE": "dd-service-from-env"},
+			expectedDDService:           "dd-service-from-property",
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "Tomcat 10.X",
@@ -406,34 +476,38 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"org.apache.catalina.startup.Bootstrap",
 				"start",
 			},
-			lang:                       language.Java,
-			expectedGeneratedName:      "catalina",
-			expectedAdditionalServices: []string{"app2", "custom"},
-			fs:                         &subUsmTestData,
+			lang:                        language.Java,
+			expectedGeneratedName:       "catalina",
+			expectedGeneratedNameSource: Tomcat,
+			expectedAdditionalServices:  []string{"app2", "custom"},
+			fs:                          &subUsmTestData,
 		},
 		{
 			name: "dotnet cmd with dll",
 			cmdline: []string{
 				"/usr/bin/dotnet", "./myservice.dll",
 			},
-			lang:                  language.DotNet,
-			expectedGeneratedName: "myservice",
+			lang:                        language.DotNet,
+			expectedGeneratedName:       "myservice",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "dotnet cmd with dll and options",
 			cmdline: []string{
 				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
 			},
-			lang:                  language.DotNet,
-			expectedGeneratedName: "myservice",
+			lang:                        language.DotNet,
+			expectedGeneratedName:       "myservice",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "dotnet cmd with unrecognized options",
 			cmdline: []string{
 				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
 			},
-			lang:                  language.DotNet,
-			expectedGeneratedName: "dotnet",
+			lang:                        language.DotNet,
+			expectedGeneratedName:       "dotnet",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "PHP Laravel",
@@ -442,8 +516,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"serve",
 			},
-			lang:                  language.PHP,
-			expectedGeneratedName: "laravel",
+			lang:                        language.PHP,
+			expectedGeneratedName:       "laravel",
+			expectedGeneratedNameSource: Laravel,
 		},
 		{
 			name: "Plain PHP with INI",
@@ -452,8 +527,10 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-ddatadog.service=foo",
 				"swoole-server.php",
 			},
-			lang:                  language.PHP,
-			expectedGeneratedName: "foo",
+			lang:                        language.PHP,
+			expectedDDService:           "foo",
+			expectedGeneratedName:       "php",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "PHP with version number",
@@ -462,8 +539,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"migrate:fresh",
 			},
-			lang:                  language.PHP,
-			expectedGeneratedName: "laravel",
+			lang:                        language.PHP,
+			expectedGeneratedName:       "laravel",
+			expectedGeneratedNameSource: Laravel,
 		},
 		{
 			name: "PHP with two-digit version number",
@@ -472,8 +550,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"migrate:fresh",
 			},
-			lang:                  language.PHP,
-			expectedGeneratedName: "laravel",
+			lang:                        language.PHP,
+			expectedGeneratedName:       "laravel",
+			expectedGeneratedNameSource: Laravel,
 		},
 		{
 			name: "PHP-FPM shouldn't trigger php parsing",
@@ -481,7 +560,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"php-fpm",
 				"artisan",
 			},
-			expectedGeneratedName: "php-fpm",
+			expectedGeneratedName:       "php-fpm",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "PHP-FPM with version number shouldn't trigger php parsing",
@@ -489,32 +569,36 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"php8.1-fpm",
 				"artisan",
 			},
-			expectedGeneratedName: "php8",
+			expectedGeneratedName:       "php8",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
-			name:                  "DD_SERVICE_set_manually",
-			cmdline:               []string{"java", "-jar", "Foo.jar"},
-			lang:                  language.Java,
-			envs:                  map[string]string{"DD_SERVICE": "howdy"},
-			expectedDDService:     "howdy",
-			expectedGeneratedName: "Foo",
+			name:                        "DD_SERVICE_set_manually",
+			cmdline:                     []string{"java", "-jar", "Foo.jar"},
+			lang:                        language.Java,
+			envs:                        map[string]string{"DD_SERVICE": "howdy"},
+			expectedDDService:           "howdy",
+			expectedGeneratedName:       "Foo",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
-			name:                  "DD_SERVICE_set_manually_tags",
-			cmdline:               []string{"java", "-jar", "Foo.jar"},
-			lang:                  language.Java,
-			envs:                  map[string]string{"DD_TAGS": "service:howdy"},
-			expectedDDService:     "howdy",
-			expectedGeneratedName: "Foo",
+			name:                        "DD_SERVICE_set_manually_tags",
+			cmdline:                     []string{"java", "-jar", "Foo.jar"},
+			lang:                        language.Java,
+			envs:                        map[string]string{"DD_TAGS": "service:howdy"},
+			expectedDDService:           "howdy",
+			expectedGeneratedName:       "Foo",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
-			name:                  "DD_SERVICE_set_manually_injection",
-			cmdline:               []string{"java", "-jar", "Foo.jar"},
-			lang:                  language.Java,
-			envs:                  map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
-			expectedDDService:     "howdy",
-			expectedGeneratedName: "Foo",
-			ddServiceInjected:     true,
+			name:                        "DD_SERVICE_set_manually_injection",
+			cmdline:                     []string{"java", "-jar", "Foo.jar"},
+			lang:                        language.Java,
+			envs:                        map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
+			expectedDDService:           "howdy",
+			expectedGeneratedName:       "Foo",
+			expectedGeneratedNameSource: CommandLine,
+			ddServiceInjected:           true,
 		},
 		{
 			name: "gunicorn simple",
@@ -523,8 +607,21 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--workers=2",
 				"test:app",
 			},
-			lang:                  language.Python,
-			expectedGeneratedName: "test",
+			lang:                        language.Python,
+			expectedGeneratedName:       "test",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "gunicorn simple with python",
+			cmdline: []string{
+				"/usr/bin/python3",
+				"/usr/bin/gunicorn",
+				"--workers=2",
+				"foo:create_app()",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "foo",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn from name",
@@ -537,7 +634,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"dummy",
 				"test:app",
 			},
-			expectedGeneratedName: "dummy",
+			expectedGeneratedName:       "dummy",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn from name (long arg)",
@@ -549,7 +647,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--name=dummy",
 				"test:app",
 			},
-			expectedGeneratedName: "dummy",
+			expectedGeneratedName:       "dummy",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn from name in env",
@@ -557,16 +656,18 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"test:app",
 			},
-			envs:                  map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3 -n dummy"},
-			expectedGeneratedName: "dummy",
+			envs:                        map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3 -n dummy"},
+			expectedGeneratedName:       "dummy",
+			expectedGeneratedNameSource: Gunicorn,
 		},
 		{
 			name: "gunicorn without app found",
 			cmdline: []string{
 				"gunicorn",
 			},
-			envs:                  map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3"},
-			expectedGeneratedName: "gunicorn",
+			envs:                        map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3"},
+			expectedGeneratedName:       "gunicorn",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn with partial wsgi app",
@@ -574,7 +675,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"my.package",
 			},
-			expectedGeneratedName: "my.package",
+			expectedGeneratedName:       "my.package",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn with empty WSGI_APP env",
@@ -582,16 +684,18 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"my.package",
 			},
-			envs:                  map[string]string{"WSGI_APP": ""},
-			expectedGeneratedName: "my.package",
+			envs:                        map[string]string{"WSGI_APP": ""},
+			expectedGeneratedName:       "my.package",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn with WSGI_APP env",
 			cmdline: []string{
 				"gunicorn",
 			},
-			envs:                  map[string]string{"WSGI_APP": "test:app"},
-			expectedGeneratedName: "test",
+			envs:                        map[string]string{"WSGI_APP": "test:app"},
+			expectedGeneratedName:       "test",
+			expectedGeneratedNameSource: Gunicorn,
 		},
 		{
 			name: "gunicorn with replaced cmdline with colon",
@@ -600,7 +704,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"master",
 				"[domains.foo.apps.bar:create_server()]",
 			},
-			expectedGeneratedName: "domains.foo.apps.bar",
+			expectedGeneratedName:       "domains.foo.apps.bar",
+			expectedGeneratedNameSource: CommandLine,
 		},
 		{
 			name: "gunicorn with replaced cmdline",
@@ -609,7 +714,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"master",
 				"[mcservice]",
 			},
-			expectedGeneratedName: "mcservice",
+			expectedGeneratedName:       "mcservice",
+			expectedGeneratedNameSource: CommandLine,
 		},
 	}
 
@@ -635,6 +741,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				require.Equal(t, tt.expectedGeneratedName, meta.Name)
 				require.Equal(t, tt.expectedAdditionalServices, meta.AdditionalNames)
 				require.Equal(t, tt.ddServiceInjected, meta.DDServiceInjected)
+				require.Equal(t, tt.expectedGeneratedNameSource, meta.Source)
 			}
 		})
 	}

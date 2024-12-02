@@ -44,6 +44,7 @@ import (
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -78,6 +79,7 @@ type usmHTTP2Suite struct {
 
 func (s *usmHTTP2Suite) getCfg() *config.Config {
 	cfg := config.New()
+	cfg.EnableIstioMonitoring = false
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -151,7 +153,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	clients := getHTTP2UnixClientArray(2, unixPath)
@@ -213,7 +215,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []struct {
@@ -401,7 +403,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		t.Run(tt.name, func(t *testing.T) {
 			monitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			tt.runClients(t, 1)
@@ -456,7 +458,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	const (
@@ -522,7 +524,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 	tests := []struct {
 		name              string
@@ -1320,7 +1322,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1406,7 +1408,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 		t.Run(tt.name, func(t *testing.T) {
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1476,7 +1478,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 		t.Run(tt.name, func(t *testing.T) {
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1509,6 +1511,8 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 func TestHTTP2InFlightMapCleaner(t *testing.T) {
 	skipIfKernelNotSupported(t)
 	cfg := config.New()
+	cfg.EnableGoTLSSupport = false
+	cfg.EnableIstioMonitoring = false
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
@@ -1924,11 +1928,11 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 // getHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
 func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telemetry, error) {
 	http2Telemetry := &usmhttp2.HTTP2Telemetry{}
-	var zero uint32
 
 	mapName := usmhttp2.TelemetryMap
+	key := uint32(0)
 	if isTLS {
-		mapName = usmhttp2.TLSTelemetryMap
+		key = uint32(1)
 	}
 
 	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
@@ -1936,7 +1940,7 @@ func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telem
 		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
 	}
 
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+	if err := mp.Lookup(unsafe.Pointer(&key), unsafe.Pointer(http2Telemetry)); err != nil {
 		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
 	}
 	return http2Telemetry, nil

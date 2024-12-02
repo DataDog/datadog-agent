@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"sync"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -28,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -106,19 +105,16 @@ type WindowsProbe struct {
 	// actions
 	processKiller *ProcessKiller
 
-	// enabled probes
-	isRenameEnabled           bool
-	isWriteEnabled            bool
-	isDeleteEnabled           bool
-	isChangePermissionEnabled bool
+	enabledEventTypesLock sync.RWMutex
+	enabledEventTypes     map[string]bool
+
 	// channel handling.  Currently configurable, but should probably be set
 	// to false with a configurable size value
 	blockonchannelsend bool
 
 	// approvers
-	currentEventTypes []string
-	approvers         map[eval.Field][]approver
-	approverLock      sync.RWMutex
+	approvers    map[eval.Field][]approver
+	approverLock sync.RWMutex
 }
 
 type writeRateLimiterKey struct {
@@ -318,16 +314,17 @@ func (p *WindowsProbe) reconfigureProvider() error {
 			idClose,
 		}
 
-		if p.isWriteEnabled {
+		// reconfigureProvider should be called with the enabledEventTypesLock held for reading
+		if p.enabledEventTypes[model.WriteFileEventType.String()] {
 			fileIDs = append(fileIDs, idWrite)
 		}
-		if p.isRenameEnabled {
+		if p.enabledEventTypes[model.FileRenameEventType.String()] {
 			fileIDs = append(fileIDs, idRename, idRenamePath, idRename29)
 		}
-		if p.isDeleteEnabled {
+		if p.enabledEventTypes[model.DeleteFileEventType.String()] {
 			fileIDs = append(fileIDs, idSetDelete, idDeletePath)
 		}
-		if p.isChangePermissionEnabled {
+		if p.enabledEventTypes[model.ChangePermissionEventType.String()] {
 			fileIDs = append(fileIDs, idObjectPermsChange)
 		}
 
@@ -361,6 +358,23 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0xF7E3
+
+		regIDs := []uint16{}
+		// reconfigureProvider should be called with the enabledEventTypesLock held for reading
+		if p.enabledEventTypes[model.CreateRegistryKeyEventType.String()] {
+			regIDs = append(regIDs, idRegCreateKey)
+		}
+		if p.enabledEventTypes[model.OpenRegistryKeyEventType.String()] {
+			regIDs = append(regIDs, idRegOpenKey)
+		}
+		if p.enabledEventTypes[model.DeleteRegistryKeyEventType.String()] {
+			regIDs = append(regIDs, idRegDeleteKey)
+		}
+		if p.enabledEventTypes[model.SetRegistryKeyValueEventType.String()] {
+			regIDs = append(regIDs, idRegSetValueKey)
+		}
+
+		cfg.EnabledIDs = regIDs
 	})
 
 	if p.auditSession != nil {
@@ -432,8 +446,10 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 
 	approvers, exists := p.approvers[field]
 	if !exists {
+		p.enabledEventTypesLock.RLock()
+		defer p.enabledEventTypesLock.RUnlock()
 		// no approvers, so no filtering for this field, except if no rule for this event type
-		return slices.Contains(p.currentEventTypes, eventType)
+		return p.enabledEventTypes[eventType]
 	}
 
 	for _, approver := range approvers {
@@ -453,11 +469,9 @@ func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.auditguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idObjectPermsChange:
-				if p.isChangePermissionEnabled {
-					if pc, err := p.parseObjectPermsChange(e); err == nil {
-						log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
-						ecb(pc, e.EventHeader.ProcessID)
-					}
+				if pc, err := p.parseObjectPermsChange(e); err == nil {
+					log.Tracef("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
+					ecb(pc, e.EventHeader.ProcessID)
 				}
 			}
 		}
@@ -1253,6 +1267,8 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		discardedFileHandles: dfh,
 
+		enabledEventTypes: make(map[string]bool),
+
 		approvers: make(map[eval.Field][]approver),
 
 		volumeMap: make(map[string]string),
@@ -1274,13 +1290,17 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
 	}
 	p.probe = probe
-	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, telemetry)
+
+	resolversOpts := resolvers.Opts{
+		Tagger: probe.Opts.Tagger,
+	}
+	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1306,24 +1326,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	p.isWriteEnabled = false
-	p.isRenameEnabled = false
-	p.isDeleteEnabled = false
-	p.isChangePermissionEnabled = false
-	p.currentEventTypes = rs.GetEventTypes()
-
-	for _, eventType := range p.currentEventTypes {
-		switch eventType {
-		case model.FileRenameEventType.String():
-			p.isRenameEnabled = true
-		case model.WriteFileEventType.String():
-			p.isWriteEnabled = true
-		case model.DeleteFileEventType.String():
-			p.isDeleteEnabled = true
-		case model.ChangePermissionEventType.String():
-			p.isChangePermissionEnabled = true
-		}
+	p.enabledEventTypesLock.Lock()
+	clear(p.enabledEventTypes)
+	for _, eventType := range rs.GetEventTypes() {
+		p.enabledEventTypes[eventType] = true
 	}
+	p.enabledEventTypesLock.Unlock()
 
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
@@ -1333,7 +1341,6 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	// remove old approvers
 	p.approverLock.Lock()
 	defer p.approverLock.Unlock()
-
 	clear(p.approvers)
 
 	for eventType, report := range ars.Policies {
@@ -1342,6 +1349,8 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
+	p.enabledEventTypesLock.RLock()
+	defer p.enabledEventTypesLock.RUnlock()
 	if err := p.reconfigureProvider(); err != nil {
 		return nil, err
 	}
@@ -1447,7 +1456,7 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 func (p *WindowsProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
 // GetEventTags returns the event tags
-func (p *WindowsProbe) GetEventTags(_ string) []string {
+func (p *WindowsProbe) GetEventTags(_ containerutils.ContainerID) []string {
 	return nil
 }
 
@@ -1468,12 +1477,12 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
 
-	pp, err := NewWindowsProbe(p, config, opts, telemetry)
+	pp, err := NewWindowsProbe(p, config, opts)
 	if err != nil {
 		return nil, err
 	}

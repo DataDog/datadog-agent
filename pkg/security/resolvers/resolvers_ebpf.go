@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -50,7 +49,7 @@ type EBPFResolvers struct {
 	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         tags.Resolver
+	TagsResolver         *tags.LinuxResolver
 	DentryResolver       *dentry.Resolver
 	ProcessResolver      *process.EBPFResolver
 	NamespaceResolver    *netns.Resolver
@@ -64,7 +63,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, telemetry telemetry.Component) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -91,17 +90,12 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	var tagsResolver tags.Resolver
-	if opts.TagsResolver != nil {
-		tagsResolver = opts.TagsResolver
-	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry)
-	}
-
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+	cgroupsResolver, err := cgroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}
+
+	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -112,7 +106,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}
-		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+		if err := tagsResolver.RegisterListener(tags.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
 			return nil, err
 		}
 	}

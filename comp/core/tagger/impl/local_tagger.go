@@ -41,7 +41,7 @@ type localTagger struct {
 
 func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (tagger.Component, error) {
 	return &localTagger{
-		tagStore:       tagstore.NewTagStore(cfg, telemetryStore),
+		tagStore:       tagstore.NewTagStore(telemetryStore),
 		workloadStore:  wmeta,
 		telemetryStore: telemetryStore,
 		cfg:            cfg,
@@ -60,7 +60,7 @@ func (t *localTagger) Start(ctx context.Context) error {
 	)
 
 	go t.tagStore.Run(t.ctx)
-	go t.collector.Run(t.ctx)
+	go t.collector.Run(t.ctx, t.cfg)
 
 	return nil
 }

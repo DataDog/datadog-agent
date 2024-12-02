@@ -6,8 +6,6 @@
 package model
 
 import (
-	"bytes"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -40,7 +38,7 @@ func TestConcurrencySetGet(t *testing.T) {
 	assert.Equal(t, config.GetString("foo"), "bar")
 }
 
-func TestConcurrencyUnmarshalling(t *testing.T) {
+func TestConcurrencyUnmarshalling(_ *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.SetDefault("foo", map[string]string{})
@@ -48,38 +46,20 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	config.SetDefault("baz", "test")
 
 	var wg sync.WaitGroup
-	errs := make(chan error, 1000)
 
 	wg.Add(2)
-	go func() {
+	getter := func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
 			config.GetStringMapString("foo")
 		}
-	}()
-
-	var s *[]string
-	go func() {
-		defer wg.Done()
-		for n := 0; n <= 1000; n++ {
-			err := config.UnmarshalKey("foo", &s)
-			if err != nil {
-				errs <- fmt.Errorf("unable to decode into struct, %w", err)
-				return
-			}
-		}
-	}()
+	}
+	go getter()
+	go getter()
 
 	go func() {
 		wg.Wait()
-		close(errs)
 	}()
-
-	for err := range errs {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 }
 
 func TestGetConfigEnvVars(t *testing.T) {
@@ -109,57 +89,6 @@ func TestGetConfigEnvVarsDedupe(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, count)
-}
-
-func TestGetFloat64SliceE(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-
-	config.BindEnv("float_list")
-	config.SetConfigType("yaml")
-	yamlExample := []byte(`---
-float_list:
-  - 1.1
-  - "2.2"
-  - 3.3
-`)
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	list, err := config.GetFloat64SliceE("float_list")
-	assert.NoError(t, err)
-	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
-
-	yamlExample = []byte(`---
-float_list:
-  - a
-  - 2.2
-  - 3.3
-`)
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	list, err = config.GetFloat64SliceE("float_list")
-	assert.NotNil(t, err)
-	assert.Equal(t, "value 'a' from 'float_list' is not a float64", err.Error())
-	assert.Nil(t, list)
-}
-
-func TestGetFloat64SliceEEnv(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-
-	config.BindEnv("float_list")
-	config.SetConfigType("yaml")
-
-	yamlExample := []byte(`
-float_list:
-- 25
-`)
-
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
-
-	list, err := config.GetFloat64SliceE("float_list")
-	assert.NoError(t, err)
-	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
 func TestSet(t *testing.T) {
@@ -318,26 +247,6 @@ func TestCheckKnownKey(t *testing.T) {
 
 	config.Get("foobar")
 	assert.Contains(t, config.unknownKeys, "foobar")
-}
-
-func TestCopyConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	config.SetDefault("baz", "qux")
-	config.Set("foo", "bar", SourceFile)
-	config.BindEnv("xyz", "XXYYZZ")
-	config.SetKnown("tyu")
-	config.OnUpdate(func(_ string, _, _ any) {})
-
-	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	backup.CopyConfig(config)
-
-	assert.Equal(t, "qux", backup.Get("baz"))
-	assert.Equal(t, "bar", backup.Get("foo"))
-	t.Setenv("XXYYZZ", "value")
-	assert.Equal(t, "value", backup.Get("xyz"))
-	assert.True(t, backup.IsKnown("tyu"))
-	// can't compare function pointers directly so just check the number of callbacks
-	assert.Len(t, backup.(*safeConfig).notificationReceivers, 1, "notification receivers should be copied")
 }
 
 func TestExtraConfig(t *testing.T) {

@@ -310,9 +310,11 @@ func (c *safeConfig) IsSet(key string) bool {
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.AllKeys()
+	c.Lock()
+	defer c.Unlock()
+	res := c.Viper.AllKeys()
+	slices.Sort(res)
+	return res
 }
 
 // Get wraps Viper for concurrent access
@@ -414,18 +416,6 @@ func (c *safeConfig) GetFloat64(key string) float64 {
 	return val
 }
 
-// GetTime wraps Viper for concurrent access
-func (c *safeConfig) GetTime(key string) time.Time {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetTimeE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
 // GetDuration wraps Viper for concurrent access
 func (c *safeConfig) GetDuration(key string) time.Duration {
 	c.RLock()
@@ -451,7 +441,7 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 }
 
 // GetFloat64SliceE loads a key as a []float64
-func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
+func (c *safeConfig) GetFloat64Slice(key string) []float64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -459,18 +449,20 @@ func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	// We're using GetStringSlice because viper can only parse list of string from env variables
 	list, err := c.Viper.GetStringSliceE(key)
 	if err != nil {
-		return nil, fmt.Errorf("'%v' is not a list", key)
+		log.Warnf("'%v' is not a list", key)
+		return nil
 	}
 
 	res := []float64{}
 	for _, item := range list {
 		nb, err := strconv.ParseFloat(item, 64)
 		if err != nil {
-			return nil, fmt.Errorf("value '%v' from '%v' is not a float64", item, key)
+			log.Warnf("value '%v' from '%v' is not a float64", item, key)
+			return nil
 		}
 		res = append(res, nb)
 	}
-	return res, nil
+	return res
 }
 
 // GetStringMap wraps Viper for concurrent access
@@ -713,17 +705,6 @@ func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	sources := []Source{
-		SourceDefault,
-		SourceUnknown,
-		SourceFile,
-		SourceEnvVar,
-		SourceFleetPolicies,
-		SourceAgentRuntime,
-		SourceRC,
-		SourceCLI,
-		SourceLocalConfigProcess,
-	}
 	res := map[Source]interface{}{}
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
@@ -856,24 +837,9 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	return &config
 }
 
-// CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
-// the global config reference is unsafe.
-func (c *safeConfig) CopyConfig(cfg Config) {
-	c.Lock()
-	defer c.Unlock()
-
-	if cfg, ok := cfg.(*safeConfig); ok {
-		c.Viper = cfg.Viper
-		c.configSources = cfg.configSources
-		c.envPrefix = cfg.envPrefix
-		c.envKeyReplacer = cfg.envKeyReplacer
-		c.proxies = cfg.proxies
-		c.configEnvVars = cfg.configEnvVars
-		c.unknownKeys = cfg.unknownKeys
-		c.notificationReceivers = cfg.notificationReceivers
-		return
-	}
-	panic("Replacement config must be an instance of safeConfig")
+// Stringify stringifies the config, but only for nodetremodel with the test build tag
+func (c *safeConfig) Stringify(_ Source) string {
+	return "safeConfig{...}"
 }
 
 // GetProxies returns the proxy settings from the configuration
