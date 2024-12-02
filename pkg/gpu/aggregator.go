@@ -40,9 +40,6 @@ type aggregator struct {
 
 	// sysCtx is the system context with global GPU-system data
 	sysCtx *systemContext
-
-	// metadata is the metadata for the process
-	metadata model.Metadata
 }
 
 func newAggregator(sysCtx *systemContext) *aggregator {

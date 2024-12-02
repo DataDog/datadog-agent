@@ -40,7 +40,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
 	for key, handler := range g.streamHandlers {
-		aggr := g.getOrCreateAggregator(key, handler.containerID)
+		aggr := g.getOrCreateAggregator(key)
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData(true)
 
@@ -66,7 +66,6 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	for aggKey, aggr := range g.aggregators {
 		entry := model.StatsTuple{
 			Key:                aggKey,
-			Metadata:           aggr.metadata,
 			UtilizationMetrics: aggr.getStats(normFactor),
 		}
 		stats.Metrics = append(stats.Metrics, entry)
@@ -77,15 +76,15 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	return stats
 }
 
-func (g *statsGenerator) getOrCreateAggregator(sKey streamKey, containerID string) *aggregator {
+func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
 	aggKey := model.StatsKey{
-		PID:        sKey.pid,
-		DeviceUUID: sKey.gpuUUID,
+		PID:         sKey.pid,
+		DeviceUUID:  sKey.gpuUUID,
+		ContainerID: sKey.containerID,
 	}
 
 	if _, ok := g.aggregators[aggKey]; !ok {
 		g.aggregators[aggKey] = newAggregator(g.sysCtx)
-		g.aggregators[aggKey].metadata.ContainerID = containerID
 	}
 
 	// Update the last check time and the measured interval, as these change between check runs

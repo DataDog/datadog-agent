@@ -138,7 +138,7 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	for _, entry := range stats.Metrics {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
-		tags := m.getTagsForKey(key, entry.Metadata)
+		tags := m.getTagsForKey(key)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
@@ -149,7 +149,7 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	// Remove the PIDs that we didn't see in this check
 	for key, active := range m.activeMetrics {
 		if !active {
-			tags := m.getTagsForKey(key, model.Metadata{})
+			tags := m.getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
 			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
@@ -161,21 +161,22 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	return nil
 }
 
-func (m *Check) getTagsForKey(key model.StatsKey, metadata model.Metadata) []string {
+func (m *Check) getTagsForKey(key model.StatsKey) []string {
 	// Per-PID metrics are subject to change due to high cardinality
-	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, metadata.ContainerID)
+	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
 	tags, err := m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
 	if err != nil {
 		log.Errorf("Error collecting tags for process %d: %s", key.PID, err)
 	}
 
-	// Add the PID as a tag
-	tags = append(tags, fmt.Sprintf("pid:%d", key.PID))
+	// Add the key fields as tags
+	keyTags := []string{
+		fmt.Sprintf("pid:%d", key.PID),
+		fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID),
+		fmt.Sprintf("container_id:%s", key.ContainerID),
+	}
 
-	// GPU is still not included in workloadmeta data, so we need to add it manually
-	tags = append(tags, fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID))
-
-	return tags
+	return append(tags, keyTags...)
 }
 
 func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
