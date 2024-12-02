@@ -48,7 +48,7 @@ func (s *haAgentTestSuite) TestHaAgentGroupTagPresentOnDatadogAgentRunningMetric
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 		for _, metric := range metrics {
-			s.T().Logf("    datadog.agent.running metric in fake intake: %+v", metric)
+			s.T().Logf("    datadog.agent.running metric tags: %+v", metric.Tags)
 		}
 
 		tags := []string{"agent_group:test-group01"}
