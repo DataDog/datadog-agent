@@ -1090,6 +1090,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
+	// used to override the path where the IPC cert/key files are stored/retrieved
+	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
