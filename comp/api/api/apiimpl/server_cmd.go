@@ -7,8 +7,6 @@ package apiimpl
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"time"
@@ -35,8 +33,6 @@ const cmdServerShortName string = "CMD"
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
-	tlsConfig *tls.Config,
-	tlsCertPool *x509.CertPool,
 	tmf observability.TelemetryMiddlewareFactory,
 	cfg config.Component,
 ) (err error) {
@@ -54,7 +50,7 @@ func (server *apiServer) startCMDServer(
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
+		grpc.Creds(credentials.NewTLS(server.authToken.GetTLSServerConfig())),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		grpc.MaxRecvMsgSize(maxMessageSize),
@@ -78,11 +74,7 @@ func (server *apiServer) startCMDServer(
 		remoteAgentRegistry: server.remoteAgentRegistry,
 	})
 
-	dcreds := credentials.NewTLS(&tls.Config{
-		ServerName: cmdAddr,
-		RootCAs:    tlsCertPool,
-	})
-	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(server.authToken.GetTLSServerConfig()))}
 
 	// starting grpc gateway
 	ctx := context.Background()
@@ -132,7 +124,7 @@ func (server *apiServer) startCMDServer(
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,
-		tlsConfig,
+		server.authToken.GetTLSServerConfig(),
 		s,
 		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second),
 	)
