@@ -169,3 +169,80 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 		})
 	}
 }
+
+func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
+	testAgentHostname := "my-agent-hostname"
+	tests := []struct {
+		name                       string
+		leader                     string
+		agentConfigs               map[string]interface{}
+		expectShouldRunIntegration map[string]bool
+	}{
+		{
+			name: "ha agent enabled and agent is leader",
+			// should run HA-integrations
+			// should run "non HA integrations"
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader: testAgentHostname,
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                true,
+				"cisco_aci":           true,
+				"cisco_sdwan":         true,
+				"network_path":        true,
+				"unknown_integration": true,
+				"cpu":                 true,
+			},
+		},
+		{
+			name: "ha agent enabled and agent is not leader",
+			// should skip HA-integrations
+			// should run "non HA integrations"
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader: "another-agent-is-leader",
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                false,
+				"cisco_aci":           false,
+				"cisco_sdwan":         false,
+				"network_path":        false,
+				"unknown_integration": true,
+				"cpu":                 true,
+			},
+		},
+		{
+			name: "ha agent not enabled",
+			// should run all integrations
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": false,
+				"ha_agent.group":   testGroup,
+			},
+			leader: testAgentHostname,
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                true,
+				"cisco_aci":           true,
+				"cisco_sdwan":         true,
+				"network_path":        true,
+				"unknown_integration": true,
+				"cpu":                 true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
+			haAgent.Comp.SetLeader(tt.leader)
+
+			for integrationName, shouldRun := range tt.expectShouldRunIntegration {
+				assert.Equalf(t, shouldRun, haAgent.Comp.ShouldRunIntegration(integrationName), "fail for integration: "+integrationName)
+			}
+		})
+	}
+}

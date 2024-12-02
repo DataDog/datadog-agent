@@ -22,4 +22,7 @@ type Component interface {
 	// SetLeader takes the leader agent hostname as input, if it matches the current agent hostname,
 	// the isLeader state is set to true, otherwise false.
 	SetLeader(leaderAgentHostname string)
+
+	// ShouldRunIntegration returns true if the integration should be run
+	ShouldRunIntegration(integrationName string) bool
 }

@@ -25,7 +25,7 @@ import (
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -196,7 +196,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.SkipSSLValidation = core.GetBool("skip_ssl_validation")
 	}
 	if core.IsSet("apm_config.enabled") {
-		c.Enabled = core.GetBool("apm_config.enabled")
+		c.Enabled = utils.IsAPMEnabled(core)
 	}
 	if pkgconfigsetup.Datadog().IsSet("apm_config.log_file") {
 		c.LogFilePath = pkgconfigsetup.Datadog().GetString("apm_config.log_file")
@@ -357,7 +357,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
-	if otlp.IsEnabled(pkgconfigsetup.Datadog()) {
+	if configcheck.IsEnabled(pkgconfigsetup.Datadog()) {
 		grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
 	}
 

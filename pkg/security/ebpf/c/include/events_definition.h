@@ -324,6 +324,7 @@ struct ptrace_event_t {
     u32 request;
     u32 pid;
     u64 addr;
+    u32 ns_pid;
 };
 
 struct syscall_monitor_event_t {

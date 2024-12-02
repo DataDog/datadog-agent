@@ -180,6 +180,13 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
 # * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
 RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 
+# Enable FIPS if needed
+RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
+  /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
+fi
+# This is used by MSGO to enable FIPS mode so it won't affect the non-FIPS image
+ENV GOFIPS=1
+
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
