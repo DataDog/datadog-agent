@@ -14,6 +14,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
@@ -123,6 +124,8 @@ type ProcessCheck struct {
 	serviceExtractor *parser.ServiceExtractor
 
 	wmeta workloadmetacomp.Component
+
+	nvmlProbe *procutil.NVMLProbe
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -175,6 +178,8 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.initConnRates()
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
+
+	p.nvmlProbe = procutil.NewGpuProbe(p.config)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
@@ -248,6 +253,9 @@ func (p *ProcessCheck) Cleanup() {
 	if p.workloadMetaServer != nil {
 		p.workloadMetaServer.Stop()
 	}
+	if p.nvmlProbe != nil {
+		p.nvmlProbe.Close()
+	}
 }
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
@@ -264,6 +272,8 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	if err != nil {
 		return nil, err
 	}
+
+	p.nvmlProbe.Scan()
 
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
@@ -317,7 +327,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, nil, nil)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -475,6 +485,18 @@ func chunkProcessesAndContainers(
 	return chunker.GetChunks(), totalProcs, totalContainers
 }
 
+func getGPUID(pid int32, deviceByPid map[int32]nvml.Device) string {
+	device, ok := deviceByPid[pid]
+	if !ok {
+		return ""
+	}
+	uuid, err := device.GetUUID()
+	if !errors.Is(err, nvml.SUCCESS) {
+		log.Warn("Failed to get GPU UUID for pid %d: %v", pid, err)
+	}
+	return uuid
+}
+
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
@@ -485,10 +507,11 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
-	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
+	infoByPid map[int32]nvml.ProcessInfo,
+	deviceByPid map[int32]nvml.Device,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -514,6 +537,11 @@ func fmtProcesses(
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+		}
+
+		gpuUUID := getGPUID(fp.Pid, deviceByPid)
+		if gpuUUID != "" {
+			proc.Tags = append(proc.Tags, "gpu_device:"+gpuUUID)
 		}
 
 		if connRates != nil {
