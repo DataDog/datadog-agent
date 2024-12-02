@@ -212,9 +212,6 @@ type Config struct {
 	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
 	EnableEbpfConntracker bool
 
-	// ClosedChannelSize specifies the size for closed channel for the tracer
-	ClosedChannelSize int
-
 	// ClosedBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up.
 	ClosedBufferWakeupCount int
 
@@ -321,8 +318,7 @@ func New() *Config {
 		MaxTrackedConnections:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
 		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
-		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_connection_flush_threshold")),
-		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_channel_size")),
+		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_connection_flush_threshold")),
 		ClosedBufferWakeupCount:        cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_buffer_wakeup_count")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:              2 * time.Minute,
