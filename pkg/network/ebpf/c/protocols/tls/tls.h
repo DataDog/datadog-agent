@@ -16,7 +16,7 @@
 #define TLS_APPLICATION_DATA 0x17
 
 #define SUPPORTED_VERSIONS_EXTENSION 0x002B
-#define MAX_EXTENSIONS 3
+#define MAX_EXTENSIONS 16
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
@@ -204,74 +204,74 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     __u16 extension_length;
     __u8 sv_list_length;
 
-    // #pragma unroll(MAX_EXTENSIONS)
-    for (int i = 0; i < MAX_EXTENSIONS; i++) {
-        if (offset + 4 > extensions_end) {
-            break;
-        }
-        // Read Extension Type (2 bytes)
-        if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
-            return -1;
-        extension_type = bpf_ntohs(extension_type);
-        offset += 2;
-
-        // Read Extension Length (2 bytes)
-        if (bpf_skb_load_bytes(skb, offset, &extension_length, sizeof(extension_length)) < 0)
-            return -1;
-        extension_length = bpf_ntohs(extension_length);
-        offset += 2;
-
-        // Ensure we don't read beyond the packet
-        if (offset + extension_length > skb_len || offset + extension_length > extensions_end)
-            return -1;
-
-        // Check for supported_versions extension (type 43 or 0x002B)
-        if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
-            // Parse supported_versions extension
-            if (offset + 1 > skb_len)
+    #pragma unroll(MAX_EXTENSIONS)
+        for (int i = 0; i < MAX_EXTENSIONS; i++) {
+            if (offset + 4 > extensions_end) {
+                break;
+            }
+            // Read Extension Type (2 bytes)
+            if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
                 return -1;
+            extension_type = bpf_ntohs(extension_type);
+            offset += 2;
 
-            // Read list length (1 byte)
-            if (bpf_skb_load_bytes(skb, offset, &sv_list_length, sizeof(sv_list_length)) < 0)
+            // Read Extension Length (2 bytes)
+            if (bpf_skb_load_bytes(skb, offset, &extension_length, sizeof(extension_length)) < 0)
                 return -1;
-            offset += 1;
+            extension_length = bpf_ntohs(extension_length);
+            offset += 2;
 
             // Ensure we don't read beyond the packet
-            if (offset + sv_list_length > skb_len || offset + sv_list_length > extensions_end)
+            if (offset + extension_length > skb_len || offset + extension_length > extensions_end)
                 return -1;
 
-            #define MAX_SUPPORTED_VERSIONS 6
-            __u8 num_versions = 0;
-            __u8 i = 0;
-            __u16 sv_version;
-
-            // #pragma unroll(MAX_SUPPORTED_VERSIONS)
-            for (int idx = 0; idx < MAX_SUPPORTED_VERSIONS; idx++) {
-                if (i + 1 >= sv_list_length)
-                    break;
-                if (offset + 2 > skb_len)
+            // Check for supported_versions extension (type 43 or 0x002B)
+            if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
+                // Parse supported_versions extension
+                if (offset + 1 > skb_len)
                     return -1;
 
-                // Load the supported version
-                if (bpf_skb_load_bytes(skb, offset, &sv_version, sizeof(sv_version)) < 0)
+                // Read list length (1 byte)
+                if (bpf_skb_load_bytes(skb, offset, &sv_list_length, sizeof(sv_list_length)) < 0)
                     return -1;
-                sv_version = bpf_ntohs(sv_version);
-                offset += 2;
+                offset += 1;
 
-                // Store the version
-                set_tls_offered_version(tags, sv_version);
+                // Ensure we don't read beyond the packet
+                if (offset + sv_list_length > skb_len || offset + sv_list_length > extensions_end)
+                    return -1;
 
-                num_versions++;
-                i += 2;
+                #define MAX_SUPPORTED_VERSIONS 4
+                __u8 num_versions = 0;
+                __u8 i = 0;
+                __u16 sv_version;
+
+                #pragma unroll(MAX_SUPPORTED_VERSIONS)
+                    for (int idx = 0; idx < MAX_SUPPORTED_VERSIONS; idx++) {
+                        if (i + 1 >= sv_list_length)
+                            break;
+                        if (offset + 2 > skb_len)
+                            return -1;
+
+                        // Load the supported version
+                        if (bpf_skb_load_bytes(skb, offset, &sv_version, sizeof(sv_version)) < 0)
+                            return -1;
+                        sv_version = bpf_ntohs(sv_version);
+                        offset += 2;
+
+                        // Store the version
+                        set_tls_offered_version(tags, sv_version);
+
+                        num_versions++;
+                        i += 2;
+                    }
+            } else {
+                // Skip other extensions
+                offset += extension_length;
             }
-        } else {
-            // Skip other extensions
-            offset += extension_length;
+
+            extensions_parsed++;
         }
-
-        extensions_parsed++;
-    }
-
+    log_debug("adamk successfully parsed client hello message");
     return 0;
 }
 
@@ -358,75 +358,87 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
         __u16 extension_type;
         __u16 extension_length;
         __u16 selected_version;
-        // #pragma unroll(MAX_EXTENSIONS)
-        for (int i = 0; i < MAX_EXTENSIONS; i++) {
-            if (offset + 4 > extensions_end) {
-                break;
-            }
-            // Read Extension Type (2 bytes)
-            if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
-                return -1;
-            extension_type = bpf_ntohs(extension_type);
-            offset += 2;
-
-            // Read Extension Length (2 bytes)
-            if (bpf_skb_load_bytes(skb, offset, &extension_length, sizeof(extension_length)) < 0)
-                return -1;
-            extension_length = bpf_ntohs(extension_length);
-            offset += 2;
-
-            // Ensure we don't read beyond the packet
-            if (offset + extension_length > skb_len || offset + extension_length > extensions_end)
-                return -1;
-
-            // Check for supported_versions extension (type 43 or 0x002B)
-            if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
-                // Parse supported_versions extension
-                if (extension_length != 2)
+        #pragma unroll(MAX_EXTENSIONS)
+            for (int i = 0; i < MAX_EXTENSIONS; i++) {
+                if (offset + 4 > extensions_end) {
+                    break;
+                }
+                // Read Extension Type (2 bytes)
+                if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
                     return -1;
-
-                if (offset + 2 > skb_len)
-                    return -1;
-
-                // Read selected version (2 bytes)
-                if (bpf_skb_load_bytes(skb, offset, &selected_version, sizeof(selected_version)) < 0)
-                    return -1;
-                selected_version = bpf_ntohs(selected_version);
+                extension_type = bpf_ntohs(extension_type);
                 offset += 2;
 
-                tags->chosen_version = selected_version;
-            } else {
-                // Skip other extensions
-                offset += extension_length;
-            }
+                // Read Extension Length (2 bytes)
+                if (bpf_skb_load_bytes(skb, offset, &extension_length, sizeof(extension_length)) < 0)
+                    return -1;
+                extension_length = bpf_ntohs(extension_length);
+                offset += 2;
 
-            extensions_parsed++;
+                // Ensure we don't read beyond the packet
+                if (offset + extension_length > skb_len || offset + extension_length > extensions_end)
+                    return -1;
+
+                // Check for supported_versions extension (type 43 or 0x002B)
+                if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
+                    // Parse supported_versions extension
+                    if (extension_length != 2)
+                        return -1;
+
+                    if (offset + 2 > skb_len)
+                        return -1;
+
+                    // Read selected version (2 bytes)
+                    if (bpf_skb_load_bytes(skb, offset, &selected_version, sizeof(selected_version)) < 0)
+                        return -1;
+                    selected_version = bpf_ntohs(selected_version);
+                    offset += 2;
+
+                    tags->chosen_version = selected_version;
+                } else {
+                    // Skip other extensions
+                    offset += extension_length;
+                }
+
+                extensions_parsed++;
+            }
         }
-    }
+
+    log_debug("adamk successfully parsed server hello message");
 
     return 0;
 }
 
-// parse_tls_payload parses the TLS payload and populates select tags
-static __always_inline int parse_tls_payload(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr, tls_info_t *tags) {
-    // At this point, tls_hdr has already been validated and filled by is_tls()
-    __u64 offset = nh_off + sizeof(tls_record_header_t);
-
-    if (tls_hdr->content_type == TLS_HANDSHAKE) {
-        __u8 handshake_type;
-        if (bpf_skb_load_bytes(skb, offset, &handshake_type, sizeof(handshake_type)) < 0)
-            return -1;
-
-        if (handshake_type == TLS_HANDSHAKE_CLIENT_HELLO) {
-            return parse_client_hello(skb, offset, skb->len, tags);
-        } else if (handshake_type == TLS_HANDSHAKE_SERVER_HELLO) {
-            return parse_server_hello(skb, offset, skb->len, tags);
-        } else {
-            return -1;
-        }
-    } else {
-        return -1;
+static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset) {
+    if (!tls_hdr) {
+        return false;
     }
+    if (tls_hdr->content_type != TLS_HANDSHAKE) {
+        return false;
+    }
+
+    // Read handshake type
+    __u8 handshake_type;
+    if (bpf_skb_load_bytes(skb, offset, &handshake_type, sizeof(handshake_type)) < 0) {
+        return false;
+    }
+    return handshake_type == TLS_HANDSHAKE_CLIENT_HELLO;
+}
+
+static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset) {
+    if (!tls_hdr) {
+        return false;
+    }
+    if (tls_hdr->content_type != TLS_HANDSHAKE) {
+        return false;
+    }
+
+    // Read handshake type
+    __u8 handshake_type;
+    if (bpf_skb_load_bytes(skb, offset, &handshake_type, sizeof(handshake_type)) < 0)
+        return false;
+
+    return handshake_type == TLS_HANDSHAKE_SERVER_HELLO;
 }
 
 #endif // __TLS_H

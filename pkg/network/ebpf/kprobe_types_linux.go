@@ -94,9 +94,9 @@ type BindSyscallArgs struct {
 	Sk   uint64
 }
 type ProtocolStack struct {
+	Encryption  uint8
 	Api         uint8
 	Application uint8
-	Encryption  uint8
 	Flags       uint8
 }
 type ProtocolStackWrapper struct {
@@ -141,7 +141,9 @@ const SizeofConn = 0x78
 type ClassificationProgram = uint32
 
 const (
-	ClassificationQueues ClassificationProgram = 0x2
-	ClassificationDBs    ClassificationProgram = 0x3
-	ClassificationGRPC   ClassificationProgram = 0x5
+	ClassificationTLSClient ClassificationProgram = 0x2
+	ClassificationTLSServer ClassificationProgram = 0x3
+	ClassificationQueues    ClassificationProgram = 0x5
+	ClassificationDBs       ClassificationProgram = 0x6
+	ClassificationGRPC      ClassificationProgram = 0x8
 )

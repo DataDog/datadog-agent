@@ -64,7 +64,9 @@ const SizeofConn = C.sizeof_conn_t
 type ClassificationProgram = uint32
 
 const (
-	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
-	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
-	ClassificationGRPC   ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
+	ClassificationTLSClient ClassificationProgram = C.CLASSIFICATION_TLS_CLIENT_PROG
+	ClassificationTLSServer ClassificationProgram = C.CLASSIFICATION_TLS_SERVER_PROG
+	ClassificationQueues    ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs       ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+	ClassificationGRPC      ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
 )

@@ -32,6 +32,18 @@ int socket__classifier_entry(struct __sk_buff *skb) {
     return 0;
 }
 
+SEC("socket/classifier_tls_handshake_client")
+int socket__classifier_tls_handshake_client(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_tls_handshake_client(skb);
+    return 0;
+}
+
+SEC("socket/classifier_tls_handshake_server")
+int socket__classifier_tls_handshake_server(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_tls_handshake_server(skb);
+    return 0;
+}
+
 SEC("socket/classifier_queues")
 int socket__classifier_queues(struct __sk_buff *skb) {
     protocol_classifier_entrypoint_queues(skb);

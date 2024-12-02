@@ -9,15 +9,15 @@
 // get_protocol_layer(PROTOCOL_HTTP) => LAYER_APPLICATION
 // get_protocol_layer(PROTOCOL_TLS)  => LAYER_ENCRYPTION
 static __always_inline protocol_layer_t get_protocol_layer(protocol_t proto) {
-    u16 layer_bit = proto&(LAYER_API_BIT|LAYER_APPLICATION_BIT|LAYER_ENCRYPTION_BIT);
+    u16 layer_bit = proto&(LAYER_ENCRYPTION_BIT|LAYER_API_BIT|LAYER_APPLICATION_BIT);
 
     switch(layer_bit) {
+    case LAYER_ENCRYPTION_BIT:
+        return LAYER_ENCRYPTION;
     case LAYER_API_BIT:
         return LAYER_API;
     case LAYER_APPLICATION_BIT:
         return LAYER_APPLICATION;
-    case LAYER_ENCRYPTION_BIT:
-        return LAYER_ENCRYPTION;
     }
 
     return LAYER_UNKNOWN;
@@ -37,14 +37,14 @@ static __always_inline void set_protocol(protocol_stack_t *stack, protocol_t pro
     // this is the the number of the protocol without the layer bit set
     __u8 proto_num = (__u8)proto;
     switch(layer) {
+    case LAYER_ENCRYPTION:
+        stack->layer_encryption = proto_num;
+        return;
     case LAYER_API:
         stack->layer_api = proto_num;
         return;
     case LAYER_APPLICATION:
         stack->layer_application = proto_num;
-        return;
-    case LAYER_ENCRYPTION:
-        stack->layer_encryption = proto_num;
         return;
     default:
         return;
@@ -92,6 +92,10 @@ __maybe_unused static __always_inline protocol_t get_protocol_from_stack(protoco
     __u16 proto_num = 0;
     __u16 layer_bit = 0;
     switch(layer) {
+    case LAYER_ENCRYPTION:
+        proto_num = stack->layer_encryption;
+        layer_bit = LAYER_ENCRYPTION_BIT;
+        break;
     case LAYER_API:
         proto_num = stack->layer_api;
         layer_bit = LAYER_API_BIT;
@@ -99,10 +103,6 @@ __maybe_unused static __always_inline protocol_t get_protocol_from_stack(protoco
     case LAYER_APPLICATION:
         proto_num = stack->layer_application;
         layer_bit = LAYER_APPLICATION_BIT;
-        break;
-    case LAYER_ENCRYPTION:
-        proto_num = stack->layer_encryption;
-        layer_bit = LAYER_ENCRYPTION_BIT;
         break;
     default:
         break;
@@ -131,14 +131,14 @@ static __always_inline void merge_protocol_stacks(protocol_stack_t *this, protoc
         return;
     }
 
+    if (!this->layer_encryption) {
+        this->layer_encryption = that->layer_encryption;
+    }
     if (!this->layer_api) {
         this->layer_api = that->layer_api;
     }
     if (!this->layer_application) {
         this->layer_application = that->layer_application;
-    }
-    if (!this->layer_encryption) {
-        this->layer_encryption = that->layer_encryption;
     }
 
     this->flags |= that->flags;

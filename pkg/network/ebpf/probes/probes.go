@@ -27,6 +27,10 @@ const (
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
 	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
+	// ProtocolClassifierTLSClientSocketFilter runs classification rules for the TLS client hello packet
+	ProtocolClassifierTLSClientSocketFilter ProbeFuncName = "socket__classifier_tls_handshake_client"
+	// ProtocolClassifierTLSServerSocketFilter runs classification rules for the TLS server hello packet
+	ProtocolClassifierTLSServerSocketFilter ProbeFuncName = "socket__classifier_tls_handshake_server"
 	// ProtocolClassifierQueuesSocketFilter runs a classification rules for Queue protocols.
 	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
 	// ProtocolClassifierDBsSocketFilter runs a classification rules for DB protocols.

@@ -27,21 +27,23 @@ static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tupl
 }
 
 static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
-    return bpf_map_lookup_elem(&tls_enhanced_tags, tuple);
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
 }
 
 static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t *tuple) {
-    conn_tuple_t normalized_tup = *tuple;
-    normalize_tuple(&normalized_tup);
-
-    tls_info_t *tags = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+    tls_info_t *tags = get_tls_enhanced_tags(tuple);
     if (!tags) {
-        tls_info_t empty_tags = {0};
-        bpf_map_update_elem(&tls_enhanced_tags, &normalized_tup, &empty_tags, BPF_NOEXIST);
+        conn_tuple_t normalized_tup = *tuple;
+        normalize_tuple(&normalized_tup);
+        tls_info_t empty_tags = {.reserved = 1};
+        bpf_map_update_elem(&tls_enhanced_tags, &normalized_tup, &empty_tags, BPF_ANY);
         tags = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
     }
     return tags;
 }
+
 
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;

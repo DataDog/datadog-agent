@@ -19,6 +19,8 @@ import (
 var mainProbes = []probes.ProbeFuncName{
 	probes.NetDevQueue,
 	probes.ProtocolClassifierEntrySocketFilter,
+	probes.ProtocolClassifierTLSClientSocketFilter,
+	probes.ProtocolClassifierTLSServerSocketFilter,
 	probes.ProtocolClassifierQueuesSocketFilter,
 	probes.ProtocolClassifierDBsSocketFilter,
 	probes.ProtocolClassifierGRPCSocketFilter,

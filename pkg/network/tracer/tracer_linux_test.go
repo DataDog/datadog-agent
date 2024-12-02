@@ -2570,8 +2570,9 @@ func (s *TracerSuite) TestTLSClassification() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
-	port, err := tracertestutil.GetFreePort()
-	require.NoError(t, err)
+	//port, err := tracertestutil.GetFreePort()
+	port := uint16(44957)
+	//require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
 
 	tr := setupTracer(t, cfg)
@@ -2583,6 +2584,7 @@ func (s *TracerSuite) TestTLSClassification() {
 	}
 	tests := make([]tlsTest, 0)
 	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+		//for _, scenario := range []uint16{tls.VersionTLS12} {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
