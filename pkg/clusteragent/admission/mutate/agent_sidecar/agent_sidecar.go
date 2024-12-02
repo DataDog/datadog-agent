@@ -169,13 +169,6 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
-			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profilesJSON)
-			if err != nil {
-				log.Errorf("Failed to apply profile overrides: %v", err)
-				return podUpdated, errors.New(metrics.InvalidInput)
-			}
-			podUpdated = podUpdated || updated
-
 			if isOwnedByJob(pod.OwnerReferences) {
 				updated, err = withEnvOverrides(&pod.Spec.Containers[i], corev1.EnvVar{
 					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
@@ -184,6 +177,13 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 			}
 			if err != nil {
 				log.Errorf("Failed to apply env overrides: %v", err)
+				return podUpdated, errors.New(metrics.InvalidInput)
+			}
+			podUpdated = podUpdated || updated
+
+			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profilesJSON)
+			if err != nil {
+				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
 			}
 			podUpdated = podUpdated || updated
