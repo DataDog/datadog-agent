@@ -194,6 +194,12 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
+	if p.kernelVersion.Code < kernel.Kernel6_1 {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return
+	}
+
 	if !p.kernelVersion.HaveFentrySupport() {
 		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
