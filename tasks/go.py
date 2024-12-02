@@ -127,6 +127,8 @@ def deps_vendored(ctx, verbose=False):
     with timed("go mod vendor"):
         verbosity = ' -v' if verbose else ''
 
+        # We need to set GOWORK=off to avoid the go command to use the go.work directory
+        # It is needed because it does not work very well with vendoring, we should no longer need it when we get rid of vendoring. ADXR-766
         ctx.run(f"go mod vendor{verbosity}", env={"GOWORK": "off"})
         ctx.run(f"go mod tidy{verbosity}", env={"GOWORK": "off"})
 
