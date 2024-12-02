@@ -84,13 +84,13 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	events := c.parsePods(updatedPods)
+	events := parsePods(updatedPods)
 
 	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
-			events = append(events, c.parseExpires(expiredIDs)...)
+			events = append(events, parseExpires(expiredIDs)...)
 			c.lastExpire = time.Now()
 		}
 	}
@@ -108,7 +108,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -132,14 +132,14 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			ID:   podMeta.UID,
 		}
 
-		podInitContainers, initContainerEvents := c.parsePodContainers(
+		podInitContainers, initContainerEvents := parsePodContainers(
 			pod,
 			pod.Spec.InitContainers,
 			pod.Status.InitContainers,
 			&podID,
 		)
 
-		podContainers, containerEvents := c.parsePodContainers(
+		podContainers, containerEvents := parsePodContainers(
 			pod,
 			pod.Spec.Containers,
 			pod.Status.Containers,
@@ -195,7 +195,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 	return events
 }
 
-func (c *collector) parsePodContainers(
+func parsePodContainers(
 	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
@@ -457,7 +457,7 @@ func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.Cont
 	return nil
 }
 
-func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
+func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
 	podTerminatedTime := time.Now()
 
