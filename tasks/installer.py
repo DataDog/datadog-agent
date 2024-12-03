@@ -96,11 +96,11 @@ def build_linux_script(
         arm64_path = output_bin + "-bootstrapper-linux-arm64"
 
     ctx.run(
-        f'inv -e installer.build --bootstrapper --rebuild --no-no-strip-binary --output-bin {amd64_path} --no-cgo',
+        f'inv -e installer.build --bootstrapper --no-no-strip-binary --output-bin {amd64_path} --no-cgo',
         env={'GOOS': 'linux', 'GOARCH': 'amd64'},
     )
     ctx.run(
-        f'inv -e installer.build --bootstrapper --rebuild --no-no-strip-binary --output-bin {arm64_path} --no-cgo',
+        f'inv -e installer.build --bootstrapper --no-no-strip-binary --output-bin {arm64_path} --no-cgo',
         env={'GOOS': 'linux', 'GOARCH': 'arm64'},
     )
     with open(amd64_path, 'rb') as f:
