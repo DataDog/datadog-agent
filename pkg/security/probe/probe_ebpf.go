@@ -194,6 +194,12 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
+	if p.kernelVersion.Code < kernel.Kernel6_1 {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return
+	}
+
 	if !p.kernelVersion.HaveFentrySupport() {
 		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
@@ -203,6 +209,12 @@ func (p *EBPFProbe) selectFentryMode() {
 	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
 		p.useFentry = false
 		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
 		return
 	}
 
@@ -818,7 +830,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if pce != nil {
 			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
 			if err == nil && path != "" {
-				cgroupID := containerutils.CGroupID(filepath.Dir(string(path)))
+				if !p.kernelVersion.IsRH7Kernel() {
+					path = filepath.Dir(string(path))
+				}
+
+				cgroupID := containerutils.CGroupID(path)
 				pce.CGroup.CGroupID = cgroupID
 				pce.Process.CGroup.CGroupID = cgroupID
 				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)

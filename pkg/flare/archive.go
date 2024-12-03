@@ -23,6 +23,7 @@ import (
 
 	"github.com/fatih/color"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -30,7 +31,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/flare/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -143,18 +143,11 @@ func provideConfigDump(fb flaretypes.FlareBuilder) error {
 }
 
 func provideSystemProbe(fb flaretypes.FlareBuilder) error {
-	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
-	if systemProbeConfigBPFDir != "" {
-		fb.RegisterDirPerm(systemProbeConfigBPFDir)
-	}
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)    // nolint:errcheck
+		_ = fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
 	}
 	return nil
 }
@@ -261,16 +254,9 @@ func getSystemProbeStats() ([]byte, error) {
 }
 
 func getSystemProbeTelemetry() ([]byte, error) {
-	return sysprobe.GetSystemProbeTelemetry(getSystemProbeSocketPath())
-}
-func getSystemProbeConntrackCached() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackCached(getSystemProbeSocketPath())
-}
-func getSystemProbeConntrackHost() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
-}
-func getSystemProbeBTFLoaderInfo() ([]byte, error) {
-	return sysprobe.GetSystemProbeBTFLoaderInfo(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.URL("/telemetry")
+	return getHTTPData(sysProbeClient, url)
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
@@ -532,4 +518,27 @@ func functionOutputToBytes(fct func(writer io.Writer) error) []byte {
 	writer.Flush()
 
 	return buffer.Bytes()
+}
+
+func getHTTPData(client *http.Client, url string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("non-ok status code: url: %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(data))
+	}
+	return data, nil
 }

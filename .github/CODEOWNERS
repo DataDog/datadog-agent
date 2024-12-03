@@ -45,6 +45,8 @@
 /static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-shared-components
+# if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
+/go.work                                @DataDog/agent-shared-components
 
 /.circleci/                             @DataDog/agent-devx-infra
 
@@ -428,7 +430,6 @@
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
-/pkg/flare/sysprobe                     @DataDog/Networks @Datadog/windows-agent @DataDog/agent-security @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
@@ -611,6 +612,7 @@
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/universal-service-monitoring
+/test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
