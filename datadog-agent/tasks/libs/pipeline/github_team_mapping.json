@@ -1,0 +1,1450 @@
+{
+  "aaa-access": {
+    "teams": [
+      "team-aaa-access"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C024FSP2F33"
+  },
+  "aaa-authn": {
+    "teams": [
+      "team-aaa-authn",
+      "credentials-management"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02S3STU39N"
+  },
+  "aaa-core-access": {
+    "teams": [
+      "aaa-core-access"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C024FSP2F33"
+  },
+  "aaa-core-data": {
+    "teams": [
+      "aaa-core-data"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C057GQ5FS2V"
+  },
+  "aaa-granular-access": {
+    "teams": [
+      "aaa-granular-access"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02H3LT75U7"
+  },
+  "aaa-identity": {
+    "teams": [
+      "team-aaa-identity",
+      "aaa-onboarding",
+      "aaa-user"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C023W97KDNJ"
+  },
+  "aaa-omg": {
+    "teams": [
+      "aaa-omg"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07BE207AMV"
+  },
+  "aaa-frontend": {
+    "teams": [
+      "aaa-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06ULG9870E"
+  },
+  "agent-all": {
+    "teams": [
+      "agent-all"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C7C3A0GGK"
+  },
+  "agent-apm": {
+    "teams": [
+      "agent-apm"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CK4KK761W"
+  },
+  "agent-cspm": {
+    "teams": [
+      "k9-cspm-agent"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02LE0M45CP"
+  },
+  "agent-e2e-testing": {
+    "teams": [
+      "agent-e2e-testing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03SBNANMLP"
+  },
+  "agent-metrics-logs": {
+    "teams": [
+      "agent-metrics-logs"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03EC7JKSMV"
+  },
+  "agent-integrations": {
+    "teams": [
+      "agent-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C9WBCH0AF",
+    "reviewChannel": "https://dd.slack.com/archives/C06E366NH2B"
+  },
+  "agent-delivery": {
+    "teams": [
+      "agent-delivery"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06PQ7H6PHP",
+    "reviewChannel": "https://dd.slack.com/archives/C06PQ6KD5BK"
+  },
+  "agent-devx-infra": {
+    "teams": [
+      "agent-devx-infra"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06PBHLD4DQ",
+    "reviewChannel": "https://dd.slack.com/archives/C06P2KX149M"
+  },
+  "agent-devx-loops": {
+    "teams": [
+      "agent-devx-loops"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06PBHLD4DQ",
+    "reviewChannel": "https://dd.slack.com/archives/C06P4TAJ2Q6"
+  },
+  "agent-processing-and-routing": {
+    "teams": [
+      "agent-processing-and-routing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06DYV5HN3Y"
+  },
+  "agent-security": {
+    "teams": [
+      "agent-security"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C079HEE9AP6"
+  },
+  "agent-shared-components": {
+    "teams": [
+      "agent-shared-components",
+      "agent-core"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03ER8VH3NY"
+  },
+  "alerting-platform-automation": {
+    "teams": [
+      "alerting-platform-automation"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0126SPN293"
+  },
+  "api-management": {
+    "teams": [
+      "api-management",
+      "api-management-product"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03NL2GSB17"
+  },
+  "apm": {
+    "teams": [
+      "apm-app",
+      "apm-core-app",
+      "apm-core",
+      "apm-insights",
+      "apm-distributed-tracing-experience",
+      "apm",
+      "service-observability-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CBGCZ9P5Y",
+    "notificationChannel": "C04JLFBS82J"
+  },
+  "apm-onboarding": {
+    "teams": [
+      "apm-onboarding"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CLWN64GAW"
+  },
+  "apm-reliability-and-performance": {
+    "teams": [
+      "apm-reliability-and-performance"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CVC6YCQCV"
+  },
+  "apm-trace-intake": {
+    "teams": [
+      "apm-trace-intake"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CB16ZTXJ6"
+  },
+  "apm-trace-storage": {
+    "teams": [
+      "apm-trace-storage"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02FKLS4ETW"
+  },
+  "app": {
+    "teams": [
+      "app-builder",
+      "app-builder-frontend",
+      "app-builder-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02JYPDKMLN",
+    "reviewChannel": "https://dd.slack.com/archives/C05JNBPMZ7H",
+    "notificationChannel": "C02HR7AL892"
+  },
+  "apps-sdk": {
+    "teams": [
+      "apps-sdk"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03BGHF8A94"
+  },
+  "asm-frontend": {
+    "teams": [
+      "asm-frontend",
+      "appsec-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01TYQ5JQTH",
+    "notificationChannel": "C0294HMU5GF"
+  },
+  "asm-backend": {
+    "teams": [
+      "appsec-platform",
+      "asm-threats-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02RQN6B2AH"
+  },
+  "asm-vm": {
+    "teams": [
+      "asm-vulns-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C044G9WTBH7"
+  },
+  "asm-respond-backend": {
+    "teams": [
+      "asm-threats-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01UQV7HA3A"
+  },
+  "asm-monitor-backend": {
+    "teams": [
+      "asm-threats-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C025MNFS9UN"
+  },
+  "aws-integrations": {
+    "teams": [
+      "aws-integrations",
+      "aws-context",
+      "aws-core",
+      "aws-customer-experience",
+      "aws-metrics"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CMQKBPE0Y",
+    "reviewChannel": "https://dd.slack.com/archives/C040F0Q04KZ"
+  },
+  "azure-integrations": {
+    "teams": [
+      "azure-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C021AL93U64"
+  },
+  "billing-experience": {
+    "teams": [
+      "billing-experience",
+      "billing-exp-eng",
+      "red-zone-billing-exp"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01BCD6S4AV"
+  },
+  "bti": {
+    "teams": [
+      "ci-execution",
+      "ci-platforms"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06TGQ49U1Z"
+  },
+  "bugle": {
+    "teams": [
+      "bugle"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06QEPH4HFS"
+  },
+  "caching-platform": {
+    "teams": [
+      "caching-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01DCTCFV35"
+  },
+  "case-management": {
+    "teams": [
+      "case-management"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C043TDC168M"
+  },
+  "ccm-frontend": {
+    "teams": [
+      "ccm-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C071TMCV3RB"
+  },
+  "chat-integrations": {
+    "teams": [
+      "chat-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C042MGW93PE"
+  },
+  "ci-app": {
+    "teams": [
+      "ci-app-frontend",
+      "ci-app",
+      "ci-app-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C016LJLRZQ9"
+  },
+  "cloud-cost-management": {
+    "teams": [
+      "cloud-cost-management-visibility",
+      "cloud-cost-management",
+      "cloud-cost-management-optimize"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C016B1M08F6"
+  },
+  "collaboration-integrations": {
+    "teams": [
+      "collaboration-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01HRH7HHC6"
+  },
+  "compute-cloud": {
+    "teams": [
+      "Cloudops/Maintainers/Admin",
+      "compute-cloud",
+      "managed-iam"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C5H6CU79C",
+    "reviewChannel": "https://dd.slack.com/archives/C5H6CU79C"
+  },
+  "container-ecosystems": {
+    "teams": [
+      "container-ecosystems"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C037CDX0WJV"
+  },
+  "container-integrations": {
+    "teams": [
+      "container-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C4TQDFK1P"
+  },
+  "container-platform": {
+    "teams": [
+      "container-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0702JHC7G8"
+  },
+  "core-observability": {
+    "teams": [
+      "team-coreobservability"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03BZTDFUKY"
+  },
+  "cloud-integrations-platform": {
+    "teams": [
+      "cloud-integrations-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01SDB8GQUQ"
+  },
+  "cloudcraft": {
+    "teams": [
+      "cloudcraft"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C049D3U9363"
+  },
+  "k9-agentless": {
+    "teams": [
+      "k9-agentless",
+      "csm-agentless"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C060000V94Y",
+    "notificationChannel": "C07DJLF0Q2W"
+  },
+  "k9-cloud-siem": {
+    "teams": [
+      "cloud-siem-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02PKN3LV96"
+  },
+  "k9-cloud-security-platform": {
+    "teams": [
+      "k9-cloud-security-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02JDES4T8E"
+  },
+  "k9-cws-backend": {
+    "teams": [
+      "k9-cws-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C04QY2BD3QR"
+  },
+  "k9-cloud-security-posture-management": {
+    "teams": [
+      "k9-cloud-security-posture-management"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02G5J4FB0E"
+  },
+  "compliance-engineering": {
+    "teams": [
+      "compliance-operations",
+      "compliance-ops",
+      "compliance-engineering"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CQY4VAHGB"
+  },
+  "container-app": {
+    "teams": [
+      "container-app",
+      "container-apps"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CSY06FKSP"
+  },
+  "core-app": {
+    "teams": [
+      "core-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CJRUJGBDE"
+  },
+  "coscreen": {
+    "teams": [
+      "coscreen"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02SJ317RGE"
+  },
+  "cremebrulee": {
+    "teams": [
+      "cremebrulee"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01CL5Y0C12"
+  },
+  "dashboards": {
+    "teams": [
+      "dashboards"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C3V1GBML6",
+    "notificationChannel": "C7SQYMTSQ"
+  },
+  "dashboards-backend": {
+    "teams": [
+      "dashboards-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CB30LPCA3"
+  },
+  "dashbooks": {
+    "teams": [
+      "dashbooks-frontend-core"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C04ENHQ9M3N"
+  },
+  "data-eng-dev-exp": {
+    "teams": [
+      "data-eng-dev-exp"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02V050637T"
+  },
+  "data-science-apps": {
+    "teams": [
+      "data-science-apps"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01MB450LDU",
+    "notificationChannel": "C01RBM9CU2H"
+  },
+  "data-science-events": {
+    "teams": [
+      "data-science-events"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01NW6H6YLQ"
+  },
+  "data-streams": {
+    "teams": [
+      "data-streams-monitoring",
+      "data-streams-monitoring-frontend",
+      "data-streams"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02FFNF9VN0"
+  },
+  "data-streams-monitoring": {
+    "teams": [
+      "data-streams-monitoring",
+      "data-streams-monitoring-frontend",
+      "data-streams"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02FFNF9VN0"
+  },
+  "data-streams-monitoring-frontend": {
+    "teams": [
+      "data-streams-monitoring",
+      "data-streams-monitoring-frontend",
+      "data-streams"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02FFNF9VN0"
+  },
+  "data-jobs": {
+    "teams": [
+      "data-jobs-monitoring",
+      "data-jobs-monitoring-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05DAN6ULF6"
+  },
+  "data-jobs-monitoring": {
+    "teams": [
+      "data-jobs-monitoring",
+      "data-jobs-monitoring-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05DAN6ULF6"
+  },
+  "data-jobs-monitoring-frontend": {
+    "teams": [
+      "data-jobs-monitoring",
+      "data-jobs-monitoring-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05DAN6ULF6"
+  },
+  "data-observability": {
+    "teams": [
+      "data-observability-monitoring",
+      "data-observability-monitoring-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05VB5B6U1H"
+  },
+  "data-observability-frontend": {
+    "teams": [
+      "data-observability-monitoring",
+      "data-observability-monitoring-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05VB5B6U1H"
+  },
+  "database-monitoring": {
+    "teams": [
+      "database-monitoring"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C011QG8MJBA"
+  },
+  "dataviz": {
+    "teams": [
+      "dataviz",
+      "dataviz-core"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C78KL9WMA"
+  },
+  "dataviz-maps": {
+    "teams": [
+      "dataviz-maps"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C042CEHSKF0"
+  },
+  "ddsql": {
+    "teams": [
+      "ddql",
+      "ddsql"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CV9L96MAQ"
+  },
+  "cross-product-query": {
+    "teams": [
+      "cross-product-query"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0499U34U3S"
+  },
+  "composite-query-and-dataset": {
+    "teams": [
+      "composite-query-and-dataset"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C04J68QUMGW"
+  },
+  "query-gateway": {
+    "teams": [
+      "query-gateway"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CV9L96MAQ"
+  },
+  "query-planning": {
+    "teams": [
+      "query-planning"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03KCKQ068M"
+  },
+  "shuffle-service": {
+    "teams": [
+      "shuffle-service"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C032AD9B937"
+  },
+  "team-queryconnectors": {
+    "teams": [
+      "team-queryconnectors"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07FRE80Y0K"
+  },
+  "trino": {
+    "teams": [
+      "trino"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05BLK85N5Q"
+  },
+  "team-derived-datasets": {
+    "teams": [
+      "team-derived-datasets"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C054M02TWBB"
+  },
+  "team-querydataplane": {
+    "teams": [
+      "team-querydataplane"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07NZ8HDWMD"
+  },
+  "f-f-platform-integration": {
+    "teams": [
+      "f-f-platform-integration"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03NEPE6JQ7"
+  },
+  "dependency-management": {
+    "teams": [
+      "team-dependencymanagement"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05UJQPRUN5"
+  },
+  "debugger": {
+    "teams": [
+      "debugger"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01L679F33M"
+  },
+  "designops": {
+    "teams": [
+      "designops"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C8394098X"
+  },
+  "edge-computing": {
+    "teams": [
+      "edge-computing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06UEMF2SG6"
+  },
+  "enterprise-eng": {
+    "teams": [
+      "corp-it-eng",
+      "enterprise-eng-integrations",
+      "enterprise-eng-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C012X3C11FD"
+  },
+  "designops-searchbar": {
+    "teams": [
+      "designops-searchbar"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C04TH01JB5F",
+    "notificationChannel": "C04LVN5F9EK"
+  },
+  "documentation": {
+    "teams": [
+      "documentation"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0DESMBQU"
+  },
+  "ebpf-platform": {
+    "teams": [
+      "ebpf-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0424HA1SJK",
+    "reviewChannel": "https://dd.slack.com/archives/C04RSKR2WEQ"
+  },
+  "ecosystems": {
+    "teams": [
+      "ecosystems"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01TXLCHQMT"
+  },
+  "error-tracking": {
+    "teams": [
+      "error-tracking"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CRACGM5LZ"
+  },
+  "error-tracking-frontend": {
+    "teams": [
+      "error-tracking-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05341N2EAE"
+  },
+  "error-tracking-backend": {
+    "teams": [
+      "error-tracking-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0519NA9N2K"
+  },
+  "event-backend-client": {
+    "teams": [
+      "event-backend-client"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C011C40M8H5"
+  },
+  "event-correlation": {
+    "teams": [
+      "event-correlation"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C044SRS8P53"
+  },
+  "event-management": {
+    "teams": [
+      "event-management"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01879MPHSR"
+  },
+  "event-platform-automation": {
+    "teams": [
+      "event-platform-automation"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02HRDRHS6N"
+  },
+  "event-platform-experience": {
+    "teams": [
+      "event-platform-experience"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01FD04HXN0",
+    "reviewChannel": "https://dd.slack.com/archives/C01FD04HXN0"
+  },
+  "event-platform-intake": {
+    "teams": [
+      "event-platform-intake"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C6ZMBPGVC",
+    "reviewChannel": "https://dd.slack.com/archives/C6ZMBPGVC"
+  },
+  "event-platform-onboarding": {
+    "teams": [
+      "event-platform-onboarding"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03KHPH7189",
+    "notificationChannel": "https://dd.slack.com/archives/C0729162WTH",
+    "reviewChannel": "https://dd.slack.com/archives/C03KHPH7189"
+  },
+  "event-platform-pipelines": {
+    "teams": [
+      "event-platform-pipelines"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02T60B6LTS",
+    "notificationChannel": "https://dd.slack.com/archives/C042R8JKCSX",
+    "reviewChannel": "https://dd.slack.com/archives/C02T60B6LTS"
+  },
+  "event-platform-processing": {
+    "teams": [
+      "event-platform-processing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03K54C9WBC",
+    "notificationChannel": "https://dd.slack.com/archives/C07338K81A4",
+    "reviewChannel": "https://dd.slack.com/archives/C03K54C9WBC"
+  },
+  "event-platform-stateful-streaming": {
+    "teams": [
+      "event-platform-stateful-event-processing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01DKLU0DJ5"
+  },
+  "event-platform-streaming": {
+    "teams": [
+      "event-platform-streaming"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02SJGZJ32Q",
+    "reviewChannel": "https://dd.slack.com/archives/C02SJGZJ32Q"
+  },
+  "event-storage-query-io": {
+    "teams": [
+      "event-storage-query-io"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07QJ00MTUL",
+    "reviewChannel": "https://dd.slack.com/archives/C07QJ00MTUL"
+  },
+  "event-storage-routing": {
+    "teams": [
+      "event-storage-routing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07QJ00MTUL"
+  },
+  "events-ui": {
+    "teams": [
+      "events-ui"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CKPE6CN06"
+  },
+  "fleet": {
+    "teams": [
+      "fleet"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05PUSNU4H5"
+  },
+  "frontend": {
+    "teams": [],
+    "slackChannel": "https://dd.slack.com/archives/C01D7RGAPB8"
+  },
+  "frontend-api": {
+    "teams": [
+      "frontend-api"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C011W2Q6U90"
+  },
+  "frontend-devtools": {
+    "teams": [
+      "frontend-devtools"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05J2FVNBDM"
+  },
+  "frontend-devx": {
+    "teams": [
+      "frontend-devx"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CA14UNDNY"
+  },
+  "frontend-framework": {
+    "teams": [
+      "frontend-framework"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03L4SD0XDW"
+  },
+  "frontend-storybook": {
+    "teams": [
+      "frontend-storybook"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01PX33QCKZ"
+  },
+  "frontend-parser-guild": {
+    "teams": [
+      "frontend-parser-guild"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C022UBT3FJS",
+    "notificationChannel": "C022UBT3FJS"
+  },
+  "gcp-integrations": {
+    "teams": [
+      "gcp-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C020EA1PNLE"
+  },
+  "graphing-experience": {
+    "teams": [
+      "graphing-experience"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C015GL93WD7"
+  },
+  "incident-app": {
+    "teams": [
+      "incident-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C913XRWQH"
+  },
+  "incident-management": {
+    "teams": [
+      "incident-management"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02CL7YCZMH"
+  },
+  "infra-app": {
+    "teams": [
+      "infra-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0197N28W5R"
+  },
+  "infrastructure-and-integrations": {
+    "teams": [
+      "infrastructure-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01C4E552HJ"
+  },
+  "infrastructure-management": {
+    "teams": [
+      "infrastructure-management"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02N2SSA3NK"
+  },
+  "integrations-platform": {
+    "teams": [
+      "integrations-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C072SLTQX1Q"
+  },
+  "integrations-tools-and-libraries": {
+    "teams": [
+      "integrations-tools-and-libraries",
+      "api-clients"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CHXRF0UG3"
+  },
+  "itsec": {
+    "teams": [
+      "corp-it-security"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02BLHAEYG5"
+  },
+  "k9": {
+    "teams": [
+      "k9-app-cspm",
+      "k9-app",
+      "k9-cspm",
+      "k9-subtest"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01JW8ZK476",
+    "notificationChannel": "CQSFS6L59"
+  },
+  "k9-vm-frontend": {
+    "teams": [
+      "k9-vm-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07DND7G30A",
+    "notificationChannel": "C07SAG7SBB5"
+  },
+  "k9-attacks-frontend": {
+    "teams": [
+      "k9-attacks-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07MT7KH44C",
+    "notificationChannel": "C081B6HPNGG"
+  },
+  "language-tools": {
+    "teams": [
+      "language-tools"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C037TU5AEJ0"
+  },
+  "logs-access": {
+    "teams": [
+      "logs-access"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C050ED01ZUY",
+    "notificationChannel": "C04RV72J95W"
+  },
+  "logs-backend": {
+    "teams": [
+      "logs-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C010JKY9S3Z"
+  },
+  "logs-core": {
+    "teams": [
+      "logs-core"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03A4P0207Q"
+  },
+  "logs-forwarding": {
+    "teams": [
+      "logs-forwarding"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07FWG078AE"
+  },
+  "logs-ingestion": {
+    "teams": [
+      "logs-ingestion"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07FZ0UG4CC"
+  },
+  "logs-io": {
+    "teams": [
+      "logs-io"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03A8G43UNR"
+  },
+  "logs-query": {
+    "teams": [
+      "logs-query"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06PMEVM17W"
+  },
+  "logs-experience": {
+    "teams": [
+      "logs-app",
+      "logs-experience"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C050ED34Y48",
+    "notificationChannel": "C783Y2D99"
+  },
+  "logs-analysis-workspace": {
+    "teams": [
+      "logs-analysis-workspace"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06G7MFAEJH",
+    "notificationChannel": "C06G7MFAEJH"
+  },
+  "marketplace": {
+    "teams": [
+      "marketplace",
+      "marketplace-eng"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01TXLCHQMT"
+  },
+  "metadata-storage-platform": {
+    "teams": [
+      "metadata-storage-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0465E0SKD4"
+  },
+  "metrics-experience": {
+    "teams": [
+      "metrics-experience"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C051GQ4M27P"
+  },
+  "metrics-platform-automation": {
+    "teams": [
+      "metrics-platform-automation"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0188M9GC82"
+  },
+  "metrics-query": {
+    "teams": [
+      "metrics-query"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C55N0V8R5"
+  },
+  "metrics-intake": {
+    "teams": [
+      "metrics-intake-edge",
+      "metrics-intake-processing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C54A7PVAM"
+  },
+  "metrics-hosts": {
+    "teams": [
+      "metrics-hosts"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07GDDMD1PW"
+  },
+  "ml-observability": {
+    "teams": [
+      "ml-observability"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05BF5NSM5Z"
+  },
+  "mobile-app": {
+    "teams": [
+      "mobile-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CBL5TLCA0"
+  },
+  "monitor-app": {
+    "teams": [
+      "monitor-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CFAPKSARY"
+  },
+  "monitor-intake": {
+    "teams": [
+      "monitor-intake"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CKAN0FK3R"
+  },
+  "monitor-notifications": {
+    "teams": [
+      "monitor-notifications"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CFA7F3T2M"
+  },
+  "monitor-scheduling": {
+    "teams": [
+      "monitor-scheduling"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C039R45USF9"
+  },
+  "mortar-ui": {
+    "teams": [
+      "mortar-ui"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C026T72JCEL"
+  },
+  "ndm-core": {
+    "teams": [
+      "network-device-monitoring",
+      "ndm",
+      "ndm-core"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07RHJTEFRD"
+  },
+  "ndm-integrations": {
+    "teams": [
+      "ndm-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07S0UH4R0C"
+  },
+  "network-apps": {
+    "teams": [
+      "network-apps ",
+      "network-apps"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0233AKRZ0B"
+  },
+  "networks": {
+    "teams": [
+      "networks"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CFB4213BJ"
+  },
+  "notebooks": {
+    "teams": [
+      "notebooks"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CTW36HC2D",
+    "notificationChannel": "C06UTFR4KPC"
+  },
+  "observability-pipelines": {
+    "teams": [
+      "observability-pipelines"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02JRE3DKMY"
+  },
+  "observability-platform": {
+    "teams": [
+      "observability-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06SP5SNXV2"
+  },
+  "opentelemetry": {
+    "teams": [
+      "opentelemetry"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CK82ME3QQ"
+  },
+  "orgstore": {
+    "teams": [
+      "orgstore",
+      "orgstore-control-plane",
+      "orgstore-engine",
+      "orgstore-search"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C04HNAA15KL"
+  },
+  "platform-integrations": {
+    "teams": [
+      "platform-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0429FTHWMV"
+  },
+  "processes": {
+    "teams": [
+      "processes",
+      "burrito",
+      "process-apps"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05404GL3R8",
+    "repoSpecificReviewChannels": {
+      "datadog-agent": "https://dd.slack.com/archives/C14NJUZ3N"
+    }
+  },
+  "profiling": {
+    "teams": [
+      "profiling-app",
+      "profiling"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CH05N19HA"
+  },
+  "redapl-experiences": {
+    "teams": [
+      "redapl-experiences"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CKG46PUN4"
+  },
+  "release-tracking": {
+    "teams": [
+      "release-tracking"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03QGPSVBT3"
+  },
+  "remote-config": {
+    "teams": [
+      "remote-config"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01HVED6Q1M"
+  },
+  "remote-config-frontend": {
+    "teams": [
+      "remote-config-frontend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03LLLYDP8D"
+  },
+  "reporting-and-sharing": {
+    "teams": [
+      "reporting-and-sharing"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C071TTDDW8Y"
+  },
+  "rum": {
+    "teams": [
+      "rum",
+      "rum-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01CB6TSKST"
+  },
+  "rum-backend": {
+    "teams": [
+      "rum-backend"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01GGUDJFJ6"
+  },
+  "rum-browser-sdk": {
+    "teams": [
+      "rum-browser-sdk"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01UQK8CX0F"
+  },
+  "rum-product-analytics": {
+    "teams": [
+      "rum-product-analytics",
+      "product-analytics"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03PJP7LKND"
+  },
+  "rum-session-replay": {
+    "teams": [
+      "rum-replay",
+      "replay"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01BZPJ52VD"
+  },
+  "runtime-configuration": {
+    "teams": [
+      "runtime-configuration",
+      "runtime-configuration-integrations",
+      "runtime-configuration-management-plane"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02F4P13AM6"
+  },
+  "runtime-orchestration-platform": {
+    "teams": [
+      "deployments",
+      "runtime-orchestration-platform"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C072FE9DJAZ"
+  },
+  "rust-review-squad": {
+    "teams": [
+      "rust-review-squad"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C06GHSYP0SX"
+  },
+  "sensitive-data-scanner": {
+    "teams": [
+      "sensitive-data-scanner"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01EF92BCJH",
+    "notificationChannel": "C07HJ825NJ2"
+  },
+  "search-experiences": {
+    "teams": [
+      "search-experiences"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C05F3KWNNTW",
+    "notificationChannel": "C065HNTRFMY"
+  },
+  "serverless": {
+    "teams": [
+      "serverless-app",
+      "serverless"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CBWDFKWV8"
+  },
+  "serverless-cloud-tracing": {
+    "teams": [
+      "serverless-cloud-tracing",
+      "serverless"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C07BVE8EA9G"
+  },
+  "serverless-experiences": {
+    "teams": [
+      "serverless-experiences"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C075UUVQ6KD"
+  },
+  "service-catalog": {
+    "teams": [
+      "service-catalog"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/02QKPPAX40"
+  },
+  "service-catalog-fe": {
+    "teams": [
+      "service-catalog"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/02QKPPAX40"
+  },
+  "service-catalog-be": {
+    "teams": [
+      "service-catalog"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/02QKPPAX40"
+  },
+  "service-configuration": {
+    "teams": [
+      "service-configuration",
+      "service-config-clients"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02NTKWCUUS"
+  },
+  "sheets": {
+    "teams": [
+      "sheets"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C065YNJUMBN"
+  },
+  "single-machine-performance": {
+    "teams": [
+      "single-machine-performance"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03LY8MQ73R"
+  },
+  "slo": {
+    "teams": [
+      "slo-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CHU8KNZ6X"
+  },
+  "software-delivery-app": {
+    "teams": [
+      "software-delivery-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C072FE9DJAZ"
+  },
+  "mosaic": {
+    "teams": [
+      "mosaic-interfaces",
+      "mosaic-blocks"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C072FE9DJAZ"
+  },
+  "software-integrity-and-trust": {
+    "teams": [
+      "software-integrity-and-trust"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C027P1CK07N",
+    "reviewChannel": "https://dd.slack.com/archives/C03QTK4C8J1"
+  },
+  "source-code-integration": {
+    "teams": [
+      "source-code-integration"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01FA7FASUR"
+  },
+  "streams": {
+    "teams": [
+      "streams"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0BDZ4N5T"
+  },
+  "supportability-engineering": {
+    "teams": [
+      "supportability-engineering"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C02T3PCMHGT"
+  },
+  "synthetics": {
+    "teams": [
+      "synthetics",
+      "synthetics-platform",
+      "synthetics-events",
+      "synthetics-services",
+      "synthetics-mobile",
+      "synthetics-ct",
+      "synthetics-worker"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C8E85JEGH"
+  },
+  "synthetics-app": {
+    "teams": [
+      "synthetics-app"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CMGMBU8KS",
+    "notificationChannel": "C01GATDRSH0"
+  },
+  "telemetry-and-analytics": {
+    "teams": [
+      "telemetry-and-analytics"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C058N1H6CAY"
+  },
+  "timeseries-query": {
+    "teams": [
+      "timeseries-query"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03NEPE6JQ7"
+  },
+  "trust-and-safety": {
+    "teams": [
+      "trust-and-safety"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CJWJY7GP9"
+  },
+  "unifiedkv": {
+    "teams": [
+      "KV Persistence"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C056HEGNJAG"
+  },
+  "universal-service-monitoring": {
+    "teams": [
+      "universal-service-monitoring"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01R6Q0HQDD"
+  },
+  "watchdog": {
+    "teams": [
+      "watchdog"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C6PADHZ6F"
+  },
+  "web-integrations": {
+    "teams": [
+      "web-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C4V2P3SUB"
+  },
+  "web-ui-config": {
+    "teams": [
+      "web-ui-config"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C04S0SVC1P0"
+  },
+  "widget-framework": {
+    "teams": [
+      "widget-framework"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/CUWPM5U93"
+  },
+  "windows-agent": {
+    "teams": [
+      "windows-agent"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C03NWEP4R0B",
+    "reviewChannel": "https://dd.slack.com/archives/C03NXBWKJLB"
+  },
+  "windows-kernel-integrations": {
+    "teams": [
+      "windows-kernel-integrations"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C042TPJD336",
+    "reviewChannel": "https://dd.slack.com/archives/C06CXKLMK9D"
+  },
+  "workflow-automation": {
+    "teams": [
+      "workflow-automation",
+      "workflow-automation-ui",
+      "workflow-automation-dev"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C01MRH9MV44",
+    "notificationChannel": "C03E8P8KQ76"
+  },
+  "workflow-engine": {
+    "teams": [
+      "workflow-engine"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C032SFPA335"
+  },
+  "cloud-networks": {
+    "teams": [
+      "cloud-networks"
+    ],
+    "slackChannel": "https://dd.slack.com/archives/C0131BFQAF4"
+  }
+}
