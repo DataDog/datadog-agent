@@ -146,8 +146,8 @@ class TestOmnibusCache(unittest.TestCase):
                 # Listed tags for cache comparison
                 r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
                 # And we created and uploaded the new cache
-                r'git -C omnibus-git-cache/opt/datadog-agent bundle create /tmp/\S+/omnibus-git-cache-bundle --tags',
-                r'aws s3 cp (\S* )?/tmp/\S+/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
+                r'git -C omnibus-git-cache/opt/datadog-agent bundle create /\S+/omnibus-git-cache-bundle --tags',
+                r'aws s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
             ],
         )
 
@@ -157,7 +157,7 @@ class TestOmnibusCache(unittest.TestCase):
         # Fail to clone
         self.mock_ctx.set_result_for(
             'run',
-            re.compile(r'git clone (\S* )?/tmp/omnibus-git-cache-bundle.*'),
+            re.compile(r'git clone (\S* )?/\S+/omnibus-git-cache-bundle.*'),
             Result('fatal: remote did not send all necessary objects', exited=1),
         )
         self._set_up_default_command_mocks()
