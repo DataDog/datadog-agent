@@ -161,7 +161,7 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroup
 }
 
 // ResolveCGroupVersion resolves the version of the cgroup API
-func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
+func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.CGroupContext) int {
 	return 0
 }
 
