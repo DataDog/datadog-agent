@@ -30,7 +30,7 @@ def build(
     build_include=None,
     build_exclude=None,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
 ):
     """
     Build Dogstatsd
@@ -128,7 +128,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="mod"):
+def system_tests(ctx, skip_build=False, go_mod="readonly"):
     """
     Run the system testsuite.
     """
@@ -170,7 +170,7 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for dogstatsd
     """
