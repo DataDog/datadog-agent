@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -403,7 +404,15 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", "/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
+	// Verify metadata
+	state.AssertFileExists("/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata", 0440, "dd-agent", "dd-agent")
+	file := s.Env().RemoteHost.MustExecute("sudo cat /etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d/policy.metadata")
+	policiesState := &pbgo.PoliciesState{}
+	err := json.Unmarshal([]byte(file), policiesState)
+	require.NoError(s.T(), err)
+	require.Len(s.T(), policiesState.MatchedPolicies, 1)
+	require.Equal(s.T(), policiesState.Version, "e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d")
 
 	localCDN.UpdateLayer("config", "\"log_level\": \"error\"")
 	s.executeConfigGoldenPath(localCDN.DirPath, "c78c5e96820c89c6cbc178ddba4ce20a167138a3a580ed4637369a9c5ed804c3")
@@ -437,7 +446,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", "/etc/datadog-packages/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/e94406c45ae766b7d34d2793e4759b9c4d15ed5d5e2b7f73ce1bf0e6836f728d", "root", "root")
 
 	// Enables security agent & sysprobe
 	localCDN.AddLayer("config", `
@@ -511,8 +520,8 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	)
 
 	state = s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
@@ -831,7 +840,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp h
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp host.JournaldTimestamp, hash string) {
@@ -852,8 +861,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-agent/managed/datadog-agent/%s", hash), "root", "root")
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp host.JournaldTimestamp) {
@@ -872,7 +881,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp ho
 	)
 
 	state := s.host.State()
-	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", "/etc/datadog-packages/datadog-agent/stable", "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/experiment", "/etc/datadog-agent/managed/datadog-agent/stable", "root", "root")
 }
 
 func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
