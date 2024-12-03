@@ -59,9 +59,7 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource
 	return
 }
 
-// SubscribeForType returns two channels carrying notifications of added sources
-// of a specified type
-// Any sources added before this call are delivered from a new goroutine.
+// SubscribeForType returns a channel carrying LogSources for a given source type
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
 
 	added = make(chan *LogSource)
