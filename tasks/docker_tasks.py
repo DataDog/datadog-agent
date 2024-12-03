@@ -53,7 +53,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open(f"{temp_folder}/Dockerfile", 'w', encoding="utf-8") as stream:
         stream.write(
-            """FROM public.ecr.aws/docker/library/ubuntu:20.04
+            f"""FROM public.ecr.aws/docker/library/ubuntu:20.04
 # Install Docker
 COPY --from=public.ecr.aws/docker/library/docker:26.1-cli /usr/local/bin/docker /usr/bin/docker
 
@@ -61,9 +61,12 @@ COPY --from=public.ecr.aws/docker/library/docker:26.1-cli /usr/local/bin/docker 
 ARG COMPOSE_VERSION=2.26.1
 ARG COMPOSE_SHA256=2f61856d1b8c9de29ffdaedaa1c6d0a5fc5c79da45068f1f4310feed8d3a3f61
 RUN apt-get update && apt-get install -y ca-certificates curl
-RUN curl -SL "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64" -o /usr/bin/compose
-RUN echo "${COMPOSE_SHA256} /usr/bin/compose" | sha256sum --check
+RUN curl -SL "https://github.com/docker/compose/releases/download/v${{COMPOSE_VERSION}}/docker-compose-linux-x86_64" -o /usr/bin/compose
+RUN echo "${{COMPOSE_SHA256}} /usr/bin/compose" | sha256sum --check
 RUN chmod +x /usr/bin/compose
+
+COPY {temp_folder}/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Final settings
 ENV DOCKER_DD_AGENT=yes
@@ -87,7 +90,6 @@ echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "
 /test.bin
 """
         )
-    os.chmod(f"{temp_folder}/entrypoint.sh", 0o755)
 
     test_image, _ = client.images.build(path=temp_folder, rm=True)
 
