@@ -79,13 +79,22 @@ def build(
 @task
 def build_linux_script(
     ctx,
+    output_bin=None,
     signing_key_id=None,
 ):
     '''
     Builds the linux script that is used to install the agent on linux.
     '''
+    script_path = os.path.join(BIN_PATH, "setup.sh")
+    signed_script_path = os.path.join(BIN_PATH, "setup.sh.asc")
     amd64_path = os.path.join(BIN_PATH, "bootstrapper-linux-amd64")
     arm64_path = os.path.join(BIN_PATH, "bootstrapper-linux-arm64")
+    if output_bin:
+        script_path = output_bin
+        signed_script_path = output_bin + ".asc"
+        amd64_path = output_bin + "-bootstrapper-linux-amd64"
+        arm64_path = output_bin + "-bootstrapper-linux-arm64"
+
     ctx.run(
         f'inv -e installer.build --bootstrapper --rebuild --no-no-strip-binary --output-bin {amd64_path} --no-cgo',
         env={'GOOS': 'linux', 'GOARCH': 'amd64'},
@@ -107,17 +116,17 @@ def build_linux_script(
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     setup_content = setup_content.replace('INSTALLER_COMMIT', commit_sha)
 
-    with open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f:
+    with open(script_path, 'w') as f:
         f.write(setup_content)
 
     if signing_key_id:
         ctx.run(
-            f'gpg --armor --batch --yes --output {os.path.join(BIN_PATH, "setup.sh.asc")} --clearsign --digest-algo SHA256 --default-key {signing_key_id} {os.path.join(BIN_PATH, "setup.sh")}',
+            f'gpg --armor --batch --yes --output {signed_script_path} --clearsign --digest-algo SHA256 --default-key {signing_key_id} {script_path}',
         )
         # Add the signed footer to the setup.sh file
         with (
-            open(os.path.join(BIN_PATH, "setup.sh.asc")) as signed_file,
-            open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f,
+            open(signed_script_path) as signed_file,
+            open(script_path, 'w') as f,
         ):
             skip_header = False
             for line in signed_file:
