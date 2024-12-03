@@ -527,7 +527,9 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		if err != nil {
 			log.Errorf("failed to create custom resource state metrics: %v", err)
 		} else {
-			factories = append(factories, customResourceStateMetricFactories...)
+			for _, factory := range customResourceStateMetricFactories {
+				factories = append(factories, customresources.NewCustomResourceFactory(factory, c.DynamicCl))
+			}
 		}
 	}
 
@@ -538,11 +540,9 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 			Version:  cr.GroupVersionKind.Version,
 			Resource: cr.GetResourceName(),
 		}
-		// Hack to use the global dynamic client instead of creating multiple different clients
-		// TODO(KSM 2.9+), use GVR.String to index the client and add gvr.string() to the list of collectors
+
 		cl := c.DynamicCl.Resource(gvr)
-		// clients[cr.GetResourceName()] = cl
-		clients[gvr.String()] = cl
+		clients[cr.GetResourceName()] = cl
 		coll = append(coll, gvr.String())
 	}
 
