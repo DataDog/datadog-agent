@@ -60,6 +60,7 @@ func (s *haAgentTestSuite) TestHaAgentGroupTagPresentOnDatadogAgentRunningMetric
 
 func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
+		s.T().Log("try assert log in agent.log")
 		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
 		if !assert.NoError(c, err) {
 			return
