@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,9 +40,9 @@ func TestHaAgentRealBackendSuite(t *testing.T) {
 	}
 
 	if apiKey != "" {
-		t.Logf("API_KEY: %s", apiKey[len(apiKey)-4:])
+		t.Logf("Using API_KEY ending with: %s", apiKey[len(apiKey)-4:])
 	} else {
-		t.Logf("API_KEY empty")
+		require.Fail(t, "API_KEY is empty")
 	}
 
 	// language=yaml
@@ -76,13 +77,20 @@ instances:
 }
 
 func (s *haAgentRealBackendTestSuite11) TestSnmpCheckIsRunningOnLeaderAgent() {
+	snmpCheckSkippedLog := "check:snmp | Check is an HA integration and current agent is not leader, skipping execution..."
+	snmpCheckRunningLog := "check:snmp | Running check..."
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert snmp check is running")
 		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(c, output, "check:snmp | Check is an HA integration and current agent is not leader, skipping execution...")
-		assert.Contains(c, output, "check:snmp | Running check...")
+
+		assert.Contains(c, output, snmpCheckSkippedLog)
+		assert.Contains(c, output, snmpCheckRunningLog)
+
+		// Assert snmp check was first skipped, then running
+		assert.Greater(c, strings.Index(output, snmpCheckRunningLog), strings.Index(output, snmpCheckSkippedLog))
 	}, 5*time.Minute, 3*time.Second)
 }
