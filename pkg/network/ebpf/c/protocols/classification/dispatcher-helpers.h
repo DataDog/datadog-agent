@@ -124,16 +124,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         bpf_map_delete_elem(&connection_states, &skb_tup);
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&skb_tup);
-    if (!stack) {
-        // should never happen, but it is required by the eBPF verifier
-        return;
-    }
-
-    // This is used to signal the tracer program that this protocol stack
-    // is also shared with our USM program for the purposes of deletion.
-    // For more context refer to the comments in `delete_protocol_stack`
-    stack->flags |= FLAG_USM_ENABLED;
+    protocol_stack_t *stack = get_protocol_stack_if_exists(&skb_tup);
 
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
@@ -157,6 +148,16 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+            stack = get_or_create_protocol_stack(&skb_tup);
+            if (!stack) {
+                // should never happen, but it is required by the eBPF verifier
+                return;
+            }
+
+            // This is used to signal the tracer program that this protocol stack
+            // is also shared with our USM program for the purposes of deletion.
+            // For more context refer to the comments in `delete_protocol_stack`
+            set_protocol_flag(stack, FLAG_USM_ENABLED);
             set_protocol(stack, cur_fragment_protocol);
         }
     }

@@ -278,6 +278,7 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
+    - qa_agent_jmx
     - qa_dca
   rules:
     - !reference [.on_aml_or_e2e_changes]
@@ -471,6 +472,15 @@ new-e2e-ndm-snmp:
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
+
+new-e2e-ha-agent:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: ndm-core
 
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template

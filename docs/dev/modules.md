@@ -46,6 +46,8 @@ After you have refactored, if needed, and listed the packages that you want to e
         - ./comp
     ```
 
+1. Run `inv modules.go-work` to generate the updated `go.work` file.
+
 ## Go nested modules tooling
 
 Go nested modules interdependencies are automatically updated when creating a release candidate or a final version, with the same tasks that update the `release.json`. For Agent version `7.X.Y` the module will have version `v0.X.Y`.
