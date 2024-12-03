@@ -102,7 +102,7 @@ installer-install-scripts:
   script:
     - !reference [.retrieve_linux_go_deps]
     - echo "About to build for $RELEASE_VERSION"
-    - inv -e installer.build-linux-script --output-bin=$OMNIBUS_PACKAGE_DIR/install-djm.sh
+    - inv -e installer.build-linux-script && mv bin/installer/setup.sh $OMNIBUS_PACKAGE_DIR/install-djm.sh
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks

@@ -79,7 +79,6 @@ def build(
 @task
 def build_linux_script(
     ctx,
-    output_bin=None,
     signing_key_id=None,
 ):
     '''
@@ -89,11 +88,6 @@ def build_linux_script(
     signed_script_path = os.path.join(BIN_PATH, "setup.sh.asc")
     amd64_path = os.path.join(BIN_PATH, "bootstrapper-linux-amd64")
     arm64_path = os.path.join(BIN_PATH, "bootstrapper-linux-arm64")
-    if output_bin:
-        script_path = output_bin
-        signed_script_path = output_bin + ".asc"
-        amd64_path = output_bin + "-bootstrapper-linux-amd64"
-        arm64_path = output_bin + "-bootstrapper-linux-arm64"
 
     ctx.run(
         f'inv -e installer.build --bootstrapper --no-no-strip-binary --output-bin {amd64_path} --no-cgo',
