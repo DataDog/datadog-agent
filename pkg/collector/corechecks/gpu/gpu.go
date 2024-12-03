@@ -66,104 +66,104 @@ func newCheck(tagger tagger.Component) check.Check {
 }
 
 // Configure parses the check configuration and init the check
-func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 
-	if err := yaml.Unmarshal(config, m.config); err != nil {
+	if err := yaml.Unmarshal(config, c.config); err != nil {
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
 	// Initialize NVML collectors. if the config parameter doesn't exist or is
 	// empty string, the default value is used as defined in go-nvml library
 	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	m.nvmlLib = nvml.New(nvml.WithLibraryPath(m.config.NVMLLibraryPath))
-	ret := m.nvmlLib.Init()
+	c.nvmlLib = nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
+	ret := c.nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
 	}
 
 	var err error
-	m.collectors, err = nvidia.BuildCollectors(m.nvmlLib)
+	c.collectors, err = nvidia.BuildCollectors(c.nvmlLib)
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
-	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
 // Cancel stops the check
-func (m *Check) Cancel() {
-	if m.nvmlLib != nil {
-		_ = m.nvmlLib.Shutdown()
+func (c *Check) Cancel() {
+	if c.nvmlLib != nil {
+		_ = c.nvmlLib.Shutdown()
 	}
 
-	m.CheckBase.Cancel()
+	c.CheckBase.Cancel()
 }
 
 // Run executes the check
-func (m *Check) Run() error {
-	snd, err := m.GetSender()
+func (c *Check) Run() error {
+	snd, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
 	}
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	if err := m.emitSysprobeMetrics(snd); err != nil {
+	if err := c.emitSysprobeMetrics(snd); err != nil {
 		log.Warnf("error while sending sysprobe metrics: %s", err)
 	}
 
-	if err := m.emitNvmlMetrics(snd); err != nil {
+	if err := c.emitNvmlMetrics(snd); err != nil {
 		log.Warnf("error while sending NVML metrics: %s", err)
 	}
 
 	return nil
 }
 
-func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
-	stats, err := sysprobeclient.GetCheck[model.GPUStats](m.sysProbeClient, sysconfig.GPUMonitoringModule)
+func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
+	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
 
 	// Set all metrics to inactive, so we can remove the ones that we don't see
 	// and send the final metrics
-	for key := range m.activeMetrics {
-		m.activeMetrics[key] = false
+	for key := range c.activeMetrics {
+		c.activeMetrics[key] = false
 	}
 
 	for _, entry := range stats.Metrics {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
-		tags := m.getTagsForKey(key)
+		tags := c.getTagsForKey(key)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
 
-		m.activeMetrics[key] = true
+		c.activeMetrics[key] = true
 	}
 
 	// Remove the PIDs that we didn't see in this check
-	for key, active := range m.activeMetrics {
+	for key, active := range c.activeMetrics {
 		if !active {
-			tags := m.getTagsForKey(key)
+			tags := c.getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
 			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
 
-			delete(m.activeMetrics, key)
+			delete(c.activeMetrics, key)
 		}
 	}
 
 	return nil
 }
 
-func (m *Check) getTagsForKey(key model.StatsKey) []string {
+func (c *Check) getTagsForKey(key model.StatsKey) []string {
 	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
-	tags, err := m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
+	tags, err := c.tagger.Tag(entityID, c.tagger.ChecksCardinality())
 	if err != nil {
 		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
 	}
@@ -179,10 +179,10 @@ func (m *Check) getTagsForKey(key model.StatsKey) []string {
 	return append(tags, keyTags...)
 }
 
-func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
+func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 	var err error
 
-	for _, collector := range m.collectors {
+	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
