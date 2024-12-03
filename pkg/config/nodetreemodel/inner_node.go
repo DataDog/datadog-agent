@@ -63,7 +63,7 @@ func (n *innerNode) GetChild(key string) (Node, error) {
 
 // HasChild returns true if the node has a child for that given key
 func (n *innerNode) HasChild(key string) bool {
-	_, ok := n.children[key]
+	_, ok := n.children[strings.ToLower(key)]
 	return ok
 }
 

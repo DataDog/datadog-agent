@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/google/uuid"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -57,7 +59,15 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	filter := filterBuilder.Build(cardinality)
 
-	subscriptionID := fmt.Sprintf("streaming-client-%s", in.GetStreamingID())
+	streamingID := in.GetStreamingID()
+	if streamingID == "" {
+		// this is done to preserve backward compatibility
+		// if CLC runner is using an old version, the streaming ID would be an empty string,
+		// and the server needs to auto-assign a unique id
+		streamingID = uuid.New().String()
+	}
+
+	subscriptionID := fmt.Sprintf("streaming-client-%s", streamingID)
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
 	if err != nil {
 		return err

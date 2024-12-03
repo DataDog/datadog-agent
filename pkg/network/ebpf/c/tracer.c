@@ -219,7 +219,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     }
 
     int err = 0;
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
     if (err == 0) {
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         return 0; // no failure
@@ -244,17 +244,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    // check if this connection was already flushed and ensure we don't flush again
-    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
-    // skip EEXIST errors for telemetry since it is an expected error
-    __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
-        cleanup_conn(ctx, &t, sk, err);
+    tcp_stats_t stats = {.failure_reason = err};
+    update_tcp_stats(&t, stats);
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
-    } else {
-        bpf_map_delete_elem(&conn_close_flushed, &t);
-        increment_telemetry_count(double_flush_attempts_done);
     }
+
+    increment_telemetry_count(tcp_failed_connect);
 
     return 0;
 }
@@ -289,29 +286,20 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     if (!tcp_failed_connections_enabled()) {
-        cleanup_conn(ctx, &t, sk, 0);
+        cleanup_conn(ctx, &t, sk);
         return 0;
     }
 
-    // check if this connection was already flushed and ensure we don't flush again
-    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
-    // skip EEXIST errors for telemetry since it is an expected error
-    __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
-        __u16 tcp_failure_reason = 0;
-        int err = 0;
-        bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-        if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
-            increment_telemetry_count(tcp_close_target_failures);
-            // only set tcp_failure_reason if err is one of the desired values
-            tcp_failure_reason = err;
-        }
+    int err = 0;
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
+    if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
+        increment_telemetry_count(tcp_close_target_failures);
+        tcp_stats_t stats = {.failure_reason = err};
+        update_tcp_stats(&t, stats);
+    }
 
-        cleanup_conn(ctx, &t, sk, tcp_failure_reason);
+    if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);
-    } else {
-        bpf_map_delete_elem(&conn_close_flushed, &t);
-        increment_telemetry_count(double_flush_attempts_close);
     }
 
     return 0;
@@ -1061,7 +1049,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, 0);
+        cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);

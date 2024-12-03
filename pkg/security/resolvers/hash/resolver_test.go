@@ -52,7 +52,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
-				HashResolverMaxHashBurst:   1,
 				HashResolverMaxFileSize:    1 << 20,
 			},
 			args: args{
@@ -89,7 +88,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				HashResolverEventTypes:     []model.EventType{model.FileOpenEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
-				HashResolverMaxHashBurst:   1,
 				HashResolverMaxFileSize:    1 << 20,
 			},
 			args: args{
@@ -122,7 +120,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
-				HashResolverMaxHashBurst:   1,
 				HashResolverMaxFileSize:    1 << 10,
 			},
 			args: args{
@@ -159,7 +156,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    1,
-				HashResolverMaxHashBurst:   1,
 				HashResolverMaxFileSize:    1 << 10,
 			},
 			args: args{
@@ -192,7 +188,6 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1, model.SHA256, model.MD5},
 				HashResolverMaxHashRate:    0,
-				HashResolverMaxHashBurst:   0,
 				HashResolverMaxFileSize:    1 << 10,
 			},
 			args: args{
@@ -307,7 +302,6 @@ func BenchmarkHashFunctions(b *testing.B) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA1},
 				HashResolverMaxHashRate:    math.MaxInt,
-				HashResolverMaxHashBurst:   math.MaxInt,
 				HashResolverMaxFileSize:    math.MaxInt64,
 			},
 			fileSizes: []fileCase{
@@ -364,7 +358,6 @@ func BenchmarkHashFunctions(b *testing.B) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256},
 				HashResolverMaxHashRate:    math.MaxInt,
-				HashResolverMaxHashBurst:   math.MaxInt,
 				HashResolverMaxFileSize:    math.MaxInt64,
 			},
 			fileSizes: []fileCase{
@@ -421,7 +414,6 @@ func BenchmarkHashFunctions(b *testing.B) {
 				HashResolverEventTypes:     []model.EventType{model.ExecEventType},
 				HashResolverHashAlgorithms: []model.HashAlgorithm{model.MD5},
 				HashResolverMaxHashRate:    math.MaxInt,
-				HashResolverMaxHashBurst:   math.MaxInt,
 				HashResolverMaxFileSize:    math.MaxInt64,
 			},
 			fileSizes: []fileCase{

@@ -16,6 +16,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -48,8 +49,9 @@ type Webhook struct {
 	name              string
 	isEnabled         bool
 	endpoint          string
-	resources         []string
+	resources         map[string][]string
 	operations        []admissionregistrationv1.OperationType
+	matchConditions   []admissionregistrationv1.MatchCondition
 	namespaceSelector *metav1.LabelSelector
 	objectSelector    *metav1.LabelSelector
 	containerRegistry string
@@ -78,8 +80,9 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		name:              webhookName,
 		isEnabled:         datadogConfig.GetBool("admission_controller.agent_sidecar.enabled"),
 		endpoint:          datadogConfig.GetString("admission_controller.agent_sidecar.endpoint"),
-		resources:         []string{"pods"},
+		resources:         map[string][]string{"": {"pods"}},
 		operations:        []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		matchConditions:   []admissionregistrationv1.MatchCondition{},
 		namespaceSelector: nsSelector,
 		objectSelector:    objSelector,
 		containerRegistry: containerRegistry,
@@ -118,7 +121,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() []string {
+func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
@@ -134,10 +137,16 @@ func (w *Webhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelecto
 	return w.namespaceSelector, w.objectSelector
 }
 
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
+}
+
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.injectAgentSidecar, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.injectAgentSidecar, request.DynamicClient))
 	}
 }
 
@@ -169,12 +178,25 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
+			if isOwnedByJob(pod.OwnerReferences) {
+				updated, err = withEnvOverrides(&pod.Spec.Containers[i], corev1.EnvVar{
+					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
+					Value: "true",
+				})
+			}
+			if err != nil {
+				log.Errorf("Failed to apply env overrides: %v", err)
+				return podUpdated, errors.New(metrics.InternalError)
+			}
+			podUpdated = podUpdated || updated
+
 			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profilesJSON)
 			if err != nil {
 				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
 			}
 			podUpdated = podUpdated || updated
+
 			break
 		}
 	}
@@ -311,4 +333,14 @@ func labelSelectors(datadogConfig config.Component) (namespaceSelector, objectSe
 	}
 
 	return namespaceSelector, objectSelector
+}
+
+// isOwnedByJob returns true if the pod is owned by a Job
+func isOwnedByJob(ownerReferences []metav1.OwnerReference) bool {
+	for _, owner := range ownerReferences {
+		if strings.HasPrefix(owner.APIVersion, "batch/") && owner.Kind == "Job" {
+			return true
+		}
+	}
+	return false
 }

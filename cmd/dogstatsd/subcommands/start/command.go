@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -53,8 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -94,7 +94,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 	}
 
 	// local flags
-	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing dogstatsd.yaml")
 	startCmd.PersistentFlags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 
 	return startCmd
@@ -141,7 +141,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		compressionimpl.Module(),
+		compressionfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
@@ -173,6 +173,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			}
 		}),
 		healthprobefx.Module(),
+		haagentfx.Module(),
 	)
 }
 
@@ -233,33 +234,6 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
 		}
 	}()
-
-	// Setup logger
-	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
-	logFile := config.GetString("log_file")
-	if logFile == "" {
-		logFile = params.DefaultLogFile
-	}
-
-	if config.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		logFile = ""
-	}
-
-	err = pkglogsetup.SetupLogger(
-		loggerName,
-		config.GetString("log_level"),
-		logFile,
-		syslogURI,
-		config.GetBool("syslog_rfc"),
-		config.GetBool("log_to_console"),
-		config.GetBool("log_format_json"),
-		pkgconfigsetup.Datadog(),
-	)
-	if err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
-		return
-	}
 
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)

@@ -47,7 +47,6 @@ const (
 )
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
-var connClosedFlushMapTTL = 10 * time.Millisecond.Nanoseconds()
 
 var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	connections       telemetry.Gauge
@@ -76,7 +75,6 @@ var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	PidCollisions               *telemetry.StatCounterWrapper
 	iterationDups               telemetry.Counter
 	iterationAborts             telemetry.Counter
-	closedConnFlushedCleaned    telemetry.Counter
 
 	lastTcpFailedConnects *atomic.Int64 //nolint:revive // TODO
 	LastTcpSentMiscounts  *atomic.Int64 //nolint:revive // TODO
@@ -122,7 +120,6 @@ var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	telemetry.NewCounter(connTracerModuleName, "closed_conn_flushed_cleaned", []string{}, "Counter measuring the number of conn_close_flushed entries cleaned in userspace"),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -155,7 +152,6 @@ type ebpfTracer struct {
 
 	// periodically clean the ongoing connection pid map
 	ongoingConnectCleaner *ddebpf.MapCleaner[netebpf.SkpConn, netebpf.PidTs]
-	connCloseFlushCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, int64]
 
 	removeTuple *netebpf.ConnTuple
 
@@ -196,7 +192,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.EnhancedTLSTagsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPOngoingConnectPid:              {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.ConnCloseFlushed:                  {MaxEntries: config.MaxTrackedConnections / 4, EditorFlag: manager.EditMaxEntries},
 			probes.TCPRecvMsgArgsMap:                 {MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
@@ -262,6 +257,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	// Failed connections are not supported on prebuilt
 	if tracerType == TracerTypeKProbePrebuilt {
+		if config.TCPFailedConnectionsEnabled {
+			log.Warn("Failed TCP connections are not supported with the prebuilt kprobe tracer. Disabling.")
+		}
 		config.TCPFailedConnectionsEnabled = false
 	}
 
@@ -355,7 +353,6 @@ func (t *ebpfTracer) Stop() {
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
-		t.connCloseFlushCleaner.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
@@ -722,26 +719,6 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 	})
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
-
-	if t.config.FailedConnectionsSupported() {
-		connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
-		if err != nil {
-			log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
-		}
-		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024, probes.ConnCloseFlushed, "npm_tracer")
-		if err != nil {
-			log.Errorf("error creating map cleaner: %s", err)
-			return
-		}
-		connCloseFlushCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ netebpf.ConnTuple, val int64) bool {
-			expired := val > 0 && now-val > connClosedFlushMapTTL
-			if expired {
-				EbpfTracerTelemetry.closedConnFlushedCleaned.Inc()
-			}
-			return expired
-		})
-		t.connCloseFlushCleaner = connCloseFlushCleaner
-	}
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {

@@ -102,25 +102,24 @@ jobs:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
+      - name: Setup Python3
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12.6"
+          cache: "pip"
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install python dependencies
+        run: pip3 install -r requirements.txt
       - name: Check qa/[done|no-code-change] labels are not set together
-        run: |
-          is_qa_done=1
-          is_qa_no_code_change=1
-          for label in $LABELS; do
-            if [[ "$label" == "qa/done" ]]; then
-              is_qa_done=0
-            fi
-            if [[ "$label" == "qa/no-code-change" ]]; then
-              is_qa_no_code_change=0
-            fi
-          done
-          if [ $is_qa_done -eq 0 ] && [ $is_qa_no_code_change -eq 0 ]; then
-            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
-            exit 1
-          fi
-          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+        run: |
+          inv -e github.check-qa-labels --labels "${LABELS[@]}"
+
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -130,7 +129,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
       - name: Setup python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: 3.11
           cache: 'pip'

@@ -149,6 +149,7 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 
 	for tcKey, tcProbe := range tcr.programs {
 		if tcKey.NetDevice.NetNS == namespaceID {
+			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
 			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		}
@@ -166,6 +167,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	var linkName string
 	for tcKey, tcProbe := range tcr.programs {
 		if !tcProbe.IsTCFilterActive() {
+			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
 			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		} else {

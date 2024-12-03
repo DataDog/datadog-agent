@@ -51,7 +51,7 @@ from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
-from tasks.security_agent import build_functional_tests, build_stress_tests
+from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
@@ -543,7 +543,7 @@ def ninja_define_rules(nw: NinjaWriter):
 
     nw.rule(
         name="gotestsuite",
-        command="$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+        command="$env $go test -mod=readonly -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
     )
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
@@ -694,7 +694,6 @@ def kmt_secagent_prepare(
         skip_object_files=True,
         arch=arch,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")

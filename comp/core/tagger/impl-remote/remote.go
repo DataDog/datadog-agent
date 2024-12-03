@@ -9,8 +9,10 @@ package remotetaggerimpl
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -21,6 +23,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -35,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 const (
@@ -59,7 +63,8 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp tagger.Component
+	Comp     tagger.Component
+	Endpoint api.AgentEndpointProvider
 }
 
 type remoteTagger struct {
@@ -97,7 +102,7 @@ type Options struct {
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
-	remoteTagger, err := NewRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
+	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
 
 	if err != nil {
 		return Provides{}, err
@@ -112,13 +117,12 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp: remoteTagger,
+		Comp:     remoteTagger,
+		Endpoint: api.NewAgentEndpointProvider(remoteTagger.writeList, "/tagger-list", "GET"),
 	}, nil
 }
 
-// NewRemoteTagger creates a new remote tagger.
-// TODO: (components) remove once we pass the remote tagger instance to pkg/security/resolvers/tags/resolver.go
-func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component) (tagger.Component, error) {
+func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component) (*remoteTagger, error) {
 	telemetryStore := telemetry.NewStore(telemetryComp)
 
 	target, err := params.RemoteTarget(cfg)
@@ -132,7 +136,7 @@ func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 			TokenFetcher: params.RemoteTokenFetcher(cfg),
 		},
 		cfg:            cfg,
-		store:          newTagStore(cfg, telemetryStore),
+		store:          newTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
 		filter:         params.RemoteFilter,
 		log:            log,
@@ -185,16 +189,6 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	}
 
 	t.client = pb.NewAgentSecureClient(t.conn)
-
-	timeout := time.Duration(t.cfg.GetInt("remote_tagger_timeout_seconds")) * time.Second
-	err = t.startTaggerStream(timeout)
-	if err != nil {
-		// tagger stopped before being connected
-		if errors.Is(err, errTaggerStreamNotStarted) {
-			return nil
-		}
-		return err
-	}
 
 	t.log.Info("remote tagger initialized successfully")
 
@@ -354,11 +348,10 @@ func (t *remoteTagger) DogstatsdCardinality() types.TagCardinality {
 	return t.dogstatsdCardinality
 }
 
-// Subscribe returns a channel that receives a slice of events whenever an entity is
-// added, modified or deleted. It can send an initial burst of events only to the new
-// subscriber, without notifying all of the others.
-func (t *remoteTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
-	return t.store.subscribe(subscriptionID, filter)
+// Subscribe currently returns a non-nil error indicating that the method is not supported
+// for remote tagger. Currently, there are no use cases for client subscribing to remote tagger events
+func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
+	return nil, errors.New("subscription to the remote tagger is not currently supported")
 }
 
 func (t *remoteTagger) run() {
@@ -505,6 +498,17 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 
 		return nil
 	}, expBackoff)
+}
+
+func (t *remoteTagger) writeList(w http.ResponseWriter, _ *http.Request) {
+	response := t.List()
+
+	jsonTags, err := json.Marshal(response)
+	if err != nil {
+		httputils.SetJSONError(w, t.log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		return
+	}
+	w.Write(jsonTags)
 }
 
 func convertEventType(t pb.EventType) (types.EventType, error) {

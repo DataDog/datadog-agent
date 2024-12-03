@@ -39,8 +39,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sy
 FROM baseimage AS extract
 ARG TARGETARCH
 ARG WITH_JMX
-ARG PYTHON_VERSION
-ARG DD_AGENT_ARTIFACT=datadog-agent*_$TARGETARCH.deb
+ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
@@ -51,7 +50,7 @@ WORKDIR /output
 ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN apt install --no-install-recommends -y curl ca-certificates
+RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
@@ -65,34 +64,16 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN find / -maxdepth 1 -type f -name "datadog-*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
+RUN find / -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
 
-RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec dpkg -x {} . \; \
+RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
+    go/ \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
     opt/datadog-agent/embedded/share/man \
     # self-test certificates that are detected (false positive) as private keys
     opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
- && if [ "$PYTHON_VERSION" = "2" ]; then \
-        rm -rf \
-            opt/datadog-agent/embedded/bin/2to3-3* \
-            opt/datadog-agent/embedded/bin/easy_install-3* \
-            opt/datadog-agent/embedded/bin/idle* \
-            opt/datadog-agent/embedded/bin/pip3* \
-            opt/datadog-agent/embedded/bin/pydoc* \
-            opt/datadog-agent/embedded/bin/python3* \
-            opt/datadog-agent/embedded/bin/pyvenv* \
-            opt/datadog-agent/embedded/include/python3* \
-            opt/datadog-agent/embedded/lib/*python3* || true ;\
-    fi \
- && if [ "$PYTHON_VERSION" = "3" ]; then \
-        rm -rf \
-            opt/datadog-agent/embedded/bin/pip2* \
-            opt/datadog-agent/embedded/bin/python2* \
-            opt/datadog-agent/embedded/include/python2* \
-            opt/datadog-agent/embedded/lib/*python2* || true ;\
-    fi \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && mkdir conf.d checks.d
@@ -104,6 +85,10 @@ COPY datadog*.yaml etc/datadog-agent/
 # Installation information
 COPY install_info etc/datadog-agent/
 
+# Download BouncyCastle FIPS provider jar files.
+COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
+RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
+
 ######################################
 #  Actual docker image construction  #
 ######################################
@@ -111,11 +96,9 @@ COPY install_info etc/datadog-agent/
 FROM baseimage AS release
 LABEL maintainer="Datadog <package@datadoghq.com>"
 ARG WITH_JMX
-ARG PYTHON_VERSION
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
 ENV DOCKER_DD_AGENT=true \
-    DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
     # Pass envvar variables to agents
@@ -197,17 +180,23 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
 # * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
 RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 
-# Update links to python binaries
-RUN if [ -n "$PYTHON_VERSION" ]; then \
-  ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
-  && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
-  && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
-  fi
+# Enable FIPS if needed
+RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
+  /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
+fi
+# This is used by MSGO to enable FIPS mode so it won't affect the non-FIPS image
+ENV GOFIPS=1
 
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+# Copy BouncyCastle Java FIPS provider binaries and configuration
+COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
+COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
+COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
@@ -234,13 +223,11 @@ COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
-COPY entrypoint.sh /bin/entrypoint.sh
-COPY entrypoint.d /opt/entrypoints
-RUN chmod 755 /bin/entrypoint.sh \
-  && chmod 755 -R /opt/entrypoints
+COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
+COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
 
 FROM release AS test
-COPY test_image_contents.py /tmp/test_image_contents.py
+COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
 RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
