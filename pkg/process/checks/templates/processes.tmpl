@@ -23,6 +23,7 @@ Processes
     Data:   {{ bytes .Data}}
     Dirty:  {{ bytes .Dirty}}
 {{- end }}
+  Tags: {{range $idx, $tag := .Tags}}{{if $idx}},{{end}}{{$tag}}{{end}}
 {{- with .Cpu }}
   CPU: Total: {{ cpupct .TotalPct }} System: {{ cpupct .SystemPct }} User: {{ cpupct .UserPct }}
   Threads: {{ .NumThreads }}
