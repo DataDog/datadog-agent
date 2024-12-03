@@ -7,7 +7,7 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "0059a287d5543305c01a098740ba328aef7fa8ff",
+        "OMNIBUS_SOFTWARE_VERSION": "pythyu/macos_arm_build",
         "OMNIBUS_RUBY_VERSION": "d365e483ee05a13e55eeb5208d11452c5b65afbb",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",
@@ -26,7 +26,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "0059a287d5543305c01a098740ba328aef7fa8ff",
+        "OMNIBUS_SOFTWARE_VERSION": "pythyu/macos_arm_build",
         "OMNIBUS_RUBY_VERSION": "d365e483ee05a13e55eeb5208d11452c5b65afbb",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",
