@@ -61,7 +61,6 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource
 
 // SubscribeForType returns a channel carrying LogSources for a given source type
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
-
 	added = make(chan *LogSource)
 	go func() {
 		for _, logSource := range s.addedByType[sourceType] {
