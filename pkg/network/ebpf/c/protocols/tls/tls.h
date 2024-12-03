@@ -16,7 +16,8 @@
 #define TLS_APPLICATION_DATA 0x17
 
 #define SUPPORTED_VERSIONS_EXTENSION 0x002B
-#define MAX_EXTENSIONS 8
+#define CLIENT_MAX_EXTENSIONS 4
+#define SERVER_MAX_EXTENSIONS 6
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
@@ -50,23 +51,17 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
 // set_tls_offered_version sets the bit corresponding to the offered version in the offered_versions field of tls_info
 static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 version) {
     switch (version) {
-        case SSL_VERSION20:
-            tls_info->offered_versions |= 0x01; // Bit 0
-            break;
-        case SSL_VERSION30:
-            tls_info->offered_versions |= 0x02; // Bit 1
-            break;
         case TLS_VERSION10:
-            tls_info->offered_versions |= 0x04; // Bit 2
+            tls_info->offered_versions |= 0x01;
             break;
         case TLS_VERSION11:
-            tls_info->offered_versions |= 0x08; // Bit 3
+            tls_info->offered_versions |= 0x02;
             break;
         case TLS_VERSION12:
-            tls_info->offered_versions |= 0x10; // Bit 4
+            tls_info->offered_versions |= 0x04;
             break;
         case TLS_VERSION13:
-            tls_info->offered_versions |= 0x20; // Bit 5
+            tls_info->offered_versions |= 0x08;
             break;
         default:
             break;
@@ -204,8 +199,8 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     __u16 extension_length;
     __u8 sv_list_length;
 
-    #pragma unroll(MAX_EXTENSIONS)
-        for (int i = 0; i < MAX_EXTENSIONS; i++) {
+    #pragma unroll(CLIENT_MAX_EXTENSIONS)
+        for (int i = 0; i < CLIENT_MAX_EXTENSIONS; i++) {
             if (offset + 4 > extensions_end) {
                 break;
             }
@@ -271,7 +266,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
 
             extensions_parsed++;
         }
-    // log_debug("adamk successfully parsed client hello message");
+
     return 0;
 }
 
@@ -358,8 +353,8 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
         __u16 extension_type;
         __u16 extension_length;
         __u16 selected_version;
-        #pragma unroll(MAX_EXTENSIONS)
-            for (int i = 0; i < MAX_EXTENSIONS; i++) {
+        #pragma unroll(SERVER_MAX_EXTENSIONS)
+            for (int i = 0; i < SERVER_MAX_EXTENSIONS; i++) {
                 if (offset + 4 > extensions_end) {
                     break;
                 }
@@ -403,8 +398,6 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
                 extensions_parsed++;
             }
         }
-
-    // log_debug("adamk successfully parsed server hello message");
 
     return 0;
 }

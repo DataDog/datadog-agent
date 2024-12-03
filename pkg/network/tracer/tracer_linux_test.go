@@ -2649,7 +2649,6 @@ func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) boo
 	for _, c := range payload.Conns {
 		if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
 			tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
-			t.Log("TLS tags: ", tlsTags)
 
 			// Check that the cipher suite ID tag is present
 			cipherSuiteTagFound := false

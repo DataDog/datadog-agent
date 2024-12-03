@@ -6,6 +6,7 @@
 package tls
 
 import (
+	"crypto/tls"
 	"fmt"
 	"reflect"
 	"testing"
@@ -16,12 +17,10 @@ func TestFormatTLSVersion(t *testing.T) {
 		version  uint16
 		expected string
 	}{
-		{SSLVersion20, "SSL 2.0"},
-		{SSLVersion30, "SSL 3.0"},
-		{TLSVersion10, "TLS 1.0"},
-		{TLSVersion11, "TLS 1.1"},
-		{TLSVersion12, "TLS 1.2"},
-		{TLSVersion13, "TLS 1.3"},
+		{tls.VersionTLS10, "TLS 1.0"},
+		{tls.VersionTLS11, "TLS 1.1"},
+		{tls.VersionTLS12, "TLS 1.2"},
+		{tls.VersionTLS13, "TLS 1.3"},
 		{0xFFFF, ""}, // Unknown version
 		{0x0000, ""}, // Zero value
 		{0x0305, ""}, // Version just above known versions
@@ -44,15 +43,13 @@ func TestParseOfferedVersions(t *testing.T) {
 		expected        []string
 	}{
 		{0x00, []string{}}, // No versions offered
-		{OfferedSSLVersion20, []string{"SSL 2.0"}},
-		{OfferedSSLVersion30, []string{"SSL 3.0"}},
 		{OfferedTLSVersion10, []string{"TLS 1.0"}},
 		{OfferedTLSVersion11, []string{"TLS 1.1"}},
 		{OfferedTLSVersion12, []string{"TLS 1.2"}},
 		{OfferedTLSVersion13, []string{"TLS 1.3"}},
 		{OfferedTLSVersion10 | OfferedTLSVersion12, []string{"TLS 1.0", "TLS 1.2"}},
-		{OfferedSSLVersion30 | OfferedTLSVersion11 | OfferedTLSVersion13, []string{"SSL 3.0", "TLS 1.1", "TLS 1.3"}},
-		{0xFF, []string{"SSL 2.0", "SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"}}, // All bits set
+		{OfferedTLSVersion11 | OfferedTLSVersion13, []string{"TLS 1.1", "TLS 1.3"}},
+		{0xFF, []string{"TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"}}, // All bits set
 		{0x40, []string{}}, // Undefined bit set
 		{0x80, []string{}}, // Undefined bit set
 	}
@@ -81,7 +78,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		{
 			name: "All_Fields_Populated",
 			tlsTags: &Tags{
-				ChosenVersion:   TLSVersion12,
+				ChosenVersion:   tls.VersionTLS12,
 				CipherSuite:     0x009C,
 				OfferedVersions: OfferedTLSVersion11 | OfferedTLSVersion12,
 			},
@@ -107,7 +104,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		{
 			name: "No_Offered_Versions",
 			tlsTags: &Tags{
-				ChosenVersion:   TLSVersion13,
+				ChosenVersion:   tls.VersionTLS13,
 				CipherSuite:     0x1301,
 				OfferedVersions: 0x00,
 			},
@@ -119,7 +116,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		{
 			name: "Zero_Cipher_Suite",
 			tlsTags: &Tags{
-				ChosenVersion:   TLSVersion10,
+				ChosenVersion:   tls.VersionTLS10,
 				OfferedVersions: OfferedTLSVersion10,
 			},
 			expected: map[string]struct{}{
@@ -130,7 +127,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		{
 			name: "All_Bits_Set_In_Offered_Versions",
 			tlsTags: &Tags{
-				ChosenVersion:   TLSVersion12,
+				ChosenVersion:   tls.VersionTLS12,
 				CipherSuite:     0xC02F,
 				OfferedVersions: 0xFF, // All bits set
 			},
@@ -141,8 +138,6 @@ func TestGetTLSDynamicTags(t *testing.T) {
 				"tls.client_version:TLS 1.1": {},
 				"tls.client_version:TLS 1.2": {},
 				"tls.client_version:TLS 1.3": {},
-				"tls.client_version:SSL 2.0": {},
-				"tls.client_version:SSL 3.0": {},
 			},
 		},
 	}

@@ -6,36 +6,25 @@
 // Package tls contains definitions and methods related to tags parsed from the TLS handshake
 package tls
 
-import "fmt"
-
-// TLS and SSL version constants
-const (
-	SSLVersion20 uint16 = 0x0200
-	SSLVersion30 uint16 = 0x0300
-	TLSVersion10 uint16 = 0x0301
-	TLSVersion11 uint16 = 0x0302
-	TLSVersion12 uint16 = 0x0303
-	TLSVersion13 uint16 = 0x0304
+import (
+	"crypto/tls"
+	"fmt"
 )
 
-// Bitmask constants for Offered_versions
+// Bitmask constants for Offered_versions matching kernelspace definitions
 const (
-	OfferedSSLVersion20 uint8 = 0x01 // Bit 0
-	OfferedSSLVersion30 uint8 = 0x02 // Bit 1
-	OfferedTLSVersion10 uint8 = 0x04 // Bit 2
-	OfferedTLSVersion11 uint8 = 0x08 // Bit 3
-	OfferedTLSVersion12 uint8 = 0x10 // Bit 4
-	OfferedTLSVersion13 uint8 = 0x20 // Bit 5
+	OfferedTLSVersion10 uint8 = 0x01
+	OfferedTLSVersion11 uint8 = 0x02
+	OfferedTLSVersion12 uint8 = 0x04
+	OfferedTLSVersion13 uint8 = 0x08
 )
 
 // mapping of version constants to their string representations
 var tlsVersionNames = map[uint16]string{
-	SSLVersion20: "SSL 2.0",
-	SSLVersion30: "SSL 3.0",
-	TLSVersion10: "TLS 1.0",
-	TLSVersion11: "TLS 1.1",
-	TLSVersion12: "TLS 1.2",
-	TLSVersion13: "TLS 1.3",
+	tls.VersionTLS10: "TLS 1.0",
+	tls.VersionTLS11: "TLS 1.1",
+	tls.VersionTLS12: "TLS 1.2",
+	tls.VersionTLS13: "TLS 1.3",
 }
 
 // Mapping of offered version bitmasks to version constants
@@ -43,12 +32,10 @@ var offeredVersionBitmask = []struct {
 	bitMask uint8
 	version uint16
 }{
-	{OfferedSSLVersion20, SSLVersion20},
-	{OfferedSSLVersion30, SSLVersion30},
-	{OfferedTLSVersion10, TLSVersion10},
-	{OfferedTLSVersion11, TLSVersion11},
-	{OfferedTLSVersion12, TLSVersion12},
-	{OfferedTLSVersion13, TLSVersion13},
+	{OfferedTLSVersion10, tls.VersionTLS10},
+	{OfferedTLSVersion11, tls.VersionTLS11},
+	{OfferedTLSVersion12, tls.VersionTLS12},
+	{OfferedTLSVersion13, tls.VersionTLS13},
 }
 
 // Constants for tag keys
