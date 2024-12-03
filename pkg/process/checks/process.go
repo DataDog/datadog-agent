@@ -179,7 +179,9 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
+	log.Info("Initializing nvml probe from process check")
 	p.nvmlProbe = procutil.NewGpuProbe(p.config)
+	log.Info("Finish initializing nvml probe from process check")
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
@@ -254,6 +256,7 @@ func (p *ProcessCheck) Cleanup() {
 		p.workloadMetaServer.Stop()
 	}
 	if p.nvmlProbe != nil {
+		log.Info("Cleaning up nvml probe from process check")
 		p.nvmlProbe.Close()
 	}
 }
@@ -273,7 +276,9 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, err
 	}
 
+	log.Info("Starting nvml probe scan from process check")
 	p.nvmlProbe.Scan()
+	log.Info("Finished nvml probe scan from process check")
 
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
@@ -327,7 +332,9 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
+	log.Info("Starting fmtProcesses")
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, nil, nil)
+	log.Info("Finished fmtProcesses")
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -490,6 +497,7 @@ func getGPUID(pid int32, deviceByPid map[int32]nvml.Device) string {
 	if !ok {
 		return ""
 	}
+	log.Info("Starting device.GetUUID() from getGPUID in process check")
 	uuid, err := device.GetUUID()
 	if !errors.Is(err, nvml.SUCCESS) {
 		log.Warn("Failed to get GPU UUID for pid %d: %v", pid, err)
@@ -539,6 +547,7 @@ func fmtProcesses(
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 		}
 
+		log.Info("Getting getGPUID from fmtProcesses in process check")
 		gpuUUID := getGPUID(fp.Pid, deviceByPid)
 		if gpuUUID != "" {
 			proc.Tags = append(proc.Tags, "gpu_device:"+gpuUUID)

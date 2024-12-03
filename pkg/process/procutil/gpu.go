@@ -8,8 +8,8 @@ package procutil
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -27,6 +27,7 @@ type NVMLProbe struct {
 // NewGpuProbe creates a new GPU probe
 func NewGpuProbe(config pkgconfigmodel.Reader) *NVMLProbe {
 	nvml := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
+	log.Info("Created NVML probe")
 	return &NVMLProbe{
 		ctx:  context.Background(),
 		nvml: nvml,
@@ -35,22 +36,29 @@ func NewGpuProbe(config pkgconfigmodel.Reader) *NVMLProbe {
 
 // Scan scans the system for GPU devices
 func (p *NVMLProbe) Scan() {
+	log.Info("Scan begin")
 	count, ret := p.nvml.DeviceGetCount()
+	log.Infof("Finished DeviceGetCount count: %d, ret: %s", count, ret)
 	if ret != nvml.SUCCESS {
-		log.Fatalf("Unable to get device count: %v", nvml.ErrorString(ret))
+		log.Errorf("Unable to get device count: %v", nvml.ErrorString(ret))
+		return
 	}
 
 	infosByPid := make(map[int32]nvml.ProcessInfo)
 	deviceByPid := make(map[int32]nvml.Device)
 	for di := 0; di < count; di++ {
 		device, ret := p.nvml.DeviceGetHandleByIndex(di)
+		log.Infof("Finished DeviceGetHandleByIndex device: %d, ret: %s", device, ret)
 		if ret != nvml.SUCCESS {
-			log.Fatalf("Unable to get device at index %d: %v", di, nvml.ErrorString(ret))
+			log.Errorf("Unable to get device at index %d: %v", di, nvml.ErrorString(ret))
+			return
 		}
 
 		processInfos, ret := device.GetComputeRunningProcesses()
+		log.Infof("Finished GetComputeRunningProcesses processInfos: %d, ret: %s", processInfos, ret)
 		if ret != nvml.SUCCESS {
-			log.Fatalf("Unable to get process info for device at index %d: %v", di, nvml.ErrorString(ret))
+			log.Errorf("Unable to get process info for device at index %d: %v", di, nvml.ErrorString(ret))
+			return
 		}
 		fmt.Printf("Found %d processes on device %d\n", len(processInfos), di)
 
@@ -61,9 +69,11 @@ func (p *NVMLProbe) Scan() {
 	}
 	p.InfosByPid = infosByPid
 	p.DeviceByPid = deviceByPid
+	log.Info("Scan completed")
 }
 
 // Close closes the probe
 func (p *NVMLProbe) Close() {
+	log.Info("NVML Probe closing")
 	_ = p.nvml.Shutdown()
 }
