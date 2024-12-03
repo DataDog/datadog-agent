@@ -14,7 +14,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
@@ -333,7 +332,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	connsRates := p.getLastConnRates()
 	log.Info("Starting fmtProcesses")
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, p.nvmlProbe.InfosByPid, p.nvmlProbe.DeviceByPid)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, p.nvmlProbe.DeviceUUIDByPid)
 	log.Info("Finished fmtProcesses")
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
@@ -492,19 +491,6 @@ func chunkProcessesAndContainers(
 	return chunker.GetChunks(), totalProcs, totalContainers
 }
 
-func getGPUID(pid int32, deviceByPid map[int32]nvml.Device) string {
-	device, ok := deviceByPid[pid]
-	if !ok {
-		return ""
-	}
-	log.Info("Starting device.GetUUID() from getGPUID in process check")
-	uuid, err := device.GetUUID()
-	if !errors.Is(err, nvml.SUCCESS) {
-		log.Warn("Failed to get GPU UUID for pid %d: %v", pid, err)
-	}
-	return uuid
-}
-
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
@@ -518,8 +504,7 @@ func fmtProcesses(
 	lookupIdProbe *LookupIdProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
-	infoByPid map[int32]nvml.ProcessInfo,
-	deviceByPid map[int32]nvml.Device,
+	deviceUUIDByPid map[int32]string,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -548,8 +533,7 @@ func fmtProcesses(
 		}
 
 		log.Info("Getting getGPUID from fmtProcesses in process check")
-		gpuUUID := getGPUID(fp.Pid, deviceByPid)
-		if gpuUUID != "" {
+		if gpuUUID, ok := deviceUUIDByPid[fp.Pid]; ok {
 			proc.Tags = append(proc.Tags, "gpu_device:"+gpuUUID)
 		}
 

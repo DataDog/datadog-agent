@@ -6,6 +6,7 @@
 package procutil
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -18,26 +19,22 @@ import (
 type NVMLProbe struct {
 	nvml nvml.Interface
 
-	InfosByPid  map[int32]nvml.ProcessInfo
-	DeviceByPid map[int32]nvml.Device
+	DeviceUUIDByPid map[int32]string
 }
 
 // NewGpuProbe creates a new GPU probe
 func NewGpuProbe(config pkgconfigmodel.Reader) *NVMLProbe {
-	nvmlInterface := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
-	ret := nvmlInterface.Init()
+	nvmlLib := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
+	ret := nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		log.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
 		return nil
 	}
 
 	log.Info("Created NVML probe")
-	infosByPid := make(map[int32]nvml.ProcessInfo)
-	deviceByPid := make(map[int32]nvml.Device)
 	return &NVMLProbe{
-		nvml:        nvmlInterface,
-		InfosByPid:  infosByPid,
-		DeviceByPid: deviceByPid,
+		nvml:            nvmlLib,
+		DeviceUUIDByPid: make(map[int32]string),
 	}
 }
 
@@ -56,14 +53,18 @@ func (p *NVMLProbe) Scan() {
 		return
 	}
 
-	infosByPid := make(map[int32]nvml.ProcessInfo)
-	deviceByPid := make(map[int32]nvml.Device)
+	deviceUUIDByPid := make(map[int32]string)
 	for di := 0; di < count; di++ {
 		device, ret := p.nvml.DeviceGetHandleByIndex(di)
 		log.Infof("Finished DeviceGetHandleByIndex device: %d, ret: %s", device, ret)
 		if ret != nvml.SUCCESS {
 			log.Errorf("Unable to get device at index %d: %v", di, nvml.ErrorString(ret))
 			return
+		}
+
+		deviceUUID, err := device.GetUUID()
+		if !errors.Is(err, nvml.SUCCESS) {
+			log.Warn("Failed to get GPU UUID %v", err)
 		}
 
 		processInfos, ret := device.GetComputeRunningProcesses()
@@ -74,13 +75,11 @@ func (p *NVMLProbe) Scan() {
 		}
 		fmt.Printf("Found %d processes on device %d\n", len(processInfos), di)
 
-		for pi, processInfo := range processInfos {
-			infosByPid[int32(pi)] = processInfo
-			deviceByPid[int32(pi)] = device
+		for _, processInfo := range processInfos {
+			deviceUUIDByPid[int32(processInfo.Pid)] = deviceUUID
 		}
 	}
-	p.InfosByPid = infosByPid
-	p.DeviceByPid = deviceByPid
+	p.DeviceUUIDByPid = deviceUUIDByPid
 	log.Info("Scan completed")
 }
 
