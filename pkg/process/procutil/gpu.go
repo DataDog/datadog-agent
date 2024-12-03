@@ -24,13 +24,13 @@ type NVMLProbe struct {
 
 // NewGpuProbe creates a new GPU probe
 func NewGpuProbe(config pkgconfigmodel.Reader) *NVMLProbe {
-	nvml := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
+	nvmlInterface := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
 	log.Info("Created NVML probe")
 	infosByPid := make(map[int32]nvml.ProcessInfo)
 	deviceByPid := make(map[int32]nvml.Device)
 	return &NVMLProbe{
-		nvml: nvml,
-		InfosByPid: infosByPid,
+		nvml:        nvmlInterface,
+		InfosByPid:  infosByPid,
 		DeviceByPid: deviceByPid,
 	}
 }
