@@ -32,7 +32,7 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 	return b.buf.Write(p)
 }
 
-func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
+func (r *secretResolver) execCommand(inputPayload string, additionalArguments ...string) ([]byte, error) {
 	// hook used only for tests
 	if r.commandHookFunc != nil {
 		return r.commandHookFunc(inputPayload)
@@ -42,7 +42,8 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		time.Duration(r.backendTimeout)*time.Second)
 	defer cancel()
 
-	cmd, done, err := commandContext(ctx, r.backendCommand, r.backendArguments...)
+	args := append(r.backendArguments, additionalArguments...)
+	cmd, done, err := commandContext(ctx, r.backendCommand, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -22,3 +22,9 @@ type SecretChangeCallback func(handle, origin string, path []string, oldValue, n
 
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"
+
+// SecretKeys defines the structure for secret keys in JSON output
+type SecretKeys struct {
+	Keys     []string `json:"keys"`
+	ErrorMsg string   `json:"error,omitempty"`
+}

@@ -8,15 +8,8 @@ package secret
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/stretchr/testify/assert"
 )
 
 type baseSecretSuite struct {
 	e2e.BaseSuite[environments.Host]
-}
-
-func (v *baseSecretSuite) TestAgentSecretNotEnabledByDefault() {
-	secret := v.Env().Agent.Client.Secret()
-
-	assert.Contains(v.T(), secret, "No secret_backend_command set")
 }

@@ -78,6 +78,10 @@ func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	return true
 }
 
+func (m *MockSecretResolver) ListSecrets() []string {
+	return nil
+}
+
 var sharedTpl = integration.Config{
 	Name:          "cpu",
 	ADIdentifiers: []string{"redis"},
