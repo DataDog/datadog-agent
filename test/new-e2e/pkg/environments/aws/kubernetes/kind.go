@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
@@ -164,34 +165,34 @@ agents:
 			params.operatorOptions...,
 		)
 
-		if params.operatorDDAOptions != nil && params.deployOperator {
-			ddaOptions := make([]agentwithoperatorparams.Option, 0)
-			ddaOptions = append(
-				ddaOptions,
-				params.operatorDDAOptions...,
-			)
-
-			ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("dd-operator-agent"), kubeProvider, operatorOpts, ddaOptions...)
-
-			if err != nil {
-				return err
-			}
-
-			if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
-				return err
-			}
-			dependsOnCrd = append(dependsOnCrd, ddaWithOperatorComp)
-
-		} else {
-			operatorComp, err := operator.NewOperator(&awsEnv, kindClusterName, kubeProvider, operatorOpts...)
-			if err != nil {
-				return err
-			}
-			err = operatorComp.Export(ctx, nil)
-			if err != nil {
-				return err
-			}
+		operatorComp, err := operator.NewOperator(&awsEnv, kindClusterName, kubeProvider, operatorOpts...)
+		if err != nil {
+			return err
 		}
+		err = operatorComp.Export(ctx, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if params.operatorDDAOptions != nil {
+		ddaOptions := make([]agentwithoperatorparams.Option, 0)
+		ddaOptions = append(
+			ddaOptions,
+			params.operatorDDAOptions...,
+		)
+
+		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("dd-operator-agent"), kubeProvider, ddaOptions...)
+
+		if err != nil {
+			return err
+		}
+
+		if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
+		dependsOnCrd = append(dependsOnCrd, ddaWithOperatorComp)
+
 	} else {
 		env.Agent = nil
 	}

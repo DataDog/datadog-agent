@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
 	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 	compkube "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/local"
@@ -71,12 +72,25 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			operatorparams.WithNamespace(namespace),
 		)
 
-		customDDA := `
+		// Create Operator component
+		_, err = operator.NewOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator-agent"), kindKubeProvider, operatorOpts...)
+
+		if err != nil {
+			return err
+		}
+
+		customDDA := agentwithoperatorparams.DDAConfig{
+			Name: "apm-enabled-no-ccr",
+			YamlConfig: `
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
 spec:
   features:
     apm:
       enabled: true
-`
+`,
+		}
+
 		// Setup DDA options
 		ddaOptions := make([]agentwithoperatorparams.Option, 0)
 		ddaOptions = append(
@@ -84,16 +98,17 @@ spec:
 			agentwithoperatorparams.WithNamespace(namespace),
 			agentwithoperatorparams.WithTLSKubeletVerify(false),
 			agentwithoperatorparams.WithDDAConfig(customDDA),
+			agentwithoperatorparams.WithFakeIntake(fakeIntake),
 		)
 
 		// Create Datadog Agent with Operator component
-		operatorAgentComponent, err := agent.NewDDAWithOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator-agent"), kindKubeProvider, operatorOpts, ddaOptions...)
+		agentComponent, err := agent.NewDDAWithOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator-agent"), kindKubeProvider, ddaOptions...)
 
 		if err != nil {
 			return err
 		}
 
-		if err := operatorAgentComponent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+		if err = agentComponent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
 			return err
 		}
 
@@ -102,7 +117,7 @@ spec:
 }
 
 func TestOperatorKindSuite(t *testing.T) {
-	e2e.Run(t, &localKindOperatorSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil))
+	e2e.Run(t, &localKindOperatorSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil), e2e.WithDevMode(), e2e.WithSkipDeleteOnFailure())
 }
 
 func (k *localKindOperatorSuite) TestClusterAgentInstalled() {

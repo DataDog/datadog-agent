@@ -23,12 +23,17 @@ type kindOperatorSuite struct {
 }
 
 func TestKindOperatorSuite(t *testing.T) {
-	customDDA := `
+	customDDA := agentwithoperatorparams.DDAConfig{
+		Name: "apm-enabled-no-ccr",
+		YamlConfig: `
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
 spec:
   features:
     apm:
       enabled: true
-`
+`,
+}
 
 	e2e.Run(t, &kindOperatorSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithOperator(),
