@@ -125,7 +125,7 @@ func installAgentPackage(target string, args []string) error {
 		output, err = cmd.Run()
 	}
 	if err != nil {
-		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s\n", target, err, logFile, string(output))
+		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
 	}
 	return nil
 }
