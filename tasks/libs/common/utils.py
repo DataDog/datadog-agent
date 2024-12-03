@@ -11,11 +11,9 @@ import sys
 import tempfile
 import time
 import traceback
-from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
-from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
@@ -26,7 +24,6 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
 from tasks.libs.common.git import get_commit_sha, get_default_branch
-from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
 
@@ -585,105 +582,6 @@ def parse_kernel_version(version: str) -> tuple[int, int, int, int]:
         raise ValueError(f"Cannot parse kernel version from {version}")
 
     return (int(match.group(1)), int(match.group(2)), int(match.group(4) or "0"), int(match.group(6) or "0"))
-
-
-def guess_from_labels(issue):
-    for label in issue.labels:
-        if label.name.startswith("team/") and "triage" not in label.name:
-            return label.name.split("/")[-1]
-    return 'triage'
-
-
-def guess_from_keywords(issue):
-    text = f"{issue.title} {issue.body}".casefold().split()
-    c = Counter(text)
-    for word in c.most_common():
-        team = simple_match(word[0])
-        if team:
-            return team
-        team = file_match(word[0])
-        if team:
-            return team
-    return "triage"
-
-
-def simple_match(word):
-    pattern_matching = {
-        "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
-        "containers": [
-            'container',
-            'pod',
-            'kubernetes',
-            'orchestrator',
-            'docker',
-            'k8s',
-            'kube',
-            'cluster',
-            'kubelet',
-            'helm',
-        ],
-        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
-        "agent-delivery": ['omnibus', 'packaging', 'script'],
-        "remote-config": ['installer', 'oci'],
-        "agent-cspm": ['cspm'],
-        "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
-        "agent-security": ['security', 'vuln', 'security-agent'],
-        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
-        "fleet": ['fleet', 'fleet-automation'],
-        "opentelemetry": ['otel', 'opentelemetry'],
-        "windows-agent": ['windows', 'sys32', 'powershell'],
-        "networks": ['tcp', 'udp', 'socket', 'network'],
-        "serverless": ['serverless'],
-        "integrations": ['integration', 'python', 'checks'],
-    }
-    for team, words in pattern_matching.items():
-        if any(w in word for w in words):
-            return team
-    return None
-
-
-def file_match(word):
-    dd_folders = [
-        'chocolatey',
-        'cmd',
-        'comp',
-        'dev',
-        'devenv',
-        'docs',
-        'internal',
-        'omnibus',
-        'pkg',
-        'rtloader',
-        'tasks',
-        'test',
-        'tools',
-    ]
-    p = Path(word)
-    if len(p.parts) > 1 and p.suffix:
-        path_folder = next((f for f in dd_folders if f in p.parts), None)
-        if path_folder:
-            file = '/'.join(p.parts[p.parts.index(path_folder) :])
-            return (
-                search_owners(file, ".github/CODEOWNERS")[0].casefold().replace("@datadog/", "")
-            )  # only return the first owner
-    return None
-
-
-def team_to_label(team):
-    dico = {
-        'apm-core-reliability-and-performance': "agent-apm",
-        'universal-service-monitoring': "usm",
-        'software-integrity-and-trust': "agent-security",
-        'agent-all': "triage",
-        'telemetry-and-analytics': "agent-apm",
-        'fleet': "fleet-automation",
-        'debugger': "dynamic-intrumentation",
-        'container-integrations': "containers",
-        'agent-e2e-testing': "agent-e2e-test",
-        'agent-integrations': "integrations",
-        'asm-go': "agent-security",
-    }
-    return dico.get(team, team)
 
 
 @contextmanager
