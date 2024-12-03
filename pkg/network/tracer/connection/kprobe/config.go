@@ -58,13 +58,15 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		if ClassificationSupported(c) {
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
-			enableProbe(enabled, probes.ProtocolClassifierTLSClientSocketFilter)
-			enableProbe(enabled, probes.ProtocolClassifierTLSServerSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
+			if !runtimeTracer {
+				enableProbe(enabled, probes.ProtocolClassifierTLSClientSocketFilter)
+				enableProbe(enabled, probes.ProtocolClassifierTLSServerSocketFilter)
+			}
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPSendMsgReturn)
