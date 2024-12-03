@@ -60,14 +60,12 @@ func TestSubscribeForTypeAndAddFileSource(t *testing.T) {
 	defer os.Remove(tempFile.Name())
 
 	configSource := NewConfigSources()
-	addedChan, _ := configSource.SubscribeForType("file")
-	go func() {
-		added := <-addedChan
-		assert.NotNil(t, added)
-		assert.Equal(t, "file", added.Config.Type)
-		assert.Equal(t, "/tmp/test.log", added.Config.Path)
-	}()
-
 	err := configSource.AddFileSource(tempFile.Name())
+	addedChan, _ := configSource.SubscribeForType("file")
+	added := <-addedChan
+	assert.NotNil(t, added)
+	assert.Equal(t, "file", added.Config.Type)
+	assert.Equal(t, "/tmp/test.log", added.Config.Path)
+
 	assert.NoError(t, err)
 }
