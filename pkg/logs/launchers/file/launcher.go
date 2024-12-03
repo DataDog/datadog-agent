@@ -7,6 +7,7 @@
 package file
 
 import (
+	"fmt"
 	"regexp"
 	"time"
 
@@ -89,7 +90,9 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 // Start starts the Launcher
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
+	fmt.Println("call subscribe for type")
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
+	fmt.Println("s.addedSources is set")
 	s.registry = registry
 	tracker.Add(s.tailers)
 	go s.run()

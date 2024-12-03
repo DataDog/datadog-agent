@@ -6,6 +6,8 @@
 package sources
 
 import (
+	"errors"
+	"fmt"
 	"os"
 
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -14,13 +16,13 @@ import (
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
 // This class implements the SourceProvider interface
 type ConfigSources struct {
-	addedByType map[string][]chan *LogSource
+	addedByType map[string][]*LogSource
 }
 
 // NewConfigSources provides an instance of ConfigSources.
 func NewConfigSources() *ConfigSources {
 	return &ConfigSources{
-		addedByType: make(map[string][]chan *LogSource),
+		addedByType: make(map[string][]*LogSource),
 	}
 }
 
@@ -44,23 +46,13 @@ func (s *ConfigSources) AddFileSource(path string) error {
 			cfg.TailingMode = "beginning"
 		}
 		source := NewLogSource(cfg.Name, cfg)
-		s.AddSource(source)
+		if source.Config == nil || source.Config.Validate() != nil {
+			return errors.New("source configuration is invalid")
+		}
+		s.addedByType[source.Config.Type] = append(s.addedByType[source.Config.Type], source)
 	}
 
 	return nil
-}
-
-// AddSource adds a new source.
-// All of the subscribers registered for this source's type (src.Config.Type) will be
-// notified.
-func (s *ConfigSources) AddSource(source *LogSource) {
-	if source.Config == nil || source.Config.Validate() != nil {
-		return
-	}
-	streamsForType := s.addedByType[source.Config.Type]
-	for _, stream := range streamsForType {
-		stream <- source
-	}
 }
 
 // SubscribeAll is required for the SourceProvider interface
@@ -74,12 +66,14 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
 
 	added = make(chan *LogSource)
+	defer func() {
+		for _, logSource := range s.addedByType[sourceType] {
+			fmt.Println("hehexd?", logSource)
+			added <- logSource
+		}
+	}()
 
-	if _, exists := s.addedByType[sourceType]; !exists {
-		s.addedByType[sourceType] = []chan *LogSource{}
-	}
-	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
-	return
+	return added, nil
 }
 
 // GetAddedForType is required for the SourceProvider interface
