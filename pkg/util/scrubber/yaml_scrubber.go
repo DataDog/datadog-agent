@@ -93,10 +93,15 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	cndFunctions := append(defaultYAMLConditionFunction(), c.shouldScrub...)
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
 		for _, replacer := range c.singleLineReplacers {
+			shouldSkipReplacement := false
 			for _, cnd := range cndFunctions {
 				if !cnd(&replacer, nil) {
-					continue
+					shouldSkipReplacement = true
+					break
 				}
+			}
+			if shouldSkipReplacement {
+				continue
 			}
 			if replacer.YAMLKeyRegex.Match([]byte(key)) {
 				if replacer.ProcessValue != nil {

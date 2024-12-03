@@ -201,10 +201,15 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	cndFunctions := append(defaultConditionFunctions(), c.shouldScrub...)
 	for _, repl := range replacers {
+		shouldSkipReplacement := false
 		for _, cnd := range cndFunctions {
 			if !cnd(&repl, data) {
-				continue
+				shouldSkipReplacement = true
+				break
 			}
+		}
+		if shouldSkipReplacement {
+			continue
 		}
 		data = repl.scrubData(data)
 	}
