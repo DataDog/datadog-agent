@@ -698,9 +698,6 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		panic("should always return a process context")
 	}
 
-	// fmt.Printf("Replacing cgroup context %+v with %+v, isResolved: %+v (open: %+v)\n", event.CGroupContext, event.ProcessCacheEntry.CGroup, isResolved, event.Open)
-	// debug.PrintStack()
-
 	// do the same with cgroup context
 	event.CGroupContext = event.ProcessCacheEntry.CGroup
 
