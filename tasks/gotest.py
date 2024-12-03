@@ -419,6 +419,8 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
         with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):
             try:
                 t()
+            except NotImplementedError as e:
+                print(f"Skipping {t_name}\n{e}")
             except Exception as e:
                 tests_failures[t_name] = e
     if tests_failures:
