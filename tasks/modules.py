@@ -85,15 +85,6 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
-    print(
-        color_message(
-            "WARNING: Using a go.work file is not supported and can cause weird errors "
-            "when compiling the agent or running tests.\n"
-            "Remember to export GOWORK=off to avoid these issues.\n",
-            "orange",
-        ),
-        file=sys.stderr,
-    )
 
     # read go version from the .go-version file, removing the bugfix part of the version
 
@@ -107,8 +98,7 @@ def go_work(_: Context):
     with open("go.work", "w") as f:
         f.write(f"go {go_version}\n\nuse (\n")
         for mod in get_default_modules().values():
-            prefix = "" if mod.should_test() else "//"
-            f.write(f"\t{prefix}{mod.path}\n")
+            f.write(f"\t{mod.path}\n")
         f.write(")\n")
 
 
