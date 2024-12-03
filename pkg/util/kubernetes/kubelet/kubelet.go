@@ -23,6 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -395,6 +398,34 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
+// GetRawLocalPodList returns the unfiltered pod list from the kubelet
+func (ku *KubeUtil) GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error) {
+	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
+	if err != nil {
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletPodPath, err)
+	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data))
+	}
+
+	podListData, err := runtime.Decode(clientsetscheme.Codecs.UniversalDecoder(v1.SchemeGroupVersion), data)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode the pod list: %s", err)
+	}
+	podList, ok := podListData.(*v1.PodList)
+	if !ok {
+		return nil, fmt.Errorf("pod list type assertion failed on %v", podListData)
+	}
+
+	// transform []v1.Pod in []*v1.Pod
+	pods := make([]*v1.Pod, len(podList.Items))
+	for i := 0; i < len(pods); i++ {
+		pods[i] = &podList.Items[i]
+	}
+
+	return pods, nil
+}
+
 // IsPodReady return a bool if the Pod is ready
 func IsPodReady(pod *Pod) bool {
 	// static pods are always reported as Pending, so we make an exception there
@@ -417,11 +448,44 @@ func IsPodReady(pod *Pod) bool {
 	return false
 }
 
+// NewIsPodReady return a bool if the Pod is ready for v1.Pods
+// TODO CONTP: eventually phase out the use of kubelet.Pod in favor or v1.Pod
+// and remove the old IsPodReady function and replace with the new one
+func NewIsPodReady(pod *v1.Pod) bool {
+	// static pods are always reported as Pending, so we make an exception there
+	if pod.Status.Phase == v1.PodPending && newIsPodStatic(pod) {
+		return true
+	}
+
+	if pod.Status.Phase != v1.PodRunning {
+		return false
+	}
+
+	if tolerate, ok := pod.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
+		return true
+	}
+	for _, status := range pod.Status.Conditions {
+		if status.Type == v1.PodReady && status.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
 // isPodStatic identifies whether a pod is static or not based on an annotation
 // Static pods can be sent to the kubelet from files or an http endpoint.
 func isPodStatic(pod *Pod) bool {
 	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok && (source == "file" || source == "http") {
 		return len(pod.Status.Containers) == 0
+	}
+	return false
+}
+
+// newIsPodStatic identifies whether a v1.Pod is static or not based on an anootation
+// Static pods can be sent to the kubelet from files or an http endpoint.
+func newIsPodStatic(pod *v1.Pod) bool {
+	if source, ok := pod.Annotations[configSourceAnnotation]; ok && (source == "file" || source == "http") {
+		return len(pod.Status.ContainerStatuses) == 0
 	}
 	return false
 }

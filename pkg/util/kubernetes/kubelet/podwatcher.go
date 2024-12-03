@@ -15,6 +15,9 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,9 +59,9 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 // PullChanges pulls a new podList from the kubelet and returns Pod objects for
 // new / updated pods. Updated pods will be sent entirely, user must replace
 // previous info for these pods.
-func (w *PodWatcher) PullChanges(ctx context.Context) ([]*Pod, error) {
-	var podList []*Pod
-	podList, err := w.kubeUtil.GetLocalPodList(ctx)
+func (w *PodWatcher) PullChanges(ctx context.Context) ([]*corev1.Pod, error) {
+	var podList []*corev1.Pod
+	podList, err := w.kubeUtil.GetRawLocalPodList(ctx)
 	if err != nil {
 		return podList, err
 	}
@@ -66,20 +69,20 @@ func (w *PodWatcher) PullChanges(ctx context.Context) ([]*Pod, error) {
 }
 
 // computeChanges is used by PullChanges, split for testing
-func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
+func (w *PodWatcher) computeChanges(podList []*corev1.Pod) ([]*corev1.Pod, error) {
 	now := time.Now()
-	var updatedPods []*Pod
+	var updatedPods []*corev1.Pod
 
 	w.Lock()
 	defer w.Unlock()
 	for _, pod := range podList {
-		podEntity := PodUIDToEntityName(pod.Metadata.UID)
+		podEntity := PodUIDToEntityName(string(pod.ObjectMeta.UID))
 		newPod := false
 
 		_, foundPod := w.lastSeen[podEntity]
 		if !foundPod {
-			w.tagsDigest[podEntity] = digestPodMeta(pod.Metadata)
-			w.oldPhase[podEntity] = pod.Status.Phase
+			w.tagsDigest[podEntity] = digestPodMeta(pod.ObjectMeta)
+			w.oldPhase[podEntity] = string(pod.Status.Phase)
 			newPod = true
 		}
 
@@ -88,10 +91,10 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect updated containers
 		updatedContainer := false
-		isPodReady := IsPodReady(pod)
+		isPodReady := NewIsPodReady(pod)
 
-		for _, container := range pod.Status.GetAllContainers() {
-			if container.IsPending() {
+		for _, container := range append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...) {
+			if container.ContainerID == "" {
 				// We don't check container readiness as init
 				// containers are never ready. We check if the
 				// container has an ID instead (has run or is
@@ -100,29 +103,29 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			}
 
 			// new container are always sent ignoring the pod state
-			if _, found := w.lastSeen[container.ID]; !found {
+			if _, found := w.lastSeen[container.ContainerID]; !found {
 				updatedContainer = true
 			}
-			w.lastSeen[container.ID] = now
+			w.lastSeen[container.ContainerID] = now
 
 			// for existing containers, check whether the
 			// readiness has changed since last time
-			if oldReadiness, found := w.oldReadiness[container.ID]; !found || oldReadiness != isPodReady {
+			if oldReadiness, found := w.oldReadiness[container.ContainerID]; !found || oldReadiness != isPodReady {
 				// the pod has never been seen ready or was removed when
 				// reaching the unreadinessTimeout
 				updatedContainer = true
 			}
 
-			w.oldReadiness[container.ID] = isPodReady
+			w.oldReadiness[container.ContainerID] = isPodReady
 
 			if isPodReady {
-				w.lastSeenReady[container.ID] = now
+				w.lastSeenReady[container.ContainerID] = now
 			}
 		}
 
 		newLabelsOrAnnotations := false
 		newPhase := false
-		newTagsDigest := digestPodMeta(pod.Metadata)
+		newTagsDigest := digestPodMeta(pod.ObjectMeta)
 
 		// if the pod already existed, check whether tagsDigest or
 		// phase changed
@@ -132,8 +135,8 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 				newLabelsOrAnnotations = true
 			}
 
-			if pod.Status.Phase != w.oldPhase[podEntity] {
-				w.oldPhase[podEntity] = pod.Status.Phase
+			if string(pod.Status.Phase) != w.oldPhase[podEntity] {
+				w.oldPhase[podEntity] = string(pod.Status.Phase)
 				newPhase = true
 			}
 		}
@@ -184,7 +187,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 // digestPodMeta returns a unique hash of pod labels
 // and annotations.
 // it hashes labels then annotations and makes a single hash of both maps
-func digestPodMeta(meta PodMetadata) string {
+func digestPodMeta(meta metav1.ObjectMeta) string {
 	h := fnv.New64()
 	h.Write([]byte(digestMapValues(meta.Labels)))      //nolint:errcheck
 	h.Write([]byte(digestMapValues(meta.Annotations))) //nolint:errcheck

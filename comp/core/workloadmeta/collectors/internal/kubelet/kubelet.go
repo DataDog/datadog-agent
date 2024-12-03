@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
@@ -107,11 +108,11 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func (c *collector) parsePods(pods []*corev1.Pod) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
-		podMeta := pod.Metadata
+		podMeta := pod.ObjectMeta
 		if podMeta.UID == "" {
 			log.Debugf("pod has no UID. meta: %+v", podMeta)
 			continue
@@ -128,37 +129,37 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 
 		podID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
-			ID:   podMeta.UID,
+			ID:   string(podMeta.UID),
 		}
 
 		podInitContainers, initContainerEvents := c.parsePodContainers(
 			pod,
 			pod.Spec.InitContainers,
-			pod.Status.InitContainers,
+			pod.Status.InitContainerStatuses,
 			&podID,
 		)
 
 		podContainers, containerEvents := c.parsePodContainers(
 			pod,
 			pod.Spec.Containers,
-			pod.Status.Containers,
+			pod.Status.ContainerStatuses,
 			&podID,
 		)
 
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
-		podOwners := pod.Owners()
-		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
-		for _, o := range podOwners {
+		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
+		for _, o := range pod.OwnerReferences {
 			owners = append(owners, workloadmeta.KubernetesPodOwner{
 				Kind: o.Kind,
 				Name: o.Name,
-				ID:   o.ID,
+				ID:   string(o.UID),
 			})
 		}
 
-		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
-		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
+		PodSecurityContext := extractPodSecurityContext(pod.Spec.SecurityContext)
+		RuntimeClassName := extractPodRuntimeClassName(pod.Spec.RuntimeClassName)
+		PersistentVolumeClaimNames := extractPersistentVolumeClaimNames(pod.Spec.Volumes)
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
@@ -169,14 +170,14 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 				Labels:      podMeta.Labels,
 			},
 			Owners:                     owners,
-			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
+			PersistentVolumeClaimNames: PersistentVolumeClaimNames,
 			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
-			Ready:                      kubelet.IsPodReady(pod),
-			Phase:                      pod.Status.Phase,
+			Ready:                      kubelet.NewIsPodReady(pod),
+			Phase:                      string(pod.Status.Phase),
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
-			QOSClass:                   pod.Status.QOSClass,
+			QOSClass:                   string(pod.Status.QOSClass),
 			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
@@ -195,16 +196,16 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 }
 
 func (c *collector) parsePodContainers(
-	pod *kubelet.Pod,
-	containerSpecs []kubelet.ContainerSpec,
-	containerStatuses []kubelet.ContainerStatus,
+	pod *corev1.Pod,
+	containerSpecs []corev1.Container,
+	containerStatuses []corev1.ContainerStatus,
 	parent *workloadmeta.EntityID,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
 
 	for _, container := range containerStatuses {
-		if container.ID == "" {
+		if container.ContainerID == "" {
 			// A container without an ID has not been created by
 			// the runtime yet, so we ignore them until it's
 			// detected again.
@@ -235,7 +236,7 @@ func (c *collector) parsePodContainers(
 			}
 		}
 
-		runtime, containerID := containers.SplitEntityName(container.ID)
+		runtime, containerID := containers.SplitEntityName(container.ContainerID)
 		podContainer := workloadmeta.OrchestratorContainer{
 			ID:   containerID,
 			Name: container.Name,
@@ -252,13 +253,13 @@ func (c *collector) parsePodContainers(
 			}
 
 			podContainer.Image.ID = imageID
-			containerSecurityContext = extractContainerSecurityContext(containerSpec)
+			containerSecurityContext = extractContainerSecurityContext(containerSpec.SecurityContext)
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
 					Name:     port.Name,
-					Port:     port.ContainerPort,
-					Protocol: port.Protocol,
+					Port:     int(port.ContainerPort),
+					Protocol: string(port.Protocol),
 				})
 			}
 		} else {
@@ -269,14 +270,14 @@ func (c *collector) parsePodContainers(
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
 			containerState.Status = workloadmeta.ContainerStatusRunning
-			containerState.StartedAt = st.StartedAt
-			containerState.CreatedAt = st.StartedAt // CreatedAt not available
+			containerState.StartedAt = st.StartedAt.Time
+			containerState.CreatedAt = st.StartedAt.Time // CreatedAt not available
 		} else if st := container.State.Terminated; st != nil {
 			containerState.Running = false
 			containerState.Status = workloadmeta.ContainerStatusStopped
-			containerState.CreatedAt = st.StartedAt
-			containerState.StartedAt = st.StartedAt
-			containerState.FinishedAt = st.FinishedAt
+			containerState.CreatedAt = st.StartedAt.Time
+			containerState.StartedAt = st.StartedAt.Time
+			containerState.FinishedAt = st.FinishedAt.Time
 		}
 
 		// Kubelet considers containers without probe to be ready
@@ -298,7 +299,7 @@ func (c *collector) parsePodContainers(
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.Name,
 					Labels: map[string]string{
-						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
+						kubernetes.CriContainerNamespaceLabel: pod.ObjectMeta.Namespace,
 					},
 				},
 				Image:           image,
@@ -333,51 +334,84 @@ func getGPUVendorsFromContainers(initContainerEvents, containerEvents []workload
 	return GPUVendors
 }
 
-func extractPodRuntimeClassName(spec *kubelet.Spec) string {
-	if spec.RuntimeClassName == nil {
+func extractPodRuntimeClassName(runtimeClass *string) string {
+	if runtimeClass == nil {
 		return ""
 	}
-	return *spec.RuntimeClassName
+	return *runtimeClass
 }
 
-func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {
-	if spec.SecurityContext == nil {
+func extractPodSecurityContext(securityContext *corev1.PodSecurityContext) *workloadmeta.PodSecurityContext {
+	if securityContext == nil {
 		return nil
 	}
 
+	// NOTE: Values are being converted from int64 to int32. Is this safe?
+	// Q: Should we upgrade the internal security context type to also be int64?
+	runAsUser := int32(0)
+	runAsGroup := int32(0)
+	fsGroup := int32(0)
+	if securityContext.RunAsUser != nil {
+		runAsUser = int32(*securityContext.RunAsUser)
+	}
+	if securityContext.RunAsGroup != nil {
+		runAsGroup = int32(*securityContext.RunAsGroup)
+	}
+	if securityContext.FSGroup != nil {
+		fsGroup = int32(*securityContext.FSGroup)
+	}
+
 	return &workloadmeta.PodSecurityContext{
-		RunAsUser:  spec.SecurityContext.RunAsUser,
-		RunAsGroup: spec.SecurityContext.RunAsGroup,
-		FsGroup:    spec.SecurityContext.FsGroup,
+		RunAsUser:  runAsUser,
+		RunAsGroup: runAsGroup,
+		FsGroup:    fsGroup,
 	}
 }
 
-func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.ContainerSecurityContext {
-	if spec.SecurityContext == nil {
+func extractPersistentVolumeClaimNames(volumes []corev1.Volume) []string {
+	pvcs := []string{}
+	for _, volume := range volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcs = append(pvcs, volume.PersistentVolumeClaim.ClaimName)
+		}
+	}
+	return pvcs
+}
+
+func convertCapabilityList(capList []corev1.Capability) []string {
+	caps := make([]string, 0, len(capList))
+	for _, cap := range capList {
+		caps = append(caps, string(cap))
+	}
+	return caps
+}
+
+func extractContainerSecurityContext(securityContext *corev1.SecurityContext) *workloadmeta.ContainerSecurityContext {
+	if securityContext == nil {
 		return nil
 	}
 
 	var caps *workloadmeta.Capabilities
-	if spec.SecurityContext.Capabilities != nil {
+	if securityContext.Capabilities != nil {
 		caps = &workloadmeta.Capabilities{
-			Add:  spec.SecurityContext.Capabilities.Add,
-			Drop: spec.SecurityContext.Capabilities.Drop,
+			Add:  convertCapabilityList(securityContext.Capabilities.Add),
+			Drop: convertCapabilityList(securityContext.Capabilities.Drop),
 		}
 	}
 
 	privileged := false
-	if spec.SecurityContext.Privileged != nil {
-		privileged = *spec.SecurityContext.Privileged
+	if securityContext.Privileged != nil {
+		privileged = *securityContext.Privileged
 	}
 
 	var seccompProfile *workloadmeta.SeccompProfile
-	if spec.SecurityContext.SeccompProfile != nil {
+	if securityContext.SeccompProfile != nil {
 		localhostProfile := ""
-		if spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
-			localhostProfile = *spec.SecurityContext.SeccompProfile.LocalhostProfile
+		if securityContext.SeccompProfile.LocalhostProfile != nil {
+			localhostProfile = *securityContext.SeccompProfile.LocalhostProfile
 		}
 
-		spType := workloadmeta.SeccompProfileType(spec.SecurityContext.SeccompProfile.Type)
+		spType := workloadmeta.SeccompProfileType(securityContext.SeccompProfile.Type)
 
 		seccompProfile = &workloadmeta.SeccompProfile{
 			Type:             spType,
@@ -392,7 +426,7 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 	}
 }
 
-func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
+func extractEnvFromSpec(envSpec []corev1.EnvVar) map[string]string {
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -433,20 +467,20 @@ func extractGPUVendor(gpuNamePrefix kubelet.ResourceName) string {
 	return gpuVendor
 }
 
-func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
+func extractResources(spec *corev1.Container) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
-	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+	if cpuReq, found := spec.Resources.Requests[corev1.ResourceCPU]; found {
 		resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
 	}
 
-	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
+	if memoryReq, found := spec.Resources.Requests[corev1.ResourceMemory]; found {
 		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
 	}
 
 	// extract GPU resource info from the possible GPU sources
 	uniqueGPUVendor := make(map[string]bool)
 
-	resourceKeys := make([]kubelet.ResourceName, 0, len(spec.Resources.Requests))
+	resourceKeys := make([]corev1.ResourceName, 0, len(spec.Resources.Requests))
 	for resourceName := range spec.Resources.Requests {
 		resourceKeys = append(resourceKeys, resourceName)
 	}
@@ -471,7 +505,7 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	return resources
 }
 
-func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
+func findContainerSpec(name string, specs []corev1.Container) *corev1.Container {
 	for _, spec := range specs {
 		if spec.Name == name {
 			return &spec

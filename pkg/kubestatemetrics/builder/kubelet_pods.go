@@ -30,7 +30,7 @@ const (
 
 // podWatcher is an interface for a component that watches for changes in pods
 type podWatcher interface {
-	PullChanges(ctx context.Context) ([]*kubelet.Pod, error)
+	PullChanges(ctx context.Context) ([]*corev1.Pod, error)
 	Expire() ([]string, error)
 }
 
@@ -108,14 +108,12 @@ func (kr *kubeletReflector) updateStores(ctx context.Context) error {
 	}
 
 	for _, pod := range pods {
-		if !kr.watchAllNamespaces && !slices.Contains(kr.namespaces, pod.Metadata.Namespace) {
+		if !kr.watchAllNamespaces && !slices.Contains(kr.namespaces, pod.Namespace) {
 			continue
 		}
 
-		kubePod := kubelet.ConvertKubeletPodToK8sPod(pod)
-
 		for _, store := range kr.stores {
-			err := store.Add(kubePod)
+			err := store.Add(pod)
 			if err != nil {
 				// log instead of returning error to continue updating other stores
 				log.Warnf("Failed to add pod to store: %s", err)

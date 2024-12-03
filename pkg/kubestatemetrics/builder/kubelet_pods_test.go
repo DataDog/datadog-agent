@@ -17,17 +17,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 type MockPodWatcher struct {
 	mock.Mock
 }
 
-func (m *MockPodWatcher) PullChanges(ctx context.Context) ([]*kubelet.Pod, error) {
+func (m *MockPodWatcher) PullChanges(ctx context.Context) ([]*corev1.Pod, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]*kubelet.Pod), args.Error(1)
+	return args.Get(0).([]*corev1.Pod), args.Error(1)
 }
 
 func (m *MockPodWatcher) Expire() ([]string, error) {
@@ -123,17 +121,15 @@ func TestUpdateStores_AddPods(t *testing.T) {
 
 			watcher := new(MockPodWatcher)
 
-			kubeletPod := &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			corePod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: test.addedPodNamespace,
 					Name:      "test-pod",
 					UID:       "12345",
 				},
 			}
 
-			kubernetesPod := kubelet.ConvertKubeletPodToK8sPod(kubeletPod)
-
-			watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
+			watcher.On("PullChanges", mock.Anything).Return([]*corev1.Pod{corePod}, nil)
 			watcher.On("Expire").Return([]string{}, nil)
 
 			reflector := kubeletReflector{
@@ -152,7 +148,7 @@ func TestUpdateStores_AddPods(t *testing.T) {
 
 			if test.podShouldBeAdded {
 				for _, store := range stores {
-					store.AssertCalled(t, "Add", kubernetesPod)
+					store.AssertCalled(t, "Add", corePod)
 				}
 			} else {
 				for _, store := range stores {
@@ -196,7 +192,7 @@ func TestUpdateStores_HandleExpired(t *testing.T) {
 			}
 
 			watcher := new(MockPodWatcher)
-			watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
+			watcher.On("PullChanges", mock.Anything).Return([]*corev1.Pod{}, nil)
 			watcher.On("Expire").Return([]string{test.expiredUID}, nil)
 
 			reflector := kubeletReflector{

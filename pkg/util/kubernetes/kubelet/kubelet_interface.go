@@ -10,6 +10,7 @@ package kubelet
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -25,5 +26,6 @@ type KubeUtilInterface interface {
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
+	GetRawLocalPodList(ctx context.Context) ([]*corev1.Pod, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 }

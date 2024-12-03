@@ -63,15 +63,15 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 4)
-	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
+	require.Equal(suite.T(), changes[0].ObjectMeta.UID, remainingPods[0].ObjectMeta.UID)
 
 	// A new container ID in an existing pod should trigger
-	remainingPods[0].Status.Containers[0].ID = "testNewID"
-	remainingPods[0].Status.AllContainers[0].ID = "testNewID"
+	remainingPods[0].Status.ContainerStatuses[0].ContainerID = "testNewID"
+	// remainingPods[0].Status.AllContainers[0].ID = "testNewID"
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
-	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
+	require.Equal(suite.T(), changes[0].ObjectMeta.UID, remainingPods[0].ObjectMeta.UID)
 
 	// Sending the same pod again with no change
 	changes, err = watcher.computeChanges(remainingPods)
@@ -91,10 +91,10 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Len(suite.T(), changes, 6, fmt.Sprintf("%d", len(changes)))
 	for _, po := range changes {
 		// nginx pod is not ready but still detected by the podwatcher
-		if po.Metadata.Name == "nginx-99d8b564-4r4vq" {
-			require.False(suite.T(), IsPodReady(po))
+		if po.ObjectMeta.Name == "nginx-99d8b564-4r4vq" {
+			require.False(suite.T(), NewIsPodReady(po))
 		} else {
-			require.True(suite.T(), IsPodReady(po))
+			require.True(suite.T(), NewIsPodReady(po))
 		}
 	}
 
@@ -113,7 +113,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.True(suite.T(), NewIsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
@@ -137,7 +137,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	assert.Equal(suite.T(), "myapp-container", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.True(suite.T(), NewIsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
@@ -161,7 +161,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	assert.Equal(suite.T(), "short-lived-container", changes[0].Spec.Containers[0].Name)
-	require.False(suite.T(), IsPodReady(changes[0]))
+	require.False(suite.T(), NewIsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
@@ -188,7 +188,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	assert.Equal(suite.T(), "redis-unready", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.True(suite.T(), NewIsPodReady(changes[0]))
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
@@ -255,7 +255,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	assert.Equal(suite.T(), "redis-unready", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.True(suite.T(), NewIsPodReady(changes[0]))
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
@@ -360,7 +360,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 	// Remove last pods from the list, make sure we stop at the right one
 	oldPod := sourcePods[5]
-	require.Contains(suite.T(), oldPod.Metadata.UID, "d91aa43c-0769-11e8-afcc-000c29dea4f6")
+	require.Contains(suite.T(), oldPod.ObjectMeta.UID, "d91aa43c-0769-11e8-afcc-000c29dea4f6")
 
 	_, err = watcher.computeChanges(sourcePods[0:5])
 	require.Nil(suite.T(), err)
@@ -425,7 +425,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
 
-	twoPods[0].Metadata.Labels["label1"] = "value1"
+	twoPods[0].ObjectMeta.Labels["label1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
@@ -434,18 +434,18 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 0)
 
-	twoPods[0].Metadata.Labels["label1"] = "newvalue1"
+	twoPods[0].ObjectMeta.Labels["label1"] = "newvalue1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 
-	delete(twoPods[0].Metadata.Labels, "label1")
+	delete(twoPods[0].ObjectMeta.Labels, "label1")
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 
-	twoPods[0].Metadata.Labels["newlabel1"] = "newvalue1"
-	twoPods[1].Metadata.Labels["label1"] = "value1"
+	twoPods[0].ObjectMeta.Labels["newlabel1"] = "newvalue1"
+	twoPods[1].ObjectMeta.Labels["label1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
@@ -481,7 +481,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
 
-	twoPods[0].Metadata.Annotations["annotation1"] = "value1"
+	twoPods[0].ObjectMeta.Annotations["annotation1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
@@ -490,18 +490,18 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 0)
 
-	twoPods[0].Metadata.Annotations["annotation1"] = "newvalue1"
+	twoPods[0].ObjectMeta.Annotations["annotation1"] = "newvalue1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 
-	delete(twoPods[0].Metadata.Annotations, "annotation1")
+	delete(twoPods[0].ObjectMeta.Annotations, "annotation1")
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 
-	twoPods[0].Metadata.Annotations["newannotation1"] = "newvalue1"
-	twoPods[1].Metadata.Annotations["annotation1"] = "value1"
+	twoPods[0].ObjectMeta.Annotations["newannotation1"] = "newvalue1"
+	twoPods[1].ObjectMeta.Annotations["annotation1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
