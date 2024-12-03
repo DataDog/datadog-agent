@@ -164,14 +164,6 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		span.SetResourceName(pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
-	dbPkg, err := i.db.GetPackage(pkg.Name)
-	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
-		return fmt.Errorf("could not get package: %w", err)
-	}
-	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
-		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
-		return nil
-	}
 	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
