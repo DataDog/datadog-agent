@@ -218,7 +218,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
     tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
     if (!tls_info) {
-        return;
+        goto next_program;
     }
     __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
     if (!is_tls_handshake_client_hello(skb, &usm_ctx->tls_header, offset)) {
@@ -239,7 +239,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
     tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
     if (!tls_info) {
-        return;
+        goto next_program;
     }
     __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
     if (!is_tls_handshake_server_hello(skb, &usm_ctx->tls_header, offset)) {
