@@ -174,7 +174,15 @@ def run(
 
         os.makedirs(logs_folder, exist_ok=True)
         write_result_to_log_files(post_processed_output, logs_folder)
-        pretty_print_logs(post_processed_output)
+        try:
+            pretty_print_logs(post_processed_output)
+        except TooManyLogsError:
+            print(
+                color_message(
+                    "Too many logs to print, skipping pretty print. You can still find them properly organized in the job artifacts",
+                    "yellow",
+                )
+            )
 
     if not success:
         raise Exit(code=1)
@@ -331,7 +339,19 @@ def write_result_to_log_files(logs_per_test, log_folder):
                 f.write("".join(logs))
 
 
-def pretty_print_logs(logs_per_test):
+class TooManyLogsError(Exception):
+    pass
+
+
+def pretty_print_logs(logs_per_test, max_size=250000):
+    # Compute size in bytes of what we are about to print. If it exceeds max_size, we skip printing because it will make the Gitlab logs almost completely collapsed.
+    # By default Gitlab has a limit of 500KB per job log, so we want to avoid printing too much.
+    size = 0
+    for _, tests in logs_per_test.items():
+        for _, logs in tests.items():
+            size += len("".join(logs).encode())
+    if size > max_size:
+        raise TooManyLogsError
     for package, tests in logs_per_test.items():
         for test, logs in tests.items():
             with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
