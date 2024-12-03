@@ -112,7 +112,7 @@ class TestOmnibusCache(unittest.TestCase):
     def test_cache_miss(self):
         self.mock_ctx.set_result_for(
             'run',
-            re.compile(r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\S* /\S+/\S+/omnibus-git-cache-bundle'),
+            re.compile(r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\S* /\S+/omnibus-git-cache-bundle'),
             Result(exited=1),
         )
         self.mock_ctx.set_result_for(
