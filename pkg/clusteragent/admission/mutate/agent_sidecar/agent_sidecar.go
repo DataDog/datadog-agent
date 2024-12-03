@@ -16,6 +16,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -185,7 +186,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 			}
 			if err != nil {
 				log.Errorf("Failed to apply env overrides: %v", err)
-				return podUpdated, errors.New(metrics.InvalidInput)
+				return podUpdated, errors.New(metrics.InternalError)
 			}
 			podUpdated = podUpdated || updated
 
@@ -337,7 +338,7 @@ func labelSelectors(datadogConfig config.Component) (namespaceSelector, objectSe
 // isOwnedByJob returns true if the pod is owned by a Job
 func isOwnedByJob(ownerReferences []metav1.OwnerReference) bool {
 	for _, owner := range ownerReferences {
-		if owner.APIVersion == "batch/v1" && owner.Kind == "Job" {
+		if strings.HasPrefix(owner.APIVersion, "batch/") && owner.Kind == "Job" {
 			return true
 		}
 	}
