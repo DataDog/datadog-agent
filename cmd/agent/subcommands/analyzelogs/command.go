@@ -69,9 +69,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
 func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
-	configSource := sources.NewConfigSources()
-	outputChan := agentimpl.SetUpLaunchers(config, configSource)
 
+	configSource := sources.NewConfigSources()
 	// Send paths to source provider
 	if err := configSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
@@ -82,8 +81,10 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
 
+	outputChan := agentimpl.SetUpLaunchers(config, configSource)
+
 	// Set up an inactivity timeout
-	inactivityTimeout := 2 * time.Second
+	inactivityTimeout := 1 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
 
 	for {
