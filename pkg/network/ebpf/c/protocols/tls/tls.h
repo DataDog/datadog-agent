@@ -16,8 +16,8 @@
 #define TLS_APPLICATION_DATA 0x17
 
 #define SUPPORTED_VERSIONS_EXTENSION 0x002B
-#define CLIENT_MAX_EXTENSIONS 1
-#define SERVER_MAX_EXTENSIONS 1
+#define CLIENT_MAX_EXTENSIONS 16
+#define SERVER_MAX_EXTENSIONS 16
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
