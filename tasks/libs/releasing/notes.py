@@ -2,7 +2,8 @@ from datetime import date
 
 from invoke import Failure
 
-from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
 
 
@@ -42,7 +43,7 @@ def _add_dca_prelude(ctx, agent7_version, agent6_version=""):
             f"""prelude:
     |
     Released on: {date.today()}
-    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{DEFAULT_BRANCH}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
+    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{get_default_branch()}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
         )
 
     ctx.run(f"git add {new_releasenote}")

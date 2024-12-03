@@ -543,7 +543,7 @@ def ninja_define_rules(nw: NinjaWriter):
 
     nw.rule(
         name="gotestsuite",
-        command="$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+        command="$env $go test -mod=readonly -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
     )
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(

@@ -25,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -49,7 +48,7 @@ type client struct {
 	conn          net.Conn
 	probe         *EBPFLessProbe
 	nsID          uint64
-	containerID   string
+	containerID   containerutils.ContainerID
 	containerName string
 }
 
@@ -63,7 +62,7 @@ type EBPFLessProbe struct {
 	sync.Mutex
 
 	Resolvers         *resolvers.EBPFLessResolvers
-	containerContexts map[string]*ebpfless.ContainerContext
+	containerContexts map[containerutils.ContainerID]*ebpfless.ContainerContext
 
 	// Constants and configuration
 	opts         Opts
@@ -97,15 +96,14 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
 			p.probe.DispatchCustomEvent(
-				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber),
+				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber, p.probe.Opts.Tagger),
 			)
 
 			cl.nsID = msg.Hello.NSID
 			if msg.Hello.ContainerContext != nil {
 				cl.containerID = msg.Hello.ContainerContext.ID
-				cl.containerName = msg.Hello.ContainerContext.Name
 				p.containerContexts[msg.Hello.ContainerContext.ID] = msg.Hello.ContainerContext
-				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.ContainerContext.Name, msg.Hello.EntrypointArgs)
+				seclog.Infof("tracing started for container ID [%s] with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.EntrypointArgs)
 			}
 		}
 	case ebpfless.MessageTypeSyscall:
@@ -304,10 +302,6 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
-		event.ContainerContext.Tags = []string{
-			"image_name:" + containerContext.ImageShortName,
-			"image_tag:" + containerContext.ImageTag,
-		}
 	}
 
 	// copy span context if any
@@ -638,7 +632,7 @@ func (p *EBPFLessProbe) DumpProcessCache(withArgs bool) (string, error) {
 func (p *EBPFLessProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
 // GetEventTags returns the event tags
-func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
+func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
@@ -660,7 +654,7 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
 	processKiller, err := NewProcessKiller(config)
@@ -681,14 +675,14 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
 		processKiller:     processKiller,
-		containerContexts: make(map[string]*ebpfless.ContainerContext),
+		containerContexts: make(map[containerutils.ContainerID]*ebpfless.ContainerContext),
 	}
 
 	resolversOpts := resolvers.Opts{
 		Tagger: opts.Tagger,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
 	}

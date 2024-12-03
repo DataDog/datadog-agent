@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -25,7 +25,7 @@ func TestHttpCompile(t *testing.T) {
 		if currKernelVersion < usmconfig.MinimumKernelVersion {
 			t.Skip("USM Runtime compilation not supported on this kernel version")
 		}
-		cfg := config.New()
+		cfg := utils.NewUSMEmptyConfig()
 		cfg.BPFDebug = true
 		out, err := getRuntimeCompiledUSM(cfg)
 		require.NoError(t, err)

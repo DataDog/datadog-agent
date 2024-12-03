@@ -85,15 +85,6 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
-    print(
-        color_message(
-            "WARNING: Using a go.work file is not supported and can cause weird errors "
-            "when compiling the agent or running tests.\n"
-            "Remember to export GOWORK=off to avoid these issues.\n",
-            "orange",
-        ),
-        file=sys.stderr,
-    )
 
     # read go version from the .go-version file, removing the bugfix part of the version
 
@@ -107,8 +98,7 @@ def go_work(_: Context):
     with open("go.work", "w") as f:
         f.write(f"go {go_version}\n\nuse (\n")
         for mod in get_default_modules().values():
-            prefix = "" if mod.should_test() else "//"
-            f.write(f"\t{prefix}{mod.path}\n")
+            f.write(f"\t{mod.path}\n")
         f.write(")\n")
 
 
@@ -213,6 +203,7 @@ def validate_used_by_otel(ctx: Context):
     missing_used_by_otel_label: dict[str, list[str]] = defaultdict(list)
 
     # for every module labeled as "used_by_otel"
+    default_modules = get_default_modules()
     for otel_mod in otel_mods:
         gomod_path = f"{otel_mod}/go.mod"
         # get the go.mod data
@@ -232,7 +223,7 @@ def validate_used_by_otel(ctx: Context):
             # we need the relative path of module (without github.com/DataDog/datadog-agent/ prefix)
             rel_path = require['Path'].removeprefix("github.com/DataDog/datadog-agent/")
             # check if indirect module is labeled as "used_by_otel"
-            if rel_path not in get_default_modules() or not get_default_modules()[rel_path].used_by_otel:
+            if rel_path not in default_modules or not default_modules[rel_path].used_by_otel:
                 missing_used_by_otel_label[rel_path].append(otel_mod)
     if missing_used_by_otel_label:
         message = f"{color_message('ERROR', Color.RED)}: some indirect local dependencies of modules labeled \"used_by_otel\" are not correctly labeled in get_default_modules()\n"
@@ -260,6 +251,7 @@ def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
 
     Args:
         remove_defaults: If True, will remove default values from the output.
+        base_dir: Where to load modules from.
     """
 
     config = Configuration.from_file(Path(base_dir))
@@ -281,6 +273,7 @@ def show_all(_, base_dir: str = '.', ignored=False):
     """Show the list of modules.
 
     Args:
+        base_dir: Where to load modules from.
         ignored: If True, will list ignored modules.
     """
 

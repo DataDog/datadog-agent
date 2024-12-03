@@ -62,6 +62,7 @@ from tasks import (
     trace_agent,
     vim,
     vscode,
+    worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
@@ -103,7 +104,6 @@ from tasks.install_tasks import (
     install_tools,
 )
 from tasks.junit_tasks import junit_upload
-from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
@@ -210,6 +210,7 @@ ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
+ns.add_collection(worktree)
 ns.configure(
     {
         "run": {
@@ -219,6 +220,3 @@ ns.configure(
         }
     }
 )
-
-# disable go workspaces by default
-handle_go_work()

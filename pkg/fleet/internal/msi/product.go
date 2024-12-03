@@ -9,6 +9,7 @@ package msi
 
 import (
 	"fmt"
+
 	"golang.org/x/sys/windows/registry"
 )
 
