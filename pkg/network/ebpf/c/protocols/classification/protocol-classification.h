@@ -254,6 +254,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
         return;
     }
     mark_as_fully_classified(protocol_stack);
+    usm_ctx->tls_header = (tls_record_header_t){0};
     return;
 
 next_program:
