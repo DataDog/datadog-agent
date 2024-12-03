@@ -32,7 +32,7 @@ type haAgentRealBackendTestSuite struct {
 
 // TestHaAgentRealBackendSuite runs the HA Agent e2e suite
 func TestHaAgentRealBackendSuite(t *testing.T) {
-	apiKey := os.Getenv("DD_API_KEY") // Used for local testing
+	apiKey := os.Getenv("DD_API_KEY") // Used to provide valid API KEY when testing locally
 	if apiKey == "" {
 		apiKeyFromSecreteStore, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 		require.NoError(t, err, "Could not get API KEY")
