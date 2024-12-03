@@ -6,11 +6,12 @@
 package processor
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+
+	"github.com/mailru/easyjson"
 )
 
 const nanoToMillis = 1000000
@@ -22,6 +23,8 @@ var JSONEncoder Encoder = &jsonEncoder{}
 type jsonEncoder struct{}
 
 // JSON representation of a message.
+//
+//go:generate easyjson -all json.go
 type jsonPayload struct {
 	Message   string `json:"message"`
 	Status    string `json:"status"`
@@ -43,7 +46,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		ts = msg.ServerlessExtra.Timestamp
 	}
 
-	encoded, err := json.Marshal(jsonPayload{
+	encoded, err := easyjson.Marshal(jsonPayload{
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
