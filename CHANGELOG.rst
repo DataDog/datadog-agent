@@ -2,6 +2,33 @@
 Release Notes
 =============
 
+.. _Release Notes_7.59.1:
+
+7.59.1
+======
+
+.. _Release Notes_7.59.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-12-02
+
+- Please refer to the `7.59.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7591>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.59.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Setting up a temporary directory for `JMXFetch  <https://github.com/DataDog/jmxfetch>`_ to use
+  when it runs. Using the same one the Agent uses when running as this guarantees a directory where
+  JMXFetch can write to. This helps when JMXFetch sends metrics over
+  `Unix Domain Socket <https://docs.datadoghq.com/developers/dogstatsd/unix_socket/?tab=host>` as it needs
+  access to a temp directory which it can write to.
+
+
 .. _Release Notes_7.59.0:
 
 7.59.0
