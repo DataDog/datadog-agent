@@ -90,6 +90,10 @@ func main() {
 }
 
 func runAgent(tagger tagger.Component, compressionFactory compression.Factory) {
+
+	log.Debug("ZORK Agent is running")
+	log.Debug("ZORK Repeat, agent is running")
+
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()

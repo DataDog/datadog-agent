@@ -19,10 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
 func NewServerlessLogsAgent(tagger tagger.Component, compressionFactory compression.Factory) agent.ServerlessLogsAgent {
+
+	log.Debugf("ZORK Setting up agent")
+
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgconfigsetup.Datadog(),

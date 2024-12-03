@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -169,12 +170,18 @@ func getStrategy(
 	pipelineMonitor metrics.PipelineMonitor,
 	compressionFactory compression.Factory,
 ) sender.Strategy {
+	log.Debugf("ZORK getting strategy")
+
 	if endpoints.UseHTTP || serverless {
 		var encoder compression.Component
 		encoder = compressionFactory.NewNoopCompressor()
 		if endpoints.Main.UseCompression {
+			log.Debugf("ZORK we iz using compression %v", endpoints.Main.CompressionKind)
 			encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
+		} else {
+			log.Debugf("ZORK we iz NO using compression")
 		}
+
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, compressionFactory.NewNoopCompressor())
