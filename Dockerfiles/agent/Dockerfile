@@ -183,9 +183,8 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # Enable FIPS if needed
 RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
   /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
+  export GOFIPS=1; \
 fi
-# This is used by MSGO to enable FIPS mode so it won't affect the non-FIPS image
-ENV GOFIPS=1
 
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
