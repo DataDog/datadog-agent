@@ -8,7 +8,7 @@ package tags
 
 import (
 	"context"
-	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -73,14 +73,7 @@ func (t *DefaultResolver) Start(ctx context.Context) error {
 
 // Resolve returns the tags for the given id
 func (t *DefaultResolver) Resolve(id string) []string {
-	// container id for ecs task are composed of task id + container id.
-	// use only the container id part for the tag resolution.
-	if els := strings.Split(id, "-"); len(els) == 2 {
-		id = els[1]
-	}
-
-	entityID := types.NewEntityID(types.ContainerID, id)
-	tags, _ := t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
@@ -103,16 +96,39 @@ func (t *DefaultResolver) Stop() error {
 // NewResolver returns a new tags resolver
 func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
 	if config.RemoteTaggerEnabled {
-		options, err := remote.NodeAgentOptionsForSecurityResolvers(pkgconfigsetup.Datadog())
+		tagger, err := CreateRemoteTagger(telemetry)
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry)),
+				tagger: tagger,
 			}
 		}
 	}
 	return &DefaultResolver{
 		tagger: &nullTagger{},
 	}
+}
+
+var (
+	rts    sync.Once
+	tagger *remote.Tagger
+	err    error
+)
+
+// CreateRemoteTagger returns a new remote tagger component (TODO: use the fx component instead)
+func CreateRemoteTagger(telemetry telemetry.Component) (*remote.Tagger, error) {
+	rts.Do(func() {
+		tagger, err = createRemoteTagger(telemetry)
+	})
+	return tagger, err
+}
+
+func createRemoteTagger(telemetry telemetry.Component) (*remote.Tagger, error) {
+	options, err := remote.NodeAgentOptionsForSecurityResolvers(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
+	return remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry)), nil
 }
