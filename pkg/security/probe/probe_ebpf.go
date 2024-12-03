@@ -830,7 +830,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if pce != nil {
 			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
 			if err == nil && path != "" {
-				cgroupID := containerutils.CGroupID(filepath.Dir(string(path)))
+				if !p.kernelVersion.IsRH7Kernel() {
+					path = filepath.Dir(string(path))
+				}
+
+				cgroupID := containerutils.CGroupID(path)
 				pce.CGroup.CGroupID = cgroupID
 				pce.Process.CGroup.CGroupID = cgroupID
 				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)

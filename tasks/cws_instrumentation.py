@@ -30,7 +30,7 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     static=False,
     no_strip_binary=False,
 ):
