@@ -11,7 +11,6 @@ package probe
 import (
 	"encoding/binary"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -516,19 +516,8 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			path, err := fh.resolvers.DentryResolver.Resolve(e.CGroupFile, true)
-			if err == nil && path != "" {
-				cgroup := filepath.Dir(string(path))
-				if cgroup == "/" {
-					cgroup = path
-				}
-
-				entry.Process.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				entry.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				entry.CGroup.CGroupFile = e.CGroupFile
-				containerID, _ := containerutils.GetContainerFromCgroup(entry.CGroup.CGroupID)
-				entry.Process.ContainerID = containerutils.ContainerID(containerID)
-				entry.ContainerID = containerutils.ContainerID(containerID)
+			if err := fh.resolvers.ResolveCGroup(entry, ev.BaseEvent.PIDContext.Pid, e.CGroupFile, e.CGroupFlags, nil); err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			}
 
 			e.CGroupID = entry.CGroup.CGroupID

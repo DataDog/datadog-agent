@@ -92,7 +92,7 @@ func TestFindContainerID(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		containerID, containerFlags := FindContainerID(test.input)
+		containerID, containerFlags := FindContainerID(CGroupID(test.input))
 		assert.Equal(t, test.output, string(containerID))
 		assert.Equal(t, uint64(test.flags), containerFlags, "wrong flags for container %s", containerID)
 	}

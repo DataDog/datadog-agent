@@ -36,31 +36,23 @@ const (
 )
 
 // RuntimePrefixes holds the cgroup prefixed used by the different runtimes
-var RuntimePrefixes = map[string]CGroupManager{
-	"docker/":         CGroupManagerDocker, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
-	"docker-":         CGroupManagerDocker,
-	"cri-containerd-": CGroupManagerCRI,
-	"crio-":           CGroupManagerCRIO,
-	"libpod-":         CGroupManagerPodman,
+var RuntimePrefixes = []struct {
+	prefix string
+	flags  CGroupManager
+}{
+	{"docker/", CGroupManagerDocker}, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
+	{"docker-", CGroupManagerDocker},
+	{"cri-containerd-", CGroupManagerCRI},
+	{"crio-", CGroupManagerCRIO},
+	{"libpod-", CGroupManagerPodman},
 }
 
-// GetCGroupManager extracts the cgroup manager from a cgroup name
-func GetCGroupManager(cgroup string) (string, CGroupFlags) {
-	cgroup = strings.TrimLeft(cgroup, "/")
-	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if strings.HasPrefix(cgroup, runtimePrefix) {
-			return cgroup[:len(runtimePrefix)], CGroupFlags(runtimeFlag)
-		}
-	}
-	return cgroup, 0
-}
-
-// GetContainerFromCgroup extracts the container ID from a cgroup name
-func GetContainerFromCgroup(cgroup CGroupID) (ContainerID, CGroupFlags) {
+// getContainerFromCgroup extracts the container ID from a cgroup name
+func getContainerFromCgroup(cgroup CGroupID) (ContainerID, CGroupFlags) {
 	cgroupID := strings.TrimLeft(string(cgroup), "/")
-	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if strings.HasPrefix(cgroupID, runtimePrefix) {
-			return ContainerID(cgroupID[len(runtimePrefix):]), CGroupFlags(runtimeFlag)
+	for _, runtimePrefix := range RuntimePrefixes {
+		if strings.HasPrefix(cgroupID, runtimePrefix.prefix) {
+			return ContainerID(cgroupID[len(runtimePrefix.prefix):]), CGroupFlags(runtimePrefix.flags)
 		}
 	}
 	return "", 0

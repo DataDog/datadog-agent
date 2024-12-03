@@ -37,13 +37,13 @@ type ControlGroup struct {
 
 // GetContainerContext returns both the container ID and its flags
 func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
-	id, flags := containerutils.FindContainerID(cg.Path)
+	id, flags := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
 }
 
 // GetContainerID returns the container id extracted from the path of the control group
 func (cg ControlGroup) GetContainerID() containerutils.ContainerID {
-	id, _ := containerutils.FindContainerID(cg.Path)
+	id, _ := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 	return containerutils.ContainerID(id)
 }
 
