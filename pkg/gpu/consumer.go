@@ -208,7 +208,7 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 	containerID, err := cgroups.ContainerFilter("", cgroup)
 	if err != nil {
 		// We don't want to return an error here, as we can still process the event without the container ID
-		log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
+		log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
 	}
 
 	key := streamKey{
