@@ -2565,15 +2565,13 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 
 func (s *TracerSuite) TestTLSClassification() {
 	t := s.T()
-	if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
-		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
-	}
 	cfg := testConfig()
 
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
 	port, err := tracertestutil.GetFreePort()
+	//port := uint16(44957)
 	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
 
@@ -2586,6 +2584,7 @@ func (s *TracerSuite) TestTLSClassification() {
 	}
 	tests := make([]tlsTest, 0)
 	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+		//for _, scenario := range []uint16{tls.VersionTLS12} {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
@@ -2678,6 +2677,7 @@ func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) boo
 				return false
 			}
 
+			// Optionally, check for multiple offered versions (e.g., for TLS 1.3)
 			if scenario == tls.VersionTLS13 {
 				expectedClientVersions := []string{
 					ddtls.TagTLSClientVersion + tls.VersionName(tls.VersionTLS12),

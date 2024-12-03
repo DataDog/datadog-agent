@@ -44,6 +44,57 @@ var (
 	// - 2492d3b867043f6880708d095a7a5d65debcfc32
 	classificationMinimumKernel = kernel.VersionCode(4, 11, 0)
 
+	protocolClassificationTailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationTLSClient,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierTLSClientSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationTLSServer,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierTLSServerSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationQueues,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationDBs,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationGRPC,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.TCPCloseProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.TCPCloseFlushReturn,
+				UID:          probeUID,
+			},
+		},
+	}
+
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
 	rcTracerLoader            = loadRuntimeCompiledTracer
@@ -158,7 +209,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
-		protocolClassificationTailCalls := getProtocolClassificationTailCalls(runtimeTracer)
 		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))
 		for _, tailCall := range protocolClassificationTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
@@ -305,65 +355,4 @@ func isCORETracerSupported() error {
 	}
 
 	return errCORETracerNotSupported
-}
-
-func getProtocolClassificationTailCalls(runtimeTracer bool) []manager.TailCallRoute {
-	protocolClassificationTailCalls := []manager.TailCallRoute{}
-
-	if !runtimeTracer {
-		protocolClassificationTailCalls = append(protocolClassificationTailCalls,
-			manager.TailCallRoute{
-				ProgArrayName: probes.ClassificationProgsMap,
-				Key:           netebpf.ClassificationTLSClient,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ProtocolClassifierTLSClientSocketFilter,
-					UID:          probeUID,
-				},
-			},
-			manager.TailCallRoute{
-				ProgArrayName: probes.ClassificationProgsMap,
-				Key:           netebpf.ClassificationTLSServer,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ProtocolClassifierTLSServerSocketFilter,
-					UID:          probeUID,
-				},
-			},
-		)
-	}
-
-	protocolClassificationTailCalls = append(protocolClassificationTailCalls,
-		manager.TailCallRoute{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationQueues,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		manager.TailCallRoute{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationDBs,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		manager.TailCallRoute{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationGRPC,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		manager.TailCallRoute{
-			ProgArrayName: probes.TCPCloseProgsMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturn,
-				UID:          probeUID,
-			},
-		},
-	)
-	return protocolClassificationTailCalls
 }
