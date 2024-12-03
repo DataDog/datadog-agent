@@ -47,7 +47,6 @@
 /modules.yml                            @DataDog/agent-shared-components
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
 /go.work                                @DataDog/agent-shared-components
-/go.work.sum                            @DataDog/agent-shared-components
 
 /.circleci/                             @DataDog/agent-devx-infra
 
