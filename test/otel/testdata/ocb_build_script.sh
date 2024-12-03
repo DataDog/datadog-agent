@@ -9,21 +9,9 @@ cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
 cp ./tools/ci/retry.sh /tmp/otel-ci/
 chmod +x /tmp/otel-ci/retry.sh
 
-# TODO: Pin OCB to v0.114.0 once we upgrade collector dependencies to v0.114.0
-# OCB_VERSION="0.113.0"
-# CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
-# mv "$(go env GOPATH)/bin/builder" /tmp/otel-ci/ocb
-
-# TODO: remove this once we upgrade collector dependencies to v0.114.0
-# https://datadoghq.atlassian.net/browse/OTEL-2256
-# Needs new package version published of logsagentexporter that uses NewLogs function
-# clone collector repo and build cmd/builder from source
-git clone https://github.com/open-telemetry/opentelemetry-collector.git /tmp/otel-ci/opentelemetry-collector
-cwd=$(pwd)
-cd "/tmp/otel-ci/opentelemetry-collector/cmd/builder" || (echo "failed to change to ocb source dir" && exit 1)
-git checkout 1d87709aeabf492fdfd59ee110f8396c0441206b # pin to specific commit since APIs changed in v0.114.0
-CGO_ENABLED=0 go build -o /tmp/otel-ci/ocb -trimpath -ldflags "-s -w" . > "${cwd}/go-install-ocb.log" 2>&1 || (echo "failed to build ocb" && exit 1)
-cd "$cwd" || (echo "failed to change back to original dir" && exit 1)
+OCB_VERSION="0.114.0"
+CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
+mv "$(go env GOPATH)/bin/builder" /tmp/otel-ci/ocb
 
 chmod +x /tmp/otel-ci/ocb
 

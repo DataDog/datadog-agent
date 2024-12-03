@@ -72,7 +72,7 @@ datadog_otel_components_ocb_build:
     - !reference [.retrieve_linux_go_deps]
   script:
     - echo "Building custom collector with datadog components"
-    - chmod +x test/otel/testdata/ocb_build_script.sh && test/otel/testdata/ocb_build_script.sh
+    - test/otel/testdata/ocb_build_script.sh
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
