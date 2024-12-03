@@ -54,8 +54,8 @@ var offeredVersionBitmask = []struct {
 // Constants for tag keys
 const (
 	TagTLSVersion       = "tls.version:"
-	tagTLSCipherSuiteID = "tls.cipher_suite_id:"
-	tagTLSClientVersion = "tls.client_version:"
+	TagTLSCipherSuiteID = "tls.cipher_suite_id:"
+	TagTLSClientVersion = "tls.client_version:"
 )
 
 // Tags holds the TLS tags. It is used to store the TLS version, cipher suite and offered versions.
@@ -125,12 +125,12 @@ func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
 
 	// Cipher suite ID as hex string
 	if tls.CipherSuite != 0 {
-		tags[tagTLSCipherSuiteID+fmt.Sprintf("0x%04X", tls.CipherSuite)] = struct{}{}
+		tags[TagTLSCipherSuiteID+fmt.Sprintf("0x%04X", tls.CipherSuite)] = struct{}{}
 	}
 
 	// Client offered versions
 	for _, versionName := range parseOfferedVersions(tls.OfferedVersions) {
-		tags[tagTLSClientVersion+versionName] = struct{}{}
+		tags[TagTLSClientVersion+versionName] = struct{}{}
 	}
 
 	return tags

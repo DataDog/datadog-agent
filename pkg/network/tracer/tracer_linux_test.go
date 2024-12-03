@@ -2620,19 +2620,7 @@ func (s *TracerSuite) TestTLSClassification() {
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
-					for _, c := range payload.Conns {
-						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
-							expectedTagKey := ddtls.TagTLSVersion + tls.VersionName(scenario)
-							tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
-							t.Log("TLS tags: ", tlsTags)
-							if _, ok := tlsTags[expectedTagKey]; !ok {
-								return false
-							}
-							return true
-						}
-					}
-					return false
+					return validateTLSTags(t, tr, port, scenario)
 				}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
 			},
 		})
@@ -2654,6 +2642,60 @@ func (s *TracerSuite) TestTLSClassification() {
 			tt.validation(t, tr)
 		})
 	}
+}
+
+func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) bool {
+	payload := getConnections(t, tr)
+	for _, c := range payload.Conns {
+		if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
+			tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
+			t.Log("TLS tags: ", tlsTags)
+
+			// Check that the cipher suite ID tag is present
+			cipherSuiteTagFound := false
+			for key := range tlsTags {
+				if strings.HasPrefix(key, ddtls.TagTLSCipherSuiteID) {
+					cipherSuiteTagFound = true
+					break
+				}
+			}
+			if !cipherSuiteTagFound {
+				t.Log("Cipher suite ID tag missing")
+				return false
+			}
+
+			// Check that the negotiated version tag is present
+			negotiatedVersionTag := ddtls.TagTLSVersion + tls.VersionName(scenario)
+			if _, ok := tlsTags[negotiatedVersionTag]; !ok {
+				t.Logf("Negotiated version tag '%s' not found", negotiatedVersionTag)
+				return false
+			}
+
+			// Check that the client offered version tag is present
+			clientVersionTag := ddtls.TagTLSClientVersion + tls.VersionName(scenario)
+			if _, ok := tlsTags[clientVersionTag]; !ok {
+				t.Logf("Client offered version tag '%s' not found", clientVersionTag)
+				return false
+			}
+
+			// Optionally, check for multiple offered versions (e.g., for TLS 1.3)
+			if scenario == tls.VersionTLS13 {
+				expectedClientVersions := []string{
+					ddtls.TagTLSClientVersion + tls.VersionName(tls.VersionTLS12),
+					ddtls.TagTLSClientVersion + tls.VersionName(tls.VersionTLS13),
+				}
+				for _, tag := range expectedClientVersions {
+					if _, ok := tlsTags[tag]; !ok {
+						t.Logf("Expected client offered version tag '%s' not found", tag)
+						return false
+					}
+				}
+			}
+
+			return true
+		}
+	}
+	return false
 }
 
 func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
