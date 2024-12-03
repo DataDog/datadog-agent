@@ -9,7 +9,6 @@ package msi
 
 import (
 	"embed"
-	_ "embed"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/unicode"
 	"regexp"
@@ -25,6 +24,7 @@ var logFilesFS embed.FS
 
 func TestFindAllIndexWithContext(t *testing.T) {
 	data, err := logFilesFS.ReadFile("wixfailwhendeferred.log")
+	require.NoError(t, err)
 
 	r := regexp.MustCompile("returned actual error")
 	decodedLogsBytes, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder().Bytes(data)
@@ -59,69 +59,69 @@ func TestCombineRanges(t *testing.T) {
 	}{
 		"overlap left": {
 			input: []logFileProcessor{
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{1, 5}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{4, 7}}
 				}},
 			expected: [][]int{{1, 7}},
 		},
 		"overlap right": {
 			input: []logFileProcessor{
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{2, 4}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{1, 3}}
 				}},
 			expected: [][]int{{1, 4}},
 		},
 		"no overlap": {
 			input: []logFileProcessor{
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{2, 4}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{5, 10}}
 				}},
 			expected: [][]int{{2, 4}, {5, 10}},
 		},
 		"full overlap": {
 			input: []logFileProcessor{
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{2, 4}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{1, 10}}
 				}},
 			expected: [][]int{{1, 10}},
 		},
 		"full overlap inverted": {
 			input: []logFileProcessor{
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{1, 10}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{2, 4}}
 				}},
 			expected: [][]int{{1, 10}},
 		},
 		"test many ranges": {
 			input: []logFileProcessor{
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{16067, 16421}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{19659, 20140}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{16002, 16359}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{19559, 19951}}
 				},
-				func(bytes []byte) [][]int {
+				func(_ []byte) [][]int {
 					return [][]int{{59421, 59556}}
 				}},
 			expected: [][]int{{16002, 16421}, {19559, 20140}, {59421, 59556}},
