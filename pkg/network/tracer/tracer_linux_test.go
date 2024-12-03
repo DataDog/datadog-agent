@@ -2570,9 +2570,9 @@ func (s *TracerSuite) TestTLSClassification() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
-	//port, err := tracertestutil.GetFreePort()
-	port := uint16(44957)
-	//require.NoError(t, err)
+	port, err := tracertestutil.GetFreePort()
+	//port := uint16(44957)
+	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
 
 	tr := setupTracer(t, cfg)
@@ -2625,6 +2625,7 @@ func (s *TracerSuite) TestTLSClassification() {
 						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
 							expectedTagKey := ddtls.TagTLSVersion + tls.VersionName(scenario)
 							tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
+							t.Log("TLS tags: ", tlsTags)
 							if _, ok := tlsTags[expectedTagKey]; !ok {
 								return false
 							}

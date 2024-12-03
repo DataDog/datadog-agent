@@ -63,7 +63,9 @@
 // updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
-    usm_ctx->routing_skip_layers |= proto;
+    if (proto != PROTOCOL_TLS) {
+        usm_ctx->routing_skip_layers |= proto;
+    }
 }
 
 // Check if the connections is used for gRPC traffic.
@@ -165,17 +167,20 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     tls_record_header_t tls_hdr = {0};
 
+    // TLS classification
     if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, &tls_hdr)) {
-        // TLS classification
-        log_debug("adamk TLS classification started");
-        // TODO: check if it's a TLS app data message. If so we're too late, label as TLS and bail from the classification
-        // update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
+        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
+        if (tls_hdr.content_type == TLS_APPLICATION_DATA) {
+            // We can't classify TLS encrypted traffic further, so we mark the stack as fully classified
+            mark_as_fully_classified(protocol_stack);
+            return;
+        }
 
         // Parse TLS payload
         tls_info_t *tags = get_or_create_tls_enhanced_tags(&usm_ctx->tuple);
         if (tags) {
             usm_ctx->tls_header = tls_hdr;
-            // The connection is TLS encrypted, so trigger some tail calls
+            // The packet is a TLS handshake, so trigger some tail calls
             // to extract metadata from the payload
             goto next_program;
         }
@@ -219,7 +224,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!is_tls_handshake_client_hello(skb, &usm_ctx->tls_header, offset)) {
         goto next_program;
     }
-    parse_client_hello(skb, offset, skb->len, tls_info);
+    if (parse_client_hello(skb, offset, skb->len, tls_info) != 0) {
+        return;
+    }
 
 next_program:
     classification_next_program(skb, usm_ctx);
@@ -238,17 +245,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!is_tls_handshake_server_hello(skb, &usm_ctx->tls_header, offset)) {
         goto next_program;
     }
-    parse_server_hello(skb, offset, skb->len, tls_info);
-
+    if (parse_server_hello(skb, offset, skb->len, tls_info) != 0) {
+        return;
+    }
 
     protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
-
-    log_debug("adamk TLS classification done, marking as fully classified");
-    update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
-    // mark_as_fully_classified(protocol_stack);
+    mark_as_fully_classified(protocol_stack);
     return;
 
 next_program:

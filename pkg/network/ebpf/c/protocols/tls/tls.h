@@ -16,7 +16,7 @@
 #define TLS_APPLICATION_DATA 0x17
 
 #define SUPPORTED_VERSIONS_EXTENSION 0x002B
-#define MAX_EXTENSIONS 16
+#define MAX_EXTENSIONS 10
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
@@ -271,7 +271,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
 
             extensions_parsed++;
         }
-    log_debug("adamk successfully parsed client hello message");
+    // log_debug("adamk successfully parsed client hello message");
     return 0;
 }
 
@@ -404,7 +404,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
             }
         }
 
-    log_debug("adamk successfully parsed server hello message");
+    // log_debug("adamk successfully parsed server hello message");
 
     return 0;
 }
