@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -46,8 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	compressionfxzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-zlib"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -138,6 +138,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return acfg, nil
 		}),
 		fxutil.ProvideOptional[coreconfig.Component](),
+		fxutil.ProvideNoneOptional[secrets.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
@@ -152,11 +153,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
-		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(strategy.NewZlibStrategy),
-		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
-			return s
-		}),
+		// We directly select fxzlib
+		compressionfxzlib.Module(),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -36,7 +36,7 @@ var (
 	hostInfoCacheKey    = cache.BuildAgentKey("host", "utils", "hostInfo")
 
 	// for testing
-	otlpIsEnabled  = otlp.IsEnabled
+	otlpIsEnabled  = configcheck.IsEnabled
 	installinfoGet = installinfo.Get
 )
 

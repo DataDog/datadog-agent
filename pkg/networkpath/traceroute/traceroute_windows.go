@@ -10,6 +10,7 @@ package traceroute
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -20,7 +21,8 @@ import (
 )
 
 const (
-	clientID = "traceroute-agent-windows"
+	clientID                  = "traceroute-agent-windows"
+	udpNotSupportedWindowsMsg = "UDP traceroute is not currently supported on Windows"
 )
 
 // WindowsTraceroute defines a structure for
@@ -34,6 +36,12 @@ type WindowsTraceroute struct {
 // based on an input configuration
 func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
+
+	// UDP is not supported at the moment
+	if cfg.Protocol == payload.ProtocolUDP {
+		return nil, errors.New(udpNotSupportedWindowsMsg)
+	}
+
 	return &WindowsTraceroute{
 		cfg: cfg,
 	}, nil

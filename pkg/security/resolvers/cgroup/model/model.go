@@ -29,15 +29,15 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(containerID string, cgroupFlags uint64, pids ...uint32) (*CacheEntry, error) {
+func NewCacheEntry(containerID containerutils.ContainerID, cgroupFlags uint64, pids ...uint32) (*CacheEntry, error) {
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		CGroupContext: model.CGroupContext{
-			CGroupID:    containerutils.GetCgroupFromContainer(containerutils.ContainerID(containerID), containerutils.CGroupFlags(cgroupFlags)),
+			CGroupID:    containerutils.GetCgroupFromContainer(containerID, containerutils.CGroupFlags(cgroupFlags)),
 			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
 		},
 		ContainerContext: model.ContainerContext{
-			ContainerID: containerutils.ContainerID(containerID),
+			ContainerID: containerID,
 		},
 		PIDs: make(map[uint32]bool, 10),
 	}
@@ -101,9 +101,4 @@ func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 		Image: cgce.WorkloadSelector.Image,
 		Tag:   cgce.WorkloadSelector.Tag,
 	}
-}
-
-// NeedsTagsResolution returns true if this workload is missing its tags
-func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ContainerID) != 0 && !cgce.WorkloadSelector.IsReady()
 }

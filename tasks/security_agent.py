@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.agent import generate_config
-from tasks.build_tags import get_default_build_tags
+from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_current_branch
@@ -55,9 +55,10 @@ def build(
     incremental_build=True,
     install_path=None,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     skip_assets=False,
     static=False,
+    fips_mode=False,
 ):
     """
     Build the security agent
@@ -88,6 +89,7 @@ def build(
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(build="security-agent")
+    build_tags = add_fips_tags(build_tags, fips_mode)
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -373,7 +375,7 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=readonly -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/{src_path}'
 
     args = {

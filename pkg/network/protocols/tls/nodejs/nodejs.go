@@ -11,11 +11,15 @@ package nodejs
 import (
 	"io"
 	"os"
+	"path"
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 func copyFile(src, dst string) error {
@@ -61,10 +65,19 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 		"CERTS_DIR=/v/certs",
 		"TESTDIR=" + dir + "/testdata",
 	}
-	return protocolsUtils.RunDockerServer(t, "nodejs-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("Server running at https.*"), protocolsUtils.DefaultTimeout, 3)
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	dockerCfg := dockerutils.NewComposeConfig("nodejs-server",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		scanner,
+		env,
+		path.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }
 
 // GetNodeJSDockerPID returns the PID of the nodejs docker container.
 func GetNodeJSDockerPID() (int64, error) {
-	return protocolsUtils.GetDockerPID("node-node-1")
+	return dockerutils.GetMainPID("node-node-1")
 }

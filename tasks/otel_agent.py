@@ -27,7 +27,7 @@ def build(ctx):
     build_tags = ['otlp']
     ldflags = get_version_ldflags(ctx, major_version='7')
 
-    cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
+    cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
 
