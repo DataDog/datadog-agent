@@ -104,6 +104,10 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
 			svc.service.CPUCores = service.CPUCores
+			svc.service.ContainerID = service.ContainerID
+			svc.service.GeneratedName = service.GeneratedName
+			svc.service.Name = service.Name
+			svc.meta.Name = service.Name
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -139,6 +143,10 @@ func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Tim
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
 			svc.service.CPUCores = service.CPUCores
+			svc.service.ContainerID = service.ContainerID
+			svc.service.GeneratedName = service.GeneratedName
+			svc.service.Name = service.Name
+			svc.meta.Name = service.Name
 
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)

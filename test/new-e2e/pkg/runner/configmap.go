@@ -13,6 +13,7 @@ import (
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
 	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
 	infragcp "github.com/DataDog/test-infra-definitions/resources/gcp"
+	infralocal "github.com/DataDog/test-infra-definitions/resources/local"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
@@ -62,6 +63,9 @@ const (
 	GCPPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPath
 	// GCPPrivateKeyPassword pulumi config paramater name
 	GCPPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPassword
+
+	// LocalPublicKeyPath pulumi config paramater name
+	LocalPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infralocal.DDInfraDefaultPublicKeyPath
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -124,7 +128,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
 	params := map[parameters.StoreKey][]string{
 		parameters.KeyPairName:        {AWSKeyPairName},
-		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath, GCPPublicKeyPath},
+		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath, GCPPublicKeyPath, LocalPublicKeyPath},
 		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath, GCPPrivateKeyPath},
 		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
 		parameters.PipelineID:         {AgentPipelineID},

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,8 +81,9 @@ func TestMonitorProtocolFail(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
 			patchProtocolMock(t, tt.spec)
 
-			cfg := config.New()
+			cfg := utils.NewUSMEmptyConfig()
 			cfg.EnableHTTPMonitoring = true
+
 			monitor, err := NewMonitor(cfg, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
@@ -120,7 +122,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 	})
 	t.Cleanup(srvDoneFn)
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
 
 	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
 	require.NoError(t, err)
@@ -152,7 +154,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
@@ -227,7 +229,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := newHTTPMonitorWithCfg(t, config.New())
+			monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
@@ -283,7 +285,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.New()
+			cfg := utils.NewUSMEmptyConfig()
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
 			monitor := newHTTPMonitorWithCfg(t, cfg)
@@ -350,7 +352,7 @@ func (s *HTTPTestSuite) TestSanity() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					monitor := newHTTPMonitorWithCfg(t, config.New())
+					monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
 
 					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
 					t.Cleanup(srvDoneFn)
@@ -376,7 +378,7 @@ func (s *HTTPTestSuite) TestSanity() {
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -411,7 +413,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -469,6 +471,22 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
+}
+
+// TestEmptyConfig checks the test helper indeed returns a config with no
+// protocols enable, by checking it prevents USM from running.
+// If this test fails after enabling a protocol by default, you MUST NOT change
+// this test, and instead update `NewUSMEmptyConfig` to make sure it disables the
+// new protocol.
+func TestEmptyConfig(t *testing.T) {
+	cfg := utils.NewUSMEmptyConfig()
+	require.True(t, cfg.ServiceMonitoringEnabled)
+
+	// The monitor should not start, and not return an error when no protocols
+	// are enabled.
+	monitor, err := NewMonitor(cfg, nil)
+	require.Nil(t, monitor)
+	require.NoError(t, err)
 }
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {

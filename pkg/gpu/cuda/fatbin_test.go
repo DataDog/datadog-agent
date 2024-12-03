@@ -47,7 +47,7 @@ func TestParseFatbinFromPath(t *testing.T) {
 		kern2MangledName: 256,
 	}
 
-	for key, kernel := range res.Kernels {
+	for key, kernel := range res.kernels {
 		seenSmVersionsAndKernels[key.SmVersion] = append(seenSmVersionsAndKernels[key.SmVersion], key.Name)
 		require.Equal(t, key.Name, kernel.Name)
 
@@ -112,7 +112,7 @@ func TestParseBigFatbinFromPath(t *testing.T) {
 
 	seenSmVersionsAndKernels := make(map[uint32][]string)
 
-	for key, kernel := range res.Kernels {
+	for key, kernel := range res.kernels {
 		seenSmVersionsAndKernels[key.SmVersion] = append(seenSmVersionsAndKernels[key.SmVersion], key.Name)
 		require.Equal(t, key.Name, kernel.Name)
 

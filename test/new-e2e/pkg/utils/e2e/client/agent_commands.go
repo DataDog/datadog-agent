@@ -175,6 +175,15 @@ func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.Agen
 	}, err
 }
 
+// JMX run the jmx command and returns a Status struct and error
+func (agent *agentCommandRunner) JMX(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
+	status, err := agent.executeCommandWithError("jmx", commandArgs...)
+
+	return &agentclient.Status{
+		Content: status,
+	}, err
+}
+
 // waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
