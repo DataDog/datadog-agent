@@ -81,19 +81,14 @@ def generate_dummy_package(ctx, folder):
 @task
 def go_work(_: Context):
     """
-    Create a go.work file using the module list contained in get_default_modules()
+    Re-create the go.work file using the module list contained in get_default_modules()
     and the go version contained in the file .go-version.
-    If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
 
     # read go version from the .go-version file, removing the bugfix part of the version
 
     with open(".go-version") as f:
         go_version = f.read().strip()
-
-    if os.path.exists("go.work"):
-        print("go.work already exists. Renaming to go.work.backup")
-        os.rename("go.work", "go.work.backup")
 
     with open("go.work", "w") as f:
         f.write(f"go {go_version}\n\nuse (\n")
