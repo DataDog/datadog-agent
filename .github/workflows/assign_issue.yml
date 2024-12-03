@@ -8,8 +8,13 @@ on:
 jobs:
   auto_assign_issue:
     runs-on: ubuntu-latest
-    container: ghcr.io/datadog/agent-issue-auto-assign:latest
+    container: 
+      image: ghcr.io/datadog/agent-issue-auto-assign:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
+        packages: read
         issues: write
     steps:
     - name: Checkout repository
