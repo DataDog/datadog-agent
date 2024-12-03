@@ -7,7 +7,6 @@ package sources
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -66,9 +65,8 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
 
 	added = make(chan *LogSource)
-	defer func() {
+	go func() {
 		for _, logSource := range s.addedByType[sourceType] {
-			fmt.Println("hehexd?", logSource)
 			added <- logSource
 		}
 	}()
