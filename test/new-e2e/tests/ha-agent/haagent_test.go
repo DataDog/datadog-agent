@@ -65,6 +65,10 @@ func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(c, output, "Add onHaAgentUpdate RCListener")
+		assert.Contains(c, output, "Add HA Agent RCListener")
 	}, 5*time.Minute, 3*time.Second)
 }
+
+// TODO: Add test for Agent behaviour when receiving RC HA_AGENT messages
+//       - Agent receiving message to become leader
+//       - Agent receiving message to become follower
