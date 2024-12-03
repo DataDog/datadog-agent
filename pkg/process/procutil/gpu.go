@@ -6,7 +6,6 @@
 package procutil
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,7 +16,6 @@ import (
 
 // NVMLProbe is a probe for GPU devices using NVML
 type NVMLProbe struct {
-	ctx  context.Context
 	nvml nvml.Interface
 
 	InfosByPid  map[int32]nvml.ProcessInfo
@@ -28,14 +26,22 @@ type NVMLProbe struct {
 func NewGpuProbe(config pkgconfigmodel.Reader) *NVMLProbe {
 	nvml := nvml.New(nvml.WithLibraryPath(config.GetString("gpu_monitoring.nvml_lib_path")))
 	log.Info("Created NVML probe")
+	infosByPid := make(map[int32]nvml.ProcessInfo)
+	deviceByPid := make(map[int32]nvml.Device)
 	return &NVMLProbe{
-		ctx:  context.Background(),
 		nvml: nvml,
+		InfosByPid: infosByPid,
+		DeviceByPid: deviceByPid,
 	}
 }
 
 // Scan scans the system for GPU devices
 func (p *NVMLProbe) Scan() {
+	if p == nil {
+		log.Error("NVML Probe is nil")
+		return
+	}
+
 	log.Info("Scan begin")
 	count, ret := p.nvml.DeviceGetCount()
 	log.Infof("Finished DeviceGetCount count: %d, ret: %s", count, ret)
