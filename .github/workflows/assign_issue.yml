@@ -2,8 +2,8 @@
 name: "Assign issue to a team"
 
 on:
-    issues:
-        types: [opened, reopened]
+  issues:
+    types: [opened, reopened]
 
 jobs:
   auto_assign_issue:
@@ -25,6 +25,6 @@ jobs:
         pip install --upgrade pip && pip install --no-compile --no-cache-dir torch transformers invoke codeowners slack-sdk PyGithub python-gitlab semver
     - name: Assign issue
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        team=`inv -e issue.assign-owner --issue ${{ github.event.issue.number }}`
+        inv -e issue.assign-owner --issue ${{ github.event.issue.number }}
