@@ -123,7 +123,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ./pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
-	github.com/DataDog/datadog-agent/pkg/util/gpu => ./pkg/util/gpu
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc/
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ./pkg/util/hostname/validate/
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/

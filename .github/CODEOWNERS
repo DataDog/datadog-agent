@@ -449,6 +449,7 @@
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/funcs/                        @DataDog/ebpf-platform
+/pkg/util/gpu/                          @DataDog/container-platform
 /pkg/util/kernel/                       @DataDog/ebpf-platform
 /pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/ktime                         @DataDog/agent-security
