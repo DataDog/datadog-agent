@@ -17,6 +17,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -40,6 +42,17 @@ type Replacer struct {
 	// ReplFunc, if set, is called with the matched bytes (see regexp#Regexp.ReplaceAllFunc). Only
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
+
+	// ImplementVersion is the version of the implementation of the replacer.
+	ImplementVersion *version.Version
+}
+
+func parseVersion(versionString string) *version.Version {
+	v, err := version.New(versionString, "")
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 // ReplacerKind modifies how a Replacer is applied
@@ -71,6 +84,9 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
+
+	// List of functions that will determine if a replacer should be applied
+	shouldScrub []func(repl *Replacer, data []byte) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -95,6 +111,18 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 		c.singleLineReplacers = append(c.singleLineReplacers, replacer)
 	case MultiLine:
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
+	}
+}
+
+// AddConditionFunction adds a function that will ensure the the replacer needs to be applied
+func (c *Scrubber) AddConditionFunction(f func(repl *Replacer, data []byte) bool) {
+	c.shouldScrub = append(c.shouldScrub, f)
+}
+
+func defaultConditionFunctions() []func(repl *Replacer, data []byte) bool {
+	return []func(repl *Replacer, data []byte) bool{
+		yamlOnly,
+		containHint,
 	}
 }
 
@@ -171,26 +199,46 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 
 // scrub applies the given replacers to the given data.
 func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
+	cndFunctions := append(defaultConditionFunctions(), c.shouldScrub...)
 	for _, repl := range replacers {
-		if repl.Regex == nil {
-			// ignoring YAML only replacers
-			continue
+		for _, cnd := range cndFunctions {
+			if !cnd(&repl, data) {
+				continue
+			}
 		}
+		data = repl.scrubData(data)
+	}
+	return data
+}
 
-		containsHint := false
-		for _, hint := range repl.Hints {
-			if bytes.Contains(data, []byte(hint)) {
-				containsHint = true
-				break
-			}
+// yamlOnly returns true if the replacer should be applied only to YAML files
+func yamlOnly(repl *Replacer, _ []byte) bool {
+	if repl.Regex == nil {
+		// ignoring YAML only replacers
+		return false
+	}
+	return true
+}
+
+// containHint returns true if the replacer should be applied only if the data contains a hint or if no hints are provided
+func containHint(repl *Replacer, data []byte) bool {
+	if len(repl.Hints) == 0 {
+		return true
+	}
+	for _, hint := range repl.Hints {
+		if bytes.Contains(data, []byte(hint)) {
+			return true
 		}
-		if len(repl.Hints) == 0 || containsHint {
-			if repl.ReplFunc != nil {
-				data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
-			} else {
-				data = repl.Regex.ReplaceAll(data, repl.Repl)
-			}
-		}
+	}
+	return false
+}
+
+// scrubData returns a function that applies the replacer to the given data
+func (repl *Replacer) scrubData(data []byte) []byte {
+	if repl.ReplFunc != nil {
+		data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
+	} else {
+		data = repl.Regex.ReplaceAll(data, repl.Repl)
 	}
 	return data
 }

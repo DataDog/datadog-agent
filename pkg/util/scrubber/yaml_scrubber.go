@@ -14,6 +14,16 @@ import (
 
 type scrubCallback = func(string, interface{}) (bool, interface{})
 
+func defaultYAMLConditionFunction() []func(repl *Replacer, data []byte) bool {
+	return []func(repl *Replacer, data []byte) bool{
+		ignoreNonYAMLReplacers,
+	}
+}
+
+func ignoreNonYAMLReplacers(repl *Replacer, _ []byte) bool {
+	return repl.YAMLKeyRegex != nil
+}
+
 func walkSlice(data []interface{}, callback scrubCallback) {
 	for _, k := range data {
 		switch v := k.(type) {
@@ -80,10 +90,13 @@ func walk(data *interface{}, callback scrubCallback) {
 
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
+	cndFunctions := append(defaultYAMLConditionFunction(), c.shouldScrub...)
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
 		for _, replacer := range c.singleLineReplacers {
-			if replacer.YAMLKeyRegex == nil {
-				continue
+			for _, cnd := range cndFunctions {
+				if !cnd(&replacer, nil) {
+					continue
+				}
 			}
 			if replacer.YAMLKeyRegex.Match([]byte(key)) {
 				if replacer.ProcessValue != nil {
