@@ -317,7 +317,7 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 	var output []constants
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", tags)},
+		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", tags)},
 	}
 
 	pkgs, err := packages.Load(&cfg, filepath)

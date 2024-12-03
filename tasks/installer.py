@@ -28,7 +28,7 @@ def build(
     run_path=None,
     build_include=None,
     build_exclude=None,
-    go_mod="mod",
+    go_mod="readonly",
     no_strip_binary=True,
     no_cgo=False,
 ):
