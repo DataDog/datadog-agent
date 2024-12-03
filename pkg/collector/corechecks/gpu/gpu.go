@@ -165,7 +165,7 @@ func (m *Check) getTagsForKey(key model.StatsKey) []string {
 	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
 	tags, err := m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
 	if err != nil {
-		log.Errorf("Error collecting tags for process %d: %s", key.PID, err)
+		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
 	}
 
 	// Container ID tag will be added or not depending on the tagger configuration
