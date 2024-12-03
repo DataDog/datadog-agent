@@ -22,16 +22,10 @@ type SysProbeUtilGetter func(string) (SysProbeUtil, error)
 // SysProbeUtil fetches info from the SysProbe running remotely
 type SysProbeUtil interface {
 	GetConnections(clientID string) (*model.Connections, error)
-	GetStats() (map[string]interface{}, error)
 	GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error)
 	Register(clientID string) error
 	GetNetworkID() (string, error)
-	GetTelemetry() ([]byte, error)
-	GetConnTrackCached() ([]byte, error)
-	GetConnTrackHost() ([]byte, error)
-	GetBTFLoaderInfo() ([]byte, error)
 	DetectLanguage(pids []int32) ([]languagemodels.Language, error)
-	GetPprof(path string) ([]byte, error)
 	GetDiscoveryServices() (*discoverymodel.ServicesResponse, error)
 	GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error)
 	GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error)
