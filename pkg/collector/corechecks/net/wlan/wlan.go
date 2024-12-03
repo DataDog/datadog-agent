@@ -25,6 +25,17 @@ const (
 var getWifiInfo = GetWiFiInfo
 var setupLocationAccess = SetupLocationAccess
 
+// WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
+type WiFiInfo struct {
+	Rssi         int
+	Ssid         string
+	Bssid        string
+	Channel      int
+	Noise        int
+	TransmitRate float64
+	SecurityType string
+}
+
 // WLANCheck monitors the status of the WLAN interface
 type WLANCheck struct {
 	core.CheckBase

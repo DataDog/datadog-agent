@@ -9,38 +9,16 @@
 package wlan
 
 /*
+#cgo CFLAGS: -I .
 #cgo LDFLAGS: -framework CoreWLAN -framework CoreLocation -framework Foundation
-
-typedef struct {
-    int rssi;
-    const char *ssid;
-    const char *bssid;
-    int channel;
-    int noise;
-    double transmitRate;
-    const char *securityType;
-} WiFiInfo;
-
-WiFiInfo GetWiFiInformation();
-void InitLocationManager();
-void StartLocationUpdates();
-void StopLocationUpdates();
+#include "wlan_darwin.h"
 */
 import "C"
 import (
-	"fmt"
 	"time"
-)
 
-type WiFiInfo struct {
-	Rssi         int     `json:"rssi"`
-	Ssid         string  `json:"ssid"`
-	Bssid        string  `json:"bssid"`
-	Channel      int     `json:"channel"`
-	Noise        int     `json:"noise"`
-	TransmitRate float64 `json:"transmit_rate"`
-	SecurityType string  `json:"security_type"`
-}
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 func GetWiFiInfo() (WiFiInfo, error) {
 	info := C.GetWiFiInformation()
@@ -57,16 +35,17 @@ func GetWiFiInfo() (WiFiInfo, error) {
 
 func SetupLocationAccess() {
 	C.InitLocationManager()
-	fmt.Println("Initialized Location Manager")
+	log.Info("Initialized Location Manager")
 
 	// Start fetching location updates
 	C.StartLocationUpdates()
-	fmt.Println("Started Location Updates")
+	log.Info("Started Location Updates")
 
+	// TODO: Is this sleep necessary?
 	// Keep the Go program running to allow location updates to be received.
 	time.Sleep(30 * time.Second)
 
 	// Stop fetching location updates
 	C.StopLocationUpdates()
-	fmt.Println("Stopped Location Updates")
+	log.Info("Stopped Location Updates")
 }

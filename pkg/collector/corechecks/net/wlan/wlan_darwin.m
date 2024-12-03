@@ -6,6 +6,7 @@
 #include <Foundation/Foundation.h>
 #include <CoreWLAN/CoreWLAN.h>
 #include <CoreLocation/CoreLocation.h>
+#include "wlan_darwin.h"
 
 // Use @interface to define a class that acts as a delegate for CLLocationManager
 @interface LocationManager : NSObject <CLLocationManagerDelegate>
@@ -63,18 +64,6 @@ void StartLocationUpdates() {
 void StopLocationUpdates() {
     [locationManager.locationManager stopUpdatingLocation];
 }
-
-
-// WiFiInfo struct to hold WiFi data
-typedef struct {
-    int rssi;
-    const char *ssid;
-    const char *bssid;
-    int channel;
-    int noise;
-    double transmitRate;
-    const char *securityType;
-} WiFiInfo;
 
 // GetWiFiInformation return wifi data
 WiFiInfo GetWiFiInformation() {
