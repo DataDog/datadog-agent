@@ -330,6 +330,9 @@
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
 /comp/core/agenttelemetry               @DataDog/agent-shared-components @iglendd
 
+# trace-agent logging implementation should also notify agent-apm
+/comp/core/log/impl-trace @DataDog/agent-apm
+
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
 /pkg/api/                               @DataDog/agent-shared-components
