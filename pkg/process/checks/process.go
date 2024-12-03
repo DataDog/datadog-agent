@@ -535,7 +535,7 @@ func fmtProcesses(
 		log.Infof("Getting getGPUID from fmtProcesses in process check for PID: %d, map:%v", fp.Pid, deviceUUIDByPid)
 		if gpuUUID, ok := deviceUUIDByPid[fp.Pid]; ok {
 			log.Infof("Found GPU UUID %s for PID: %d", gpuUUID, fp.Pid)
-			proc.Tags = append(proc.Tags, "gpu_device:"+gpuUUID)
+			proc.Tags = []string{"gpu_device:" + gpuUUID}
 		}
 
 		if connRates != nil {
