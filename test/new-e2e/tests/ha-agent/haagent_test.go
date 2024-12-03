@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -45,7 +46,7 @@ func (s *haAgentTestSuite) TestHaAgentGroupTagPresentOnDatadogAgentRunningMetric
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert datadog.agent.running metric")
 		metrics, err := fakeClient.FilterMetrics("datadog.agent.running")
-		assert.NoError(c, err)
+		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 		for _, metric := range metrics {
 			s.T().Logf("    datadog.agent.running metric tags: %+v", metric.Tags)
@@ -53,7 +54,7 @@ func (s *haAgentTestSuite) TestHaAgentGroupTagPresentOnDatadogAgentRunningMetric
 
 		tags := []string{"agent_group:test-group01"}
 		metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-		assert.NoError(c, err)
+		require.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 3*time.Second)
 }
@@ -62,9 +63,8 @@ func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert HA Agent added to RCListeners in agent.log")
 		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
+
 		assert.Contains(c, output, "Add onHaAgentUpdate RCListener")
 	}, 5*time.Minute, 3*time.Second)
 }
