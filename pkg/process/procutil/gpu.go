@@ -54,7 +54,6 @@ func (p *NVMLProbe) Scan() {
 		}
 		fmt.Printf("Found %d processes on device %d\n", len(processInfos), di)
 
-		infosByPid := make(map[int32]nvml.ProcessInfo, len(processInfos))
 		for pi, processInfo := range processInfos {
 			infosByPid[int32(pi)] = processInfo
 			deviceByPid[int32(pi)] = device
