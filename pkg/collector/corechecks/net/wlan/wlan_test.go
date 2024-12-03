@@ -22,8 +22,8 @@ var testGetWifiInfo = func() (WiFiInfo, error) {
 		Ssid:         "test-ssid",
 		Bssid:        "test-bssid",
 		Channel:      1,
-		Noise:        1,
-		TransmitRate: 1.0,
+		Noise:        20,
+		TransmitRate: 4.0,
 		SecurityType: "test-security-type",
 	}, nil
 }
@@ -32,7 +32,6 @@ var testSetupLocationAccess = func() {
 }
 
 func TestWLANOK(t *testing.T) {
-
 	// mock the functions
 	getWifiInfo = testGetWifiInfo
 	setupLocationAccess = testSetupLocationAccess
