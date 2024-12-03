@@ -51,7 +51,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     ctx.run(f"cp {binary} {temp_folder}/test.bin")
 
-    with open(f"{temp_folder}/Dockerfile", 'w') as stream:
+    with open(f"{temp_folder}/Dockerfile", 'w', encoding="utf-8") as stream:
         stream.write(
             """FROM public.ecr.aws/docker/library/ubuntu:20.04
 # Install Docker
@@ -68,20 +68,26 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-
 COPY test.bin /test.bin
-
-# Authenticate to Docker Hub
-ENTRYPOINT echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
-
-# Run the tests
-CMD /test.bin
+ENTRYPOINT ["/entrypoint.sh"]
 """
         )
         # Handle optional testdata folder
         if os.path.isdir("./testdata"):
             ctx.run(f"cp -R testdata {temp_folder}")
             stream.write("COPY testdata /testdata")
+
+    # Create the entrypoint script
+    with open(f"{temp_folder}/entrypoint.sh", 'w', encoding="utf-8") as f:
+        f.write(
+            """#!/bin/sh
+# Authenticate to Docker Hub
+echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
+# Run the tests
+/test.bin
+"""
+        )
+    os.chmod(f"{temp_folder}/entrypoint.sh", 0o755)
 
     test_image, _ = client.images.build(path=temp_folder, rm=True)
 
