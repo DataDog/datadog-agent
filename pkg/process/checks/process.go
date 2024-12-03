@@ -532,8 +532,9 @@ func fmtProcesses(
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 		}
 
-		log.Info("Getting getGPUID from fmtProcesses in process check")
+		log.Infof("Getting getGPUID from fmtProcesses in process check for PID: %d, map:%v", fp.Pid, deviceUUIDByPid)
 		if gpuUUID, ok := deviceUUIDByPid[fp.Pid]; ok {
+			log.Infof("Found GPU UUID %s for PID: %d", gpuUUID, fp.Pid)
 			proc.Tags = append(proc.Tags, "gpu_device:"+gpuUUID)
 		}
 

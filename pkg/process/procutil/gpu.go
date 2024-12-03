@@ -7,7 +7,6 @@ package procutil
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -73,9 +72,10 @@ func (p *NVMLProbe) Scan() {
 			log.Errorf("Unable to get process info for device at index %d: %v", di, nvml.ErrorString(ret))
 			return
 		}
-		fmt.Printf("Found %d processes on device %d\n", len(processInfos), di)
+		log.Infof("Found %d processes on device %d\n", len(processInfos), di)
 
 		for _, processInfo := range processInfos {
+			log.Infof("Found pid %d on device %s\n", processInfo.Pid, deviceUUID)
 			deviceUUIDByPid[int32(processInfo.Pid)] = deviceUUID
 		}
 	}
