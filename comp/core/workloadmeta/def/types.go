@@ -463,7 +463,7 @@ type ContainerAllocatedResource struct {
 }
 
 func (c ContainerAllocatedResource) String() string {
-	return fmt.Sprintf("Name:%s, ID:%s", c.Name, c.ID)
+	return fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
 }
 
 // OrchestratorContainer is a reference to a Container with
@@ -606,7 +606,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
-	_, _ = fmt.Fprintln(&sb, "----------- Allocated resources -----------")
+	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
 	for _, r := range c.AllocatedResources {
 		_, _ = fmt.Fprintln(&sb, r.String())
 	}
