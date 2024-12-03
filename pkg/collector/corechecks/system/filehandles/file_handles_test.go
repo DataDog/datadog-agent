@@ -42,7 +42,7 @@ func TestFhCheckLinux(t *testing.T) {
 	defer os.Remove(tmpFile.Name()) // clean up
 
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
-	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
+	t.Logf("Testing from file %s", fileNrHandle)
 
 	// we have to init the mocked sender here before fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, ...)
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
@@ -76,7 +76,7 @@ func TestFhCheckLinux(t *testing.T) {
 	defer os.Remove(tmpFile.Name()) // clean up
 
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent2)
-	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
+	t.Logf("Testing from file %s", fileNrHandle)
 
 	mock.On("Gauge", "system.fs.file_handles.allocated", 800.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.fs.file_handles.allocated_unused", 453.0, "", []string(nil)).Return().Times(1)
