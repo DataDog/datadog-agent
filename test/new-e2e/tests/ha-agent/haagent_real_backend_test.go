@@ -49,7 +49,7 @@ func TestHaAgentRealBackendSuite(t *testing.T) {
 	agentConfig := fmt.Sprintf(`
 ha_agent:
     enabled: true
-    group: test-group-%s
+    group: e2e-test-%s
 log_level: debug
 api_key: %s
 site: datad0g.com
