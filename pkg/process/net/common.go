@@ -56,7 +56,6 @@ type RemoteSysProbeUtil struct {
 
 	path             string
 	httpClient       http.Client
-	pprofClient      http.Client
 	tracerouteClient http.Client
 }
 
@@ -269,37 +268,6 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 	return body, nil
 }
 
-// GetStats returns the expvar stats of the system probe
-func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
-	req, err := http.NewRequest("GET", statsURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
-	}
-
-	body, err := readAllResponseBody(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	stats := make(map[string]interface{})
-	err = json.Unmarshal(body, &stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return stats, nil
-}
-
 // Register registers the client to system probe
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", registerURL, clientID), nil)
@@ -362,24 +330,6 @@ func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Lang
 	return langs, nil
 }
 
-// GetPprof queries the pprof endpoint for system-probe
-func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
-	var buf bytes.Buffer
-	req, err := http.NewRequest(http.MethodGet, pprofURL+path, &buf)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := r.pprofClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-
-	return io.ReadAll(res.Body)
-}
-
 // GetDiscoveryServices returns service information from system-probe.
 func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
 	req, err := http.NewRequest(http.MethodGet, discoveryServicesURL, nil)
@@ -402,82 +352,6 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 		return nil, err
 	}
 	return res, nil
-}
-
-// GetTelemetry queries the telemetry endpoint from system-probe.
-func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, telemetryURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetTelemetry got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
-	}
-
-	return data, nil
-}
-
-// GetConnTrackCached queries conntrack/cached, which uses our conntracker implementation (typically ebpf)
-// to return the list of NAT'd connections
-func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, conntrackCachedURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetConnTrackCached got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
-	}
-
-	return data, nil
-}
-
-// GetConnTrackHost queries conntrack/host, which uses netlink to return the list of NAT'd connections
-func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetConnTrackHost got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
-	}
-
-	return data, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {
