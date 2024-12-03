@@ -80,7 +80,7 @@ func (r *Resolver) getFilesystem(containerID containerutils.ContainerID) (fs.FS,
 	var fsys fs.FS
 
 	if containerID != "" {
-		cgroupEntry, found := r.cgroupResolver.GetWorkload(string(containerID))
+		cgroupEntry, found := r.cgroupResolver.GetWorkload(containerID)
 		if !found {
 			return nil, fmt.Errorf("failed to resolve container %s", containerID)
 		}

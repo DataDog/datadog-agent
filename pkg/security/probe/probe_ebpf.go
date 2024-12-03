@@ -194,11 +194,31 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	supported := p.kernelVersion.HaveFentrySupport()
-	if !supported {
-		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	if p.kernelVersion.Code < kernel.Kernel6_1 {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return
 	}
-	p.useFentry = supported
+
+	if !p.kernelVersion.HaveFentrySupport() {
+		p.useFentry = false
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return
+	}
+
+	p.useFentry = true
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
@@ -533,7 +553,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(string(event.ContainerContext.ContainerID))
+	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -810,12 +830,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if pce != nil {
 			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
 			if err == nil && path != "" {
-				path = filepath.Dir(string(path))
-				pce.CGroup.CGroupID = containerutils.CGroupID(path)
-				pce.Process.CGroup.CGroupID = containerutils.CGroupID(path)
+				cgroupID := containerutils.CGroupID(filepath.Dir(string(path)))
+				pce.CGroup.CGroupID = cgroupID
+				pce.Process.CGroup.CGroupID = cgroupID
 				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
 				if cgroupFlags.IsContainer() {
-					containerID, _ := containerutils.GetContainerFromCgroup(path)
+					containerID, _ := containerutils.GetContainerFromCgroup(cgroupID)
 					pce.ContainerID = containerutils.ContainerID(containerID)
 					pce.Process.ContainerID = containerutils.ContainerID(containerID)
 				}
@@ -1086,23 +1106,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			pidToResolve := event.PTrace.PID
 
 			if pidToResolve == 0 { // resolve the PID given as argument instead
-				if event.ContainerContext.ContainerID == "" {
+				containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
 					pidToResolve = event.PTrace.NSPID
 				} else {
-					// 1. get the pid namespace of the tracer
-					ns, err := utils.GetProcessPidNamespace(event.ProcessContext.Process.Pid)
+					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, event.PTrace.NSPID)
 					if err != nil {
-						seclog.Errorf("Failed to resolve PID namespace: %v", err)
+						seclog.Errorf("PTrace err: %v", err)
 						return
 					}
-
-					// 2. find the host pid matching the arg pid with he tracer namespace
-					pid, err := utils.FindPidNamespace(event.PTrace.NSPID, ns)
-					if err != nil {
-						seclog.Warnf("Failed to resolve tracee PID namespace: %v", err)
-						return
-					}
-
 					pidToResolve = pid
 				}
 			}
@@ -1143,6 +1155,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	case model.SignalEventType:
 		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
@@ -1178,6 +1191,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
+			return
 		}
 		offset += read
 
@@ -1195,12 +1209,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.IMDSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
+			return
 		}
 		offset += read
 
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
-			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
-			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			if err != model.ErrNoUsefulData {
+				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
+				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			}
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
@@ -1267,7 +1284,7 @@ func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 }
 
 // GetEventTags returns the event tags
-func (p *EBPFProbe) GetEventTags(containerID string) []string {
+func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
@@ -1410,7 +1427,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case "dns":
 		return p.probe.IsNetworkEnabled()
 	case "imds":
-		return p.probe.IsNetworkEnabled() && p.config.Probe.NetworkIngressEnabled
+		return p.probe.IsNetworkEnabled()
 	case "packet":
 		return p.probe.IsNetworkRawPacketEnabled()
 	}

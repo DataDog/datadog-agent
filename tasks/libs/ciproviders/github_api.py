@@ -28,7 +28,7 @@ from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
 
-RELEASE_BRANCH_PATTERN = re.compile(r"\d+\.\d+\.x")
+RELEASE_BRANCH_PATTERN = re.compile(r"^\d+\.\d+\.x$")
 
 
 class GithubAPI:

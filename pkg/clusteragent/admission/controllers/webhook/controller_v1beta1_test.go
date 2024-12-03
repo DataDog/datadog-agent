@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
 
-var v1beta1Cfg = NewConfig(false, false)
+var v1beta1Cfg = NewConfig(false, false, false)
 
 func TestSecretNotFoundV1beta1(t *testing.T) {
 	f := newFixtureV1beta1(t)
@@ -161,21 +161,21 @@ func TestAdmissionControllerFailureModeV1beta1(t *testing.T) {
 
 	for _, value := range []string{"Ignore", "ignore", "BadVal", ""} {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
-		c.config = NewConfig(true, false)
+		c.config = NewConfig(true, false, false)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
 		assert.Equal(t, admiv1beta1.Ignore, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
 		assert.Equal(t, admiv1beta1.Ignore, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 
 	for _, value := range []string{"Fail", "fail"} {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
-		c.config = NewConfig(true, false)
+		c.config = NewConfig(true, false, false)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
 		assert.Equal(t, admiv1beta1.Fail, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
 		assert.Equal(t, admiv1beta1.Fail, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 }
@@ -187,9 +187,9 @@ func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 
 	for _, value := range []string{"IfNeeded", "ifneeded", "Never", "never", "wrong", ""} {
 		mockConfig.SetWithoutSource("admission_controller.reinvocationpolicy", value)
-		c.config = NewConfig(true, false)
+		c.config = NewConfig(true, false, false)
 
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
 		assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *mutatingWebhookSkeleton.ReinvocationPolicy)
 	}
 }
@@ -201,7 +201,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
 	timeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
-	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, operations []admiv1beta1.OperationType, resources []string) admiv1beta1.MutatingWebhook {
+	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, operations []admiv1beta1.OperationType, resources []string) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: name,
 			ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -230,6 +230,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			AdmissionReviewVersions: []string{"v1beta1"},
 			ObjectSelector:          objSelector,
 			NamespaceSelector:       nsSelector,
+			MatchConditions:         matchConditions,
 		}
 	}
 	tests := []struct {
@@ -247,7 +248,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -257,7 +258,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhook}
 			},
 		},
@@ -270,13 +271,13 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhook}
 			},
 		},
@@ -289,7 +290,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -299,7 +300,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhook}
 			},
 		},
@@ -312,13 +313,13 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhook}
 			},
 		},
@@ -331,7 +332,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.lib.injection", "/injectlib", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -341,7 +342,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhook}
 			},
 		},
@@ -354,13 +355,13 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.lib.injection", "/injectlib", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhook}
 			},
 		},
@@ -372,18 +373,18 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
@@ -396,7 +397,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -406,7 +407,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
@@ -415,7 +416,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, nil, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
@@ -429,18 +430,18 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, true) },
+			configFunc: func() Config { return NewConfig(false, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", nil, &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", nil, &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
+				}, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"})
 				return []admiv1beta1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
@@ -455,7 +456,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook(
 					"datadog.webhook.agent.config",
@@ -487,6 +488,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							},
 						},
 					},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"},
 				)
 				return []admiv1beta1.MutatingWebhook{webhook}
@@ -503,7 +505,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
-			configFunc: func() Config { return NewConfig(false, true) },
+			configFunc: func() Config { return NewConfig(false, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				webhook := webhook(
 					"datadog.webhook.agent.config",
@@ -532,6 +534,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							},
 						},
 					},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"},
 				)
 				return []admiv1beta1.MutatingWebhook{webhook}
@@ -549,7 +552,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.cws.pod.instrumentation",
@@ -564,6 +567,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 						},
 					},
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -572,6 +576,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"/inject-command-cws",
 					nil,
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -590,7 +595,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
-			configFunc: func() Config { return NewConfig(false, false) },
+			configFunc: func() Config { return NewConfig(false, false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.cws.pod.instrumentation",
@@ -601,6 +606,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 						},
 					},
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -609,6 +615,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"/inject-command-cws",
 					nil,
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -627,7 +634,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
-			configFunc: func() Config { return NewConfig(false, true) },
+			configFunc: func() Config { return NewConfig(false, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.cws.pod.instrumentation",
@@ -642,6 +649,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							},
 						},
 					},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -650,6 +658,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"/inject-command-cws",
 					nil,
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -668,7 +677,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
-			configFunc: func() Config { return NewConfig(false, true) },
+			configFunc: func() Config { return NewConfig(false, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.cws.pod.instrumentation",
@@ -679,6 +688,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							cwsinstrumentation.PodLabelEnabled: "true",
 						},
 					},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -687,6 +697,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"/inject-command-cws",
 					nil,
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -708,7 +719,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "misconfigured")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				return []admiv1beta1.MutatingWebhook{}
 			},
@@ -728,7 +739,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.agent.sidecar",
@@ -739,6 +750,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 						},
 					},
 					nil,
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -760,7 +772,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				return []admiv1beta1.MutatingWebhook{}
 			},
@@ -780,7 +792,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				return []admiv1beta1.MutatingWebhook{}
 			},
@@ -800,7 +812,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.agent.sidecar",
@@ -809,6 +821,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"labelKey": "labelVal"},
 					},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -830,7 +843,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				return []admiv1beta1.MutatingWebhook{}
 			},
@@ -850,13 +863,14 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey\": \"labelVal\"}}}]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.agent.sidecar",
 					"/agentsidecar",
 					&metav1.LabelSelector{MatchLabels: map[string]string{"labelKey": "labelVal"}},
 					&metav1.LabelSelector{},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -878,13 +892,14 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"ObjectSelector\": {\"MatchLabels\": {\"labelKey1\": \"labelVal1\"}}, \"NamespaceSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				podWebhook := webhook(
 					"datadog.webhook.agent.sidecar",
 					"/agentsidecar",
 					&metav1.LabelSelector{MatchLabels: map[string]string{"labelKey1": "labelVal1"}},
 					&metav1.LabelSelector{MatchLabels: map[string]string{"labelKey2": "labelVal2"}},
+					[]admiv1beta1.MatchCondition{},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
 					[]string{"pods"},
 				)
@@ -906,7 +921,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.selectors", "[{\"NamespaceSelector\": {\"MatchLabels\":{\"labelKey1\": \"labelVal1\"}}} , {\"ObjectSelector\": {\"MatchLabels\": {\"labelKey2\": \"labelVal2\"}}}]")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", "[]")
 			},
-			configFunc: func() Config { return NewConfig(true, true) },
+			configFunc: func() Config { return NewConfig(true, true, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
 				return []admiv1beta1.MutatingWebhook{}
 			},
@@ -926,7 +941,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
-			c.webhooks = c.generateWebhooks(wmeta, nil, mockConfig)
+			c.webhooks = c.generateWebhooks(wmeta, nil, mockConfig, nil)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -945,7 +960,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)
-	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.ValidatingWebhook {
+	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
 		return admiv1beta1.ValidatingWebhook{
 			Name: "datadog.webhook.foo",
 			ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -975,6 +990,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 			AdmissionReviewVersions: []string{"v1beta1"},
 			ObjectSelector:          objSelector,
 			NamespaceSelector:       nsSelector,
+			MatchConditions:         matchConditions,
 		}
 	}
 	type args struct {
@@ -995,7 +1011,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: false,
-			want:              webhook(&defaultTimeout, objectSelector, nil),
+			want:              webhook(&defaultTimeout, objectSelector, nil, nil),
 		},
 		{
 			name: "namespace selector",
@@ -1004,7 +1020,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: true,
-			want:              webhook(&defaultTimeout, nil, namespaceSelector),
+			want:              webhook(&defaultTimeout, nil, namespaceSelector, nil),
 		},
 		{
 			name: "custom timeout",
@@ -1014,7 +1030,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 			},
 			timeout:           &customTimeout,
 			namespaceSelector: false,
-			want:              webhook(&customTimeout, objectSelector, nil),
+			want:              webhook(&customTimeout, objectSelector, nil, nil),
 		},
 	}
 
@@ -1028,11 +1044,11 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 			}
 
 			c := &ControllerV1beta1{}
-			c.config = NewConfig(false, tt.namespaceSelector)
+			c.config = NewConfig(false, tt.namespaceSelector, false)
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
+			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
 		})
 	}
 }
@@ -1049,7 +1065,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)
-	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.MutatingWebhook {
+	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
 			ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -1080,6 +1096,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 			AdmissionReviewVersions: []string{"v1beta1"},
 			ObjectSelector:          objSelector,
 			NamespaceSelector:       nsSelector,
+			MatchConditions:         matchConditions,
 		}
 	}
 	type args struct {
@@ -1100,7 +1117,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: false,
-			want:              webhook(&defaultTimeout, objectSelector, nil),
+			want:              webhook(&defaultTimeout, objectSelector, nil, nil),
 		},
 		{
 			name: "namespace selector",
@@ -1109,7 +1126,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 				path:       "/bar",
 			},
 			namespaceSelector: true,
-			want:              webhook(&defaultTimeout, nil, namespaceSelector),
+			want:              webhook(&defaultTimeout, nil, namespaceSelector, nil),
 		},
 		{
 			name: "custom timeout",
@@ -1119,7 +1136,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 			},
 			timeout:           &customTimeout,
 			namespaceSelector: false,
-			want:              webhook(&customTimeout, objectSelector, nil),
+			want:              webhook(&customTimeout, objectSelector, nil, nil),
 		},
 	}
 
@@ -1133,11 +1150,11 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 			}
 
 			c := &ControllerV1beta1{}
-			c.config = NewConfig(false, tt.namespaceSelector)
+			c.config = NewConfig(false, tt.namespaceSelector, false)
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
+			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
 		})
 	}
 }
@@ -1168,6 +1185,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 	), factory
 }
 

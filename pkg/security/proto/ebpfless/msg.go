@@ -9,6 +9,7 @@ package ebpfless
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"modernc.org/mathutil"
 )
@@ -93,7 +94,7 @@ const (
 
 // ContainerContext defines a container context
 type ContainerContext struct {
-	ID        string
+	ID        containerutils.ContainerID
 	CreatedAt uint64
 }
 
@@ -303,7 +304,7 @@ type SyscallMsg struct {
 	SpanContext  *SpanContext `json:",omitempty"`
 	Timestamp    uint64
 	Retval       int64
-	ContainerID  string
+	ContainerID  containerutils.ContainerID
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`

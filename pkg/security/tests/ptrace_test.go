@@ -102,7 +102,7 @@ func TestPTraceEvent(t *testing.T) {
 	})
 
 	test.Run(t, "ptrace-attach", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"ptrace-attach"}
+		args := []string{"sleep", "2", ";", "ptrace-attach"}
 		envs := []string{}
 
 		err := test.GetEventSent(t, func() error {
@@ -122,7 +122,7 @@ func TestPTraceEvent(t *testing.T) {
 
 			test.validatePTraceSchema(t, event)
 			return true
-		}, time.Second*3, "test_ptrace_attach")
+		}, time.Second*6, "test_ptrace_attach")
 		if err != nil {
 			t.Error(err)
 		}

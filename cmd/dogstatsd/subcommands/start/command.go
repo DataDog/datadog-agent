@@ -55,7 +55,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -235,33 +234,6 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
 		}
 	}()
-
-	// Setup logger
-	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
-	logFile := config.GetString("log_file")
-	if logFile == "" {
-		logFile = params.DefaultLogFile
-	}
-
-	if config.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		logFile = ""
-	}
-
-	err = pkglogsetup.SetupLogger(
-		loggerName,
-		config.GetString("log_level"),
-		logFile,
-		syslogURI,
-		config.GetBool("syslog_rfc"),
-		config.GetBool("log_to_console"),
-		config.GetBool("log_format_json"),
-		pkgconfigsetup.Datadog(),
-	)
-	if err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
-		return
-	}
 
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
