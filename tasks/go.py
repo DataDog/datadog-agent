@@ -410,6 +410,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     check_valid_mods(ctx)
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
+        ctx.run("go work sync")
+        res = ctx.run("git diff --exit-code **/go.mod **/go.sum", warn=True)
+        if res.exited is None or res.exited > 0:
+            errors_found.append("modules dependencies are out of sync, please run go work sync")
+
         for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
