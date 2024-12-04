@@ -21,7 +21,7 @@ def agent_package(
         skip_deps=skip_deps,
     )
 
-    # Packag Agent into MSI
+    # Package Agent into MSI
     agent_msi_build(ctx, release_version=release_version)
 
     # Package MSI into OCI
@@ -42,7 +42,7 @@ def installer_package(
         target_project="installer",
     )
 
-    # Packag Insaller into MSI
+    # Package Insaller into MSI
     build_installer(ctx)
 
     # Package MSI into OCI
