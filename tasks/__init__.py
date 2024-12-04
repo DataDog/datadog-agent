@@ -35,6 +35,7 @@ from tasks import (
     go_deps,
     installer,
     invoke_unit_tests,
+    issue,
     kmt,
     linter,
     modules,
@@ -179,6 +180,7 @@ ns.add_collection(msi)
 ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
+ns.add_collection(issue)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notes)

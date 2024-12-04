@@ -157,6 +157,8 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
+  # This value is not used on windows, a specific value is provided to
+  # our build containers in the windows build jobs
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
@@ -997,6 +999,17 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_ha_agent_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/haagent/**/*
+        - pkg/aggregator/**/*
+        - test/new-e2e/tests/ha-agent/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_otel_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]

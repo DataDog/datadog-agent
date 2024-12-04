@@ -44,10 +44,17 @@ func (h *haAgentImpl) IsLeader() bool {
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 	agentHostname, err := hostname.Get(context.TODO())
 	if err != nil {
-		h.log.Warnf("Error getting the hostname: %v", err)
+		h.log.Warnf("error getting the hostname: %v", err)
 		return
 	}
-	h.isLeader.Store(agentHostname == leaderAgentHostname)
+	newIsLeader := agentHostname == leaderAgentHostname
+	prevIsLeader := h.isLeader.Load()
+	if newIsLeader != prevIsLeader {
+		h.log.Infof("agent role switched from %s to %s", leaderStateToRole(prevIsLeader), leaderStateToRole(newIsLeader))
+		h.isLeader.Store(newIsLeader)
+	} else {
+		h.log.Debugf("agent role not changed (current role: %s)", leaderStateToRole(prevIsLeader))
+	}
 }
 
 // ShouldRunIntegration return true if the agent integrations should to run.
