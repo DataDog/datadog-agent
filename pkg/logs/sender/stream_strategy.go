@@ -17,7 +17,7 @@ import (
 type streamStrategy struct {
 	inputChan   chan *message.Message
 	outputChan  chan *message.Payload
-	compression *Compressor
+	compression compression.Component
 	done        chan struct{}
 }
 
@@ -26,7 +26,7 @@ func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message
 	return &streamStrategy{
 		inputChan:   inputChan,
 		outputChan:  outputChan,
-		compression: NewCompressor(compression),
+		compression: compression,
 		done:        make(chan struct{}),
 	}
 }
@@ -39,7 +39,7 @@ func (s *streamStrategy) Start() {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
 
-			encodedPayload, err := s.compression.encode(msg.GetContent())
+			encodedPayload, err := s.compression.Compress(msg.GetContent())
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return
@@ -48,7 +48,7 @@ func (s *streamStrategy) Start() {
 			s.outputChan <- &message.Payload{
 				Messages:      []*message.Message{msg},
 				Encoded:       encodedPayload,
-				Encoding:      s.compression.name(),
+				Encoding:      s.compression.ContentEncoding(),
 				UnencodedSize: len(msg.GetContent()),
 			}
 		}

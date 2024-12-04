@@ -12,6 +12,7 @@ import (
 	"io"
 
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires contains the compression level for gzip compression
@@ -28,8 +29,10 @@ type GzipStrategy struct {
 func NewComponent(req Requires) compression.Provides {
 	level := req.Level
 	if level < gzip.NoCompression {
+		log.Warnf("Gzip log level set to %d, minimum is %d.", level, gzip.NoCompression)
 		level = gzip.NoCompression
 	} else if level > gzip.BestCompression {
+		log.Warnf("Gzip log level set to %d, maximum is %d.", level, gzip.BestCompression)
 		level = gzip.BestCompression
 	}
 
@@ -41,9 +44,16 @@ func NewComponent(req Requires) compression.Provides {
 }
 
 // Compress will compress the data with gzip
-func (s *GzipStrategy) Compress(src []byte) ([]byte, error) {
+func (s *GzipStrategy) Compress(src []byte) (result []byte, err error) {
 	var compressedPayload bytes.Buffer
 	gzipWriter, err := gzip.NewWriterLevel(&compressedPayload, s.level)
+	defer func() {
+		err = gzipWriter.Close()
+		if err != nil {
+			result = nil
+		}
+	}()
+
 	if err != nil {
 		return nil, err
 	}
@@ -55,10 +65,7 @@ func (s *GzipStrategy) Compress(src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = gzipWriter.Close()
-	if err != nil {
-		return nil, err
-	}
+
 	return compressedPayload.Bytes(), nil
 }
 
@@ -97,10 +104,12 @@ func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 	// Ensure level is within a range that doesn't cause NewWriterLevel to error.
 	level := s.level
 	if level < gzip.HuffmanOnly {
+		log.Warnf("Gzip streaming log level set to %d, minimum is %d.", level, gzip.HuffmanOnly)
 		level = gzip.HuffmanOnly
 	}
 
 	if level > gzip.BestCompression {
+		log.Warnf("Gzip streaming log level set to %d, maximum is %d.", level, gzip.BestCompression)
 		level = gzip.BestCompression
 	}
 
