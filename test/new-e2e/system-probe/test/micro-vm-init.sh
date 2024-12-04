@@ -13,9 +13,12 @@ if [[ -d "${docker_dir}" ]]; then
 fi
 # VM provisioning end !
 
+cp -rvf /system-probe-tests /opt/
+
 find / -name "*btf*"
 ls -lahR /opt
 ls -lahR /system-probe-tests
+
 
 # Start tests
 code=0
