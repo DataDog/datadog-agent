@@ -5,13 +5,6 @@
 
 package sources
 
-import (
-	"errors"
-	"os"
-
-	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-)
-
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
 // This class implements the SourceProvider interface
 type ConfigSources struct {
@@ -25,33 +18,9 @@ func NewConfigSources() *ConfigSources {
 	}
 }
 
-// AddFileSource gets a file from a file path and adds it as a source.
-func (s *ConfigSources) AddFileSource(path string) error {
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	absolutePath := wd + "/" + path
-	data, err := os.ReadFile(absolutePath)
-	if err != nil {
-		return err
-	}
-	logsConfig, err := logsConfig.ParseYAML(data)
-	if err != nil {
-		return err
-	}
-	for _, cfg := range logsConfig {
-		if cfg.TailingMode == "" {
-			cfg.TailingMode = "beginning"
-		}
-		source := NewLogSource(cfg.Name, cfg)
-		if source.Config == nil || source.Config.Validate() != nil {
-			return errors.New("source configuration is invalid")
-		}
-		s.addedByType[source.Config.Type] = append(s.addedByType[source.Config.Type], source)
-	}
-
-	return nil
+// AddSource adds source to the map of stored sources by type.
+func (s *ConfigSources) AddSource(source *LogSource) {
+	s.addedByType[source.Config.Type] = append(s.addedByType[source.Config.Type], source)
 }
 
 // SubscribeAll is required for the SourceProvider interface

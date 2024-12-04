@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func CreateTestFile(tempDir string) *os.File {
@@ -59,13 +61,22 @@ func TestSubscribeForTypeAndAddFileSource(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	defer os.Remove(tempFile.Name())
 
+	wd, err := os.Getwd()
+	assert.NoError(t, err)
+	absolutePath := wd + "/" + tempFile.Name()
+	data, err := os.ReadFile(absolutePath)
+	assert.NoError(t, err)
+	logsConfig, err := logsConfig.ParseYAML(data)
+	assert.NoError(t, err)
 	configSource := NewConfigSources()
-	err := configSource.AddFileSource(tempFile.Name())
+	for _, cfg := range logsConfig {
+		source := NewLogSource("test-config-name", cfg)
+		configSource.AddSource(source)
+	}
+
 	addedChan, _ := configSource.SubscribeForType("file")
 	added := <-addedChan
 	assert.NotNil(t, added)
 	assert.Equal(t, "file", added.Config.Type)
 	assert.Equal(t, "/tmp/test.log", added.Config.Path)
-
-	assert.NoError(t, err)
 }
