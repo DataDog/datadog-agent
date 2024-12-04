@@ -9,6 +9,7 @@ Specifies the root directory where the files will be copied to. The default valu
 This function is typically used in the context of building and running scripts within a containerized environment to
 ensure that the files are copied to the container filesystem before running the build scripts. This is useful for
 keeping the source clean and can provide speed improvements for hyper-v based containers.
+See also, issue with job cross-contamination due to improperly cancelled jobs: https://datadoghq.atlassian.net/browse/CIEXE-143
 #>
 function Enter-BuildRoot() {
     param(
