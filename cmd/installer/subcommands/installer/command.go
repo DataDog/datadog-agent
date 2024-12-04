@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -301,7 +302,7 @@ func setupCommand() *cobra.Command {
 			defer func() { cmd.Stop(err) }()
 			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
 			defer cancel()
-			return installer.Setup(ctx, cmd.env)
+			return setup.Setup(ctx, cmd.env)
 		},
 	}
 	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to install with")
