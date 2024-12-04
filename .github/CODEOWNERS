@@ -571,6 +571,7 @@
 /tasks/sds.py                           @DataDog/agent-processing-and-routing
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
+/tasks/winbuild.py                      @DataDog/windows-agent
 /tasks/windows_resources.py             @DataDog/windows-agent
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
