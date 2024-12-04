@@ -13,12 +13,14 @@ if [[ -d "${docker_dir}" ]]; then
 fi
 # VM provisioning end !
 
-rsync -avP /system-probe-tests /opt/
+# Copy BTF files. This is a patch for different paths between agent 6 branch code and agent 7 KMT images
+if [ -d "/system-probe-tests" ]; then
+    rsync -avP /system-probe-tests /opt/kmt-ramfs
+fi
 
 find / -name "*btf*"
 ls -lahR /opt
 ls -lahR /system-probe-tests
-
 
 # Start tests
 code=0
