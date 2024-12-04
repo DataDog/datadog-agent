@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
@@ -137,7 +136,7 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 	if err != nil {
 		log.Warnf("failed to get logger: %s", err)
 	} else {
-		if lvl == seelog.TraceLvl {
+		if lvl == log.TraceLvl {
 			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
 			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
 		}

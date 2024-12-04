@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
@@ -177,7 +176,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 			continue
 		default:
 			pm.tel.processExecChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
+			if log.ShouldLog(log.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exec callback to callbackRunner, channel is full")
 			}
 		}
@@ -197,7 +196,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 			continue
 		default:
 			pm.tel.processExitChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
+			if log.ShouldLog(log.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exit callback to callbackRunner, channel is full")
 			}
 		}
