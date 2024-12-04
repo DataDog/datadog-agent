@@ -9,6 +9,7 @@ package usm
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 const (
@@ -37,7 +39,7 @@ func TestIsIstioBinary(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.EnvoyPath = "/test/envoy"
 	monitor := newIstioTestMonitorWithCFG(t, cfg)
@@ -110,8 +112,28 @@ func TestIstioSync(t *testing.T) {
 	})
 }
 
+// createFakeProcess creates a fake process in a temporary location.
+// returns the full path of the temporary process and the PID of the fake process.
+func createFakeProcess(t *testing.T, processName string) (procRoot string, pid int) {
+	fakePath := filepath.Join(t.TempDir(), processName)
+	require.NoError(t, exec.Command("mkdir", "-p", filepath.Dir(fakePath)).Run())
+
+	// we are using the `yes` command as a fake envoy binary.
+	require.NoError(t, exec.Command("cp", "/usr/bin/yes", fakePath).Run())
+
+	cmd := exec.Command(fakePath)
+	require.NoError(t, cmd.Start())
+
+	// Schedule process termination after the test
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+	})
+
+	return fakePath, cmd.Process.Pid
+}
+
 func newIstioTestMonitor(t *testing.T, procRoot string) *istioMonitor {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.ProcRoot = procRoot
 
@@ -119,7 +141,8 @@ func newIstioTestMonitor(t *testing.T, procRoot string) *istioMonitor {
 }
 
 func newIstioTestMonitorWithCFG(t *testing.T, cfg *config.Config) *istioMonitor {
-	monitor := newIstioMonitor(cfg, nil)
+	monitor, err := newIstioMonitor(cfg, nil)
+	require.NoError(t, err)
 	require.NotNil(t, monitor)
 
 	return monitor

@@ -340,7 +340,9 @@ func TestActionSetVariableTTL(t *testing.T) {
 					Name:   "var1",
 					Append: true,
 					Value:  []string{"foo"},
-					TTL:    1 * time.Second,
+					TTL: HumanReadableDuration{
+						Duration: 1 * time.Second,
+					},
 				},
 			}},
 		}},

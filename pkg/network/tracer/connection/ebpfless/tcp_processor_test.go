@@ -611,47 +611,6 @@ func TestConnReset(t *testing.T) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
-func TestRstRetransmit(t *testing.T) {
-	pb := newPacketBuilder(lowerSeq, higherSeq)
-	basicHandshake := []testCapture{
-		pb.incoming(0, 0, 0, SYN),
-		pb.outgoing(0, 0, 1, SYN|ACK),
-		pb.incoming(0, 1, 1, ACK),
-		// handshake done, now blow up
-		pb.outgoing(0, 1, 1, RST|ACK),
-		pb.outgoing(0, 1, 1, RST|ACK),
-	}
-
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
-		// reset
-		ConnStatClosed,
-		ConnStatClosed,
-	}
-
-	f := newTcpTestFixture(t)
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	// should count as a single failure
-	require.Equal(t, map[uint16]uint32{
-		uint16(syscall.ECONNRESET): 1,
-	}, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    3,
-		RecvPackets:    2,
-		Retransmits:    0,
-		TCPEstablished: 1,
-		// should count as a single closed connection
-		TCPClosed: 1,
-	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
-}
-
 func TestConnectTwice(t *testing.T) {
 	// same as TestImmediateFin but everything happens twice
 

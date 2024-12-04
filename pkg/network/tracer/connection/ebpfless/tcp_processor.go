@@ -118,10 +118,14 @@ func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connect
 
 	if pktType == unix.PACKET_OUTGOING {
 		conn.Monotonic.SentPackets++
+		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
+		packetCanRetransmit := nextSeq != tcp.Seq
 		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, nextSeq) {
 			st.hasSentPacket = true
 			conn.Monotonic.SentBytes += uint64(payloadLen)
 			st.maxSeqSent = nextSeq
+		} else if packetCanRetransmit {
+			conn.Monotonic.Retransmits++
 		}
 
 		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)

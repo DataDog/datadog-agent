@@ -190,7 +190,7 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	if ev.ContainerContext.ContainerID != "" && !ev.ContainerContext.Resolved {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(string(ev.ContainerContext.ContainerID)); containerContext != nil {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ContainerID); containerContext != nil {
 			if containerContext.CGroupFlags.IsContainer() {
 				ev.ContainerContext = &containerContext.ContainerContext
 			}
@@ -525,7 +525,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 
 				entry.Process.CGroup.CGroupID = containerutils.CGroupID(cgroup)
 				entry.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				containerID, _ := containerutils.GetContainerFromCgroup(string(entry.CGroup.CGroupID))
+				containerID, _ := containerutils.GetContainerFromCgroup(entry.CGroup.CGroupID)
 				entry.Process.ContainerID = containerutils.ContainerID(containerID)
 				entry.ContainerID = containerutils.ContainerID(containerID)
 			} else {
