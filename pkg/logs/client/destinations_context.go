@@ -20,7 +20,7 @@ type DestinationsContext struct {
 	context     context.Context
 	cancel      context.CancelFunc
 	mutex       sync.Mutex
-	withTracing bool
+	WithTracing bool
 }
 
 // NewDestinationsContext returns an initialized DestinationsContext
@@ -33,7 +33,7 @@ func (dc *DestinationsContext) Start() {
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
 	dc.context, dc.cancel = context.WithCancel(context.Background())
-	if dc.withTracing {
+	if dc.WithTracing {
 		dc.context = httptrace.WithClientTrace(dc.context, GetClientTrace())
 	}
 }
