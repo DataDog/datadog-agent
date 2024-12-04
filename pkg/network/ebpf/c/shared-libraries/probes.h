@@ -23,10 +23,9 @@ static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_arg
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-            if (path->len) {
-                path->buf[i] = 0;
-            } else if (path->buf[i] == 0) {
+            if (path->buf[i] == 0) {
                 path->len = i;
+                break;
             }
         }
     } else {
