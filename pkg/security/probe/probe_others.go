@@ -68,7 +68,7 @@ func (p *Probe) GetService(_ *model.Event) string {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(_ string) []string {
+func (p *Probe) GetEventTags(_ containerutils.ContainerID) []string {
 	return nil
 }
 

@@ -87,7 +87,7 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expecte
 	defer close(stopCh)
 	informer.Start(stopCh)
 
-	err := controller.processDatadogMetric(datadogMetricID)
+	_, err := controller.processDatadogMetric(0, datadogMetricID)
 	assert.Equal(f.t, expectedError, err)
 
 	actions := autoscaling.FilterInformerActions(f.client.Actions(), "datadogmetrics")

@@ -39,15 +39,16 @@ cudaError_t cudaSetDevice(int device) {
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <wait-to-start-sec> <wait-to-end-sec> <device-index>\n", argv[0]);
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <wait-to-start-sec> <device-index>\n", argv[0]);
         return 1;
     }
 
     int waitStart = atoi(argv[1]);
-    int waitEnd = atoi(argv[2]);
-    int device = atoi(argv[3]);
+    int device = atoi(argv[2]);
 
+    // This string is used by PatternScanner to validate a proper start of this sample program inside the container
+    fprintf(stderr, "Starting CudaSample program\n");
     fprintf(stderr, "Waiting for %d seconds before starting\n", waitStart);
 
     // Give time for the eBPF program to load
@@ -62,12 +63,12 @@ int main(int argc, char **argv) {
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
 
-    fprintf(stderr, "CUDA calls made. Waiting for %d seconds before exiting\n", waitEnd);
+    // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
+    // the expected usage is to send a kill signal to the process (or stop the container that is running it)
 
-    // Give time for the agent to inspect this process and check environment variables/etc before this exits
-    sleep(waitEnd);
-
-    fprintf(stderr, "Exiting\n");
+    //this line is used as a market by patternScanner to indicate the end of the program
+    fprintf(stderr, "CUDA calls made.\n");
+    pause();  // Wait for signal to finish the process
 
     return 0;
 }
