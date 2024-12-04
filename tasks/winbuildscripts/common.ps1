@@ -41,17 +41,34 @@ function Exit-BuildRoot() {
     Pop-Location -StackName AgentBuildRoot
 }
 
+<#
+.SYNOPSIS
+Expands the Go module cache from an archive file.
+
+.DESCRIPTION
+This function expands the Go module cache from an archive file located in the specified root directory. 
+It extracts the contents of the archive file into the Go module cache directory defined by the GOMODCACHE environment variable.
+
+.PARAMETER root
+The root directory where the tar.xz file is located. Defaults to the current location.
+
+.PARAMETER modcache
+The base name (without extension) of the file to be expanded. Expected values are `modcache` and `modcache_tools`.
+
+.NOTES
+If the GOMODCACHE environment variable is not set, the function will skip the expansion process.
+
+.EXAMPLE
+Expand-ModCache -modcache "modcache"
+This will expand the modcache file located at "<CWD>\modcache.tar.xz" into the Go module cache directory.
+
+#>
 function Expand-ModCache() {
     param(
         [string] $root = (Get-Location).Path,
+        [ValidateSet('modcache', 'modcache_tools')]
         [string] $modcache
     )
-
-    # & "$root\tasks\winbuildscripts\extract-modcache.bat" "$root" "$modcache"
-    # As defined in the usage block, expected parameters are
-    # $args[0] is the root of the build filesystem, which determines the location of the tar.gz
-    # $args[1] is the base name (without extension) of the file to be expanded. Expected values right now
-    # are `modcache` and `modcache_tools`
 
     $MODCACHE_ROOT = $root
     $MODCACHE_FILE_ROOT = $modcache
@@ -83,7 +100,7 @@ function Expand-ModCache() {
         }
         Write-Host "Modcache extracted"
     } else {
-        Write-Host "$MODCACHE_XZ_FILE not found, dependencies will be downloaded"
+        Write-Host "Modcache XZ file $MODCACHE_XZ_FILE not found, dependencies will be downloaded"
     }
 
     if (Test-Path $MODCACHE_XZ_FILE) {
