@@ -27,7 +27,7 @@ func TestSplitEvents(t *testing.T) {
 			name:         "Empty input",
 			events:       []mockStreamTagsEvent{},
 			maxChunkSize: 100,
-			expected:     nil, // No chunks expected
+			expected:     [][]mockStreamTagsEvent{},
 		},
 		{
 			name: "Single event within chunk size",
@@ -98,8 +98,17 @@ func TestSplitEvents(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			lazyChunks := splitBySizeLazy(testCase.events, testCase.maxChunkSize, func(e mockStreamTagsEvent) int { return e.size })
+			materializedChunks := [][]mockStreamTagsEvent{}
+			for chunk := range lazyChunks {
+				materializedChunks = append(materializedChunks, chunk)
+			}
+			assert.Equal(t, testCase.expected, materializedChunks)
+
 			chunks := splitBySize(testCase.events, testCase.maxChunkSize, func(e mockStreamTagsEvent) int { return e.size })
-			assert.Equal(t, testCase.expected, chunks)
+			if max(len(testCase.expected), len(chunks)) > 0 {
+				assert.Equal(t, testCase.expected, chunks)
+			}
 		})
 	}
 }

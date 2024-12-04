@@ -729,6 +729,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
 
+	// Tagger Server
+
+	// if set to true, the server loads one chunk at a time into memory, sends it on the stream, and then loads another chunk
+	// if set to false, the server loads all chunks to memory at once (slice of chunks), and then sends them sequentially over the stream
+	// for internal use only
+	config.BindEnvAndSetDefault("tagger_server.lazy_event_chunking.enabled", true)
+
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)

@@ -33,10 +33,14 @@ const (
 type Server struct {
 	taggerComponent tagger.Component
 	maxEventSize    int
+
+	// if set to true, the server loads one chunk at a time into memory, sends it on the stream, and then loads another chunk
+	// if set to false, the server loads all chunks to memory at once (slice of chunks), and then sends them sequentially over the stream
+	useLazyEventChunking bool
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component, maxEventSize int) *Server {
+func NewServer(t tagger.Component, maxEventSize int, useLazyEventChunking bool) *Server {
 	return &Server{
 		taggerComponent: t,
 		maxEventSize:    maxEventSize,
@@ -99,8 +103,11 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 			}
 
 			// Split events into chunks and send each one
-			chunks := splitEvents(responseEvents, s.maxEventSize)
-			for _, chunk := range chunks {
+			chunks := splitEventsLazy(responseEvents, s.maxEventSize)
+			for chunk := range chunks {
+				if len(chunk) == 0 {
+					continue
+				}
 				err = grpc.DoWithTimeout(func() error {
 					return out.Send(&pb.StreamTagsResponse{
 						Events: chunk,
