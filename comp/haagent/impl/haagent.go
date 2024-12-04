@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/atomic"
@@ -18,14 +19,14 @@ import (
 type haAgentImpl struct {
 	log            log.Component
 	haAgentConfigs *haAgentConfigs
-	isLeader       *atomic.Bool
+	role           *atomic.String
 }
 
 func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
 	return &haAgentImpl{
 		log:            log,
 		haAgentConfigs: haAgentConfigs,
-		isLeader:       atomic.NewBool(false),
+		role:           atomic.NewString(string(haagent.Unknown)),
 	}
 }
 
@@ -37,8 +38,8 @@ func (h *haAgentImpl) GetGroup() string {
 	return h.haAgentConfigs.group
 }
 
-func (h *haAgentImpl) IsLeader() bool {
-	return h.isLeader.Load()
+func (h *haAgentImpl) GetRole() haagent.Role {
+	return haagent.Role(h.role.Load())
 }
 
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
@@ -47,13 +48,21 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 		h.log.Warnf("error getting the hostname: %v", err)
 		return
 	}
-	newIsLeader := agentHostname == leaderAgentHostname
-	prevIsLeader := h.isLeader.Load()
-	if newIsLeader != prevIsLeader {
-		h.log.Infof("agent role switched from %s to %s", leaderStateToRole(prevIsLeader), leaderStateToRole(newIsLeader))
-		h.isLeader.Store(newIsLeader)
+
+	var newRole haagent.Role
+	if agentHostname == leaderAgentHostname {
+		newRole = haagent.Leader
 	} else {
-		h.log.Debugf("agent role not changed (current role: %s)", leaderStateToRole(prevIsLeader))
+		newRole = haagent.Follower
+	}
+
+	prevRole := h.GetRole()
+
+	if newRole != prevRole {
+		h.log.Infof("agent role switched from %s to %s", prevRole, newRole)
+		h.role.Store(string(newRole))
+	} else {
+		h.log.Debugf("agent role not changed (current role: %s)", prevRole)
 	}
 }
 
@@ -61,7 +70,7 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 // When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
 func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
 	if h.Enabled() && validHaIntegrations[integrationName] {
-		return h.isLeader.Load()
+		return h.GetRole() == haagent.Leader
 	}
 	return true
 }

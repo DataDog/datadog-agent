@@ -34,7 +34,7 @@ func (m *mockHaAgent) Enabled() bool {
 func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mockHaAgent) IsLeader() bool { return false }
+func (m *mockHaAgent) GetRole() haagent.Role { return haagent.Follower }
 
 func (m *mockHaAgent) SetGroup(group string) {
 	m.group = group
