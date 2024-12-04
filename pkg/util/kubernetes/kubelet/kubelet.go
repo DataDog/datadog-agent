@@ -165,6 +165,7 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
 }
 
+// StreamLogs connects to the kubelet and returns an open connection for the purposes of streaming container logs
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *v1.PodLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t", logOptions.Follow)
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
