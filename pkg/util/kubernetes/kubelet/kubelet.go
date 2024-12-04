@@ -167,7 +167,10 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 
 // StreamLogs connects to the kubelet and returns an open connection for the purposes of streaming container logs
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *v1.PodLogOptions) (io.ReadCloser, error) {
-	query := fmt.Sprintf("follow=%t", logOptions.Follow)
+	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
+	if logOptions.SinceTime != nil {
+		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+	}
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
 	return ku.kubeletClient.queryWithResp(ctx, path)
 }
