@@ -193,10 +193,13 @@ type PolicyDef struct {
 	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
 
+// HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)
+// or from a regular integer
 type HumanReadableDuration struct {
 	time.Duration
 }
 
+// UnmarshalYAML unmarshals a duration from a human readable format or from an integer
 func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 	var v interface{}
 	if err := n.Decode(&v); err != nil {
