@@ -8,14 +8,10 @@
 package fetchonlyimpl
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
-	"time"
 
 	"go.uber.org/fx"
-
-	"github.com/cenkalti/backoff/v4"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -29,14 +25,6 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newAuthToken),
 		fxutil.ProvideOptional[authtoken.Component](),
-
-		// Force the component to be constructed to run the periodic auth_token fetch.
-		// This approach is used because the coreAgent is currently responsible for auth_token generation,
-		// but there is no defined startup sequence between Agent processes.
-		// Some functions depend on the auth_token being initialized to work correctly.
-		// Running a background routine that periodically fetches the auth_token until it is retrieved
-		// helps reduce the number of cases where it is used uninitialized.
-		fx.Invoke(func(_ authtoken.Component) {}),
 	)
 }
 
@@ -53,55 +41,13 @@ type dependencies struct {
 
 	Log  log.Component
 	Conf config.Component
-	Lc   fx.Lifecycle
 }
 
 func newAuthToken(deps dependencies) authtoken.Component {
-	// Create a ticker that triggers every 2 seconds.
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 2 * time.Second
-	expBackoff.MaxInterval = 60 * time.Second
-	expBackoff.MaxElapsedTime = 5 * time.Minute
-	expBackoff.Reset()
-	ticker := backoff.NewTicker(expBackoff)
-
-	// Create a channel to signal the goroutine to stop.
-	stopChan := make(chan struct{})
-
-	comp := authToken{
+	return &authToken{
 		log:  deps.Log,
 		conf: deps.Conf,
 	}
-
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			deps.Log.Debugf("starting auth_token periodic fetch until getting it")
-			go func() {
-				for {
-					select {
-					case <-ticker.C:
-						err := util.SetAuthToken(deps.Conf)
-						if err == nil {
-							deps.Log.Infof("auth_token have been initialized")
-							comp.tokenLoaded = true
-							return
-						}
-						deps.Log.Infof("auth_token not initialized yet: %v", err.Error())
-					case <-stopChan:
-						return
-					}
-				}
-			}()
-			return nil
-		},
-		OnStop: func(_ context.Context) error {
-			ticker.Stop()
-			close(stopChan)
-			return nil
-		},
-	})
-
-	return &comp
 }
 
 func (at *authToken) setToken() error {
