@@ -54,7 +54,7 @@ type KubeUtil struct {
 	filter                 *containers.Filter
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
-	podResources           *PodResourcesClient
+	podResourcesClient     *PodResourcesClient
 }
 
 func (ku *KubeUtil) init() error {
@@ -84,7 +84,7 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	ku.podResources, err = NewPodResourcesClient()
+	ku.podResourcesClient, err = NewPodResourcesClient()
 	if err != nil {
 		log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
 	}
@@ -248,11 +248,11 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 // resources field of each container. If the pod resources API is not available,
 // this is a no-op.
 func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) error {
-	if ku.podResources == nil {
+	if ku.podResourcesClient == nil {
 		return nil
 	}
 
-	containerToDevicesMap, err := ku.podResources.GetContainerToDevicesMap(ctx)
+	containerToDevicesMap, err := ku.podResourcesClient.GetContainerToDevicesMap(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting container resources data: %w", err)
 	}
