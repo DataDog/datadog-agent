@@ -8,9 +8,12 @@
 package events
 
 import (
+	"bytes"
+	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -61,14 +64,14 @@ func TestConsumer(t *testing.T) {
 	// generate test events
 	generator := newEventGenerator(program, t)
 	for i := 0; i < numEvents; i++ {
-		generator.Generate(uint64(i))
+		require.NoError(t, generator.Generate(uint64(i)))
 	}
 	generator.Stop()
 	time.Sleep(100 * time.Millisecond)
 
 	// this ensures that any incomplete batch left in eBPF is fully processed
 	consumer.Sync()
-	program.Stop(manager.CleanAll)
+	require.NoError(t, program.Stop(manager.CleanAll))
 	consumer.Stop()
 
 	// ensure that we have received each event exactly once
@@ -119,8 +122,8 @@ func (e *eventGenerator) Generate(eventID uint64) error {
 		return err
 	}
 
-	e.testFile.Write([]byte("whatever"))
-	return nil
+	_, err = e.testFile.Write([]byte("whatever"))
+	return err
 }
 
 func (e *eventGenerator) Stop() {
@@ -196,4 +199,43 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	consumer.Stop()
 
 	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
+}
+
+// BenchmarkConsumer benchmarks the consumer with a large number of events to measure the performance.
+func BenchmarkConsumer(b *testing.B) {
+	const numEvents = 3500
+	program, err := newEBPFProgram(config.New())
+	require.NoError(b, err)
+
+	consumer, err := NewConsumer("test", program, func([]uint64) {})
+	require.NoError(b, err)
+
+	require.NoError(b, program.Start())
+	mockBatch := batch{
+		Len: uint16(numEvents),
+		Cap: uint16(len((batch{}).Data)),
+	}
+
+	// Reset the events count as the benchmark will run multiple times.
+	consumer.eventsCount.Reset()
+
+	var buf bytes.Buffer
+	require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
+
+	consumer.handler.(*ddebpf.RingBufferHandler).RecordHandler(&ringbuf.Record{
+		RawSample: buf.Bytes(),
+	}, nil, nil)
+
+	b.ReportAllocs()
+	runtime.GC()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		consumer.Start()
+		require.Eventually(b, func() bool {
+			program.Stop(manager.CleanAll)
+			return true
+		}, 1000*time.Millisecond, 100*time.Millisecond)
+		require.Equalf(b, numEvents, int(consumer.eventsCount.Get()),
+			"Not all events were processed correctly, expected %d, got %d, iteration: %d", numEvents, consumer.eventsCount.Get(), i)
+	}
 }
