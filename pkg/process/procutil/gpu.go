@@ -84,6 +84,8 @@ func (p *NVMLProbe) Scan() {
 				"gpu_vendor:nvidia",
 				"gpu_uuid:" + gpuUUID,
 				"gpu_model:" + deviceName,
+				// Hack to get related metrics working with the dcgm exporter metrics
+				"integration:dcgm",
 			}
 			deviceUUIDByPid[int32(processInfo.Pid)] = gpuTags
 		}
