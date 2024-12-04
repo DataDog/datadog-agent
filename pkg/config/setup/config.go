@@ -646,7 +646,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("jmx_statsd_client_buffer_size", 0)
 	// the socket timeout (SO_SNDTIMEO) is in milliseconds
 	config.BindEnvAndSetDefault("jmx_statsd_client_socket_timeout", 0)
-	config.BindEnvAndSetDefault("jmx_fips_enabled", false)
+	// whether to try running jmxfetch in fips mode. "1" is the only
+	// true value recognized by the runtime.
+	config.BindEnvAndSetDefault("jmx_fips_enabled", os.Getenv("GOFIPS") == "1")
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
