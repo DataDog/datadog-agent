@@ -16,6 +16,8 @@ import (
 
 	"go.uber.org/fx"
 
+	corev1 "k8s.io/api/core/v1"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -29,10 +31,11 @@ import (
 )
 
 const (
-	collectorID         = "kubelet"
-	componentName       = "workloadmeta-kubelet"
-	expireFreq          = 15 * time.Second
-	dockerImageIDPrefix = "docker-pullable://"
+	collectorID          = "kubelet"
+	componentName        = "workloadmeta-kubelet"
+	expireFreq           = 15 * time.Second
+	dockerImageIDPrefix  = "docker-pullable://"
+	dummyImportforCorev1 = corev1.ProtocolTCP
 )
 
 type collector struct {
