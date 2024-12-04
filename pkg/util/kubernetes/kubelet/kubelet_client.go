@@ -124,6 +124,33 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	return nil
 }
 
+func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create new request: %w", err)
+	}
+
+	response, err := kc.client.Do(req)
+	kubeletExpVar.Add(1)
+
+	// telemetry
+	defer func() {
+		code := 0
+		if response != nil {
+			code = response.StatusCode
+		}
+
+		queries.Inc(path, strconv.Itoa(code))
+	}()
+
+	if err != nil {
+		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
+		return nil, err
+	}
+	return response.Body, nil
+}
+
 func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)

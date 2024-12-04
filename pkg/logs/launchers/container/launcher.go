@@ -134,6 +134,8 @@ func (l *Launcher) loop(ctx context.Context, addedSources, removedSources chan *
 func (l *Launcher) startSource(source *sourcesPkg.LogSource) {
 	containerID := source.Config.Identifier
 
+	log.Infof("BANANA: a source was detected %s", source.Config.Identifier)
+
 	// if this is not of a supported container type, ignore it
 	if _, ok := containerSourceTypes[source.Config.Type]; !ok {
 		return
