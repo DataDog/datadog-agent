@@ -1,7 +1,7 @@
 import os
 import sys
 
-from invoke import task
+from invoke import Exit, task
 
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
@@ -82,7 +82,7 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     Run integration tests for trace agent
     """
     if sys.platform == 'win32':
-        raise NotImplementedError('Trace Agent integration tests are not supported on Windows')
+        raise Exit(message='trace-agent integration tests are not supported on Windows', code=0)
 
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""

@@ -404,30 +404,24 @@ def test(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
     """
     Run all the available integration tests
     """
-    tests = {
-        "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
-    }
-    tests_failures = {}
-    for t_name, t in tests.items():
-        with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):
-            try:
-                t()
-            except NotImplementedError as e:
-                print(f"Skipping {t_name}\n{e}")
-            except Exception as e:
-                tests_failures[t_name] = e
-    if tests_failures:
-        print("Integration tests failed:")
-        for t_name, t_failure in tests_failures.items():
-            print(f"{t_name}: {t_failure}")
-        raise Exit(code=1)
+    tests = [
+        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
+    ]
+    for t in tests:
+        try:
+            t()
+        except Exit as e:
+            if e.code != 0:
+                raise
+            elif debug:
+                print(e.message)
 
 
 @task
