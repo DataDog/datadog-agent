@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -607,3 +608,48 @@ def check_qa_labels(_, labels: str):
     if len(qa_labels) > 1:
         raise Exit(f"More than one QA label set.\n{docs}", code=1)
     print("QA label set correctly")
+
+
+@task
+def fetch_team_mapping(_, output):
+    """Fetches the team mapping from the web-ui repository and convert it to JSON."""
+
+    from github import Github
+
+    def get_team_to_channel(team_groups_contents):
+        RE_TEAM_GROUPS = re.compile(r'.*teamGroups.*= ({.*});', re.DOTALL | re.MULTILINE)
+        RE_COMMENTS = re.compile(r'//.*', re.MULTILINE)
+        RE_REPLACE_SLACK_URL = re.compile(r'`\$\{SLACK_URL\}/(.+)`', re.MULTILINE)
+        RE_REPLACE_KEYS = re.compile(r'(?<=[^a-zA-Z0-9_])[a-zA-Z0-9_]+(?=:)', re.MULTILINE)
+        RE_COMMAS = re.compile(r',([}\],])', re.MULTILINE)
+
+        # TS -> JSON
+        team_groups = RE_TEAM_GROUPS.match(team_groups_contents).group(1)
+        team_groups = RE_COMMENTS.sub('\n', team_groups)
+        team_groups = RE_REPLACE_SLACK_URL.sub(lambda match: f'"{match.group(1)}"', team_groups)
+        team_groups = team_groups.replace("'", '"')
+        team_groups = team_groups.replace(' ', '')
+        team_groups = team_groups.replace('\n', '')
+        team_groups = RE_COMMAS.sub(lambda match: match.group(1), team_groups)
+        team_groups = RE_REPLACE_KEYS.sub(lambda match: f'"{match.group(0)}"', team_groups)
+
+        team_groups = json.loads(team_groups)
+
+        team_to_channel = {team: team_groups[team]['slackChannel'] for team in team_groups}
+
+        return team_to_channel
+
+    gh = Github(os.environ['GITHUB_TOKEN'])
+
+    contents = str(
+        gh.get_repo('DataDog/web-ui').get_contents('packages/lib/teams/teams-config.ts').decoded_content, 'utf-8'
+    )
+    assert contents, 'Failed to fetch team mapping raw file'
+
+    mapping = get_team_to_channel(contents)
+    print('Found', len(mapping), 'teams')
+
+    with open(output, 'w') as f:
+        f.write(json.dumps(mapping))
+
+    print('Written teams to', output)
