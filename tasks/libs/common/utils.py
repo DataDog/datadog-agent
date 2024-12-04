@@ -61,6 +61,10 @@ class TimedOperationResult:
             return True
 
 
+class TestsNotSupportedError(Exception):
+    pass
+
+
 def get_all_allowed_repo_branches():
     return ALLOWED_REPO_ALL_BRANCHES
 

@@ -32,7 +32,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	haAgent := newHaAgentImpl(reqs.Logger, haAgentConf)
 	var rcListener rctypes.ListenerProvider
 	if haAgent.Enabled() {
-		reqs.Logger.Debug("Add onHaAgentUpdate RCListener")
+		reqs.Logger.Debug("Add HA Agent RCListener")
 		rcListener.ListenerProvider = rctypes.RCListener{
 			state.ProductHaAgent: haAgent.onHaAgentUpdate,
 		}

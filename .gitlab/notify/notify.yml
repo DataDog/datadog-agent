@@ -86,7 +86,7 @@ notify_github:
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
-    - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
+    - echo "inv aws.create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
     - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
     - inv -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
