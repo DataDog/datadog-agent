@@ -425,3 +425,60 @@ server_timeout
   val:30, source:default`
 	assert.Equal(t, expect, txt)
 }
+
+func TestUnsetForSource(t *testing.T) {
+	configData := `network_path:
+  collector:
+    workers: 6
+`
+	os.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
+
+	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
+
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	txt := cfg.(*ntmConfig).Stringify("root")
+	expect := `network_path
+  collector
+    input_chan_size
+      val:23456, source:environment-variable
+    workers
+      val:6, source:file`
+	assert.Equal(t, expect, txt)
+
+	// No change if source doesn't match
+	cfg.UnsetForSource("network_path.collector.input_chan_size", model.SourceFile)
+	assert.Equal(t, expect, txt)
+
+	// No change if setting is not a leaf
+	cfg.UnsetForSource("network_path", model.SourceEnvVar)
+	assert.Equal(t, expect, txt)
+
+	// No change if setting is not found
+	cfg.UnsetForSource("network_path.unknown", model.SourceEnvVar)
+	assert.Equal(t, expect, txt)
+
+	cfg.UnsetForSource("network_path.collector.input_chan_size", model.SourceEnvVar)
+	txt = cfg.(*ntmConfig).Stringify("root")
+	expect = `network_path
+  collector
+    input_chan_size
+      val:100000, source:default
+    workers
+      val:6, source:file`
+	assert.Equal(t, expect, txt)
+
+	cfg.UnsetForSource("network_path.collector.workers", model.SourceFile)
+	txt = cfg.(*ntmConfig).Stringify("root")
+	expect = `network_path
+  collector
+    input_chan_size
+      val:100000, source:default
+    workers
+      val:4, source:default`
+	assert.Equal(t, expect, txt)
+}

@@ -225,11 +225,63 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	c.setDefault(key, value)
 }
 
+func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Node, error) {
+	previous := source.PreviousSource()
+	for {
+		if previous == model.SourceUnknown {
+			return nil, ErrNotFound
+		}
+		tree, err := c.getTreeBySource(previous)
+		if err != nil {
+			return nil, ErrNotFound
+		}
+		node := c.leafAtPathFromNode(key, tree)
+		if _, isMissing := node.(*missingLeafImpl); !isMissing {
+			return node, nil
+		}
+		previous = previous.PreviousSource()
+	}
+}
+
 // UnsetForSource unsets a config entry for a given source
-func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
+func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
-	c.logErrorNotImplemented("UnsetForSource")
-	c.Unlock()
+	defer c.Unlock()
+
+	// Validate that the value at the given leaf is from the source we expect
+	var node Node = c.leafAtPathFromNode(key, c.root)
+	destNode, ok := node.(LeafNode)
+	if !ok {
+		return
+	}
+	if destNode.Source() != source {
+		return
+	}
+
+	// Find what the previous value used to be, based upon the previous source
+	prevNode, err := c.findPreviousSourceNode(key, source)
+	if err != nil {
+		return
+	}
+
+	// Get the parent node of the leaf we're unsetting
+	node = c.root
+	parts := splitKey(key)
+	lastPart := parts[len(parts)-1]
+	parts = parts[:len(parts)-1]
+	for _, p := range parts {
+		node, err = node.GetChild(p)
+		if err != nil {
+			return
+		}
+	}
+
+	// Replace the child with the previous layer
+	innerNode, ok := node.(InnerNode)
+	if !ok {
+		return
+	}
+	innerNode.InsertChildNode(lastPart, prevNode.Clone())
 }
 
 // SetKnown adds a key to the set of known valid config keys

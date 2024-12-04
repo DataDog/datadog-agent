@@ -96,6 +96,21 @@ func (s Source) IsGreaterOrEqualThan(x Source) bool {
 	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
+// PreviousSource returns the source before the current one, or Unknown if there isn't one
+func (s Source) PreviousSource() Source {
+	if s == SourceDefault || s == SourceUnknown {
+		return SourceUnknown
+	} else if s == SourceFile {
+		return SourceDefault
+	}
+	for i, src := range sources {
+		if src == s {
+			return sources[i-1]
+		}
+	}
+	return SourceUnknown
+}
+
 // String casts Source into a string
 func (s Source) String() string {
 	// Safeguard: if we don't know the Source, we assume SourceUnknown
