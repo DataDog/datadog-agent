@@ -271,11 +271,10 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 def _msi_output_name(env):
-    flavorPart = ""
     if _is_fips_mode(env):
-        flavorPart = "fips-"
-    msi_name = f"datadog-agent-{flavorPart}{env['PACKAGE_VERSION']}-1-x86_64"
-    return msi_name
+        return f"datadog-fips-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+    else:
+        return f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
 
 
 @task

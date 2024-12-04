@@ -34,10 +34,10 @@ namespace WixSetup.Datadog_Agent
             _agentVersion = agentVersion;
         }
 
-        public string ProductFullName => "Datadog Agent FIPS";
+        public string ProductFullName => "Datadog FIPS Agent";
         public Guid UpgradeCode => new("de421174-9615-4fe9-b8a8-2b3f123bdc4f");
-        public string ProductDescription => $"Datadog Agent FIPS {_agentVersion.PackageVersion}";
-        public string PackageOutFileName => $"datadog-agent-fips-{_agentVersion.PackageVersion}-1-x86_64";
+        public string ProductDescription => $"Datadog FIPS Agent {_agentVersion.PackageVersion}";
+        public string PackageOutFileName => $"datadog-fips-agent-{_agentVersion.PackageVersion}-1-x86_64";
     }
 
     internal class BaseAgent : IAgentFlavor
