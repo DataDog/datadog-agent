@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
