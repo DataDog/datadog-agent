@@ -59,7 +59,6 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
-	v2ApiRouter := router.PathPrefix("/api/v2").Subrouter()
 
 	// IPC REST API server
 	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
@@ -71,6 +70,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
 
 	// API V2 Series APIs
+	v2ApiRouter := router.PathPrefix("/api/v2").Subrouter()
 	series.InstallNodeMetricsEndpoints(ctx, v2ApiRouter, cfg)
 
 	// Validate token for every request
