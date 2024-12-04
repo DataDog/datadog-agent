@@ -116,7 +116,6 @@ func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 				info := jq.store.GetStoreInfo()
 				statsResults := info.StatsResults
 				for _, statsResult := range statsResults {
-					log.Infof("statsResult: %v", *statsResult)
 					telemetryWorkloadEntities.Set(float64(statsResult.Count),
 						statsResult.Namespace,
 						statsResult.Deployment,

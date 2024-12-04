@@ -53,11 +53,11 @@ type Store interface {
 func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*EntityValue {
 	entities := make(map[*Entity]*EntityValue)
 	splitTag := func(tag string) (key string, value string) {
-		split := strings.SplitN(tag, ":", 2)
-		if len(split) < 2 || split[0] == "" || split[1] == "" {
+		splitIndex := strings.Index(tag, ":")
+		if splitIndex < -1 {
 			return "", ""
 		}
-		return split[0], split[1]
+		return tag[:splitIndex], tag[splitIndex+1:]
 	}
 	for _, series := range payload.Series {
 		metricName := series.GetMetric()
