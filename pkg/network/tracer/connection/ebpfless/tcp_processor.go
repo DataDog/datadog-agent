@@ -10,6 +10,7 @@ package ebpfless
 import (
 	"fmt"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -63,6 +64,19 @@ func NewTCPProcessor() *TCPProcessor { //nolint:revive // TODO
 	}
 }
 
+// updateConnStatsForOpen sets the duration to a "timestamp" representing the open time
+func updateConnStatsForOpen(conn *network.ConnectionStats) {
+	conn.IsClosed = false
+	conn.Duration = time.Duration(time.Now().UnixNano())
+}
+
+// updateConnStatsForClose writes the actual duration once the connection closed
+func updateConnStatsForClose(conn *network.ConnectionStats) {
+	conn.IsClosed = true
+	nowNs := time.Now().UnixNano()
+	conn.Duration = time.Duration(nowNs - int64(conn.Duration))
+}
+
 // calcNextSeq returns the seq "after" this segment, aka, what the ACK will be once this segment is received
 func calcNextSeq(tcp *layers.TCP, payloadLen uint16) uint32 {
 	nextSeq := tcp.Seq + uint32(payloadLen)
@@ -105,6 +119,8 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 	// if any SynState has progressed, move to attempted
 	if st.tcpState == ConnStatClosed && (st.localSynState != SynStateNone || st.remoteSynState != SynStateNone) {
 		st.tcpState = ConnStatAttempted
+
+		updateConnStatsForOpen(conn)
 	}
 	// if both synStates are ack'd, move to established
 	if st.tcpState == ConnStatAttempted && st.localSynState == SynStateAcked && st.remoteSynState == SynStateAcked {
@@ -188,6 +204,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 			tcpState: ConnStatClosed,
 		}
 		conn.Monotonic.TCPClosed++
+		updateConnStatsForClose(conn)
 	}
 }
 
@@ -200,6 +217,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	if st.tcpState == ConnStatAttempted {
 		reason = syscall.ECONNREFUSED
 	}
+	conn.TCPFailures[uint16(reason)]++
 
 	if st.tcpState == ConnStatEstablished {
 		conn.Monotonic.TCPClosed++
@@ -207,7 +225,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	*st = connectionState{
 		tcpState: ConnStatClosed,
 	}
-	conn.TCPFailures[uint16(reason)]++
+	updateConnStatsForClose(conn)
 }
 
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
