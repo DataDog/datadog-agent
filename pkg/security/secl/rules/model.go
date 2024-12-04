@@ -199,6 +199,14 @@ type HumanReadableDuration struct {
 	time.Duration
 }
 
+// GetDuration returns the duration embedded in the HumanReadableDuration, or 0 if nil
+func (d *HumanReadableDuration) GetDuration() time.Duration {
+	if d == nil {
+		return 0
+	}
+	return d.Duration
+}
+
 // MarshalYAML marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalYAML() (interface{}, error) {
 	return d.String(), nil
