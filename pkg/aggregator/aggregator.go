@@ -610,6 +610,21 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		SourceTypeName: "System",
 	})
 
+	if agg.haAgent.Enabled() {
+		isLeader := 0
+		if agg.haAgent.IsLeader() {
+			isLeader = 1
+		}
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.ha.is_leader", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(isLeader), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
