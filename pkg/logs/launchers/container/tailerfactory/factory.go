@@ -91,7 +91,7 @@ func (tf *factory) makeTailer(
 	case true:
 		if env.IsFeaturePresent(env.EKSFargate) {
 			log.Infof("BANANA: tailer should be used for %s", source.Config.Identifier)
-			return tf.makeApiTailer(source)
+			return makeApiTailer(source)
 		}
 		t, err := makeFileTailer(source)
 		if err == nil {
