@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 // PodResourcesClient is a small wrapper for the PodResources kubernetes API
@@ -39,8 +39,8 @@ type ContainerKey struct {
 
 // NewPodResourcesClient creates a new PodResourcesClient using the socket path
 // from the configuration. Will fail if the socket path is not set.
-func NewPodResourcesClient() (*PodResourcesClient, error) {
-	podResourcesSocket := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_podresources_socket")
+func NewPodResourcesClient(config config.Component) (*PodResourcesClient, error) {
+	podResourcesSocket := config.GetString("kubernetes_kubelet_podresources_socket")
 	if podResourcesSocket == "" {
 		return nil, fmt.Errorf("kubernetes_kubelet_podresources_socket is not set")
 	}

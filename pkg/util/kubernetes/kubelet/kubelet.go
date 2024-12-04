@@ -84,7 +84,7 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	ku.podResourcesClient, err = NewPodResourcesClient()
+	ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
 	if err != nil {
 		log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
 	}
