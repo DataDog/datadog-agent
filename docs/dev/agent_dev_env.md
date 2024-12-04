@@ -143,7 +143,7 @@ higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/main/circleci/Dockerfile#L42))
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/f0fa71013a9e5b28144f6470a9ed565ef22e91f4/deb-x64/Dockerfile#L40))
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 

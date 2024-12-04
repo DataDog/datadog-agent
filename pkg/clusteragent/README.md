@@ -1,6 +1,5 @@
 # Datadog Cluster Agent - DCA
 
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
 [![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/main?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 
