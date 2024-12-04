@@ -131,7 +131,7 @@ def build(
     major_version='7',
     exclude_rtloader=False,
     include_sds=False,
-    go_mod="mod",
+    go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
     agent_bin=None,
@@ -167,18 +167,22 @@ def build(
         major_version=major_version,
     )
 
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
-        build_rc(
-            ctx,
-            "cmd/agent/windows_resources/agent.rc",
-            vars=vars,
-            out="cmd/agent/rsrc.syso",
-        )
+
+        # Do not call build_rc when cross-compiling on Linux as the intend is more
+        # to streamline the development process that producing a working executable / installer
+        if sys.platform == 'win32':
+            vars = versioninfo_vars(ctx, major_version=major_version)
+            build_rc(
+                ctx,
+                "cmd/agent/windows_resources/agent.rc",
+                vars=vars,
+                out="cmd/agent/rsrc.syso",
+            )
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -303,7 +307,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./comp/core/gui/guiimpl/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
@@ -522,7 +526,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -534,7 +538,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeou
         return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
+def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
@@ -572,7 +576,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
