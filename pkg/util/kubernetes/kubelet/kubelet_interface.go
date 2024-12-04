@@ -9,7 +9,9 @@ package kubelet
 
 import (
 	"context"
+	"io"
 
+	v1 "k8s.io/api/core/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
