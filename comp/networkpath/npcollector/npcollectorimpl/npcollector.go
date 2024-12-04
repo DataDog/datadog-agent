@@ -132,7 +132,7 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	protocol := convertProtocol(conn.GetType())
 
 	rDNSEntry := dns[conn.Raddr.GetIp()]
-	reverseDNSHostname := ""
+	var reverseDNSHostname string
 	if rDNSEntry != nil && len(rDNSEntry.Names) > 0 {
 		reverseDNSHostname = rDNSEntry.Names[0]
 	}
