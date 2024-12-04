@@ -56,6 +56,10 @@ type profiler struct {
 //
 // Will always attempt to read the pprof of core-agent and security-agent, and will optionally try to read information for
 // process-agent, trace-agent, and system-probe if those systems are detected as enabled.
+//
+// This function is exposed via the public api to support the flare generation cli command. While the goal
+// is to move the profiling component completely into a flare provider, the existing architecture
+// expects an explicit and pre-emptive profiling run before the flare logic is properly called.
 func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params ...interface{}) error) (flare.ProfileData, error) {
 	type agentProfileCollector func(service string) error
 
@@ -197,6 +201,11 @@ func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaret
 	}
 }
 
+// Currently flare args are only populated (and this function is only enabled) via
+// the RC flare generation flow. The goal is to shift other flare generation flows
+// to utilize this provider over time, which will require additional plumbing. For
+// example, the flare api call must be expanded to take in an optional profile duration
+// before the cli command can be fully ported over.
 func (p profiler) fillFlare(fb flaretypes.FlareBuilder) error {
 	duration := fb.GetFlareArgs().ProfileDuration
 

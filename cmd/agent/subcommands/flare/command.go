@@ -130,11 +130,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Provide(func(config config.Component) coresettings.Params {
 					return coresettings.Params{
-						Settings: map[string]coresettings.RuntimeSetting{
-							"runtime_mutex_profile_fraction": settings.NewRuntimeMutexProfileFraction(),
-							"runtime_block_profile_rate":     settings.NewRuntimeBlockProfileRate(),
-						},
-						Config: config,
+						// A settings object is required to populate some dependencies, but
+						// no values are valid since the flare runs by default in a separate
+						// process from the main agent.
+						Settings: map[string]coresettings.RuntimeSetting{},
+						Config:   config,
 					}
 				}),
 				settingsimpl.Module(),

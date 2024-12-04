@@ -152,10 +152,10 @@ func TestAgentTaskFlareArgs(t *testing.T) {
 	disabledDefaults := rcSettings{}
 
 	testCfg := map[string]interface{}{
-		"site":                         "localhost", // Provide extra guarantees we don't try to send the flare off the box
-		"flare.rc_profiling_runtime":   enabledDefaults.duration,
-		"flare.rc_profiling_blockrate": enabledDefaults.blockRate,
-		"flare.rc_profiling_mutexfrac": enabledDefaults.mutexFrac,
+		"site":                                "localhost", // Provide extra guarantees we don't try to send the flare off the box
+		"flare.rc_profiling.profile_duration": enabledDefaults.duration,
+		"flare.rc_profiling.blocking_rate":    enabledDefaults.blockRate,
+		"flare.rc_profiling.mutex_fraction":   enabledDefaults.mutexFrac,
 	}
 
 	scenarios := []struct {

@@ -126,11 +126,11 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		f.log.Debug("enable_profiling arg not found, creating flare without profiling enabled")
 	} else if enableProfiling == "true" {
 		// RC expects the agent task operation to provide reasonable default flare args
-		flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling_runtime")
-		flareArgs.ProfileBlockingRate = f.config.GetInt("flare.rc_profiling_blockrate")
-		flareArgs.ProfileMutexFraction = f.config.GetInt("flare.rc_profiling_mutexfrac")
+		flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling.profile_duration")
+		flareArgs.ProfileBlockingRate = f.config.GetInt("flare.rc_profiling.blocking_rate")
+		flareArgs.ProfileMutexFraction = f.config.GetInt("flare.rc_profiling.mutex_fraction")
 	} else if enableProfiling != "false" {
-		f.log.Infof("Unrecognized value passed via enable_profiling, creating flare without profiling enabled: %s", enableProfiling)
+		f.log.Infof("Unrecognized value passed via enable_profiling, creating flare without profiling enabled: %q", enableProfiling)
 	}
 
 	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
@@ -243,16 +243,12 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 }
 
 func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duration) {
-	var timer *time.Timer
+	timer := time.NewTimer(providerTimeout)
+	defer timer.Stop()
 
 	for _, p := range f.providers {
 		timeout := max(providerTimeout, p.Timeout(fb))
-		if timer == nil {
-			timer = time.NewTimer(timeout)
-			defer timer.Stop()
-		} else {
-			timer.Reset(timeout)
-		}
+		timer.Reset(timeout)
 		providerName := runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name()
 		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
 		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
