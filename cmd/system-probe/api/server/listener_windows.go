@@ -8,8 +8,14 @@ package server
 import (
 	"fmt"
 	"net"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/Microsoft/go-winio"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -19,18 +25,106 @@ const (
 	namedPipeInputBufferSize  = int32(4096)
 	namedPipeOutputBufferSize = int32(4096)
 
-	// DACL for the system probe named pipe.
+	// DACL template for the system probe named pipe that allows a specific SID.
 	// SE_DACL_PROTECTED (P), SE_DACL_AUTO_INHERITED (AI)
-	// Allow Everyone (WD)
-	// nolint:revive // TODO: Hardened DACL and ensure the datadogagent run-as user is allowed.
-	namedPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
+	// Allow Administorators (BA), Local System (SY)
+	// Allow a custom SID, NO_PROPAGATE_INHERIT_ACE (NP)
+	namedPipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;%s)"
+
+	// Default DACL for the system probe named pipe.
+	// Allow Administorators (BA), Local System (SY)
+	namedPipeDefaultSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)"
+
+	// SID representing Everyone
+	everyoneSid = "S-1-1-0"
 )
+
+// getDDAgentUser returns the domain name of the ddagentuser configured at installation time
+func getDDAgentUser() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Datadog\Datadog Agent`, registry.QUERY_VALUE)
+	if err != nil {
+		return "", fmt.Errorf("failed to open installer registry: %s", err)
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return "", fmt.Errorf("failed to read installedUser in registry: %s", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return "", fmt.Errorf("failed to read installedDomain in registry: %s", err)
+	}
+
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	return user, nil
+}
+
+// setupSecurityDescriptor prepares the security descriptor for the system probe named pipe.
+func setupSecurityDescriptor() (string, error) {
+	// Set up the DACL to allow ddagentuser.
+	user, err := getDDAgentUser()
+	if err != nil {
+		return "", fmt.Errorf("failed to get ddagentuser: %s", err)
+	}
+
+	sid, _, _, err := windows.LookupSID("", user)
+	if err != nil {
+		return "", fmt.Errorf("failed to get SID for ddagentuser %s: %s", user, err)
+	}
+
+	sidString := sid.String()
+
+	// Sanity checks
+	if len(sidString) == 0 {
+		return "", fmt.Errorf("failed to get SID string from ddagentuser %s", user)
+	}
+
+	if sidString == everyoneSid {
+		return "", fmt.Errorf("ddagentuser as Everyone is not supported")
+	}
+
+	sd, err := FormatSecurityDescriptorWithSid(sidString)
+	if err != nil {
+		return "", fmt.Errorf("invalid SID from ddagentuser %s: %s", user, err)
+	}
+
+	log.Debugf("named pipe DACL prepared with ddagentuser %s", user)
+	return sd, nil
+}
+
+// FormatSecurityDescriptorWithSid creates a security descriptor string for the system probe
+// named pipe that allows a set of default users and the specified SID.
+func FormatSecurityDescriptorWithSid(sidString string) (string, error) {
+	// Sanity check
+	if !strings.HasPrefix(sidString, "S-") {
+		return "", fmt.Errorf("invalid SID %s", sidString)
+	}
+	return fmt.Sprintf(namedPipeSecurityDescriptorTemplate, sidString), nil
+}
 
 // NewListener sets up a named pipe listener for the system probe service.
 func NewListener(namedPipeName string) (net.Listener, error) {
-	// The DACL must allow the run-as user of datadogagent.
+	sd, err := setupSecurityDescriptor()
+	if err != nil {
+		log.Errorf("failed to setup security descriptor, ddagentuser is denied: %s", err)
+
+		// The default security descriptor does not include ddagentuser.
+		// Queries from the DD agent will fail.
+		sd = namedPipeDefaultSecurityDescriptor
+	}
+
+	return NewListenerWithSecurityDescriptor(namedPipeName, sd)
+}
+
+// NewListenerWithSecurityDescriptor sets up a named pipe listener with a security descriptor.
+func NewListenerWithSecurityDescriptor(namedPipeName string, securityDescriptor string) (net.Listener, error) {
 	config := winio.PipeConfig{
-		SecurityDescriptor: namedPipeSecurityDescriptor,
+		SecurityDescriptor: securityDescriptor,
 		InputBufferSize:    namedPipeInputBufferSize,
 		OutputBufferSize:   namedPipeOutputBufferSize,
 	}
@@ -41,5 +135,8 @@ func NewListener(namedPipeName string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("named pipe listener %q: %s", namedPipeName, err)
 	}
+
+	log.Infof("named pipe %s ready", namedPipeName)
+
 	return namedPipe, nil
 }
