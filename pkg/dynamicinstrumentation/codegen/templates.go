@@ -49,15 +49,7 @@ outputOffset += 1;
 {{.SliceTypeHeaderText}}
 `
 
-var stringRegisterHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-// Write the string kind to output buffer
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
-outputOffset += 1;
-`
-
-var stringStackHeaderTemplateText = `
+var stringHeaderTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Write the string kind to output buffer
 param_type = {{.Kind}};

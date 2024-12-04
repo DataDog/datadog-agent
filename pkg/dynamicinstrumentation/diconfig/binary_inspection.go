@@ -151,7 +151,7 @@ func populateLocationExpressions(
 			if i >= len(funcMetadata.Parameters) {
 				return errors.New("parameter metadata does not line up with parameter itself")
 			}
-			parameters[i].LocationExpressions = GenerateLocationExpression(limitInfo, parameters[i])
+			GenerateLocationExpression(limitInfo, parameters[i])
 		}
 	}
 	return nil
