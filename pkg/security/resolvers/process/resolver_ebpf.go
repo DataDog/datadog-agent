@@ -829,8 +829,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	var cgroupCtx model.CGroupContext
-	cgroupRead, err := cgroupCtx.UnmarshalBinary(procCache)
+	cgroupRead, err := entry.CGroup.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
