@@ -26,4 +26,5 @@ type KubeUtilInterface interface {
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
+	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *v1.PodLogOptions) (io.ReadCloser, error)
 }
