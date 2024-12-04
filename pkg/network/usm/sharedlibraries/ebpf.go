@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/atomic"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
@@ -95,7 +93,7 @@ type EbpfProgram struct {
 
 	// refcount is the number of times the program has been initialized. It is used to
 	// stop the program only when the refcount reaches 0.
-	refcount atomic.Int32
+	refcount uint16
 
 	// initMutex is a mutex to protect the initialization variables and the libset map
 	wg sync.WaitGroup
@@ -147,7 +145,7 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 		}
 	}
 
-	progSingleton.refcount.Inc()
+	progSingleton.refcount++
 
 	return progSingleton
 }
@@ -447,10 +445,13 @@ func (e *EbpfProgram) Stop() {
 	singletonMutex.Lock()
 	defer singletonMutex.Unlock()
 
-	if e.refcount.Dec() != 0 {
-		if e.refcount.Load() < 0 {
-			e.refcount.Swap(0)
-		}
+	if e.refcount == 0 {
+		log.Warn("shared libraries monitor stopping with a refcount of 0")
+		return
+	}
+	e.refcount--
+	if e.refcount > 0 {
+		// Still in use
 		return
 	}
 
