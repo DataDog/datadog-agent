@@ -40,10 +40,12 @@ const (
 	openat2SysCall = "openat2"
 )
 
-var traceTypes = []string{"enter", "exit"}
+var (
+	singletonMutex = sync.Mutex{}
+	progSingleton  *EbpfProgram
 
-var progSingletonOnce sync.Once
-var progSingleton *EbpfProgram
+	traceTypes = []string{"enter", "exit"}
+)
 
 // LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
 type LibraryCallback func(LibPath)
@@ -127,7 +129,10 @@ func IsSupported(cfg *ddebpf.Config) bool {
 
 // GetEBPFProgram returns an instance of the shared libraries eBPF program singleton
 func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
-	progSingletonOnce.Do(func() {
+	singletonMutex.Lock()
+	defer singletonMutex.Unlock()
+
+	if progSingleton == nil {
 		progSingleton = &EbpfProgram{
 			cfg:     cfg,
 			libsets: make(map[Libset]*libsetHandler),
@@ -140,7 +145,8 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 				callbacks: make(map[*LibraryCallback]struct{}),
 			}
 		}
-	})
+	}
+
 	progSingleton.refcount.Inc()
 
 	return progSingleton
@@ -438,6 +444,9 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 
 // Stop stops the eBPF program if the refcount reaches 0
 func (e *EbpfProgram) Stop() {
+	singletonMutex.Lock()
+	defer singletonMutex.Unlock()
+
 	if e.refcount.Dec() != 0 {
 		if e.refcount.Load() < 0 {
 			e.refcount.Swap(0)
@@ -451,8 +460,6 @@ func (e *EbpfProgram) Stop() {
 
 	e.stopImpl()
 
-	// Reset the program singleton in case it's used again (e.g. in tests)
-	progSingletonOnce = sync.Once{}
 	progSingleton = nil
 }
 
