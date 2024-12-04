@@ -644,9 +644,6 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
-	// TODO(lebauce): fix this
-	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
-
 	return read, nil
 }
 
@@ -675,9 +672,12 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
-	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
-	entry.Process.CGroup.CGroupFile = ev.CGroupContext.CGroupFile
+	entry.Process.ContainerID = ev.ContainerContext.ContainerID
+	entry.ContainerID = ev.ContainerContext.ContainerID
+
+	entry.Process.CGroup.Merge(&ev.CGroupContext)
+	entry.CGroup.Merge(&ev.CGroupContext)
+
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -828,28 +828,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
-			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
-			if err == nil && path != "" {
-				if !p.kernelVersion.IsRH7Kernel() {
-					path = filepath.Dir(string(path))
-				}
-
-				cgroupID := containerutils.CGroupID(path)
-				pce.CGroup.CGroupID = cgroupID
-				pce.Process.CGroup.CGroupID = cgroupID
-				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
-				if cgroupFlags.IsContainer() {
-					containerID, _ := containerutils.GetContainerFromCgroup(cgroupID)
-					pce.ContainerID = containerutils.ContainerID(containerID)
-					pce.Process.ContainerID = containerutils.ContainerID(containerID)
-				}
-				pce.CGroup.CGroupFlags = cgroupFlags
-				pce.Process.CGroup = pce.CGroup
-			} else {
-				seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
+			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)); err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			}
-		} else {
-			seclog.Debugf("failed to resolve process of cgroup write event: %s", err)
 		}
 		return
 	case model.UnshareMountNsEventType:
