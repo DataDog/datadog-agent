@@ -275,15 +275,6 @@ func (o *processMonitorProxy) SubscribeExit(cb func(uint32)) func() {
 	return o.target.SubscribeExit(cb)
 }
 
-func (o *processMonitorProxy) triggerExec(pid uint32) {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
-
-	for cb := range o.execCallbacks {
-		(*cb)(pid)
-	}
-}
-
 func (o *processMonitorProxy) triggerExit(pid uint32) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
