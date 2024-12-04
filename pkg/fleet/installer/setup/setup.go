@@ -19,7 +19,7 @@ import (
 
 // Setup is the main function to resolve packages to install and install them
 func Setup(ctx context.Context, env *env.Env) error {
-	if os.Getenv("DD_DJM_FLAVOR") != "databricks" {
+	if os.Getenv("DD_DJM_FLAVOR") == "databricks" {
 		return djm.SetupDatabricks(ctx, env)
 	}
 
