@@ -619,7 +619,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha.is_leader", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(isLeader), Ts: float64(start.Unix())}},
-			Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
+			Tags:           tagset.CompositeTagsFromSlice(agg.tags(false)),
 			Host:           agg.hostname,
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",
