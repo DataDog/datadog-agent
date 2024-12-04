@@ -36,6 +36,7 @@ from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
+    TestsNotSupportedError,
     clean_nested_paths,
     get_build_flags,
     gitlab_section,
@@ -420,7 +421,7 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
         with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):
             try:
                 t()
-            except NotImplementedError as e:
+            except TestsNotSupportedError as e:
                 print(f"Skipping {t_name}\n{e}")
             except Exception:
                 # Keep printing the traceback not to have to wait until all tests are done to see what failed
