@@ -126,6 +126,51 @@ core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Copyright (c) 2015 Datadog, In
 core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/dd-sensitive-data-scanner/sds-go/go,Apache-2.0,"Copyright 2024-present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/appsec/events,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/datastreams/options,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/ddtrace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/ddtrace/ext,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/ddtrace/tracer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/dyngo,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/graphqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/grpcsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/httpsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/ossec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/sqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/waf/actions,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/waf/addresses,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/trace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/instrumentation/options,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/config,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/emitter/usersec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/emitter/waf,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/graphqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/grpcsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/httpsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/ossec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/sqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/trace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/usersec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/waf,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/datastreams,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/globalconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/log,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/namingschema,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/normalizer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/orchestrion,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/osinfo,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/remoteconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/samplernames,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/stacktrace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/telemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/traceprof,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/version,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
@@ -690,6 +735,7 @@ core,github.com/cilium/ebpf/perf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyrigh
 core,github.com/cilium/ebpf/ringbuf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/rlimit,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/clbanning/mxj,MIT,Copyright (c) 2012-2016 Charles Banning <clbanning@gmail.com>.  All rights reserved | Copyright 2009 The Go Authors. All rights reserved
+core,github.com/cloudflare/cbpfc,BSD-3-Clause,"Copyright (c) 2019, Cloudflare. All rights reserved"
 core,github.com/cloudflare/circl/dh/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/dh/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/ecc/goldilocks,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
@@ -2047,7 +2093,7 @@ core,github.com/sijms/go-ora/v2/network/security,MIT,Copyright (c) 2020 Samy Sul
 core,github.com/sijms/go-ora/v2/network/security/md4,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/trace,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
-core,github.com/skeema/knownhosts,Apache-2.0,Copyright 2023 Skeema LLC and the Skeema Knownhosts authors | copyright 2023 Skeema LLC and the Skeema Knownhosts authors**
+core,github.com/skeema/knownhosts,Apache-2.0,Copyright 2024 Skeema LLC and the Skeema Knownhosts authors | copyright 2024 Skeema LLC and the Skeema Knownhosts authors**
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
@@ -2097,6 +2143,7 @@ core,github.com/stormcat24/protodep/pkg/logger,Apache-2.0,Copyright Akinori Yama
 core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+core,github.com/stretchr/testify/assert/yaml,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/mock,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/require,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/suite,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
@@ -2420,6 +2467,7 @@ core,go.opentelemetry.io/collector/processor/memorylimiterprocessor,Apache-2.0,C
 core,go.opentelemetry.io/collector/processor/memorylimiterprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorhelper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/processor/processorhelper/processorhelperprofiles,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorprofiles,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processortest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2444,6 +2492,7 @@ core,go.opentelemetry.io/collector/semconv/v1.16.0,Apache-2.0,Copyright The Open
 core,go.opentelemetry.io/collector/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.18.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/semconv/v1.22.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.27.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2947,6 +2996,7 @@ core,gopkg.in/warnings.v0,BSD-2-Clause,Copyright (c) 2016 Péter Surányi
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
+core,honnef.co/go/tools/analysis/callcheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/code,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/edit,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/facts/deprecated,MIT,Copyright (c) 2016 Dominik Honnef
@@ -2979,13 +3029,173 @@ core,honnef.co/go/tools/lintcmd/version,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/pattern,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/printf,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/quickfix,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1004,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1007,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1009,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1010,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1011,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix/qf1012,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/sarif,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/simple,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1004,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1007,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1009,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1010,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1011,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1012,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1016,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1017,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1018,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1019,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1020,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1021,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1023,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1024,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1025,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1028,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1029,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1030,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1031,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1032,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1033,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1034,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1035,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1036,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1037,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1038,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1039,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple/s1040,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/fakejson,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/fakereflect,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/fakexml,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1004,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1007,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1010,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1011,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1012,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1013,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1014,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1015,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1016,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1017,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1018,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1019,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1020,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1021,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1023,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1024,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1025,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1026,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1027,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1028,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1029,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1030,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1031,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa1032,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa2000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa2001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa2002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa2003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa3000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa3001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4004,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4009,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4010,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4011,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4012,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4013,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4014,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4015,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4016,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4017,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4018,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4019,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4020,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4021,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4022,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4023,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4024,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4025,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4026,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4027,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4028,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4029,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4030,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4031,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa4032,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5004,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5007,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5009,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5010,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5011,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa5012,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa6000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa6001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa6002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa6003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa6005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa6006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9002,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9004,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9007,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9009,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/stylecheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1000,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1001,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1003,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1005,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1006,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1008,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1011,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1012,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1013,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1015,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1016,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1017,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1018,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1019,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1020,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1021,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1022,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck/st1023,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/unused,MIT,Copyright (c) 2016 Dominik Honnef
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.

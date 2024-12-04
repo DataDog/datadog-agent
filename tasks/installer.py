@@ -2,6 +2,7 @@
 installer namespaced tasks
 """
 
+import base64
 import os
 import shutil
 
@@ -27,7 +28,7 @@ def build(
     run_path=None,
     build_include=None,
     build_exclude=None,
-    go_mod="mod",
+    go_mod="readonly",
     no_strip_binary=True,
     no_cgo=False,
 ):
@@ -73,6 +74,60 @@ def build(
     cmd += f"-o {installer_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
+
+
+@task
+def build_linux_script(
+    ctx,
+    signing_key_id=None,
+):
+    '''
+    Builds the linux script that is used to install the agent on linux.
+    '''
+    script_path = os.path.join(BIN_PATH, "setup.sh")
+    signed_script_path = os.path.join(BIN_PATH, "setup.sh.asc")
+    amd64_path = os.path.join(BIN_PATH, "bootstrapper-linux-amd64")
+    arm64_path = os.path.join(BIN_PATH, "bootstrapper-linux-arm64")
+
+    ctx.run(
+        f'inv -e installer.build --bootstrapper --no-no-strip-binary --output-bin {amd64_path} --no-cgo',
+        env={'GOOS': 'linux', 'GOARCH': 'amd64'},
+    )
+    ctx.run(
+        f'inv -e installer.build --bootstrapper --no-no-strip-binary --output-bin {arm64_path} --no-cgo',
+        env={'GOOS': 'linux', 'GOARCH': 'arm64'},
+    )
+    with open(amd64_path, 'rb') as f:
+        amd64_b64 = base64.encodebytes(f.read()).decode('utf-8')
+    with open(arm64_path, 'rb') as f:
+        arm64_b64 = base64.encodebytes(f.read()).decode('utf-8')
+
+    with open('pkg/fleet/installer/setup.sh') as f:
+        setup_content = f.read()
+    setup_content = setup_content.replace('INSTALLER_BIN_LINUX_AMD64', amd64_b64)
+    setup_content = setup_content.replace('INSTALLER_BIN_LINUX_ARM64', arm64_b64)
+
+    commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
+    setup_content = setup_content.replace('INSTALLER_COMMIT', commit_sha)
+
+    with open(script_path, 'w') as f:
+        f.write(setup_content)
+
+    if signing_key_id:
+        ctx.run(
+            f'gpg --armor --batch --yes --output {signed_script_path} --clearsign --digest-algo SHA256 --default-key {signing_key_id} {script_path}',
+        )
+        # Add the signed footer to the setup.sh file
+        with (
+            open(signed_script_path) as signed_file,
+            open(script_path, 'w') as f,
+        ):
+            skip_header = False
+            for line in signed_file:
+                if skip_header:
+                    f.write(line)
+                elif line.strip() == "":  # Empty line marks end of header
+                    skip_header = True
 
 
 @task

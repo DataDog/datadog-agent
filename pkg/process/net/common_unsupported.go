@@ -12,8 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	discoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -49,11 +47,6 @@ func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
 	return "", ErrNotImplemented
 }
 
-// GetStats is not supported
-func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
-	return nil, ErrNotImplemented
-}
-
 // GetProcStats is not supported
 //
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -66,33 +59,6 @@ func (r *RemoteSysProbeUtil) GetProcStats(_ []int32) (*model.ProcStatsWithPermBy
 //nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) Register(_ string) error {
 	return ErrNotImplemented
-}
-
-// DetectLanguage is not supported
-func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
-	return nil, ErrNotImplemented
-}
-
-// GetPprof is not supported
-func (r *RemoteSysProbeUtil) GetPprof(_ string) ([]byte, error) {
-	return nil, ErrNotImplemented
-}
-
-// GetTelemetry is not supported
-func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) { return nil, ErrNotImplemented }
-
-// GetConnTrackCached is not supported
-func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) { return nil, ErrNotImplemented }
-
-// GetConnTrackHost is not supported
-func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) { return nil, ErrNotImplemented }
-
-// GetBTFLoaderInfo is not supported
-func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) { return nil, ErrNotImplemented }
-
-// GetDiscoveryServices is not supported
-func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
-	return nil, ErrNotImplemented
 }
 
 // GetPing is not supported

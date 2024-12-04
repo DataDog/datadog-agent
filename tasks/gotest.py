@@ -11,6 +11,7 @@ import operator
 import os
 import re
 import sys
+import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
@@ -35,6 +36,7 @@ from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
+    TestsNotSupportedError,
     clean_nested_paths,
     get_build_flags,
     gitlab_section,
@@ -255,7 +257,6 @@ def test(
     race=False,
     profile=False,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     cpus=None,
     major_version='7',
@@ -264,7 +265,7 @@ def test(
     test_run_name="",
     save_result_json=None,
     rerun_fails=None,
-    go_mod="mod",
+    go_mod="readonly",
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
@@ -303,7 +304,6 @@ def test(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )
@@ -406,24 +406,33 @@ def test(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
     Run all the available integration tests
     """
-    tests = [
-        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
-    ]
-    for t in tests:
-        try:
-            t()
-        except Exit as e:
-            if e.code != 0:
-                raise
-            elif debug:
-                print(e.message)
+    tests = {
+        "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
+    }
+    tests_failures = {}
+    for t_name, t in tests.items():
+        with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):
+            try:
+                t()
+            except TestsNotSupportedError as e:
+                print(f"Skipping {t_name}: {e}")
+            except Exception:
+                # Keep printing the traceback not to have to wait until all tests are done to see what failed
+                traceback.print_exc()
+                # Storing the traceback to print it at the end without directly raising the exception
+                tests_failures[t_name] = traceback.format_exc()
+    if tests_failures:
+        print("Integration tests failed:")
+        for t_name, t_failure in tests_failures.items():
+            print(f"{t_name}:\n{t_failure}")
+        raise Exit(code=1)
 
 
 @task
@@ -514,12 +523,13 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
             modules_to_test[best_module_path] = GoModule(best_module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
         modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = get_default_modules()[module].test_targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
@@ -752,16 +762,17 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
 
+    default_modules = get_default_modules()
     for package in packages:
         module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in get_default_modules() or not get_default_modules()[module_path].should_test():
+        if module_path not in default_modules or not default_modules[module_path].should_test():
             continue
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in get_default_modules()[module_path].test_targets:
+        for target in default_modules[module_path].test_targets:
             if normpath(os.path.join(module_path, target)) in package:
                 targeted = True
                 break
@@ -784,12 +795,13 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
             modules_to_test[module_path] = GoModule(module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
         modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = get_default_modules()[module].test_targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags

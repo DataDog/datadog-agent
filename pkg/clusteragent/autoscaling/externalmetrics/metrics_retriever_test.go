@@ -62,8 +62,7 @@ type metricsFixture struct {
 	expected     []ddmWithQuery
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
+func (f *metricsFixture) run(t *testing.T) {
 	t.Helper()
 
 	// Create and fill store
@@ -174,7 +173,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }
@@ -500,7 +499,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }
@@ -639,7 +638,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }

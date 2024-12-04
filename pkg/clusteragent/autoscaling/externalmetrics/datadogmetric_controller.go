@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -20,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
@@ -31,6 +31,15 @@ const (
 	maxRetry             int    = 3
 	requeueDelaySeconds  int    = 2
 	ddmControllerStoreID string = "ddmc"
+)
+
+type controllerOperation string
+
+const (
+	createControllerOperation controllerOperation = "create"
+	updateControllerOperation controllerOperation = "update"
+	deleteControllerOperation controllerOperation = "delete"
+	noopControllerOperation   controllerOperation = "none"
 )
 
 var (
@@ -92,14 +101,12 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 }
 
 // Run starts the controller to handle DatadogMetrics
-func (c *DatadogMetricController) Run(ctx context.Context) {
+func (c *DatadogMetricController) Run(ctx context.Context, numWorkers int) {
 	if ctx == nil {
 		log.Errorf("Cannot run with a nil context")
 		return
 	}
 	c.context = ctx
-
-	defer c.workqueue.ShutDown()
 
 	log.Infof("Starting DatadogMetric Controller (waiting for cache sync)")
 	if !cache.WaitForCacheSync(ctx.Done(), c.synced) {
@@ -107,15 +114,24 @@ func (c *DatadogMetricController) Run(ctx context.Context) {
 		return
 	}
 
-	go wait.Until(c.worker, time.Second, ctx.Done())
+	for i := 0; i < numWorkers; i++ {
+		go c.worker(i)
+	}
 
 	log.Infof("Started DatadogMetric Controller (cache sync finished)")
 	<-ctx.Done()
 	log.Infof("Stopping DatadogMetric Controller")
+	if c.isLeader() {
+		c.workqueue.ShutDownWithDrain()
+	} else {
+		c.workqueue.ShutDown()
+	}
+	log.Infof("DatadogMetric Controller stopped")
 }
 
-func (c *DatadogMetricController) worker() {
-	for c.process() {
+func (c *DatadogMetricController) worker(workerID int) {
+	log.Debugf("Starting DatadogMetric worker: %d", workerID)
+	for c.process(workerID) {
 	}
 }
 
@@ -135,16 +151,25 @@ func (c *DatadogMetricController) enqueueID(id, sender string) {
 	}
 }
 
-func (c *DatadogMetricController) process() bool {
+func (c *DatadogMetricController) process(workerID int) bool {
 	key, shutdown := c.workqueue.Get()
 	if shutdown {
 		log.Infof("DatadogMetric Controller: Caught stop signal in workqueue")
 		return false
 	}
 
+	// We start the timer after waiting on the queue itself to have actual processing time.
+	startTime := time.Now()
+	operation := noopControllerOperation
+	var err error
+
+	defer func() {
+		reconcileElapsed.Observe(time.Since(startTime).Seconds(), string(operation), inErrorLabelValue(err), le.JoinLeaderValue)
+	}()
+
 	defer c.workqueue.Done(key)
 
-	err := c.processDatadogMetric(key)
+	operation, err = c.processDatadogMetric(workerID, key)
 	if err == nil {
 		c.workqueue.Forget(key)
 	} else {
@@ -158,13 +183,13 @@ func (c *DatadogMetricController) process() bool {
 	return true
 }
 
-func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
+func (c *DatadogMetricController) processDatadogMetric(workerID int, key interface{}) (controllerOperation, error) {
 	datadogMetricKey := key.(string)
-	log.Debugf("Processing DatadogMetric: %s", datadogMetricKey)
+	log.Tracef("Processing DatadogMetric: %s - worker %d", datadogMetricKey, workerID)
 
 	ns, name, err := cache.SplitMetaNamespaceKey(datadogMetricKey)
 	if err != nil {
-		return fmt.Errorf("Could not split the key: %v", err)
+		return noopControllerOperation, fmt.Errorf("Could not split the key: %v", err)
 	}
 
 	datadogMetricCached := &datadoghq.DatadogMetric{}
@@ -178,34 +203,30 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 		// We ignore not found here as we may need to create a DatadogMetric later
 		datadogMetricCached = nil
 	case err != nil:
-		return fmt.Errorf("Unable to retrieve DatadogMetric: %w", err)
-	case datadogMetricCached == nil:
-		return fmt.Errorf("Could not parse empty DatadogMetric from local cache")
+		return noopControllerOperation, fmt.Errorf("Unable to retrieve DatadogMetric: %w", err)
 	}
 
 	// No error path, check what to do with this event
 	if c.isLeader() {
-		err = c.syncDatadogMetric(ns, name, datadogMetricKey, datadogMetricCached)
-		if err != nil {
-			return err
-		}
-	} else {
-		if datadogMetricCached != nil {
-			// Feeding local cache with DatadogMetric information
-			c.store.Set(datadogMetricKey, model.NewDatadogMetricInternal(datadogMetricKey, *datadogMetricCached), ddmControllerStoreID)
-			setDatadogMetricTelemetry(datadogMetricCached)
-		} else {
-			c.store.Delete(datadogMetricKey, ddmControllerStoreID)
-			unsetDatadogMetricTelemetry(ns, name)
-		}
+		return c.syncDatadogMetric(ns, name, datadogMetricKey, datadogMetricCached)
 	}
 
-	return nil
+	// Follower flow
+	if datadogMetricCached != nil {
+		// Feeding local cache with DatadogMetric information
+		c.store.Set(datadogMetricKey, model.NewDatadogMetricInternal(datadogMetricKey, *datadogMetricCached), ddmControllerStoreID)
+		setDatadogMetricTelemetry(datadogMetricCached)
+	} else {
+		c.store.Delete(datadogMetricKey, ddmControllerStoreID)
+		unsetDatadogMetricTelemetry(ns, name)
+	}
+
+	return noopControllerOperation, nil
 }
 
 // Synchronize DatadogMetric state between internal store and Kubernetes objects
 // Make sure any `return` has the proper store Unlock
-func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey string, datadogMetric *datadoghq.DatadogMetric) error {
+func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey string, datadogMetric *datadoghq.DatadogMetric) (controllerOperation, error) {
 	datadogMetricInternal := c.store.LockRead(datadogMetricKey, true)
 	if datadogMetricInternal == nil {
 		if datadogMetric != nil {
@@ -216,7 +237,7 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 			c.store.Unlock(datadogMetricKey)
 		}
 
-		return nil
+		return noopControllerOperation, nil
 	}
 
 	// If DatadogMetric object is not present in Kubernetes, we need to clear our store (removed by user) or create it (autogen)
@@ -224,12 +245,12 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 		if datadogMetricInternal.Autogen && !datadogMetricInternal.Deleted {
 			err := c.createDatadogMetric(ns, name, datadogMetricInternal)
 			c.store.Unlock(datadogMetricKey)
-			return err
+			return createControllerOperation, err
 		}
 
 		// Already deleted in Kube, cleaning internal store
 		c.store.UnlockDelete(datadogMetricKey, ddmControllerStoreID)
-		return nil
+		return noopControllerOperation, nil
 	}
 
 	// Objects exists in both places (local store and K8S), we need to sync them
@@ -241,20 +262,19 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 		c.store.Unlock(datadogMetricKey)
 		// We add a requeue in case the deleted event is lost
 		c.workqueue.AddAfter(datadogMetricKey, time.Duration(requeueDelaySeconds)*time.Second)
-		return c.deleteDatadogMetric(ns, name)
+		return deleteControllerOperation, c.deleteDatadogMetric(ns, name)
 	}
 
+	// After this `Unlock`, datadogMetricInternal cannot be modified
 	datadogMetricInternal.UpdateFrom(*datadogMetric)
-	defer c.store.UnlockSet(datadogMetricInternal.ID, *datadogMetricInternal, ddmControllerStoreID)
+	c.store.UnlockSet(datadogMetricKey, *datadogMetricInternal, ddmControllerStoreID)
 
 	if datadogMetricInternal.IsNewerThan(datadogMetric.Status) {
 		err := c.updateDatadogMetric(ns, name, datadogMetricInternal, datadogMetric)
-		if err != nil {
-			return err
-		}
+		return updateControllerOperation, err
 	}
 
-	return nil
+	return noopControllerOperation, nil
 }
 
 func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal) error {

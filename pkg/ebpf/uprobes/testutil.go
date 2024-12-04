@@ -78,6 +78,11 @@ func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	return args.Get(0).(map[uint32]struct{})
 }
 
+// Log is a mock implementation of the FileRegistry.Log method.
+func (m *MockFileRegistry) Log() {
+	m.Called()
+}
+
 // MockBinaryInspector is a mock implementation of the BinaryInspector interface.
 type MockBinaryInspector struct {
 	mock.Mock

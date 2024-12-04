@@ -129,19 +129,17 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var dependsOnCrd []pulumi.Resource
 	if params.agentOptions != nil {
-		kindClusterName := ctx.Stack()
-		helmValues := fmt.Sprintf(`
+		helmValues := `
 datadog:
   kubelet:
     tlsVerify: false
-  clusterName: "%s"
 agents:
   useHostNetwork: true
-`, kindClusterName)
+`
 
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -167,9 +165,11 @@ agents:
 			return err
 		}
 
-		// dogstatsd clients that report to the dogstatsd standalone deployment
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket); err != nil {
-			return err
+		if params.deployDogstatsd {
+			// dogstatsd clients that report to the dogstatsd standalone deployment
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket); err != nil {
+				return err
+			}
 		}
 
 		if _, err := tracegen.K8sAppDefinition(&awsEnv, kubeProvider, "workload-tracegen"); err != nil {
@@ -180,7 +180,7 @@ agents:
 			return err
 		}
 
-		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection"); err != nil {
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 			return err
 		}
 

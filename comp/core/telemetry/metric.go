@@ -9,14 +9,7 @@ package telemetry
 
 import (
 	dto "github.com/prometheus/client_model/go"
-	"go.opentelemetry.io/otel/metric"
 )
-
-// MeterOption is an alias to metric.MeterOption
-type MeterOption = metric.MeterOption
-
-// Meter is an alias to metric.Meter
-type Meter = metric.Meter
 
 // MetricFamily is an alias to dto.MetricFamily
 type MetricFamily = dto.MetricFamily

@@ -10,7 +10,7 @@
     - mkdir omnibus\pkg
     - >
       docker run --rm
-      -m 8192M
+      -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
@@ -21,7 +21,7 @@
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
       -e RELEASE_VERSION="$RELEASE_VERSION"
-      -e MAJOR_VERSION="$AGENT_MAJOR_VERSION"
+      -e MAJOR_VERSION="7"
       -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
       -e GOMODCACHE="c:\modcache"
       -e AWS_NETWORKING=true
@@ -36,6 +36,7 @@
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
+      -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -60,7 +61,6 @@ windows_msi_and_bosh_zip_x64-a7:
     - when: on_success
   variables:
     ARCH: "x64"
-    AGENT_MAJOR_VERSION: 7
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   timeout: 2h
@@ -75,7 +75,6 @@ windows_zip_agent_binaries_x64-a7:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: "x64"
-    AGENT_MAJOR_VERSION: 7
     OMNIBUS_TARGET: agent_binaries
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
@@ -96,7 +95,7 @@ windows_zip_agent_binaries_x64-a7:
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
       -e RELEASE_VERSION="$RELEASE_VERSION"
-      -e MAJOR_VERSION="$AGENT_MAJOR_VERSION"
+      -e MAJOR_VERSION="7"
       -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
       -e GOMODCACHE="c:\modcache"
       -e AWS_NETWORKING=true

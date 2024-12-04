@@ -347,3 +347,81 @@ func TestAllKeysLowercased(t *testing.T) {
 	sort.Strings(keys)
 	assert.Equal(t, []string{"a", "b"}, keys)
 }
+
+func TestStringify(t *testing.T) {
+	configData := `network_path:
+  collector:
+    workers: 6
+secret_backend_command: ./my_secret_fetcher.sh
+`
+	os.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
+	os.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
+
+	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	cfg.BindEnvAndSetDefault("secret_backend_command", "")
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("server_timeout", 30)
+
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	txt := cfg.(*ntmConfig).Stringify("none")
+	expect := "Stringify error: invalid source: none"
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify(model.SourceDefault)
+	expect = `network_path
+  collector
+    input_chan_size
+      val:100000, source:default
+    processing_chan_size
+      val:100000, source:default
+    workers
+      val:4, source:default
+secret_backend_command
+  val:, source:default
+secret_backend_timeout
+  val:0, source:default
+server_timeout
+  val:30, source:default`
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify(model.SourceFile)
+	expect = `network_path
+  collector
+    workers
+      val:6, source:file
+secret_backend_command
+  val:./my_secret_fetcher.sh, source:file`
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify(model.SourceEnvVar)
+	expect = `network_path
+  collector
+    input_chan_size
+      val:23456, source:environment-variable
+secret_backend_timeout
+  val:60, source:environment-variable`
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify("root")
+	expect = `network_path
+  collector
+    input_chan_size
+      val:23456, source:environment-variable
+    processing_chan_size
+      val:100000, source:default
+    workers
+      val:6, source:file
+secret_backend_command
+  val:./my_secret_fetcher.sh, source:file
+secret_backend_timeout
+  val:60, source:environment-variable
+server_timeout
+  val:30, source:default`
+	assert.Equal(t, expect, txt)
+}

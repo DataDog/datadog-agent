@@ -29,6 +29,7 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -256,8 +257,8 @@ func init() {
 	if envvar == "enable" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
-		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
-		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		viperConfig := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
+		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
 		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
@@ -356,6 +357,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("flare.rc_profiling_runtime", 60*time.Second)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -704,6 +706,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)        // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
+	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
@@ -797,6 +800,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
@@ -804,6 +808,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("config_providers")
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
+
+	config.BindEnv("provider_kind")
 
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
@@ -878,6 +884,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
+	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -993,6 +1000,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", false)
 	config.BindEnvAndSetDefault("remote_policies", false)
+	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
@@ -1119,6 +1127,10 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+
+	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
+	config.BindEnvAndSetDefault("core_agent.enabled", true)
+	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1276,7 +1288,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
 	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
-
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1518,6 +1529,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 
+	// Transport protocol for log payloads
+	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
+
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
@@ -1711,8 +1725,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
 	if isSet = config.IsSet("proxy"); isSet {
-		// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
-		if err := config.UnmarshalKey("proxy", p); err != nil {
+		if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 		}
@@ -2380,6 +2393,17 @@ func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	}
 }
 
+func toggleDefaultPayloads(config pkgconfigmodel.Config) {
+	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
+	// Used namely for Error Tracking Standalone where it is not needed.
+	if !config.GetBool("core_agent.enabled") {
+		config.Set("enable_payloads.events", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.series", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.service_checks", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.sketches", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
@@ -2473,8 +2497,7 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	var cps []ConfigurationProviders
-	// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
-	if err := config.UnmarshalKey("config_providers", &cps); err != nil {
+	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
 		return false
 	}
 
@@ -2592,7 +2615,7 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 	return allowMap
 }
 
-// IsAgentTelemetryEnabled returns true if Agent Telemetry ise enabled
+// IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Agent Telemetry for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
