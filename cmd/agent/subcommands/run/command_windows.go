@@ -76,6 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	// runtime init routines
 )
 
@@ -206,6 +207,20 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 	return errChan, nil
 }
 
+func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
+	log.Info("Re-registering Ctrl+C handler")
+	err := winutil.SetConsoleCtrlHandler(func(ctrlType uint32) bool {
+		switch ctrlType {
+		case winutil.CtrlCEvent, winutil.CtrlBreakEvent:
+			signals.Stopper <- true
+		}
+		return true
+	}, true)
+	if err != nil {
+		log.Error(err)
+	}
+}
+
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
@@ -222,5 +237,6 @@ func getPlatformModules() fx.Option {
 		fx.Invoke(func(_ etwtracer.Component) {}),
 		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
+		fx.Invoke(reRegisterCtrlHandler),
 	)
 }
