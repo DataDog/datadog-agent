@@ -2138,14 +2138,14 @@ func TestCheckConfig_Copy(t *testing.T) {
 
 	assert.Equal(t, &config, configCopy)
 
-	assert.NotSame(t, config.RequestedMetrics, configCopy.RequestedMetrics)
-	assert.NotSame(t, config.RequestedMetricTags, configCopy.RequestedMetricTags)
-	assert.NotSame(t, config.Metrics, configCopy.Metrics)
-	assert.NotSame(t, config.MetricTags, configCopy.MetricTags)
-	assert.NotSame(t, config.ProfileTags, configCopy.ProfileTags)
-	assert.NotSame(t, config.ExtraTags, configCopy.ExtraTags)
-	assert.NotSame(t, config.InstanceTags, configCopy.InstanceTags)
-	assert.NotSame(t, config.DeviceIDTags, configCopy.DeviceIDTags)
+	assert.NotSame(t, &config.RequestedMetrics, &configCopy.RequestedMetrics)
+	assert.NotSame(t, &config.RequestedMetricTags, &configCopy.RequestedMetricTags)
+	assert.NotSame(t, &config.Metrics, &configCopy.Metrics)
+	assert.NotSame(t, &config.MetricTags, &configCopy.MetricTags)
+	assert.NotSame(t, &config.ProfileTags, &configCopy.ProfileTags)
+	assert.NotSame(t, &config.ExtraTags, &configCopy.ExtraTags)
+	assert.NotSame(t, &config.InstanceTags, &configCopy.InstanceTags)
+	assert.NotSame(t, &config.DeviceIDTags, &configCopy.DeviceIDTags)
 }
 
 func TestCheckConfig_CopyWithNewIP(t *testing.T) {

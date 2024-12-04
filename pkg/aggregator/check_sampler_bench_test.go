@@ -15,7 +15,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	eventplatformock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 
 	//nolint:revive // TODO(AML) Fix revive linter
@@ -51,8 +52,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
 	haAgent := haagentmock.NewMockHaAgent()
-	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventplatformock.NewMock(), haAgent, deps.Compressor, taggerComponent, "hostname")
+	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)

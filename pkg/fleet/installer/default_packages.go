@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 

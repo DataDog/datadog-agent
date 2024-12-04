@@ -7,6 +7,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -81,7 +82,36 @@ func constructURL(module string, endpoint string) string {
 	return u.String()
 }
 
+// URL constructs a system-probe URL for a module-less endpoint.
+func URL(endpoint string) string {
+	return constructURL("", endpoint)
+}
+
+// DebugURL constructs a system-probe URL for the debug module and endpoint.
+func DebugURL(endpoint string) string {
+	return constructURL("debug", endpoint)
+}
+
 // ModuleURL constructs a system-probe ModuleURL given the specified module and endpoint.
 func ModuleURL(module types.ModuleName, endpoint string) string {
 	return constructURL(string(module), endpoint)
+}
+
+// ReadAllResponseBody reads the entire HTTP response body as a byte slice
+func ReadAllResponseBody(resp *http.Response) ([]byte, error) {
+	// if we are not able to determine the content length
+	// we read the whole body without pre-allocation
+	if resp.ContentLength <= 0 {
+		return io.ReadAll(resp.Body)
+	}
+
+	// if we know the content length we pre-allocate the buffer
+	var buf bytes.Buffer
+	buf.Grow(int(resp.ContentLength))
+
+	_, err := buf.ReadFrom(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

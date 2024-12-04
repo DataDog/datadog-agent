@@ -107,6 +107,7 @@ components_classic_style = [
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
     'comp/etw/impl',
+    'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
     'comp/forwarder/orchestrator/orchestratorimpl',
     'comp/languagedetection/client/clientimpl',

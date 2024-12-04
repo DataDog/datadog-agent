@@ -60,7 +60,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if err := c.readConfigurationContent(content); err != nil {
+	if err := c.readConfigurationContent(c.file, content); err != nil {
 		return err
 	}
 	return c.mergeAllLayers()
@@ -71,15 +71,15 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	if err != nil {
 		return err
 	}
-	return c.readConfigurationContent(content)
+	return c.readConfigurationContent(c.file, content)
 }
 
-func (c *ntmConfig) readConfigurationContent(content []byte) error {
+func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) error {
 	var obj map[string]interface{}
 	if err := yaml.Unmarshal(content, &obj); err != nil {
 		return err
 	}
-	c.warnings = append(c.warnings, loadYamlInto(c.defaults, c.file, obj, "")...)
+	c.warnings = append(c.warnings, loadYamlInto(c.defaults, target, obj, "")...)
 	return nil
 }
 

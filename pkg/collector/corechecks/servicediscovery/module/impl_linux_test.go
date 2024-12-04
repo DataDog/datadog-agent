@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/mock/gomock"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -54,6 +56,7 @@ import (
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
@@ -366,6 +369,7 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(t, "foo_bar", portMap[pid].DDService)
 		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
+		assert.Equal(t, string(usm.CommandLine), portMap[pid].GeneratedNameSource)
 		assert.False(t, portMap[pid].DDServiceInjected)
 		assert.Equal(t, portMap[pid].ContainerID, "")
 	}, 30*time.Second, 100*time.Millisecond)
@@ -394,6 +398,7 @@ func TestInjectedServiceName(t *testing.T) {
 	// The GeneratedName can vary depending on how the tests are run, so don't
 	// assert for a specific value.
 	require.NotEmpty(t, portMap[pid].GeneratedName)
+	require.NotEmpty(t, portMap[pid].GeneratedNameSource)
 	require.NotEqual(t, portMap[pid].DDService, portMap[pid].GeneratedName)
 	assert.True(t, portMap[pid].DDServiceInjected)
 }
@@ -660,6 +665,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Contains(collect, svcMap, pid)
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", svcMap[pid].GeneratedName)
+		assert.Equal(collect, string(usm.Nodejs), svcMap[pid].GeneratedNameSource)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])
@@ -790,13 +796,15 @@ func TestDocker(t *testing.T) {
 	url, mockContainerProvider := setupDiscoveryModule(t)
 
 	dir, _ := testutil.CurDir()
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("foo-server",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		regexp.MustCompile("Serving.*"),
+		scanner,
 		dockerutils.EmptyEnv,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
-	err := dockerutils.Run(t, dockerCfg)
+	err = dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
 
 	proc, err := procfs.NewDefaultFS()
@@ -812,9 +820,21 @@ func TestDocker(t *testing.T) {
 			}
 			if comm == "python-1111" {
 				pid1111 = process.PID
-				mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).Return(nil, nil, map[int]string{
-					pid1111: "dummyCID",
-				}, nil)
+				mockContainerProvider.
+					EXPECT().
+					GetContainers(1*time.Minute, nil).
+					Return(
+						[]*agentPayload.Container{
+							{Id: "dummyCID", Tags: []string{
+								"sometag:somevalue",
+								"kube_service:kube_foo", // Should not have priority compared to app tag, for service naming
+								"app:foo_from_app_tag",
+							}},
+						},
+						nil,
+						map[int]string{
+							pid1111: "dummyCID",
+						}, nil)
 
 				break
 			}
@@ -827,6 +847,9 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
 	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
+	require.Contains(t, portMap[pid1111].Name, "foo_from_app_tag")
+	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
+	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.Container))
 }
 
 // Check that the cache is cleaned when procceses die.
@@ -893,6 +916,113 @@ func TestCache(t *testing.T) {
 
 	discovery.Close()
 	require.Empty(t, discovery.cache)
+}
+
+func TestTagsPriority(t *testing.T) {
+	cases := []struct {
+		name                string
+		tags                []string
+		expectedServiceName string
+	}{
+		{
+			"nil tag list",
+			nil,
+			"",
+		},
+		{
+			"empty tag list",
+			[]string{},
+			"",
+		},
+		{
+			"no useful tags",
+			[]string{"foo:bar"},
+			"",
+		},
+		{
+			"malformed tag",
+			[]string{"foobar"},
+			"",
+		},
+		{
+			"service tag",
+			[]string{"service:foo"},
+			"foo",
+		},
+		{
+			"app tag",
+			[]string{"app:foo"},
+			"foo",
+		},
+		{
+			"short_image tag",
+			[]string{"short_image:foo"},
+			"foo",
+		},
+		{
+			"kube_container_name tag",
+			[]string{"kube_container_name:foo"},
+			"foo",
+		},
+		{
+			"kube_deployment tag",
+			[]string{"kube_deployment:foo"},
+			"foo",
+		},
+		{
+			"kube_service tag",
+			[]string{"kube_service:foo"},
+			"foo",
+		},
+		{
+			"multiple tags",
+			[]string{
+				"foo:bar",
+				"baz:biz",
+				"service:my_service",
+				"malformed",
+			},
+			"my_service",
+		},
+		{
+			"empty value",
+			[]string{
+				"service:",
+				"app:foo",
+			},
+			"foo",
+		},
+		{
+			"multiple tags with priority",
+			[]string{
+				"foo:bar",
+				"short_image:my_image",
+				"baz:biz",
+				"service:my_service",
+				"malformed",
+			},
+			"my_service",
+		},
+		{
+			"all priority tags",
+			[]string{
+				"kube_service:my_kube_service",
+				"kube_deployment:my_kube_deployment",
+				"kube_container_name:my_kube_container_name",
+				"short_iamge:my_short_image",
+				"app:my_app",
+				"service:my_service",
+			},
+			"my_service",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			name := getServiceNameFromContainerTags(c.tags)
+			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
+		})
+	}
 }
 
 func BenchmarkOldProcess(b *testing.B) {

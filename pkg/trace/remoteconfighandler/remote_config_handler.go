@@ -91,6 +91,8 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		return
 	}
 
+	// todo refactor shared code
+
 	if len(mergedConfig.LogLevel) > 0 {
 		// Get the current log level
 		var newFallback seelog.LogLevel
@@ -98,7 +100,12 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		if err == nil {
 			h.configState.FallbackLogLevel = newFallback.String()
 			var resp *http.Response
-			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
+			var req *http.Request
+			req, err = h.buildLogLevelRequest(mergedConfig.LogLevel)
+			if err != nil {
+				return
+			}
+			resp, err = http.DefaultClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				h.configState.LatestLogLevel = mergedConfig.LogLevel
@@ -111,7 +118,12 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
 			var resp *http.Response
-			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
+			var req *http.Request
+			req, err = h.buildLogLevelRequest(h.configState.FallbackLogLevel)
+			if err != nil {
+				return
+			}
+			resp, err = http.DefaultClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 			}
@@ -133,6 +145,18 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			})
 		}
 	}
+}
+
+func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, newLevel), nil)
+	if err != nil {
+		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
+		return nil, err
+	}
+	if h.agentConfig.GetAgentAuthToken != nil {
+		req.Header.Set("Authorization", "Bearer "+h.agentConfig.GetAgentAuthToken())
+	}
+	return req, nil
 }
 
 func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
