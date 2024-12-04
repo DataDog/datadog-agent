@@ -2557,7 +2557,7 @@ func (s *TracerSuite) TestTLSClassification() {
 	cfg := testConfig()
 
 	if !kprobe.ClassificationSupported(cfg) {
-		t.Skip("TLS classification platform not supported")
+		t.Skip("protocol classification not supported")
 	}
 	port, err := tracertestutil.GetFreePort()
 	require.NoError(t, err)
@@ -2578,7 +2578,6 @@ func (s *TracerSuite) TestTLSClassification() {
 			postTracerSetup: func(t *testing.T) {
 				srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
 					defer conn.Close()
-					// Echo back whatever is received
 					_, err := io.Copy(conn, conn)
 					if err != nil {
 						fmt.Printf("Failed to echo data: %v\n", err)
@@ -2592,8 +2591,8 @@ func (s *TracerSuite) TestTLSClassification() {
 					MinVersion:             scenario,
 					MaxVersion:             scenario,
 					InsecureSkipVerify:     true,
-					SessionTicketsDisabled: true, // Disable session tickets
-					ClientSessionCache:     nil,  // Disable session cache
+					SessionTicketsDisabled: true,
+					ClientSessionCache:     nil,
 				}
 				conn, err := net.Dial("tcp", "localhost:"+portAsString)
 				require.NoError(t, err)
@@ -2602,7 +2601,6 @@ func (s *TracerSuite) TestTLSClassification() {
 				// Wrap the TCP connection with TLS
 				tlsConn := tls.Client(conn, tlsConfig)
 
-				// Perform the TLS handshake
 				require.NoError(t, tlsConn.Handshake())
 			},
 			validation: func(t *testing.T, tr *Tracer) {
@@ -2612,6 +2610,52 @@ func (s *TracerSuite) TestTLSClassification() {
 			},
 		})
 	}
+	tests = append(tests, tlsTest{
+		name: "Invalid-TLS-Handshake",
+		postTracerSetup: func(t *testing.T) {
+			// server that accepts connections but does not perform TLS handshake
+			listener, err := net.Listen("tcp", "localhost:"+portAsString)
+			require.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+
+			go func() {
+				for {
+					conn, err := listener.Accept()
+					if err != nil {
+						return
+					}
+					go func(c net.Conn) {
+						defer c.Close()
+						buf := make([]byte, 1024)
+						_, _ = c.Read(buf)
+						// Do nothing
+					}(conn)
+				}
+			}()
+
+			// Client connects to the server
+			conn, err := net.Dial("tcp", "localhost:"+portAsString)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// Send invalid TLS handshake data
+			_, err = conn.Write([]byte("invalid TLS data"))
+			require.NoError(t, err)
+		},
+		validation: func(t *testing.T, tr *Tracer) {
+			// Verify that no TLS tags are set for this connection
+			require.Eventually(t, func() bool {
+				payload := getConnections(t, tr)
+				for _, c := range payload.Conns {
+					if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
+						t.Log("Unexpected TLS protocol detected for invalid handshake")
+						return false
+					}
+				}
+				return true
+			}, 3*time.Second, 100*time.Millisecond)
+		},
+	})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
