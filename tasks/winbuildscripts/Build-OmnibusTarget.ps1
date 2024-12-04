@@ -41,7 +41,6 @@ param(
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
     [string] $ReleaseVersion = $env:RELEASE_VERSION,
-    [Parameter(Mandatory=$true)]
     [string] $TargetProject = $env:OMNIBUS_TARGET
 )
 
