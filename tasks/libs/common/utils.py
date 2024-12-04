@@ -676,3 +676,7 @@ def is_linux():
 
 def is_windows():
     return sys.platform == 'win32'
+
+def is_installed(ctx, binary) -> bool:
+    res = ctx.run(f"which {binary}", hide=True, warn=True)
+    return res.ok
