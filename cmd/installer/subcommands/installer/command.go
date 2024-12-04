@@ -9,12 +9,6 @@ package installer
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"os"
-	"runtime"
-	"strings"
-	"time"
-
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
@@ -26,6 +20,10 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
+	"net/url"
+	"os"
+	"runtime"
+	"strings"
 )
 
 const (
@@ -274,7 +272,6 @@ func defaultPackagesCommand() *cobra.Command {
 }
 
 func bootstrapCommand() *cobra.Command {
-	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:     "bootstrap",
 		Short:   "Bootstraps the package with the first version.",
@@ -282,30 +279,22 @@ func bootstrapCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			b := newBootstrapperCmd("bootstrap")
 			defer func() { b.Stop(err) }()
-			ctx, cancel := context.WithTimeout(b.ctx, timeout)
-			defer cancel()
-			return bootstrapper.Bootstrap(ctx, b.env)
+			return bootstrapper.Bootstrap(b.ctx, b.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to bootstrap with")
 	return cmd
 }
 
 func setupCommand() *cobra.Command {
-	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
-			defer func() { cmd.Stop(err) }()
-			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
-			defer cancel()
 			return setup.Setup(ctx, cmd.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to install with")
 	return cmd
 }
 

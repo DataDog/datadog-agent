@@ -1,4 +1,6 @@
-go 1.22.8
+go 1.23.0
+
+toolchain go1.23.3
 
 use (
 	.
@@ -126,4 +128,5 @@ use (
 	test/fakeintake
 	test/new-e2e
 	test/otel
+	tools/retry_file_dump
 )

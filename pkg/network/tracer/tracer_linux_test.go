@@ -127,7 +127,6 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 func (s *TracerSuite) TestTCPRetransmit() {
 	t := s.T()
 	cfg := testConfig()
-	skipEbpflessTodo(t, cfg)
 	// Enable BPF-based system probe
 	tr := setupTracer(t, cfg)
 
@@ -136,6 +135,9 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
+		// if we close the socket before the test is finished writing to the other end,
+		// linux will soon reset the connection. read the data instead
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
@@ -163,22 +165,35 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		time.Sleep(time.Second)
 	})
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts and there was at least 1 retransmission
-	connections := getConnections(t, tr)
+	var conn *network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// Iterate through active connections until we find connection created above, and confirm send + recv counts
+		connections := getConnections(t, tr)
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
+		ok := false
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if !assert.True(ct, ok) {
+			return
+		}
 
-	assert.Equal(t, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
-	assert.True(t, int(conn.Monotonic.Retransmits) > 0)
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
+		assert.Equal(ct, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
+		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
+		if !tr.config.EnableEbpfless {
+			assert.Equal(t, os.Getpid(), int(conn.Pid))
+		}
+
+		assert.Equal(ct, addrPort(server.Address()), int(conn.DPort))
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// confirm at least one retransmission
+	require.True(t, int(conn.Monotonic.Retransmits) > 0)
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	t := s.T()
 	cfg := testConfig()
-	skipEbpflessTodo(t, cfg)
+	// ebpfless does not support tracing PIDs such as this test
+	skipOnEbpflessNotSupported(t, cfg)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -222,6 +237,8 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 		}
 		time.Sleep(time.Second)
 	})
+
+	t.Logf("local=%s remote=%s", c.LocalAddr(), c.RemoteAddr())
 
 	// Fetch all connections matching source and target address
 	allConnections := getConnections(t, tr)

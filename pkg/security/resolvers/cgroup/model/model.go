@@ -102,8 +102,3 @@ func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 		Tag:   cgce.WorkloadSelector.Tag,
 	}
 }
-
-// NeedsTagsResolution returns true if this workload is missing its tags
-func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ContainerID) != 0 && !cgce.WorkloadSelector.IsReady()
-}
