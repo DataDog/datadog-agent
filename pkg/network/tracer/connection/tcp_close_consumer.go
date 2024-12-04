@@ -9,6 +9,7 @@ package connection
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -22,9 +23,11 @@ const closeConsumerModuleName = "network_tracer__ebpf"
 
 // Telemetry
 var closeConsumerTelemetry = struct {
-	perfReceived telemetry.Counter
+	perfReceived  telemetry.Counter
+	flushReceived telemetry.Counter
 }{
 	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_flush_received", []string{}, "Counter measuring the number of closed connections received during flush"),
 }
 
 type tcpCloseConsumer struct {
@@ -36,6 +39,7 @@ type tcpCloseConsumer struct {
 	callback     func(*network.ConnectionStats)
 	releaser     ddsync.PoolReleaser[network.ConnectionStats]
 	flushChannel chan chan struct{}
+	flushing     *atomic.Bool
 }
 
 func newTCPCloseConsumer(flusher perf.Flusher, releaser ddsync.PoolReleaser[network.ConnectionStats]) *tcpCloseConsumer {
@@ -46,6 +50,7 @@ func newTCPCloseConsumer(flusher perf.Flusher, releaser ddsync.PoolReleaser[netw
 		releaser:     releaser,
 		callback:     func(*network.ConnectionStats) {},
 		flushChannel: make(chan chan struct{}, 1),
+		flushing:     &atomic.Bool{},
 	}
 }
 
@@ -82,10 +87,14 @@ func (c *tcpCloseConsumer) Callback(conn *network.ConnectionStats) {
 	if conn == nil {
 		request := <-c.flushChannel
 		close(request)
+		c.flushing.Store(false)
 		return
 	}
 
 	closeConsumerTelemetry.perfReceived.Inc()
+	if c.flushing.Load() {
+		closeConsumerTelemetry.flushReceived.Inc()
+	}
 	c.callback(conn)
 	c.releaser.Put(conn)
 }
@@ -111,6 +120,7 @@ func (c *tcpCloseConsumer) Start(callback func(*network.ConnectionStats)) {
 				return
 			case <-liveHealth.C:
 			case request := <-c.requests:
+				c.flushing.Store(true)
 				c.flushChannel <- request
 				c.flusher.Flush()
 			}
