@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 // Package common contains the HostInstaller struct which is used to write the agent agentConfiguration to disk
 package common
 
