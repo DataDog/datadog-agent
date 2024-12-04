@@ -159,7 +159,7 @@ static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t 
     if (!tags) {
         conn_tuple_t normalized_tup = *tuple;
         normalize_tuple(&normalized_tup);
-        tls_info_t empty_tags = {.reserved = 1};
+        tls_info_t empty_tags = {0};
         bpf_map_update_elem(&tls_enhanced_tags, &normalized_tup, &empty_tags, BPF_ANY);
         tags = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
     }

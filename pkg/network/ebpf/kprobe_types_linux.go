@@ -107,7 +107,7 @@ type TLSTags struct {
 	Chosen_version   uint16
 	Cipher_suite     uint16
 	Offered_versions uint8
-	Reserved         uint8
+	Pad_cgo_0        [1]byte
 }
 
 type _Ctype_struct_sock uint64
