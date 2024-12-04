@@ -59,7 +59,7 @@ type PodAutoscalerInternal struct {
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
 
-	// mainScalingValues represents the scaling values retrieved from the product
+	// mainScalingValues represents the scaling values retrieved from the main recommender (product, optionally a custom endpoint)
 	mainScalingValues ScalingValues
 
 	// fallbackScalingValues represents the scaling values retrieved from the fallback
@@ -356,7 +356,7 @@ func (p *PodAutoscalerInternal) CreationTimestamp() time.Time {
 	return p.creationTimestamp
 }
 
-// ScalingValues returns a pointer to the active scaling values of the PodAutoscaler
+// ScalingValues returns the scaling values of the PodAutoscaler
 func (p *PodAutoscalerInternal) ScalingValues() ScalingValues {
 	return p.scalingValues
 }
