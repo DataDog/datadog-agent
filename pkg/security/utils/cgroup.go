@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"golang.org/x/sys/unix"
 )
 
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
@@ -82,12 +84,24 @@ func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
 
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
-func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, containerutils.CGroupFlags, error) {
+func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, model.CGroupContext, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
 	if err != nil || len(cgroups) == 0 {
-		return "", 0, err
+		return "", model.CGroupContext{}, err
 	}
 
 	containerID, runtime := cgroups[0].GetContainerContext()
-	return containerID, runtime, nil
+	cgroupContext := model.CGroupContext{
+		CGroupID:    containerutils.CGroupID(cgroups[0].Path),
+		CGroupFlags: runtime,
+	}
+
+	var fileStats unix.Statx_t
+	taskPath := CgroupTaskPath(pid, pid)
+	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
+		cgroupContext.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+		cgroupContext.CGroupFile.Inode = fileStats.Ino
+	}
+
+	return containerID, cgroupContext, nil
 }
