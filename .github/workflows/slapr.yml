@@ -10,7 +10,7 @@ jobs:
   run_slapr_datadog_agent:
     runs-on: ubuntu-latest
     env:
-      SLAPR_MULTICHANNEL_TEAM_MAPPING: "/tmp/teams.json"
+      SLAPR_MULTICHANNEL_TEAM_MAPPING: "slapr_team_mapping.json"
       GITHUB_TOKEN: "${{ secrets.SLAPR_GITHUB_TOKEN }}"
     steps:
       - name: Checkout repository
