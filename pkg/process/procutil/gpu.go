@@ -6,8 +6,6 @@
 package procutil
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -18,7 +16,7 @@ import (
 type NVMLProbe struct {
 	nvml nvml.Interface
 
-	DeviceUUIDByPid map[int32]string
+	DeviceUUIDByPid map[int32][]string
 }
 
 // NewGpuProbe creates a new GPU probe
@@ -33,7 +31,7 @@ func NewGpuProbe(config pkgconfigmodel.Reader) *NVMLProbe {
 	log.Info("Created NVML probe")
 	return &NVMLProbe{
 		nvml:            nvmlLib,
-		DeviceUUIDByPid: make(map[int32]string),
+		DeviceUUIDByPid: make(map[int32][]string),
 	}
 }
 
@@ -52,7 +50,7 @@ func (p *NVMLProbe) Scan() {
 		return
 	}
 
-	deviceUUIDByPid := make(map[int32]string)
+	deviceUUIDByPid := make(map[int32][]string)
 	for di := 0; di < count; di++ {
 		device, ret := p.nvml.DeviceGetHandleByIndex(di)
 		log.Infof("Finished DeviceGetHandleByIndex device: %d, ret: %s", device, ret)
@@ -61,8 +59,8 @@ func (p *NVMLProbe) Scan() {
 			return
 		}
 
-		deviceUUID, err := device.GetUUID()
-		if !errors.Is(err, nvml.SUCCESS) {
+		gpuUUID, err := device.GetUUID()
+		if ret == nvml.SUCCESS {
 			log.Warn("Failed to get GPU UUID %v", err)
 		}
 
@@ -74,13 +72,24 @@ func (p *NVMLProbe) Scan() {
 		}
 		log.Infof("Found %d processes on device %d\n", len(processInfos), di)
 
+		deviceName, ret := device.GetName()
+		if ret != nvml.SUCCESS {
+			deviceName = "unknown"
+			log.Warnf("failed to get device name: %s", nvml.ErrorString(ret))
+		}
+
 		for _, processInfo := range processInfos {
-			log.Infof("Found pid %d on device %s\n", processInfo.Pid, deviceUUID)
-			deviceUUIDByPid[int32(processInfo.Pid)] = deviceUUID
+			log.Infof("Found pid %d on device %s\n", processInfo.Pid, gpuUUID)
+			gpuTags := []string{
+				"gpu_vendor:nvidia",
+				"gpu_uuid:" + gpuUUID,
+				"gpu_model:" + deviceName,
+			}
+			deviceUUIDByPid[int32(processInfo.Pid)] = gpuTags
 		}
 	}
 	p.DeviceUUIDByPid = deviceUUIDByPid
-	log.Info("Scan completed")
+	log.Infof("Scan completed %v", p.DeviceUUIDByPid)
 }
 
 // Close closes the probe
