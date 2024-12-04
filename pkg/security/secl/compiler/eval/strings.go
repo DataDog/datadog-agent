@@ -135,7 +135,7 @@ func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 		}
 	}
 
-	if caseInsensitive {
+	if caseInsensitive && !strings.HasPrefix(pattern, "(?i)") {
 		pattern = "(?i)" + pattern
 	}
 
