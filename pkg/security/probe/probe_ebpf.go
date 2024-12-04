@@ -673,7 +673,11 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	}
 
 	entry.Process.ContainerID = ev.ContainerContext.ContainerID
-	entry.Process.CGroup = ev.CGroupContext
+	entry.ContainerID = ev.ContainerContext.ContainerID
+
+	entry.Process.CGroup.Merge(&ev.CGroupContext)
+	entry.CGroup.Merge(&ev.CGroupContext)
+
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -824,7 +828,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
-			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
+			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)); err != nil {
 				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			}
 		}

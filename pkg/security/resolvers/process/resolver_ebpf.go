@@ -852,10 +852,9 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
-	if entry.CGroup.CGroupID == "" || entry.ContainerID == "" {
-		containerID, cgroup, err := p.containerResolver.GetContainerContext(pid)
-		if err == nil {
-			entry.CGroup = cgroup
+	if entry.ContainerID == "" || entry.CGroup.CGroupFile.Inode == 0 {
+		if containerID, cgroup, err := p.containerResolver.GetContainerContext(pid); err == nil {
+			entry.CGroup.Merge(&cgroup)
 			entry.ContainerID = containerID
 		}
 	}

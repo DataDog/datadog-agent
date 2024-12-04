@@ -218,7 +218,7 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 }
 
 // ResolveCGroup resolves the path of cgroup for a process cache entry
-func (r *EBPFResolvers) ResolveCGroup(pce *model.ProcessCacheEntry, pid uint32, pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) error {
+func (r *EBPFResolvers) ResolveCGroup(pce *model.ProcessCacheEntry, pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) error {
 	path, err := r.DentryResolver.Resolve(pathKey, true)
 	if err == nil && path != "" {
 		cgroup := filepath.Dir(string(path))

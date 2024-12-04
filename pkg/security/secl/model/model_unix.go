@@ -101,6 +101,22 @@ type CGroupContext struct {
 	CGroupFile    PathKey                    `field:"file"`
 }
 
+// Merge two cgroup context
+func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
+	if cg.CGroupID == "" {
+		cg.CGroupID = cg2.CGroupID
+	}
+	if cg.CGroupFlags == 0 {
+		cg.CGroupFlags = cg2.CGroupFlags
+	}
+	if cg.CGroupFile.Inode == 0 {
+		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
+	}
+	if cg.CGroupFile.MountID == 0 {
+		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
+	}
+}
+
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
