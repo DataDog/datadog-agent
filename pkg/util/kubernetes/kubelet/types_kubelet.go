@@ -220,19 +220,19 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name         string              `json:"name"`
-	Image        string              `json:"image"`
-	ImageID      string              `json:"imageID"`
-	ID           string              `json:"containerID"`
-	Ready        bool                `json:"ready"`
-	RestartCount int                 `json:"restartCount"`
-	State        ContainerState      `json:"state"`
-	LastState    ContainerState      `json:"lastState"`
-	Resources    []ContainerResource `json:"resources,omitempty"`
+	Name               string                       `json:"name"`
+	Image              string                       `json:"image"`
+	ImageID            string                       `json:"imageID"`
+	ID                 string                       `json:"containerID"`
+	Ready              bool                         `json:"ready"`
+	RestartCount       int                          `json:"restartCount"`
+	State              ContainerState               `json:"state"`
+	LastState          ContainerState               `json:"lastState"`
+	AllocatedResources []ContainerAllocatedResource `json:"allocatedResources,omitempty"`
 }
 
-// ContainerResource contains the fields for an assigned resource to a container
-type ContainerResource struct {
+// ContainerAllocatedResource contains the fields for an assigned resource to a container
+type ContainerAllocatedResource struct {
 	// Name is the name of the resource as specified in the spec (e.g. nvidia.com/gpu)
 	Name string `json:"name,omitempty"`
 
