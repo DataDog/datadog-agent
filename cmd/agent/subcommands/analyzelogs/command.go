@@ -47,7 +47,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "analyze-logs",
 		Short: "Analyze logs configuration in isolation",
-		Long:  `Run the Datadog agent in logs check mode with a specific configuration file.`,
+		Long:  `Run a Datadog agent logs configuration and print the results to stdout`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("log config file path is required")
