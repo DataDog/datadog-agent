@@ -134,6 +134,7 @@ func CreateAndSetAuthToken(config model.Reader) error {
 	return nil
 }
 
+// IsInitialized return true if the auth_token and IPC cert/key pair have been initialized with SetAuthToken or CreateAndSetAuthToken functions
 func IsInitialized() bool {
 	return initializedBy != ""
 }
