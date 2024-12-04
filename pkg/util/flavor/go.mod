@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/flavor
 
-go 1.22.0
+go 1.23.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def

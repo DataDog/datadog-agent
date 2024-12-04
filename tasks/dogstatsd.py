@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
+from tasks.libs.common.utils import REPO_PATH, TestsNotSupportedError, bin_name, get_build_flags, get_root
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -175,7 +175,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     Run integration tests for dogstatsd
     """
     if sys.platform == 'win32':
-        raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
+        raise TestsNotSupportedError('DogStatsD integration tests are not supported on Windows')
 
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""

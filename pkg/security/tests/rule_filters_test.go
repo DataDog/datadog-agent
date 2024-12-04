@@ -55,11 +55,7 @@ func TestSECLRuleFilter(t *testing.T) {
 			},
 		)
 		assert.NoError(t, err)
-		if runtime.GOOS == "windows" {
-			assert.False(t, result)
-		} else {
-			assert.True(t, result)
-		}
+		assert.True(t, result)
 	})
 
 	for _, os := range []string{"windows", "linux"} {
