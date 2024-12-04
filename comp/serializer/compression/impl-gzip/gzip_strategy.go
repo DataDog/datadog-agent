@@ -87,9 +87,17 @@ func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
 	return result.Bytes(), nil
 }
 
-// CompressBound returns the worst case size needed for a destination buffer when using gzip
-// The worst case expansion is a few bytes for the gzip file header, plus 5 bytes per 32 KiB block, or an expansion ratio of 0.015% for large files.
+// CompressBound returns the worst case size needed for a destination buffer
+// when using gzip
+//
+// The worst case expansion is a few bytes for the gzip file header, plus
+// 5 bytes per 32 KiB block, or an expansion ratio of 0.015% for large files.
+// The additional 18 bytes comes from the header (10 bytes) and trailer
+// (8 bytes). There is no theoretical maximum to the header,
+// but we don't set any extra header fields so it is safe to assume
+//
 // Source: https://www.gnu.org/software/gzip/manual/html_node/Overview.html
+// More details are in the linked RFC: https://www.ietf.org/rfc/rfc1952.txt
 func (s *GzipStrategy) CompressBound(sourceLen int) int {
 	return sourceLen + (sourceLen/32768)*5 + 18
 }
