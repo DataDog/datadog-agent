@@ -199,6 +199,11 @@ type HumanReadableDuration struct {
 	time.Duration
 }
 
+// MarshalYAML marshals a duration to a human readable format
+func (d HumanReadableDuration) MarshalYAML() (interface{}, error) {
+	return d.String(), nil
+}
+
 // UnmarshalYAML unmarshals a duration from a human readable format or from an integer
 func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 	var v interface{}
@@ -221,4 +226,5 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 	}
 }
 
+var _ yaml.Marshaler = (*HumanReadableDuration)(nil)
 var _ yaml.Unmarshaler = (*HumanReadableDuration)(nil)
