@@ -79,22 +79,13 @@ def generate_dummy_package(ctx, folder):
 
 
 @task
-def go_work(_: Context):
+def go_work(ctx: Context):
     """
-    Re-create the go.work file using the module list contained in get_default_modules()
-    and the go version contained in the file .go-version.
+    Update the go work to use all the modules defined in modules.yml
     """
 
-    # read go version from the .go-version file, removing the bugfix part of the version
-
-    with open(".go-version") as f:
-        go_version = f.read().strip()
-
-    with open("go.work", "w") as f:
-        f.write(f"go {go_version}\n\nuse (\n")
-        for mod in get_default_modules().values():
-            f.write(f"\t{mod.path}\n")
-        f.write(")\n")
+    for mod in get_default_modules().values():
+        ctx.run("go work use " + mod.path)
 
 
 @task
