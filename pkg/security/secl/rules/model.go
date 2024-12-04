@@ -7,7 +7,7 @@
 package rules
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -219,7 +219,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 		return err
 	}
 	switch value := v.(type) {
-	case float64:
+	case int:
 		d.Duration = time.Duration(value)
 		return nil
 	case string:
@@ -230,7 +230,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 		}
 		return nil
 	default:
-		return errors.New("invalid duration")
+		return fmt.Errorf("invalid duration: (yaml type: %T)", v)
 	}
 }
 
