@@ -6,7 +6,8 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
-from tasks.go import deps, repo_go_version
+from tasks.go import deps
+from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
@@ -144,7 +145,7 @@ def get_omnibus_env(
             #       available at that time.
             #       Comments from the Linux FIPS PR discussed wanting to centralize
             #       the msgo root logic, so this can be updated then.
-            go_version = repo_go_version()
+            go_version = expected_go_repo_v()
             env['MSGO_ROOT'] = f'C:\\msgo\\{go_version}\\go'
             gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
             if not os.path.exists(gobinpath):
