@@ -175,7 +175,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     Run integration tests for dogstatsd
     """
     if sys.platform == 'win32':
-        raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
+        raise NotImplementedError('DogStatsD integration tests are not supported on Windows')
 
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""

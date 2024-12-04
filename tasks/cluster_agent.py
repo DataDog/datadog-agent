@@ -92,7 +92,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     Run integration tests for cluster-agent
     """
     if sys.platform == 'win32':
-        raise Exit(message='cluster-agent integration tests are not supported on Windows', code=0)
+        raise NotImplementedError('Cluster Agent integration tests are not supported on Windows')
 
     # We need docker for the kubeapiserver integration tests
     tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
