@@ -52,7 +52,7 @@ const (
 )
 
 // NewKubeClient returns a new kubernetes.Interface
-type NewKubeClient func(timeout time.Duration) (kubernetes.Interface, error)
+type NewKubeClient func(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error)
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
@@ -175,7 +175,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, newKubeClie
 		case filePrefix:
 			res[secretID] = providers.ReadSecretFile(id)
 		case k8sSecretPrefix:
-			kubeClient, err := newKubeClientFunc(10 * time.Second)
+			kubeClient, err := newKubeClientFunc(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0
 			if err != nil {
 				res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
 			} else {
