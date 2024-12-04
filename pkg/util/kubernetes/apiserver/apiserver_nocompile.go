@@ -19,11 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// ErrNotCompiled is returned if kubernetes apiserver support is not compiled in.
-	// User classes should handle that case as gracefully as possible.
-	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
-)
+// ErrNotCompiled is returned if kubernetes apiserver support is not compiled in.
+// User classes should handle that case as gracefully as possible.
+var ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 
 // APIClient provides authenticated access to the
 type APIClient struct {
@@ -69,6 +67,6 @@ func GetNodeLabels(_ *APIClient, _ string) (map[string]string, error) {
 // GetKubeClient returns a Kubernetes client.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func GetKubeClient(_ time.Duration) (kubernetes.Interface, error) {
+func GetKubeClient(_ time.Duration, _ float32, _ int) (kubernetes.Interface, error) {
 	return nil, ErrNotCompiled
 }

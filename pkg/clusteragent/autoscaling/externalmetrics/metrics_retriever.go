@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +60,7 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 			if mr.isLeader() {
 				startTime := time.Now()
 				mr.retrieveMetricsValues()
-				retrieverElapsed.Observe(time.Since(startTime).Seconds())
+				retrieverElapsed.Observe(time.Since(startTime).Seconds(), le.JoinLeaderValue)
 			}
 		case <-stopCh:
 			log.Infof("Stopping MetricsRetriever")
@@ -196,7 +197,6 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		}
 
 		datadogMetricFromStore.UpdateTime = currentTime
-
 		mr.store.UnlockSet(datadogMetric.ID, *datadogMetricFromStore, metricRetrieverStoreID)
 	}
 }
