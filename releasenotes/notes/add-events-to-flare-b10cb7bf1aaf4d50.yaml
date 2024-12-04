@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    On Windows, agent flares now include event logs for .NET applications
+    On Windows, agent flares now include event logs for .NET applications.
