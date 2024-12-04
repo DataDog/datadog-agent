@@ -7,7 +7,10 @@
 package rules
 
 import (
+	"errors"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // MacroID represents the ID of a macro
@@ -130,13 +133,13 @@ type Scope string
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	Name   string        `yaml:"name" json:"name"`
-	Value  interface{}   `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
-	Field  string        `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Append bool          `yaml:"append" json:"append,omitempty"`
-	Scope  Scope         `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
-	Size   int           `yaml:"size" json:"size,omitempty"`
-	TTL    time.Duration `yaml:"ttl" json:"ttl,omitempty"`
+	Name   string                `yaml:"name" json:"name"`
+	Value  interface{}           `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
+	Field  string                `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
+	Append bool                  `yaml:"append" json:"append,omitempty"`
+	Scope  Scope                 `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Size   int                   `yaml:"size" json:"size,omitempty"`
+	TTL    HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 }
 
 // KillDisarmerParamsDefinition describes the parameters of a kill action disarmer
@@ -189,3 +192,30 @@ type PolicyDef struct {
 	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
 	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
+
+type HumanReadableDuration struct {
+	time.Duration
+}
+
+func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
+	var v interface{}
+	if err := n.Decode(&v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		d.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
+}
+
+var _ yaml.Unmarshaler = (*HumanReadableDuration)(nil)
