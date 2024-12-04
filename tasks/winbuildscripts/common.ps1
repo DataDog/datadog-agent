@@ -66,7 +66,7 @@ function Expand-ModCache() {
     Write-Host "MODCACHE_XZ_FILE $MODCACHE_XZ_FILE MODCACHE_TAR_FILE $MODCACHE_TAR_FILE GOMODCACHE $env:GOMODCACHE"
     if (Test-Path $MODCACHE_XZ_FILE) {
         Write-Host "Extracting modcache file $MODCACHE_XZ_FILE"
-        & 7z.exe x $MODCACHE_XZ_FILE -o$MODCACHE_ROOT -bt
+        & 7z.exe x $MODCACHE_XZ_FILE -o"$MODCACHE_ROOT" -bt
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Failed to extract $MODCACHE_XZ_FILE"
             exit 1
