@@ -455,8 +455,6 @@ func (e *EbpfProgram) Stop() {
 		return
 	}
 
-	// At this point any operations are thread safe, as we're using atomics
-	// so it's guaranteed only one thread can reach this point with refcount == 0
 	log.Info("shared libraries monitor stopping due to a refcount of 0")
 
 	e.stopImpl()
