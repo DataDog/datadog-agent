@@ -9,8 +9,17 @@
 package testutil
 
 import (
+	"testing"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // DefaultGpuCores is the default number of cores for a GPU device in the mock.
@@ -55,4 +64,11 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 			return 7, 5, nvml.SUCCESS
 		},
 	}
+}
+
+func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
 }

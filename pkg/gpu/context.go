@@ -80,7 +80,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 	e.lastUsedTime = time.Now()
 }
 
-func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, error) {
+func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice:    make(map[int]int),
 		deviceSmVersions:          make(map[int]int),
