@@ -57,8 +57,7 @@ type dependencies struct {
 }
 
 func newAuthToken(deps dependencies) authtoken.Component {
-
-	// Create a ticker that triggers every 5 seconds.
+	// Create a ticker that triggers every 2 seconds.
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 2 * time.Second
 	expBackoff.MaxInterval = 60 * time.Second
