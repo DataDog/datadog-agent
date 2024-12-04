@@ -423,6 +423,9 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
             except NotImplementedError as e:
                 print(f"Skipping {t_name}\n{e}")
             except Exception:
+                # Keep printing the traceback not to have to wait until all tests are done to see what failed
+                traceback.print_exc()
+                # Storing the traceback to print it at the end without directly raising the exception
                 tests_failures[t_name] = traceback.format_exc()
     if tests_failures:
         print("Integration tests failed:")
