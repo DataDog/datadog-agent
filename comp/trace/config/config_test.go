@@ -2234,6 +2234,38 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	assert.Contains(t, conf, "apm_config")
 }
 
+func TestSetConfigHandler(t *testing.T) {
+	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
+
+	handler := config.SetHandler().ServeHTTP
+
+	// Refuse non POST query
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+
+	// Refuse missing auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+
+	// Refuse invalid auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer ABCDE")
+	handler(resp, req)
+	assert.Equal(t, http.StatusForbidden, resp.Code)
+
+	// Accept valid auth token return OK
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	handler(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
 func TestDisableReceiverConfig(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
 		Params: corecomp.Params{ConfFilePath: "./testdata/disable_receiver.yaml"},

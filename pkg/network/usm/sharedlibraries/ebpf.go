@@ -309,7 +309,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 func (e *EbpfProgram) start() error {
 	err := e.Manager.Start()
 	if err != nil {
-		return fmt.Errorf("cannot start manager: %w", err)
+		return err
 	}
 
 	for _, handler := range e.libsets {
