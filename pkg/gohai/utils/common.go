@@ -49,7 +49,7 @@ func canBeRendered(ty reflect.Kind) bool {
 func getValueMethod(fieldTy reflect.StructField) (reflect.Method, bool) {
 	// check that a pointer to the field type has a Value method
 	// (Value is a method on *Value[T])
-	valueMethod, ok := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
+	valueMethod, ok := reflect.PointerTo(fieldTy.Type).MethodByName("Value")
 	if !ok || valueMethod.Type.NumIn() != 1 || valueMethod.Type.NumOut() != 2 {
 		return reflect.Method{}, false
 	}
