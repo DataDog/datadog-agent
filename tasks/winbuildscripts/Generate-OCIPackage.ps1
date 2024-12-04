@@ -1,10 +1,9 @@
 Param(
     [Parameter(Mandatory=$true)]
     [string] $package,
-    [string] $version
+    [string] $version,
+    [string] $omnibusOutput = "$(Get-Location)\omnibus\pkg\"
 )
-
-$omnibusOutput = "$($Env:REPO_ROOT)\omnibus\pkg\"
 
 if (-not (Test-Path C:\tools\datadog-package.exe)) {
     Write-Host "Downloading datadog-package.exe"
