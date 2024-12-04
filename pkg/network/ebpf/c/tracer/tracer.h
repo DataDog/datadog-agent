@@ -32,7 +32,7 @@ typedef enum {
 typedef struct {
     __u16 chosen_version;     // 2 bytes
     __u16 cipher_suite;       // 2 bytes
-    __u8  offered_versions;   // 1 byte (6 bits used)
+    __u8  offered_versions;   // 1 byte
 } tls_info_t;
 
 typedef struct {

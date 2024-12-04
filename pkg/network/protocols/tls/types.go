@@ -20,6 +20,7 @@ const (
 )
 
 // mapping of version constants to their string representations
+// TODO: use built strings from crypto/tls
 var tlsVersionNames = map[uint16]string{
 	tls.VersionTLS10: "TLS 1.0",
 	tls.VersionTLS11: "TLS 1.1",
