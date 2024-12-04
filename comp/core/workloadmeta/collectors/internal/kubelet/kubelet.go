@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	corev1 "k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
@@ -36,6 +37,7 @@ const (
 	expireFreq           = 15 * time.Second
 	dockerImageIDPrefix  = "docker-pullable://"
 	dummyImportforCorev1 = corev1.ProtocolTCP
+	dummyImportforMetav1 = metaV1.RowConditionType("")
 )
 
 type collector struct {
