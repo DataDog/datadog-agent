@@ -9,7 +9,12 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/Microsoft/go-winio"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -19,18 +24,93 @@ const (
 	namedPipeInputBufferSize  = int32(4096)
 	namedPipeOutputBufferSize = int32(4096)
 
-	// DACL for the system probe named pipe.
+	// DACL template for the system probe named pipe with ddagentuser.
 	// SE_DACL_PROTECTED (P), SE_DACL_AUTO_INHERITED (AI)
-	// Allow Everyone (WD)
-	// nolint:revive // TODO: Hardened DACL and ensure the datadogagent run-as user is allowed.
-	namedPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
+	// Allow Administorators (BA), Local System (SY), Event Log Readers (ER)
+	// Allow ddagentuser, NO_PROPAGATE_INHERIT_ACE (NP)
+	namedPipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;ER)(A;NP;FRFW;;;%s)"
+
+	// Default DACL for the system probe named pipe.
+	// Allow Administorators (BA), Local System (SY), Event Log Readers (ER)
+	namedPipeDefaultSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;ER)"
+
+	// SID representing Everyone
+	everyoneSid = "S-1-1-0"
 )
+
+var (
+	namedPipeSecurityDescriptor = namedPipeDefaultSecurityDescriptor
+)
+
+// getDDAgentUser returns the domain name of the ddagentuser configured at installation time
+func getDDAgentUser() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Datadog\Datadog Agent`, registry.QUERY_VALUE)
+	if err != nil {
+		return "", fmt.Errorf("failed to open installer registry: %s", err)
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return "", fmt.Errorf("failed to read installedUser in registry: %s", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return "", fmt.Errorf("failed to read installedDomain in registry: %s", err)
+	}
+
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	return user, nil
+}
+
+// SetupPermissions prepares permissions prior to starting the system probe server.
+func SetupPermissions() {
+	// Set up the DACL for the System Probe named pipe to allow ddagentuser.
+	user, err := getDDAgentUser()
+	if err != nil {
+		log.Errorf("failed to get ddagentuser: %s", err)
+		return
+	}
+
+	sid, _, _, err := windows.LookupSID("", user)
+	if err != nil {
+		log.Errorf("failed to get SID for ddagentuser %s: %s", user, err)
+		return
+	}
+
+	sidString := sid.String()
+
+	// Sanity checks
+	if len(sidString) == 0 {
+		log.Errorf("failed to get SID string from ddagentuser %s", user)
+		return
+	}
+
+	if sidString == everyoneSid {
+		log.Error("ddagentuser as Everyone is not supported")
+		return
+	}
+
+	sd := fmt.Sprintf(namedPipeSecurityDescriptorTemplate, sidString)
+
+	log.Debugf("named pipe DACL prepared with ddagentuser %s", user)
+	namedPipeSecurityDescriptor = sd
+}
 
 // NewListener sets up a named pipe listener for the system probe service.
 func NewListener(namedPipeName string) (net.Listener, error) {
-	// The DACL must allow the run-as user of datadogagent.
+	// The DACL in the security descriptor must allow ddagentuser and Administrators.
+	return NewListenerWithSecurityDescriptor(namedPipeName, namedPipeSecurityDescriptor)
+}
+
+// NewListenerWithSecurityDescriptor sets up a named pipe listener with a security descriptor.
+func NewListenerWithSecurityDescriptor(namedPipeName string, securityDescriptor string) (net.Listener, error) {
 	config := winio.PipeConfig{
-		SecurityDescriptor: namedPipeSecurityDescriptor,
+		SecurityDescriptor: securityDescriptor,
 		InputBufferSize:    namedPipeInputBufferSize,
 		OutputBufferSize:   namedPipeOutputBufferSize,
 	}
@@ -41,5 +121,8 @@ func NewListener(namedPipeName string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("named pipe listener %q: %s", namedPipeName, err)
 	}
+
+	log.Infof("named pipe %s ready", namedPipeName)
+
 	return namedPipe, nil
 }

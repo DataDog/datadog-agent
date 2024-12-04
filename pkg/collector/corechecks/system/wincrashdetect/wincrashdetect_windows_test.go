@@ -28,6 +28,9 @@ import (
 const (
 	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
+
+	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone for tests.
+	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;WD)"
 )
 
 func testSetup(t *testing.T) {
@@ -49,7 +52,8 @@ func TestWinCrashReporting(t *testing.T) {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
-	listener, err := server.NewListener(systemProbeTestPipeName)
+	listener, err := server.NewListenerWithSecurityDescriptor(
+		systemProbeTestPipeName, systemProbeTestPipeSecurityDescriptor)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -182,7 +186,8 @@ func TestCrashReportingStates(t *testing.T) {
 
 	var crashStatus *probe.WinCrashStatus
 
-	listener, err := server.NewListener(systemProbeTestPipeName)
+	listener, err := server.NewListenerWithSecurityDescriptor(
+		systemProbeTestPipeName, systemProbeTestPipeSecurityDescriptor)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 

@@ -17,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// SetupPermissions prepares permissions prior to starting the system probe server.
+func SetupPermissions() {
+}
+
 // NewListener creates a Unix Domain Socket Listener
 func NewListener(socketAddr string) (net.Listener, error) {
 	if len(socketAddr) == 0 {

@@ -30,6 +30,9 @@ import (
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component) error {
+
+	server.SetupPermissions()
+
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err

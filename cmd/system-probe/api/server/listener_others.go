@@ -9,6 +9,10 @@ package server
 
 import "net"
 
+// SetupPermissions prepares permissions prior to starting the system probe server.
+func SetupPermissions() {
+}
+
 // NewListener is not supported
 func NewListener(_ string) (net.Listener, error) {
 	return nil, ErrNotImplemented

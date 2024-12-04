@@ -22,6 +22,9 @@ import (
 const (
 	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
+
+	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone for tests.
+	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;WD)"
 )
 
 func sysprobeSocketPath(_ *testing.T) string {
@@ -32,7 +35,8 @@ func sysprobeSocketPath(_ *testing.T) string {
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	server := httptest.NewUnstartedServer(handler)
 
-	conn, err := sysprobeserver.NewListener(systemProbeTestPipeName)
+	conn, err := sysprobeserver.NewListenerWithSecurityDescriptor(
+		systemProbeTestPipeName, systemProbeTestPipeSecurityDescriptor)
 	if err != nil {
 		return nil, err
 	}
