@@ -422,7 +422,7 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
             try:
                 t()
             except TestsNotSupportedError as e:
-                print(f"Skipping {t_name}\n{e}")
+                print(f"Skipping {t_name}: {e}")
             except Exception:
                 # Keep printing the traceback not to have to wait until all tests are done to see what failed
                 traceback.print_exc()
