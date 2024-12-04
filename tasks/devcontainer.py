@@ -17,11 +17,12 @@ from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tag
 from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.utils import is_installed
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog_agent_devcontainer"
-DEVCONTAINER_IMAGE = "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-devenv:1-arm64"
+DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
 @task
@@ -128,7 +129,7 @@ def start(ctx, path="."):
         print(color_message("No devcontainer settings found.  Run `invoke devcontainer.setup` first.", Color.RED))
         raise Exit(code=1)
 
-    if not is_installed(ctx):
+    if not is_installed(ctx, "devcontainer"):
         print(
             color_message("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.", Color.RED)
         )
@@ -172,11 +173,6 @@ def is_up(ctx) -> bool:
     res = ctx.run("docker ps", hide=True, warn=True)
     # TODO: it's fragile to just check for the container name, but it's the best we can do for now
     return DEVCONTAINER_NAME in res.stdout
-
-
-def is_installed(ctx) -> bool:
-    res = ctx.run("which devcontainer", hide=True, warn=True)
-    return res.ok
 
 
 def run_on_devcontainer(func):
