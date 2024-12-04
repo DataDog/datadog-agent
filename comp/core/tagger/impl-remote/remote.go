@@ -26,7 +26,6 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -242,7 +241,7 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +321,7 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 }
 
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return t.Tag(taggercommon.GetGlobalEntityID(), cardinality)
+	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
 func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
@@ -335,7 +334,7 @@ func (t *remoteTagger) ResetCaptureTagger() {}
 // and they always use the local tagger.
 // This function can only add the global tags.
 func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.OriginInfo) {
-	if err := t.AccumulateTagsFor(taggercommon.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
+	if err := t.AccumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
 }

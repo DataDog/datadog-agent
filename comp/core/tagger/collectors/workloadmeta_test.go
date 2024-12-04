@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -1553,7 +1552,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				{
 					Source:       taskSource,
-					EntityID:     common.GetGlobalEntityID(),
+					EntityID:     types.GetGlobalEntityID(),
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
@@ -2425,7 +2424,7 @@ func TestNoGlobalTags(t *testing.T) {
 
 	expectedEmptyEvent := &types.TagInfo{
 		Source:               staticSource,
-		EntityID:             common.GetGlobalEntityID(),
+		EntityID:             types.GetGlobalEntityID(),
 		HighCardTags:         []string{},
 		OrchestratorCardTags: []string{},
 		LowCardTags:          []string{},
