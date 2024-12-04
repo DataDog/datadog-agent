@@ -81,7 +81,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
 
-	outputChan := agentimpl.SetUpLaunchers(config, configSource)
+	outputChan, lnchers, pipelineProvider := agentimpl.SetUpLaunchers(config, configSource)
 
 	// Set up an inactivity timeout
 	inactivityTimeout := 1 * time.Second
@@ -109,6 +109,8 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 			idleTimer.Reset(inactivityTimeout)
 		case <-idleTimer.C:
 			// Timeout reached, signal quit
+			lnchers.Stop()
+			pipelineProvider.Stop()
 			return nil
 		}
 	}
