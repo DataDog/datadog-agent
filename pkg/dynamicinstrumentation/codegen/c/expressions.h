@@ -111,6 +111,7 @@ static __always_inline int dereference_to_output(struct expression_context conte
     __u64 mask = (element_size == 8) ? ~0ULL : (1ULL << (8 * element_size)) - 1;
     __u64 encodedValueHolder = valueHolder & mask;
 
+    bpf_printk("Writing %d to output (dereferenced)", encodedValueHolder);
     err = bpf_probe_read(&context.event->output[*(context.output_offset)], element_size, &encodedValueHolder);
     if (err != 0) {
         return_err = err;

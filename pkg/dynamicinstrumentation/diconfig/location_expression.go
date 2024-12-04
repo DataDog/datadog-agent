@@ -21,9 +21,17 @@ import (
 //
 // It walks the tree of the parameter and its pieces, generating LocationExpressions for each piece.
 // The following logic is applied:
-func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *ditypes.Parameter) []ditypes.LocationExpression {
-	expressions := []ditypes.LocationExpression{}
+func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *ditypes.Parameter) {
 	triePaths, expressionTargets := generateLocationVisitsMap(param)
+
+	getParamFromTriePaths := func(pathElement string) *ditypes.Parameter {
+		for n := range triePaths {
+			if triePaths[n].TypePath == pathElement {
+				return triePaths[n].Parameter
+			}
+		}
+		return nil
+	}
 
 	// Go through each target type/field which needs to be captured
 	for i := range expressionTargets {
@@ -42,23 +50,16 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		}
 
 		// Go through each path element of the instrumentation target
-		for i := range pathElements {
+		for pathElementIndex := range pathElements {
 			var (
-				ok           bool = false
 				elementParam *ditypes.Parameter
 			)
 
-			for n := range triePaths {
-				if triePaths[n].TypePath == pathElements[i] {
-					elementParam = triePaths[n].Parameter
-					ok = true
-				}
-			}
-			if !ok {
-				log.Infof("Path not found to target: %s", pathElements[i])
+			elementParam = getParamFromTriePaths(pathElements[pathElementIndex])
+			if elementParam == nil {
+				log.Infof("Path not found to target: %s", pathElements[pathElementIndex])
 				continue
 			}
-
 			// Check if this instrumentation target is directly assigned
 			if elementParam.Location != nil {
 				// Type is directly assigned
@@ -66,7 +67,8 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if elementParam.TotalSize == 0 && len(elementParam.ParameterPieces) == 0 {
 						continue
 					}
-					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
+					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
+					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
 					targetExpressions = append(targetExpressions,
 						// Read process stack address to the stack
 						ditypes.ReadRegisterLocationExpression(ditypes.StackRegister, 8),
@@ -80,12 +82,15 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						)
 						targetExpressions = append(targetExpressions, expressionsToUseForEachArrayElement...)
 					}
+				} else if elementParam.Kind == uint(reflect.Pointer) {
+					targetExpressions = append(targetExpressions,
+						ditypes.DirectReadLocationExpression(elementParam),
+					)
 				} else {
-					targetExpressions = append(targetExpressions, ditypes.DirectReadLocationExpression(elementParam))
-					if elementParam.Kind != uint(reflect.Pointer) {
-						// Since this isn't a pointer, we can just directly read
-						targetExpressions = append(targetExpressions, ditypes.PopLocationExpression(1, uint(elementParam.TotalSize)))
-					}
+					targetExpressions = append(targetExpressions,
+						ditypes.DirectReadLocationExpression(elementParam),
+						ditypes.PopLocationExpression(1, uint(elementParam.TotalSize)),
+					)
 				}
 				continue
 				/* end directly assigned types */
@@ -93,11 +98,19 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				// This is not directly assigned, expect the address for it on the stack
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
-						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
 					)
 				} else if elementParam.Kind == uint(reflect.Struct) {
 					// Structs don't provide context on location, or have values themselves
+					// but we know that if there's a struct, the next element will have to have
+					// the offset applied
+					if len(pathElements) > pathElementIndex+1 {
+						// Apply the appropriate offset for the next element (the struct field)
+						structField := getParamFromTriePaths(pathElements[pathElementIndex+1])
+						targetExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(structField.FieldOffset)),
+						)
+					}
 					continue
 				} else if elementParam.Kind == uint(reflect.String) {
 					if len(instrumentationTarget.ParameterPieces) != 2 {
@@ -105,6 +118,19 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 					str := instrumentationTarget.ParameterPieces[0]
 					len := instrumentationTarget.ParameterPieces[1]
+
+					if len.Location != nil {
+						len.LocationExpressions = append(len.LocationExpressions,
+							ditypes.DirectReadLocationExpression(len),
+							ditypes.PopLocationExpression(1, 2),
+						)
+					} else {
+						len.LocationExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(len.FieldOffset)),
+							ditypes.DereferenceToOutputLocationExpression(2),
+						)
+					}
+
 					if str.Location != nil && len.Location != nil {
 						// Fields of the string are directly assigned
 						targetExpressions = append(targetExpressions,
@@ -130,27 +156,34 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 					ptr := elementParam.ParameterPieces[0]
 					len := elementParam.ParameterPieces[1]
-					sliceElementType := ptr.ParameterPieces[0]
+					if len.Location != nil {
+						len.LocationExpressions = append(len.LocationExpressions,
+							ditypes.DirectReadLocationExpression(len),
+							ditypes.PopLocationExpression(1, 2),
+						)
+					} else {
+						len.LocationExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(len.FieldOffset)),
+							ditypes.DereferenceToOutputLocationExpression(2),
+						)
+					}
 
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
-					expressionsToUseForEachSliceElement := GenerateLocationExpression(limitsInfo, ptr.ParameterPieces[0])
+					sliceElementType := ptr.ParameterPieces[0]
+					GenerateLocationExpression(limitsInfo, sliceElementType)
+					expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 
 					labelName := randomLabel()
 					if ptr.Location != nil && len.Location != nil {
 						// Fields of the slice are directly assigned
-						len.TotalSize = 2
 						targetExpressions = append(targetExpressions,
-							// Read slice length to output buffer:
-							ditypes.DirectReadLocationExpression(len),
-							ditypes.PopLocationExpression(1, 2),
 							ditypes.DirectReadLocationExpression(len),
 							ditypes.SetGlobalLimitVariable(uint(ditypes.SliceMaxLength)),
 						)
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							targetExpressions = append(targetExpressions,
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), labelName),
-								// Read the slice element:
 								ditypes.DirectReadLocationExpression(ptr),
 								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
 							)
@@ -162,15 +195,14 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
 							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
 							ditypes.DereferenceLocationExpression(8), // Dereference to place length on top of the stack
-							ditypes.CopyLocationExpression(),         // Copy the length so it can be used for setting the global limit, and being sent to output
 							ditypes.SetGlobalLimitVariable(uint(ditypes.SliceMaxLength)),
-							ditypes.PopLocationExpression(1, 2),
 						)
-						// Pointer to slice struct on stack
+						// Expect address of slice struct on top of the stack, check limit and copy/apply offset accordingly
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							targetExpressions = append(targetExpressions,
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), labelName),
 								ditypes.CopyLocationExpression(),
+								ditypes.DereferenceLocationExpression(8),
 								ditypes.ApplyOffsetLocationExpression(uint(i*(int(sliceElementType.TotalSize)))),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
@@ -185,7 +217,8 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 					//FIXME: Do we need to limit lengths of arrays??
-					expressionsToUseForEachArrayElement := GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
+					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
+					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
 					for i := 0; i < len(elementParam.ParameterPieces); i++ {
 						targetExpressions = append(targetExpressions,
 							ditypes.CopyLocationExpression(),
@@ -195,12 +228,25 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 				} else {
 					targetExpressions = append(targetExpressions,
-						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 						ditypes.DereferenceToOutputLocationExpression(uint(elementParam.TotalSize)))
 				}
 			}
 		}
-		expressions = append(expressions, targetExpressions...)
+		expressionTargets[i].Parameter.LocationExpressions = targetExpressions
+		targetExpressions = []ditypes.LocationExpression{}
+	}
+}
+
+func collectAllLocationExpressions(parameter *ditypes.Parameter, remove bool) []ditypes.LocationExpression {
+	if parameter == nil {
+		return []ditypes.LocationExpression{}
+	}
+	expressions := parameter.LocationExpressions
+	for i := range parameter.ParameterPieces {
+		expressions = append(expressions, collectAllLocationExpressions(parameter.ParameterPieces[i], remove)...)
+	}
+	if remove {
+		parameter.LocationExpressions = []ditypes.LocationExpression{}
 	}
 	return expressions
 }
