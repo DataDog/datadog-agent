@@ -234,6 +234,26 @@ func profilingClientLibraryConfigMutators(config *webhookConfig) []podMutator {
 	return podMutators
 }
 
+func injectApmTelemetryConfig(pod *corev1.Pod) {
+	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
+	instrumentationInstallTimeEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallTimeEnvVarName,
+		Value: instrumentationInstallTime,
+	}
+	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
+
+	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+	instrumentationInstallIDEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallIDEnvVarName,
+		Value: os.Getenv(instrumentationInstallIDEnvVarName),
+	}
+	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
+}
+
 type libInfoLanguageDetection struct {
 	libs             []libInfo
 	injectionEnabled bool
@@ -351,23 +371,8 @@ func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
 		Value: s.injectionType(),
 	})
 
-	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
-	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
-	if instrumentationInstallTime == "" {
-		instrumentationInstallTime = common.ClusterAgentStartTime
-	}
-	instrumentationInstallTimeEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallTimeEnvVarName,
-		Value: instrumentationInstallTime,
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
+	injectApmTelemetryConfig(pod)
 
-	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
-	instrumentationInstallIDEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallIDEnvVarName,
-		Value: os.Getenv(instrumentationInstallIDEnvVarName),
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
 	return nil
 }
 
