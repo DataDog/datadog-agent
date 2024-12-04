@@ -36,11 +36,9 @@
         },
         "flags": {
             "type": "array",
-            "items": [
-                {
-                    "type": "string"
-                }
-            ]
+            "items": {
+                "type": "string"
+            }
         },
         "mount_path": {
             "type": "string"

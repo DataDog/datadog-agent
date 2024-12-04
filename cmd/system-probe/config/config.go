@@ -137,6 +137,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
+		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled")) ||
 			gpuEnabled) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}

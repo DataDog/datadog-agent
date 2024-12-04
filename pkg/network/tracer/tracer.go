@@ -822,7 +822,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 
 	// some clients have tens of thousands of connections and we need to stop early
-	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	// if netlink takes too long. we indicate this behavior occurred early with IsTruncated
 	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
 
 	return &DebugConntrackTable{

@@ -46,6 +46,14 @@ func (ev *Event) GetBindAddrPort() uint16 {
 	return ev.Bind.Addr.Port
 }
 
+// GetBindProtocol returns the value of the field, resolving if necessary
+func (ev *Event) GetBindProtocol() uint16 {
+	if ev.GetEventType().String() != "bind" {
+		return uint16(0)
+	}
+	return ev.Bind.Protocol
+}
+
 // GetBindRetval returns the value of the field, resolving if necessary
 func (ev *Event) GetBindRetval() int64 {
 	if ev.GetEventType().String() != "bind" {
@@ -160,6 +168,11 @@ func (ev *Event) GetCgroupId() string {
 // GetCgroupManager returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupManager() string {
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
+}
+
+// GetCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetCgroupVersion() int {
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext)
 }
 
 // GetChdirFileChangeTime returns the value of the field, resolving if necessary
@@ -938,44 +951,20 @@ func (ev *Event) GetConnectAddrPort() uint16 {
 	return ev.Connect.Addr.Port
 }
 
+// GetConnectProtocol returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectProtocol() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Protocol
+}
+
 // GetConnectRetval returns the value of the field, resolving if necessary
 func (ev *Event) GetConnectRetval() int64 {
 	if ev.GetEventType().String() != "connect" {
 		return int64(0)
 	}
 	return ev.Connect.SyscallEvent.Retval
-}
-
-// GetConnectServerAddrFamily returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrFamily() uint16 {
-	if ev.GetEventType().String() != "connect" {
-		return uint16(0)
-	}
-	return ev.Connect.AddrFamily
-}
-
-// GetConnectServerAddrIp returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrIp() net.IPNet {
-	if ev.GetEventType().String() != "connect" {
-		return net.IPNet{}
-	}
-	return ev.Connect.Addr.IPNet
-}
-
-// GetConnectServerAddrIsPublic returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrIsPublic() bool {
-	if ev.GetEventType().String() != "connect" {
-		return false
-	}
-	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
-}
-
-// GetConnectServerAddrPort returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerAddrPort() uint16 {
-	if ev.GetEventType().String() != "connect" {
-		return uint16(0)
-	}
-	return ev.Connect.Addr.Port
 }
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
@@ -1259,6 +1248,17 @@ func (ev *Event) GetExecCgroupManager() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exec.Process.CGroup)
+}
+
+// GetExecCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCgroupVersion() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	if ev.Exec.Process == nil {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exec.Process.CGroup)
 }
 
 // GetExecCmdargv returns the value of the field, resolving if necessary
@@ -2388,6 +2388,17 @@ func (ev *Event) GetExitCgroupManager() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exit.Process.CGroup)
+}
+
+// GetExitCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCgroupVersion() int {
+	if ev.GetEventType().String() != "exit" {
+		return 0
+	}
+	if ev.Exit.Process == nil {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exit.Process.CGroup)
 }
 
 // GetExitCmdargv returns the value of the field, resolving if necessary
@@ -5255,6 +5266,27 @@ func (ev *Event) GetProcessAncestorsCgroupManager() []string {
 	return values
 }
 
+// GetProcessAncestorsCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCgroupVersion() []int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []int{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []int{}
+	}
+	var values []int
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveCGroupVersion(ev, &element.ProcessContext.Process.CGroup)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessAncestorsCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCmdargv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6837,6 +6869,14 @@ func (ev *Event) GetProcessCgroupManager() string {
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 }
 
+// GetProcessCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCgroupVersion() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+}
+
 // GetProcessCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCmdargv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -7657,6 +7697,20 @@ func (ev *Event) GetProcessParentCgroupManager() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+}
+
+// GetProcessParentCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCgroupVersion() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 }
 
 // GetProcessParentCmdargv returns the value of the field, resolving if necessary
@@ -9163,6 +9217,30 @@ func (ev *Event) GetPtraceTraceeAncestorsCgroupManager() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveCGroupManager(ev, &element.ProcessContext.Process.CGroup)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsCgroupVersion() []int {
+	if ev.GetEventType().String() != "ptrace" {
+		return []int{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []int{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []int{}
+	}
+	var values []int
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveCGroupVersion(ev, &element.ProcessContext.Process.CGroup)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -11006,6 +11084,17 @@ func (ev *Event) GetPtraceTraceeCgroupManager() string {
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Process.CGroup)
 }
 
+// GetPtraceTraceeCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeCgroupVersion() int {
+	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if ev.PTrace.Tracee == nil {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Process.CGroup)
+}
+
 // GetPtraceTraceeCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeCmdargv() []string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -12060,6 +12149,23 @@ func (ev *Event) GetPtraceTraceeParentCgroupManager() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Parent.CGroup)
+}
+
+// GetPtraceTraceeParentCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentCgroupVersion() int {
+	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if ev.PTrace.Tracee == nil {
+		return 0
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Parent.CGroup)
 }
 
 // GetPtraceTraceeParentCmdargv returns the value of the field, resolving if necessary
@@ -14862,6 +14968,30 @@ func (ev *Event) GetSignalTargetAncestorsCgroupManager() []string {
 	return values
 }
 
+// GetSignalTargetAncestorsCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsCgroupVersion() []int {
+	if ev.GetEventType().String() != "signal" {
+		return []int{}
+	}
+	if ev.Signal.Target == nil {
+		return []int{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []int{}
+	}
+	var values []int
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveCGroupVersion(ev, &element.ProcessContext.Process.CGroup)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsCmdargv() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -16699,6 +16829,17 @@ func (ev *Event) GetSignalTargetCgroupManager() string {
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Process.CGroup)
 }
 
+// GetSignalTargetCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetCgroupVersion() int {
+	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if ev.Signal.Target == nil {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Process.CGroup)
+}
+
 // GetSignalTargetCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetCmdargv() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -17753,6 +17894,23 @@ func (ev *Event) GetSignalTargetParentCgroupManager() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Parent.CGroup)
+}
+
+// GetSignalTargetParentCgroupVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentCgroupVersion() int {
+	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if ev.Signal.Target == nil {
+		return 0
+	}
+	if ev.Signal.Target.Parent == nil {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Parent.CGroup)
 }
 
 // GetSignalTargetParentCmdargv returns the value of the field, resolving if necessary

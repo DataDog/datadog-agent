@@ -32,7 +32,7 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 		autodiscoveryimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		fx.Provide(taggermock.NewMock),
+		taggermock.Module(),
 	)
 
 	got1 := make(chan struct{}, 1)

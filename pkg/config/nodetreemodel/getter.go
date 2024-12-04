@@ -83,13 +83,21 @@ func (c *ntmConfig) Get(key string) interface{} {
 	return deepcopy.Copy(val)
 }
 
-// GetAllSources returns the value of a key for each source
+// GetAllSources returns all values for a key for each source in sorted from lower to higher priority
 func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	vals := make([]model.ValueWithSource, len(sources))
-	c.logErrorNotImplemented("GetAllSources")
+	for idx, source := range sources {
+		tree, err := c.getTreeBySource(source)
+		if err != nil {
+			log.Errorf("unknown source '%s'", source)
+			continue
+		}
+		vals[idx].Source = source
+		vals[idx].Value = c.leafAtPathFromNode(key, tree).Get()
+	}
 	return vals
 }
 

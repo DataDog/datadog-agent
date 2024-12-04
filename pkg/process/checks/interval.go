@@ -23,6 +23,8 @@ const (
 	//nolint:revive // TODO(PROC) Fix revive linter
 	RTContainerCheckDefaultInterval = 2 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
+	ConnectionsCheckDefaultInterval = 30 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute
@@ -36,6 +38,7 @@ const (
 	configRTProcessInterval   = configIntervals + "process_realtime"
 	configContainerInterval   = configIntervals + "container"
 	configRTContainerInterval = configIntervals + "container_realtime"
+	configConnectionsInterval = configIntervals + "connections"
 )
 
 var (
@@ -44,6 +47,7 @@ var (
 		RTProcessCheckName:     RTProcessCheckDefaultInterval,
 		ContainerCheckName:     ContainerCheckDefaultInterval,
 		RTContainerCheckName:   RTContainerCheckDefaultInterval,
+		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
 		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
 		ProcessEventsCheckName: pkgconfigsetup.DefaultProcessEventsCheckInterval,
 	}
@@ -53,6 +57,7 @@ var (
 		RTProcessCheckName:   configRTProcessInterval,
 		ContainerCheckName:   configContainerInterval,
 		RTContainerCheckName: configRTContainerInterval,
+		ConnectionsCheckName: configConnectionsInterval,
 	}
 )
 
@@ -82,21 +87,6 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 				pkgconfigsetup.DefaultProcessEventsMinCheckInterval.String(), pkgconfigsetup.DefaultProcessEventsCheckInterval.String())
 		}
 		return eventsInterval
-	case ConnectionsCheckName:
-		connectionsInterval := cfg.GetDuration("process_config.intervals.connections")
-		minInterval := pkgconfigsetup.DefaultConnectionsMinCheckInterval
-		if connectionsInterval < minInterval {
-			connectionsInterval = minInterval
-			_ = log.Warnf("Invalid interval for connections check (< %s) using default value of %s",
-				minInterval.String(), minInterval.String())
-		}
-		maxInterval := pkgconfigsetup.DefaultConnectionsMaxCheckInterval
-		if connectionsInterval > maxInterval {
-			connectionsInterval = maxInterval
-			_ = log.Warnf("Invalid interval for connections check (> %s) using default value of %s",
-				maxInterval.String(), maxInterval.String())
-		}
-		return connectionsInterval
 
 	default:
 		defaultInterval := defaultIntervals[checkName]

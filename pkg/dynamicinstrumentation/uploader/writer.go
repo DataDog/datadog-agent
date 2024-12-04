@@ -20,19 +20,19 @@ import (
 	"github.com/kr/pretty"
 )
 
-type WriterSerializer[T any] struct {
+type WriterSerializer[T any] struct { //nolint:revive // TODO
 	output io.Writer
 	mu     sync.Mutex
 }
 
-func NewWriterLogSerializer(writer io.Writer) (*WriterSerializer[ditypes.SnapshotUpload], error) {
+func NewWriterLogSerializer(writer io.Writer) (*WriterSerializer[ditypes.SnapshotUpload], error) { //nolint:revive // TODO
 	if writer == nil {
 		return nil, errors.New("nil writer for creating log serializer")
 	}
 	return NewWriterSerializer[ditypes.SnapshotUpload](writer)
 }
 
-func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.Writer) (*WriterSerializer[ditypes.DiagnosticUpload], error) {
+func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.Writer) (*WriterSerializer[ditypes.DiagnosticUpload], error) { //nolint:revive // TODO
 	if writer == nil {
 		return nil, errors.New("nil writer for creating diagnostic serializer")
 	}
@@ -51,7 +51,7 @@ func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.
 	return ds, nil
 }
 
-func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) {
+func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) { //nolint:revive // TODO
 	if writer == nil {
 		return nil, errors.New("nil writer for creating serializer")
 	}
@@ -60,7 +60,7 @@ func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) 
 	}, nil
 }
 
-func (s *WriterSerializer[T]) Enqueue(item *T) error {
+func (s *WriterSerializer[T]) Enqueue(item *T) error { //nolint:revive // TODO
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bs, err := json.Marshal(item)

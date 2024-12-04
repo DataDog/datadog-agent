@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -37,8 +36,7 @@ func (s *StoreTestSuite) SetupTest() {
 	// set the mock clock to the current time
 	s.clock.Add(time.Since(time.Unix(0, 0)))
 
-	mockConfig := configmock.New(s.T())
-	s.tagstore = newTagStoreWithClock(mockConfig, s.clock, telemetryStore)
+	s.tagstore = newTagStoreWithClock(s.clock, telemetryStore)
 }
 
 func (s *StoreTestSuite) TestIngest() {
@@ -491,8 +489,7 @@ func TestSubscribe(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	clock := clock.NewMock()
-	mockConfig := configmock.New(t)
-	store := newTagStoreWithClock(mockConfig, clock, telemetryStore)
+	store := newTagStoreWithClock(clock, telemetryStore)
 
 	collectors.CollectorPriorities["source2"] = types.ClusterOrchestrator
 	collectors.CollectorPriorities["source"] = types.NodeRuntime

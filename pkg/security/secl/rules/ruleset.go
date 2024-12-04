@@ -241,7 +241,10 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					variableProvider = &rs.globalVariables
 				}
 
-				opts := eval.VariableOpts{TTL: actionDef.Set.TTL, Size: actionDef.Set.Size}
+				opts := eval.VariableOpts{Size: actionDef.Set.Size}
+				if actionDef.Set.TTL != nil {
+					opts.TTL = actionDef.Set.TTL.Duration
+				}
 
 				variable, err := variableProvider.GetVariable(actionDef.Set.Name, variableValue, opts)
 				if err != nil {
@@ -603,7 +606,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	// no-op in the general case, only used to collect events in functional tests
 	// for debugging purposes
-	rs.eventCollector.CollectEvent(rs, event, result)
+	rs.eventCollector.CollectEvent(rs, ctx, event, result)
 
 	return result
 }

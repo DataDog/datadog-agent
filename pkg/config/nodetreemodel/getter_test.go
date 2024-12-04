@@ -228,3 +228,34 @@ func TestGetFloat64SliceStringFromEnv(t *testing.T) {
 
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, cfg.GetFloat64Slice("float_list"))
 }
+
+func TestGetAllSources(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", 1, model.SourceUnknown)
+	cfg.Set("a", 2, model.SourceFile)
+	cfg.Set("a", 3, model.SourceEnvVar)
+	cfg.Set("a", 4, model.SourceFleetPolicies)
+	cfg.Set("a", 5, model.SourceAgentRuntime)
+	cfg.Set("a", 6, model.SourceLocalConfigProcess)
+	cfg.Set("a", 7, model.SourceRC)
+	cfg.Set("a", 8, model.SourceCLI)
+
+	res := cfg.GetAllSources("a")
+	assert.Equal(t,
+		[]model.ValueWithSource{
+			{Source: model.SourceDefault, Value: 0},
+			{Source: model.SourceUnknown, Value: 1},
+			{Source: model.SourceFile, Value: 2},
+			{Source: model.SourceEnvVar, Value: 3},
+			{Source: model.SourceFleetPolicies, Value: 4},
+			{Source: model.SourceAgentRuntime, Value: 5},
+			{Source: model.SourceLocalConfigProcess, Value: 6},
+			{Source: model.SourceRC, Value: 7},
+			{Source: model.SourceCLI, Value: 8},
+		},
+		res,
+	)
+}

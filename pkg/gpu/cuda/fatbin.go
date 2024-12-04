@@ -40,16 +40,40 @@ const fatbinDataMaxKind = fatbinDataKindSm
 
 // Fatbin holds all CUDA binaries found in one fatbin package
 type Fatbin struct {
-	Kernels map[CubinKernelKey]*CubinKernel
+	// kernels is a map of kernel keys to the kernel data
+	kernels map[CubinKernelKey]*CubinKernel
+
+	// kernelNames is a map of kernel names to make easy lookup for HasKernelWithName
+	kernelNames map[string]struct{}
+}
+
+// NewFatbin creates a new Fatbin instance
+func NewFatbin() *Fatbin {
+	return &Fatbin{
+		kernels:     make(map[CubinKernelKey]*CubinKernel),
+		kernelNames: make(map[string]struct{}),
+	}
 }
 
 // GetKernel returns the kernel with the given name and SM version from the fatbin
 func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 	key := CubinKernelKey{Name: name, SmVersion: smVersion}
-	if _, ok := fb.Kernels[key]; !ok {
+	if _, ok := fb.kernels[key]; !ok {
 		return nil
 	}
-	return fb.Kernels[key]
+	return fb.kernels[key]
+}
+
+// HasKernelWithName returns true if the fatbin has a kernel with the given name
+func (fb *Fatbin) HasKernelWithName(name string) bool {
+	_, ok := fb.kernelNames[name]
+	return ok
+}
+
+// AddKernel adds a kernel to the fatbin and updates internal indexes
+func (fb *Fatbin) AddKernel(key CubinKernelKey, kernel *CubinKernel) {
+	fb.kernels[key] = kernel
+	fb.kernelNames[kernel.Name] = struct{}{}
 }
 
 type fatbinHeader struct {
@@ -121,9 +145,7 @@ func getBufferOffset(buf io.Seeker) int64 {
 
 // ParseFatbinFromELFFile parses the fatbin sections of the given ELF file and returns the information found in it
 func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
-	fatbin := &Fatbin{
-		Kernels: make(map[CubinKernelKey]*CubinKernel),
-	}
+	fatbin := NewFatbin()
 
 	for _, sect := range elfFile.Sections {
 		// CUDA embeds the fatbin data in sections named .nv_fatbin or __nv_relfatbin
@@ -255,7 +277,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// the SM version they were compiled for which is only available in the fatbin data
 	for _, kernel := range parser.kernels {
 		key := CubinKernelKey{Name: kernel.Name, SmVersion: fbData.SmVersion}
-		fatbin.Kernels[key] = kernel
+		fatbin.AddKernel(key, kernel)
 	}
 
 	return nil

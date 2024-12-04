@@ -8,6 +8,8 @@
 // is not built in the binary.
 package flarebuilder
 
+import "time"
+
 // FlareBuilder contains all the helpers to add files to a flare archive.
 //
 // When adding data to a flare the builder will do multiple things internally.
@@ -133,6 +135,9 @@ type FlareBuilder interface {
 	// RegisterDirPerm add the current permissions for all the files in a directory to the flare's permissions.log.
 	RegisterDirPerm(path string)
 
+	// GetFlareArgs will return the struct of caller-provided arguments that can be referenced by various flare providers
+	GetFlareArgs() FlareArgs
+
 	// Save archives all the data added to the flare, cleanup all the temporary directories and return the path to
 	// the archive file. Upon error the cleanup is still done.
 	// Error or not, once Save as been called the FlareBuilder is no longer capable of receiving new data. It is the caller
@@ -141,4 +146,13 @@ type FlareBuilder interface {
 	// This method must not be used by flare callbacks and will be removed once all flare code has been migrated to
 	// components.
 	Save() (string, error)
+}
+
+// FlareArgs contains the arguments passed in to a specific flare generation request.
+// All consumers of FlareArgs should be able to safely ingest an empty (default) struct.
+type FlareArgs struct {
+	StreamLogsDuration   time.Duration // Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag
+	ProfileDuration      time.Duration // Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s
+	ProfileMutexFraction int           // Set the fraction of mutex contention events that are reported in the mutex profile
+	ProfileBlockingRate  int           // Set the fraction of goroutine blocking events that are reported in the blocking profile
 }

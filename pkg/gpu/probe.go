@@ -27,6 +27,7 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -211,7 +212,7 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 
 func (p *Probe) initCOREGPU(cfg *config.Config) error {
 	asset := getAssetName("gpu", cfg.BPFDebug)
-	var err error
+	var err error //nolint:gosimple // TODO
 	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
@@ -305,6 +306,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		},
 		EbpfConfig:         &cfg.Config,
 		PerformInitialScan: cfg.InitialProcessSync,
+		SharedLibsLibset:   sharedlibraries.LibsetGPU,
 	}
 }
 

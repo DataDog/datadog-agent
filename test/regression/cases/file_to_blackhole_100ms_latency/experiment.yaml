@@ -5,7 +5,7 @@ target:
   name: datadog-agent
   command: /bin/entrypoint.sh
   cpu_allotment: 8
-  memory_allotment: 30g
+  memory_allotment: 4GiB
 
   environment:
     DD_API_KEY: 00000001

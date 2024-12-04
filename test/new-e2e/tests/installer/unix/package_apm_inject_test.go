@@ -346,6 +346,9 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/stable", 0755, "root", "root")
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdNotInstrumented()
+	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+		s.assertAppArmorProfile() // AppArmor profile should still be there
+	}
 }
 
 func (s *packageApmInjectSuite) TestInstrumentScripts() {

@@ -114,7 +114,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*10) // 10 MB
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_rate", 500)
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_burst", 1000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
@@ -123,7 +122,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
 	// CWS -eBPF Less
-	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
+	cfg.BindEnv("runtime_security_config.ebpfless.enabled")
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
 
 	// CWS - IMDS

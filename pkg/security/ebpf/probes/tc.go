@@ -10,8 +10,6 @@ package probes
 
 import (
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
 	"golang.org/x/sys/unix"
 )
 
@@ -68,27 +66,12 @@ func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 	return out
 }
 
-// RawPacketTCProgram returns the list of TC classifier sections
-var RawPacketTCProgram = []string{
-	"classifier_raw_packet_egress",
-	"classifier_raw_packet_ingress",
-}
-
-// GetRawPacketTCFilterProg returns a first tc filter
-func GetRawPacketTCFilterProg(_, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
-	insts := asm.Instructions{
-		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
-		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserKey)),
-		asm.FnTailCall.Call(),
-		asm.Mov.Imm(asm.R0, 0),
-		asm.Return(),
+// GetRawPacketTCProgramFunctions returns the raw packet functions
+func GetRawPacketTCProgramFunctions() []string {
+	return []string{
+		"classifier_raw_packet",
+		"classifier_raw_packet_sender",
 	}
-
-	return &ebpf.ProgramSpec{
-		Type:         ebpf.SchedCLS,
-		Instructions: insts,
-		License:      "GPL",
-	}, nil
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
@@ -97,8 +80,9 @@ func GetAllTCProgramFunctions() []string {
 		"classifier_dns_request_parser",
 		"classifier_dns_request",
 		"classifier_imds_request",
-		"classifier_raw_packet",
 	}
+
+	output = append(output, GetRawPacketTCProgramFunctions()...)
 
 	for _, tcProbe := range GetTCProbes(true, true) {
 		output = append(output, tcProbe.EBPFFuncName)
@@ -115,8 +99,8 @@ func GetAllTCProgramFunctions() []string {
 	return output
 }
 
-func getTCTailCallRoutes() []manager.TailCallRoute {
-	return []manager.TailCallRoute{
+func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
+	tcr := []manager.TailCallRoute{
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
@@ -138,12 +122,17 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: "classifier_imds_request",
 			},
 		},
-		{
-			ProgArrayName: "classifier_router",
-			Key:           TCRawPacketParserKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_raw_packet",
-			},
-		},
 	}
+
+	if withRawPacket {
+		tcr = append(tcr, manager.TailCallRoute{
+			ProgArrayName: "raw_packet_classifier_router",
+			Key:           TCRawPacketParserSenderKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_raw_packet_sender",
+			},
+		})
+	}
+
+	return tcr
 }

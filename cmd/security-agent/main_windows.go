@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path"
 
@@ -94,6 +96,10 @@ func (s *service) Run(svcctx context.Context) error {
 
 			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
 			if err != nil {
+				if errors.Is(err, start.ErrAllComponentsDisabled) {
+					// If all components are disabled, we should exit cleanly
+					return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+				}
 				return err
 			}
 

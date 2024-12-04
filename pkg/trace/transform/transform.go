@@ -25,7 +25,7 @@ import (
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
 func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
-	return !conf.OTLPReceiver.SpanNameAsResourceName && (conf.OTLPReceiver.SpanNameRemappings == nil || len(conf.OTLPReceiver.SpanNameRemappings) == 0) && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
+	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
 }
 
 // OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
@@ -128,6 +128,7 @@ func OtelSpanToDDSpan(
 	if otelspan.Events().Len() > 0 {
 		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
 	}
+	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
@@ -193,6 +194,16 @@ func OtelSpanToDDSpan(
 	Status2Error(otelspan.Status(), otelspan.Events(), ddspan)
 
 	return ddspan
+}
+
+// TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
+func TagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan *pb.Span) {
+	for i := range otelspan.Events().Len() {
+		if otelspan.Events().At(i).Name() == "exception" {
+			ddspan.Meta["_dd.span_events.has_exception"] = "true"
+			return
+		}
+	}
 }
 
 // MarshalEvents marshals events into JSON.

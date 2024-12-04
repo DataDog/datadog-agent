@@ -187,6 +187,10 @@ func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamReque
 }
 
 func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
 	registration := rarproto.ProtobufToRemoteAgentRegistration(in)
 	recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
 	if err != nil {
