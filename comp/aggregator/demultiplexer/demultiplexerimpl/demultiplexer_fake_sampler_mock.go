@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,6 +26,7 @@ import (
 func FakeSamplerMockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newFakeSamplerMock),
+		compressionfx.MockModuleFactory(),
 		fx.Provide(func(demux demultiplexerComp.FakeSamplerMock) aggregator.Demultiplexer {
 			return demux
 		}),
