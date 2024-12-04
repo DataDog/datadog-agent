@@ -1010,10 +1010,10 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside:
-    # test/files/default/tests/pkg/network/testsuite
-    # test/files/default/tests/pkg/network/netlink/testsuite
-    # test/files/default/tests/pkg/ebpf/testsuite
-    # test/files/default/tests/pkg/ebpf/bytecode/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/netlink/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/testsuite
+    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
         target_path = os.path.join(E2E_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
@@ -1068,9 +1068,6 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     for cf in copy_files:
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
-
-    if not ci:
-        e2e_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
@@ -1618,59 +1615,6 @@ def check_for_ninja(ctx):
     else:
         ctx.run("which ninja")
     ctx.run("ninja --version")
-
-
-def is_bpftool_compatible(ctx):
-    try:
-        ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
-        return True
-    except Exception:
-        return False
-
-
-def e2e_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
-    btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
-
-    if arch == "x64":
-        arch = "x86_64"
-    elif arch == "arm64":
-        arch = "aarch64"
-
-    if not os.path.exists(f"{btf_dir}/e2e-btfs-{arch}.tar.xz"):
-        exit("BTFs for e2e test environments not found. Please update & re-provision your dev VM.")
-
-    sudo = "sudo" if not is_root() else ""
-    ctx.run(f"{sudo} chmod -R 0777 {btf_dir}")
-
-    if not os.path.exists(f"{btf_dir}/e2e-btfs-{arch}"):
-        ctx.run(
-            f"mkdir {btf_dir}/e2e-btfs-{arch} && "
-            + f"tar xf {btf_dir}/e2e-btfs-{arch}.tar.xz -C {btf_dir}/e2e-btfs-{arch}"
-        )
-
-    can_minimize = True
-    if not is_bpftool_compatible(ctx):
-        print(
-            "Cannot minimize BTFs: bpftool version 6 or higher is required: preparing e2e environment with full sized BTFs instead."
-        )
-        can_minimize = False
-
-    if can_minimize:
-        co_re_programs = " ".join(glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o"))
-        generate_minimized_btfs(
-            ctx,
-            source_dir=f"{btf_dir}/e2e-btfs-{arch}",
-            output_dir=f"{btf_dir}/minimized-btfs",
-            bpf_programs=co_re_programs,
-        )
-
-        ctx.run(
-            f"cd {btf_dir}/minimized-btfs && "
-            + "tar -cJf minimized-btfs.tar.xz * && "
-            + f"mv minimized-btfs.tar.xz {files_dir}"
-        )
-    else:
-        ctx.run(f"cp {btf_dir}/e2e-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
 # list of programs we do not want to minimize against
