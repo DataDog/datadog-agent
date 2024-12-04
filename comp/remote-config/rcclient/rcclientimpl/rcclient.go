@@ -188,8 +188,13 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		return
 	}
 
-	applied := false
+	var enableLogs, enableMetrics *bool
+	var enableLogsCfgPth, enableMetricsCfgPth string
 	for cfgPath, update := range updates {
+		if (enableLogs != nil && *enableLogs) && (enableMetrics != nil && *enableMetrics) {
+			break
+		}
+
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
@@ -200,42 +205,55 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 			continue
 		}
 
-		if mrfUpdate != nil && (mrfUpdate.FailoverMetrics != nil || mrfUpdate.FailoverLogs != nil) {
-			// If we've received multiple config files updating the failover settings, we should disregard all but the first update and log it, as this is unexpected
-			if applied {
-				pkglog.Warnf("Multiple Multi-Region Failover updates received, disregarding update of `multi_region_failover.failover_metrics` to %v and `multi_region_failover.failover_logs` to %v", mrfUpdate.FailoverMetrics, mrfUpdate.FailoverLogs)
-				applyStateCallback(cfgPath, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: "Multiple Multi-Region Failover updates received. Only the first was applied.",
-				})
-				continue
-			}
-
-			if mrfUpdate.FailoverMetrics != nil {
-				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *mrfUpdate.FailoverMetrics, cfgPath, applyStateCallback)
-				if err != nil {
-					continue
-				}
-				change := "disabled"
-				if *mrfUpdate.FailoverMetrics {
-					change = "enabled"
-				}
-				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
-			}
-			if mrfUpdate.FailoverLogs != nil {
-				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *mrfUpdate.FailoverLogs, cfgPath, applyStateCallback)
-				if err != nil {
-					continue
-				}
-				change := "disabled"
-				if *mrfUpdate.FailoverLogs {
-					change = "enabled"
-				}
-				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
-			}
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-			applied = true
+		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil && mrfUpdate.FailoverLogs == nil) {
+			continue
 		}
+
+		if !(enableMetrics != nil && *enableMetrics) && mrfUpdate.FailoverMetrics != nil {
+			enableMetrics = mrfUpdate.FailoverMetrics
+			enableMetricsCfgPth = cfgPath
+		}
+
+		if !(enableLogs != nil && *enableLogs) && mrfUpdate.FailoverLogs != nil {
+			enableLogs = mrfUpdate.FailoverLogs
+			enableLogsCfgPth = cfgPath
+		}
+	}
+
+	if enableMetrics != nil {
+		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *enableMetrics, enableMetricsCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		change := "disabled"
+		if *enableMetrics {
+			change = "enabled"
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
+		applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
+
+	if enableLogs != nil {
+		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		change := "disabled"
+		if *enableLogs {
+			change = "enabled"
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
+		applyStateCallback(enableLogsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 }
 
