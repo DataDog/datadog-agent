@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -54,7 +55,7 @@ type PlatformProbe interface {
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
-	GetEventTags(_ string) []string
+	GetEventTags(_ containerutils.ContainerID) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
@@ -367,7 +368,7 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(containerID string) []string {
+func (p *Probe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.PlatformProbe.GetEventTags(containerID)
 }
 

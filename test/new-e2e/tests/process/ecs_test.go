@@ -87,13 +87,24 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSEC2Suite) TestProcessCheckInCoreAgent() {
+// ECSEC2CoreAgentSuite runs the same test as ECSEC2Suite but with the process check running in the core agent
+// This is duplicated as the tests have been flaky. This may be due to how pulumi is handling the provisioning of
+// ecs tasks.
+type ECSEC2CoreAgentSuite struct {
+	ECSEC2Suite
+}
+
+func TestECSEC2CoreAgentSuite(t *testing.T) {
+	t.Parallel()
+	s := ECSEC2CoreAgentSuite{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		e2e.NewTypedPulumiProvisioner("ecsEC2CoreAgentCPUStress", ecsEC2CPUStressProvisioner(true), nil))}
+
+	e2e.Run(t, &s, e2eParams...)
+}
+
+func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-
-	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(true), nil))
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

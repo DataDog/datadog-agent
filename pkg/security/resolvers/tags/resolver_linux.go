@@ -11,17 +11,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+type pendingWorkload struct {
+	*cgroupModel.CacheEntry
+	retries int
+}
 
 // LinuxResolver represents a default resolver based directly on the underlying tagger
 type LinuxResolver struct {
 	*DefaultResolver
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
-	workloadsWithoutTags chan *cgroupModel.CacheEntry
+	workloadsWithoutTags chan *pendingWorkload
 	cgroupResolver       *cgroup.Resolver
 }
 
@@ -31,7 +36,10 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.checkTags); err != nil {
+	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, func(cgce *cgroupModel.CacheEntry) {
+		workload := &pendingWorkload{CacheEntry: cgce, retries: 3}
+		t.checkTags(workload)
+	}); err != nil {
 		return err
 	}
 
@@ -47,12 +55,17 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-delayerTick.C:
-				select {
-				case workload := <-t.workloadsWithoutTags:
-					t.checkTags(workload)
-				default:
-				}
 
+			WORKLOAD:
+				// we want to process approximately the number of workloads in the queue
+				for workloadCount := len(t.workloadsWithoutTags); workloadCount > 0; workloadCount-- {
+					select {
+					case workload := <-t.workloadsWithoutTags:
+						t.checkTags(workload)
+					default:
+						break WORKLOAD
+					}
+				}
 			}
 		}
 	}()
@@ -60,27 +73,37 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 	return nil
 }
 
+func needsTagsResolution(cgce *cgroupModel.CacheEntry) bool {
+	return len(cgce.ContainerID) != 0 && !cgce.WorkloadSelector.IsReady()
+}
+
 // checkTags checks if the tags of a workload were properly set
-func (t *LinuxResolver) checkTags(workload *cgroupModel.CacheEntry) {
-	// check if the workload tags were found
-	if workload.NeedsTagsResolution() {
-		// this is a container, try to resolve its tags now
-		if err := t.fetchTags(workload); err != nil || workload.NeedsTagsResolution() {
-			// push to the workloadsWithoutTags chan so that its tags can be resolved later
-			select {
-			case t.workloadsWithoutTags <- workload:
-			default:
+func (t *LinuxResolver) checkTags(pendingWorkload *pendingWorkload) {
+	workload := pendingWorkload.CacheEntry
+	// check if the workload tags were found or if it was deleted
+	if !workload.Deleted.Load() && needsTagsResolution(workload) {
+		// this is an alive cgroup, try to resolve its tags now
+		if err := t.fetchTags(workload); err != nil || needsTagsResolution(workload) {
+			if pendingWorkload.retries--; pendingWorkload.retries >= 0 {
+				// push to the workloadsWithoutTags chan so that its tags can be resolved later
+				select {
+				case t.workloadsWithoutTags <- pendingWorkload:
+				default:
+					seclog.Warnf("Failed to requeue workload %s for tags retrieval", workload.ContainerID)
+				}
+			} else {
+				seclog.Debugf("Failed to resolve tags for workload %s", workload.ContainerID)
 			}
 			return
 		}
-	}
 
-	t.NotifyListeners(WorkloadSelectorResolved, workload)
+		t.NotifyListeners(WorkloadSelectorResolved, workload)
+	}
 }
 
 // fetchTags fetches tags for the provided workload
 func (t *LinuxResolver) fetchTags(container *cgroupModel.CacheEntry) error {
-	newTags, err := t.ResolveWithErr(string(container.ContainerID))
+	newTags, err := t.ResolveWithErr(container.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", container.ContainerID, err)
 	}
@@ -89,11 +112,11 @@ func (t *LinuxResolver) fetchTags(container *cgroupModel.CacheEntry) error {
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(telemetry telemetry.Component, tagger Tagger, cgroupsResolver *cgroup.Resolver) *LinuxResolver {
+func NewResolver(tagger Tagger, cgroupsResolver *cgroup.Resolver) *LinuxResolver {
 	resolver := &LinuxResolver{
 		Notifier:             utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
-		DefaultResolver:      NewDefaultResolver(telemetry, tagger),
-		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
+		DefaultResolver:      NewDefaultResolver(tagger),
+		workloadsWithoutTags: make(chan *pendingWorkload, 100),
 		cgroupResolver:       cgroupsResolver,
 	}
 	return resolver

@@ -34,7 +34,7 @@ func isSystemdCgroup(cgroup string) bool {
 }
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
-func FindContainerID(s string) (string, uint64) {
+func FindContainerID(s string) (ContainerID, uint64) {
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
 		if isSystemdCgroup(s) {
@@ -69,9 +69,9 @@ func FindContainerID(s string) (string, uint64) {
 	// it starts or/and ends the initial string
 
 	cgroupID := s[match[0]:match[1]]
-	containerID, flags := GetContainerFromCgroup(cgroupID)
+	containerID, flags := GetContainerFromCgroup(CGroupID(cgroupID))
 	if containerID == "" {
-		return cgroupID, uint64(flags)
+		return ContainerID(cgroupID), uint64(flags)
 	}
 
 	return containerID, uint64(flags)

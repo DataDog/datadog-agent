@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -69,7 +70,7 @@ func TestSBOM(t *testing.T) {
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
-				sbom := p.Resolvers.SBOMResolver.GetWorkload(dockerWrapper.containerID)
+				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
 				if sbom == nil {
 					return fmt.Errorf("failed to find SBOM for '%s'", dockerWrapper.containerID)
 				}

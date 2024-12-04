@@ -82,6 +82,9 @@ type Reader interface {
 	// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
 	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
 	OnUpdate(callback NotificationReceiver)
+
+	// Stringify stringifies the config
+	Stringify(source Source) string
 }
 
 // Writer is a subset of Config that only allows writing the configuration
@@ -89,7 +92,6 @@ type Writer interface {
 	Set(key string, value interface{}, source Source)
 	SetWithoutSource(key string, value interface{})
 	UnsetForSource(key string, source Source)
-	CopyConfig(cfg Config)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration

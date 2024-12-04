@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers -build_tags linux $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -48,11 +49,15 @@ type HashActionReport struct {
 }
 
 // IsResolved return if the action is resolved
-func (k *HashActionReport) IsResolved() bool {
+func (k *HashActionReport) IsResolved() error {
 	k.RLock()
 	defer k.RUnlock()
 
-	return k.resolved
+	if k.resolved {
+		return nil
+	}
+
+	return fmt.Errorf("hash action current state: %+v", k)
 }
 
 // ToJSON marshal the action

@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -47,7 +48,7 @@ type ResolverInterface interface {
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.RWMutex
-	workloads *simplelru.LRU[string, *cgroupModel.CacheEntry]
+	workloads *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 }
 
 // NewResolver returns a new cgroups monitor
@@ -55,7 +56,7 @@ func NewResolver() (*Resolver, error) {
 	cr := &Resolver{
 		Notifier: utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
 	}
-	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
+	workloads, err := simplelru.NewLRU(1024, func(_ containerutils.ContainerID, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
@@ -77,7 +78,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.workloads.Get(string(process.ContainerID))
+	entry, exists := cr.workloads.Get(process.ContainerID)
 	if exists {
 		entry.AddPID(process.Pid)
 		return
@@ -85,7 +86,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	var err error
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.CGroupFlags), process.Pid)
+	newCGroup, err := cgroupModel.NewCacheEntry(process.ContainerID, uint64(process.CGroup.CGroupFlags), process.Pid)
 	if err != nil {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
@@ -93,13 +94,13 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	cr.workloads.Add(string(process.ContainerID), newCGroup)
+	cr.workloads.Add(process.ContainerID, newCGroup)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
 // GetWorkload returns the workload referenced by the provided ID
-func (cr *Resolver) GetWorkload(id string) (*cgroupModel.CacheEntry, bool) {
+func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
 	cr.RLock()
 	defer cr.RUnlock()
 
@@ -120,7 +121,7 @@ func (cr *Resolver) DelPID(pid uint32) {
 }
 
 // DelPIDWithID removes a PID from the cgroup cache entry referenced by the provided ID
-func (cr *Resolver) DelPIDWithID(id string, pid uint32) {
+func (cr *Resolver) DelPIDWithID(id containerutils.ContainerID, pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -139,7 +140,7 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 
 	// check if the workload should be deleted
 	if len(workload.PIDs) <= 0 {
-		cr.workloads.Remove(string(workload.ContainerID))
+		cr.workloads.Remove(workload.ContainerID)
 	}
 }
 

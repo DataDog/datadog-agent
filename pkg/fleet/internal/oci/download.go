@@ -33,7 +33,8 @@ import (
 	"golang.org/x/net/http2"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -240,6 +241,14 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 // If they are specified, the registry and authentication overrides are applied first.
 // Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
+	transport := httptrace.WrapRoundTripper(d.client.Transport)
+	var err error
+	if d.env.Mirror != "" {
+		transport, err = newMirrorTransport(transport, d.env.Mirror)
+		if err != nil {
+			return nil, fmt.Errorf("could not create mirror transport: %w", err)
+		}
+	}
 	var multiErr error
 	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
 		log.Debugf("Downloading index from %s", refAndKeychain.ref)
@@ -253,7 +262,7 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			ref,
 			remote.WithContext(ctx),
 			remote.WithAuthFromKeychain(refAndKeychain.keychain),
-			remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)),
+			remote.WithTransport(transport),
 		)
 		if err != nil {
 			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
@@ -296,7 +305,10 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 		}
 		return image, nil
 	}
-	return nil, fmt.Errorf("no matching image found in the index")
+	return nil, installerErrors.Wrap(
+		installerErrors.ErrPackageNotFound,
+		fmt.Errorf("no matching image found in the index"),
+	)
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.
