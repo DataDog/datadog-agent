@@ -123,7 +123,7 @@ type RegexpStringMatcher struct {
 	re *regexp.Regexp
 }
 
-var stringBigOrRe = regexp.MustCompile(`^\.\*\(([a-zA-Z_|]+)\)\.\*$`)
+var stringBigOrRe = regexp.MustCompile(`^(?:\.\*)?\(([a-zA-Z_|]+)\)(?:\.\*)?$`)
 
 // Compile a regular expression based pattern
 func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) error {
