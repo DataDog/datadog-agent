@@ -5,7 +5,7 @@
 publish_choco_7_x64:
   rules: !reference [.on_deploy_stable_or_beta_repo_branch_manual]
   stage: choco_and_install_script_deploy
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:2022"]
   needs: ["windows_choco_online_7_x64"]
   variables:
     ARCH: "x64"
@@ -27,6 +27,6 @@ publish_choco_7_x64:
       docker run --rm
       -v "$(Get-Location):c:\mnt"
       -e CHOCOLATEY_API_KEY=${chocolateyApiKey}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\chocopush.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
