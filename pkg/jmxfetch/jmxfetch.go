@@ -502,8 +502,8 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 }
 
 func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
-	if !pkgconfigsetup.Datadog().GetBool("jmx_fips") { // XXX
-		log.Debugf("jmx_fips is not enabled")
+	if !pkgconfigsetup.Datadog().GetBool("jmx_fips_enabled") {
+		log.Debugf("jmx_fips_enabled is false")
 		return
 	}
 
