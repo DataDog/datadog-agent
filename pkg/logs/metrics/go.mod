@@ -12,16 +12,16 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.61.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.61.0-rc.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.61.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.61.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0-rc.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
