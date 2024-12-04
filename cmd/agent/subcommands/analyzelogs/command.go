@@ -16,10 +16,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -90,10 +90,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	for {
 		select {
 		case msg := <-outputChan:
-			// Parse the JSON content
-			var parsedMessage struct {
-				Message string `json:"message"`
-			}
+			parsedMessage := processor.JSONPayload
 			err := json.Unmarshal(msg.GetContent(), &parsedMessage)
 			if err != nil {
 				fmt.Printf("Failed to parse message: %v\n", err)
