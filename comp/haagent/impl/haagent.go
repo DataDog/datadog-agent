@@ -53,7 +53,7 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 		h.log.Infof("agent role switched from %s to %s", leaderStateToRole(prevIsLeader), leaderStateToRole(newIsLeader))
 		h.isLeader.Store(newIsLeader)
 	} else {
-		h.log.Debugf("agent role not changed, current role is %s", leaderStateToRole(prevIsLeader))
+		h.log.Debugf("agent role not changed (current role: %s)", leaderStateToRole(prevIsLeader))
 	}
 }
 
