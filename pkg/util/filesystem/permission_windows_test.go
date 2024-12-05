@@ -16,15 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func TestRemoveAccessToOtherUsers(t *testing.T) {
 	getDataDogUserSid = winutil.GetSidFromUser
-
-	sid, _, _, err := windows.LookupSID("", "ddagentuser")
-	require.NoError(t, err)
-	t.Log(sid)
 
 	p, err := NewPermission()
 	require.NoError(t, err)
