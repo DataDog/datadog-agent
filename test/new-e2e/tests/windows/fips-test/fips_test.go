@@ -100,6 +100,11 @@ func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.Exec
 func (s *fipsAgentSuite) execAgentCommandWithFIPS(command string) (string, error) {
 	// There isn't support for appending env vars to client.ExecuteOption, so
 	// this function doesn't accept any other options.
+
+	// Setting GOFIPS=1 causes the Windows FIPS Agent to panic if the system is not in FIPS mode.
+	// This setting does NOT control whether the FIPS Agent uses FIPS-compliant crypto libraries,
+	// the System-level setting determines that.
+	// https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#windows-fips-mode-cng
 	vars := client.EnvVar{
 		"GOFIPS": "1",
 	}
