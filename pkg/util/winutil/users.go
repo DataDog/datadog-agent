@@ -8,6 +8,7 @@ package winutil
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/windows"
@@ -74,4 +75,30 @@ func GetLocalSystemSID() (*windows.SID, error) {
 		&localSystem)
 
 	return localSystem, err
+}
+
+// GetDataDogAgentSID returns the SID of the DataDog Agent account
+func GetDDAgentUserSID() (*windows.SID, error) {
+	// get config for datadogagent service
+	user, err := GetServiceUser("datadogagent")
+	if err != nil {
+		return nil, fmt.Errorf("could not get datadogagent service user: %s", err)
+	}
+
+	var domain, username string
+	parts := strings.SplitN(user, "\\", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("could not parse user: %s", user)
+	}
+
+	domain = parts[0]
+	if domain == "." {
+		username = parts[1]
+	} else {
+		username = user
+	}
+
+	// get the SID for the user account
+	sid, _, _, err := windows.LookupSID("", username)
+	return sid, err
 }
