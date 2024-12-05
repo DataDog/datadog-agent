@@ -24,7 +24,7 @@ var testGetWifiInfo = func() (WiFiInfo, error) {
 		Channel:      1,
 		Noise:        20,
 		TransmitRate: 4.0,
-		SecurityType: "test-security-type",
+		SecurityType: "WPA/WPA2 Personal",
 	}, nil
 }
 
@@ -47,9 +47,11 @@ func TestWLANOK(t *testing.T) {
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 
-	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
-	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
-	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "security_type:wpa/wpa2_personal"}
+
+	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)
 	wlanCheck.Run()
