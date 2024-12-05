@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -20,6 +21,7 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
+	flake.Mark(t)
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithEC2VMOptions(
 			ec2.WithInstanceType("t3.xlarge"),

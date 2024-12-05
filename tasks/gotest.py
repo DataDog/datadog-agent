@@ -11,6 +11,7 @@ import operator
 import os
 import re
 import sys
+import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
@@ -35,6 +36,7 @@ from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
+    TestsNotSupportedError,
     clean_nested_paths,
     get_build_flags,
     gitlab_section,
@@ -404,24 +406,33 @@ def test(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
     Run all the available integration tests
     """
-    tests = [
-        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
-    ]
-    for t in tests:
-        try:
-            t()
-        except Exit as e:
-            if e.code != 0:
-                raise
-            elif debug:
-                print(e.message)
+    tests = {
+        "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
+    }
+    tests_failures = {}
+    for t_name, t in tests.items():
+        with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):
+            try:
+                t()
+            except TestsNotSupportedError as e:
+                print(f"Skipping {t_name}: {e}")
+            except Exception:
+                # Keep printing the traceback not to have to wait until all tests are done to see what failed
+                traceback.print_exc()
+                # Storing the traceback to print it at the end without directly raising the exception
+                tests_failures[t_name] = traceback.format_exc()
+    if tests_failures:
+        print("Integration tests failed:")
+        for t_name, t_failure in tests_failures.items():
+            print(f"{t_name}:\n{t_failure}")
+        raise Exit(code=1)
 
 
 @task
