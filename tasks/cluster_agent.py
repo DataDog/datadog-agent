@@ -15,8 +15,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.gointegrationtest import containerized_integration_tests
-from tasks.libs.common.utils import TestsNotSupportedError
+from tasks.gointegrationtest import dca_integration_tests
 from tasks.libs.releasing.version import load_release_versions
 
 # constants
@@ -93,23 +92,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     Run integration tests for cluster-agent
     """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
-    prefixes = [
-        "./test/integration/util/kube_apiserver",
-        "./test/integration/util/leaderelection",
-    ]
-    # We need docker for the kubeapiserver integration tests
-    go_build_tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
-    containerized_integration_tests(
-        ctx,
-        prefixes=prefixes,
-        go_build_tags=go_build_tags,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
+    dca_integration_tests(ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
 @task

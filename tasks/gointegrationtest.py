@@ -7,7 +7,6 @@ from invoke.exceptions import Exit
 
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import get_default_build_tags
-from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.libs.common.utils import TestsNotSupportedError, gitlab_section
 from tasks.trace_agent import integration_tests as trace_integration_tests
 
@@ -46,6 +45,29 @@ def dsd_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly
         "./test/integration/dogstatsd/...",
     ]
     go_build_tags = get_default_build_tags(build="test")
+    containerized_integration_tests(
+        ctx,
+        prefixes=prefixes,
+        go_build_tags=go_build_tags,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
+
+
+def dca_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+    """
+    Run integration tests for cluster-agent
+    """
+    if sys.platform == 'win32':
+        raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
+    prefixes = [
+        "./test/integration/util/kube_apiserver",
+        "./test/integration/util/leaderelection",
+    ]
+    # We need docker for the kubeapiserver integration tests
+    go_build_tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
     containerized_integration_tests(
         ctx,
         prefixes=prefixes,
