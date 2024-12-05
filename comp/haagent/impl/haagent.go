@@ -19,14 +19,14 @@ import (
 type haAgentImpl struct {
 	log            log.Component
 	haAgentConfigs *haAgentConfigs
-	role           *atomic.String
+	state          *atomic.String
 }
 
 func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
 	return &haAgentImpl{
 		log:            log,
 		haAgentConfigs: haAgentConfigs,
-		role:           atomic.NewString(string(haagent.Unknown)),
+		state:          atomic.NewString(string(haagent.Unknown)),
 	}
 }
 
@@ -39,7 +39,7 @@ func (h *haAgentImpl) GetGroup() string {
 }
 
 func (h *haAgentImpl) GetState() haagent.State {
-	return haagent.State(h.role.Load())
+	return haagent.State(h.state.Load())
 }
 
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
@@ -49,20 +49,20 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 		return
 	}
 
-	var newRole haagent.State
+	var newState haagent.State
 	if agentHostname == leaderAgentHostname {
-		newRole = haagent.Active
+		newState = haagent.Active
 	} else {
-		newRole = haagent.Standby
+		newState = haagent.Standby
 	}
 
-	prevRole := h.GetState()
+	prevState := h.GetState()
 
-	if newRole != prevRole {
-		h.log.Infof("agent role switched from %s to %s", prevRole, newRole)
-		h.role.Store(string(newRole))
+	if newState != prevState {
+		h.log.Infof("agent state switched from %s to %s", prevState, newState)
+		h.state.Store(string(newState))
 	} else {
-		h.log.Debugf("agent role not changed (current role: %s)", prevRole)
+		h.log.Debugf("agent state not changed (current state: %s)", prevState)
 	}
 }
 

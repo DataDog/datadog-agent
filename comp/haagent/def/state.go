@@ -9,10 +9,10 @@ package haagent
 type State string
 
 const (
-	// Active HA Agent role
+	// Active HA Agent state
 	Active State = "active"
-	// Standby HA Agent role
+	// Standby HA Agent state
 	Standby State = "standby"
-	// Unknown HA Agent role
+	// Unknown HA Agent state
 	Unknown State = "unknown"
 )

@@ -21,7 +21,7 @@ type mockHaAgent struct {
 
 	group   string
 	enabled bool
-	role    haagent.State
+	state   haagent.State
 }
 
 func (m *mockHaAgent) GetGroup() string {
@@ -44,8 +44,8 @@ func (m *mockHaAgent) SetGroup(group string) {
 func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
 }
-func (m *mockHaAgent) SetState(role haagent.State) {
-	m.role = role
+func (m *mockHaAgent) SetState(state haagent.State) {
+	m.state = state
 }
 
 func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
