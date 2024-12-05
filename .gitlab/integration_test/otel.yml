@@ -67,7 +67,6 @@ datadog_otel_components_ocb_build:
       - ocb-output.log
       - otelcol-custom.log
       - flare-info.log
-      - go-install-ocb.log
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
@@ -76,7 +75,6 @@ datadog_otel_components_ocb_build:
     - echo "ocb output log:" && cat ocb-output.log
     - echo "otel custom collector log:" && cat otelcol-custom.log
     - echo "flare info log:" && cat flare-info.log
-    - echo "go install ocb log:" && cat go-install-ocb.log
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
