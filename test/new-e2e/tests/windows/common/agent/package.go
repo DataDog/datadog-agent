@@ -55,6 +55,7 @@ func (p *Package) AgentVersion() string {
 //
 // majorVersion: 6, 7
 // arch: x86_64
+// flavor: base, fips
 func GetBetaMSIURL(version string, arch string, flavor string) (string, error) {
 	return GetMSIURL(betaChannel, version, arch, flavor)
 }
@@ -63,6 +64,7 @@ func GetBetaMSIURL(version string, arch string, flavor string) (string, error) {
 //
 // majorVersion: 6, 7
 // arch: x86_64
+// flavor: base, fips
 func GetStableMSIURL(version string, arch string, flavor string) (string, error) {
 	return GetMSIURL(stableChannel, version, arch, flavor)
 }
