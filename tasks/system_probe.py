@@ -688,6 +688,7 @@ def build(
     with_unit_test=False,
     ebpf_compiler='clang',
     static=False,
+    fips_mode=False,
 ):
     """
     Build the system-probe
@@ -714,6 +715,7 @@ def build(
         strip_binary=strip_binary,
         arch=arch,
         static=static,
+        fips_mode=fips_mode,
     )
 
 
