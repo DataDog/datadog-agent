@@ -15,14 +15,13 @@
 #
 
 name "rpm"
-default_version "4.18.1"
+default_version "4.20.0"
 
 license "LGPLv2"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
 dependency "config_guess"
-dependency "elfutils"
 dependency "file"
 dependency "libgpg-error"
 dependency "libgcrypt"
@@ -34,51 +33,38 @@ dependency "lua"
 
 ship_source_offer true
 
-version "4.18.1" do
-  source url: "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-#{version}.tar.bz2",
-         sha256: "37f3b42c0966941e2ad3f10fde3639824a6591d07197ba8fd0869ca0779e1f56"
+version "4.20.0" do
+  source url: "http://ftp.rpm.org/releases/rpm-4.20.x/rpm-#{version}.tar.bz2",
+         sha256: "56ff7638cff98b56d4a7503ff59bc79f281a6ddffcda0d238c082bedfb5fbe7b"
 end
 
 relative_path "rpm-#{version}"
 
 build do
+  cmake_build_dir = "#{project_dir}/build"
   env = with_standard_compiler_flags(with_embedded_path)
 
   env["CFLAGS"] << " -fPIC"
 
-  patch source: "0001-Include-fcntl.patch", env: env # fix build
   patch source: "rpmdb-no-create.patch", env: env # don't create db if it doesn't exist already
 
-  # Build fixes since 4.18.1.
-  patch source: "0417-Fix-compiler-error-on-clang.patch", env: env
-  patch source: "0418-Move-variable-to-nearest-available-scope.patch", env: env
-
-  update_config_guess
-
-  env["SQLITE_CFLAGS"] ="-I#{install_dir}/embedded/include"
-  env["SQLITE_LIBS"] ="-L#{install_dir}/embedded/lib -lsqlite3"
-  env["LUA_CFLAGS"] ="-I#{install_dir}/embedded/include"
-  env["LUA_LIBS"] ="-L#{install_dir}/embedded/lib -l:liblua.a -lm"
-
-  configure_options = [
-    "--enable-sqlite=yes",
-    "--enable-bdb-ro=yes",
-    "--disable-nls",
-    "--disable-openmp",
-    "--disable-plugins",
-    "--without-archive",
-    "--without-selinux",
-    "--without-imaevm",
-    "--without-cap",
-    "--without-acl",
-    "--without-audit",
-    "--without-readline",
-    "--with-crypto=openssl",
-    "--localstatedir=/var", # use /var/lib/rpm database from the system
-    "--disable-static",
+  cmake_options = [
+    "-DENABLE_NLS=OFF",
+    "-DENABLE_OPENMP=OFF",
+    "-DENABLE_PLUGINS=OFF",
+    "-DWITH_ARCHIVE=OFF",
+    "-DWITH_SELINUX=OFF",
+    "-DWITH_IMAEVM=OFF",
+    "-DWITH_CAP=OFF",
+    "-DWITH_ACL=OFF",
+    "-DWITH_AUDIT=OFF",
+    "-DWITH_READLINE=OFF",
+    "-DWITH_OPENSSL=ON",
+    "-DWITH_LIBELF=OFF",
+    "-DWITH_LIBDW=OFF",
+    "-DWITH_SEQUOIA=OFF",
+    "-DENABLE_TESTSUITE=OFF",
   ]
-  configure(*configure_options, env: env)
 
-  make "-j #{workers}", env: env
-  make "install", env: env
+  cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 end
