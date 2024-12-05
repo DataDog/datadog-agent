@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestWLANOK(t *testing.T) {
@@ -37,26 +36,21 @@ func TestWLANOK(t *testing.T) {
 	}()
 
 	wlanCheck := new(WLANCheck)
-
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "security_type:wpa/wpa2_personal"}
 
-	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Count", "wlan.channel_swap_events", 0.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
-	mockSender.On("Commit").Return().Times(1)
-	wlanCheck.Run()
-
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
 func TestWLANEmptySSIDandBSSID(t *testing.T) {
@@ -83,23 +77,17 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
-
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
 
 	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal"}
 
-	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Count", "wlan.channel_swap_events", 0.0, mock.Anything, expectedTags).Return().Times(1)
-
-	mockSender.On("Commit").Return().Times(1)
-	wlanCheck.Run()
-
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANChannelSwapEvents(t *testing.T) {
@@ -122,27 +110,20 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
+	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal"}
+
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
 
-	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal"}
-
-	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Count", "wlan.channel_swap_events", 0.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Commit").Return().Times(1)
-
+	// 1st run: initial channel number set to 1
 	wlanCheck.Run()
 
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// change channel number from 1 to 2
 	getWifiInfo = func() (WiFiInfo, error) {
@@ -157,22 +138,11 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 		}, nil
 	}
 
-	mockSender = mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
-
-	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Count", "wlan.channel_swap_events", 1.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Commit").Return().Times(1)
-
+	// 2nd run: changing the channel number to 2
 	wlanCheck.Run()
 
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
 
-	// change channel number from 2 to 1
 	getWifiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
 			Rssi:         10,
@@ -185,18 +155,13 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 		}, nil
 	}
 
-	mockSender = mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
-
-	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Count", "wlan.channel_swap_events", 1.0, mock.Anything, expectedTags).Return().Times(1)
-	mockSender.On("Commit").Return().Times(1)
-
+	// 3rd run: changing the channel number back to 1
 	wlanCheck.Run()
 
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+
+	// 4th run: keeping the same channel number
+	wlanCheck.Run()
+
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
