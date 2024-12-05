@@ -84,10 +84,10 @@ GITLAB_FILES_TO_UPDATE = [
 BACKPORT_LABEL_COLOR = "5319e7"
 
 
-def deduce_and_ask_version(ctx, branch, as_str=True, yes=False) -> str | Version:
+def deduce_and_ask_version(ctx, branch, as_str=True, trust=False) -> str | Version:
     release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
 
-    if yes:
+    if trust:
         return release_version
 
     if yes_no_question(
@@ -153,7 +153,7 @@ def list_major_change(_, milestone):
 
 
 @task
-def update_modules(ctx, release_branch=None, version=None, yes=False):
+def update_modules(ctx, release_branch=None, version=None, trust=False):
     """Update internal dependencies between the different Agent modules.
 
     Args:
@@ -165,7 +165,7 @@ def update_modules(ctx, release_branch=None, version=None, yes=False):
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, yes=yes)
+    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
 
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
@@ -210,7 +210,9 @@ def __tag_single_module(ctx, module, agent_version, commit, force_option, devel)
 
 
 @task
-def tag_modules(ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, yes=False):
+def tag_modules(
+    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
+):
     """Create tags for Go nested modules for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
@@ -229,7 +231,7 @@ def tag_modules(ctx, release_branch=None, commit="HEAD", push=True, force=False,
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, yes=yes)
+    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
 
     tags = []
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
@@ -248,7 +250,9 @@ def tag_modules(ctx, release_branch=None, commit="HEAD", push=True, force=False,
 
 
 @task
-def tag_version(ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, yes=False):
+def tag_version(
+    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
+):
     """Create tags for a given Datadog Agent version.
 
     The version should be given as an Agent 7 version.
@@ -268,7 +272,7 @@ def tag_version(ctx, release_branch=None, commit="HEAD", push=True, force=False,
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, yes=yes)
+    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
 
     # Always tag the main module
     force_option = __get_force_option(force)
@@ -285,7 +289,7 @@ def tag_version(ctx, release_branch=None, commit="HEAD", push=True, force=False,
 @task
 def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
     tag_version(ctx, release_branch, commit, push, force, devel=True)
-    tag_modules(ctx, release_branch, commit, push, force, devel=True, yes=True)
+    tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True)
 
 
 @task
