@@ -113,7 +113,7 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 	state = s.host.State()
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
 }
 
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
@@ -422,7 +422,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 	state = s.host.State()
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
 
 	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
 }
@@ -430,6 +430,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
 	// create /opt/datadog-agent to simulate a disabled agent
 	s.host.Run("sudo mkdir -p /opt/datadog-agent")
+	defer func() { s.host.Run("sudo rm -rf /opt/datadog-agent") }()
 
 	// install OCI agent
 	s.RunInstallScript(envForceInstall("datadog-agent"))

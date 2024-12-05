@@ -253,7 +253,9 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
 		case "apt":
-			h.remote.MustExecute("! dpkg-query -l " + pkg)
+			// If a package is removed but not purged, it will be in the "rc" state (opposed to "ii" for installed)
+			// if it's been purged, the command will return an error
+			h.remote.MustExecute(fmt.Sprintf("dpkg-query -l %[1]s | grep '^rc' || ! dpkg-query -l %[1]s", pkg))
 		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
