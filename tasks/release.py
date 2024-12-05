@@ -254,8 +254,6 @@ def tag_version(
 ):
     """Create tags for a given Datadog Agent version.
 
-    The version should be given as an Agent 7 version.
-
     Args:
         commit: Will tag `commit` with the tags (default HEAD)
         verify: Checks for correctness on the Agent version (on by default).
