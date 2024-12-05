@@ -17,6 +17,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.gointegrationtest import containerized_integration_tests
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -577,32 +578,22 @@ def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
 
 
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test")),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-        "timeout_opt": f"-timeout {timeout}" if timeout else "",
-    }
-
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
-
     prefixes = [
         "./test/integration/config_providers/...",
         "./test/integration/corechecks/...",
         "./test/integration/listeners/...",
         "./test/integration/util/kubelet/...",
     ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    go_build_tags = get_default_build_tags(build="test")
+    containerized_integration_tests(
+        ctx,
+        prefixes=prefixes,
+        go_build_tags=go_build_tags,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 def check_supports_python_version(check_dir, python):
