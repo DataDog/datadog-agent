@@ -56,6 +56,7 @@ type VerticalScalingValues struct {
 	ContainerResources []datadoghq.DatadogPodAutoscalerContainerResources
 }
 
+// RecommenderConfiguration holds the configuration for a custom recommender
 type RecommenderConfiguration struct {
 	Endpoint string
 	Settings map[string]any
