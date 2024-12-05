@@ -96,6 +96,11 @@ func (m *metricBase) Get() int64 {
 	return m.value.Load()
 }
 
+// Reset value atomically
+func (m *metricBase) Reset() {
+	m.value.Store(0)
+}
+
 // metric is the private interface shared by `Counter` and `Gauge`
 // the base() method simply returns the embedded `*metricBase` struct
 // which is all we need in the internal code that has to deal with both types

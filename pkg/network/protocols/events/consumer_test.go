@@ -78,6 +78,33 @@ func TestConsumer(t *testing.T) {
 	}
 }
 
+func TestInvalidBatchCountMetric(t *testing.T) {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+		t.Skipf("package not supported by kernels < %s", minVersion)
+	}
+
+	program, err := newEBPFProgram(config.New())
+	require.NoError(t, err)
+
+	consumer, err := NewConsumer("test", program, func([]uint64) {})
+	require.NoError(t, err)
+
+	consumer.handler.(*ddebpf.RingBufferHandler).RecordHandler(&ringbuf.Record{
+		RawSample: []byte("test"),
+	}, nil, nil)
+
+	consumer.invalidBatchCount.Reset()
+	consumer.Start()
+	require.Eventually(t, func() bool {
+		program.Stop(manager.CleanAll)
+		return true
+	}, 1*time.Second, 100*time.Millisecond, "failed to stop program")
+
+	require.Equalf(t, 1, int(consumer.invalidBatchCount.Get()), "invalidBatchCount should be equal to 1")
+}
+
 type eventGenerator struct {
 	// map used for coordinating test with eBPF program space
 	testMap *ebpf.Map
@@ -170,30 +197,4 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 
 	return m, nil
-}
-
-func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
-		t.Skipf("package not supported by kernels < %s", minVersion)
-	}
-
-	program, err := newEBPFProgram(config.New())
-	require.NoError(t, err)
-
-	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
-	ringBufferHandler.RecordHandler(&ringbuf.Record{
-		RawSample: []byte("test"),
-	}, nil, nil)
-
-	consumer, err := NewConsumer("test", program, func(_ []uint64) {})
-	require.NoError(t, err)
-	consumer.handler = ringBufferHandler
-
-	consumer.Start()
-	program.Stop(manager.CleanAll)
-	consumer.Stop()
-
-	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
 }
