@@ -9,6 +9,7 @@
 package wlan
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -61,6 +62,9 @@ func (c *WLANCheck) Run() error {
 	tags := []string{}
 	tags = append(tags, "ssid:"+wifiInfo.Ssid)
 	tags = append(tags, "bssid:"+wifiInfo.Bssid)
+
+	securityType := strings.ToLower(strings.Replace(wifiInfo.SecurityType, " ", "_", -1))
+	tags = append(tags, "security_type:"+securityType)
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
 	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)
