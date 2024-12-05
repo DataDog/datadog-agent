@@ -1246,6 +1246,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode on-demand event for syscall event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.RansomwareScoreEventType:
+		if _, err = event.RansomwareScore.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode ransomware score event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// resolve the container context

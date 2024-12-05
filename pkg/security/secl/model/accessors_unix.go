@@ -42,6 +42,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("open"),
 		eval.EventType("packet"),
 		eval.EventType("ptrace"),
+		eval.EventType("ransomware_score"),
 		eval.EventType("removexattr"),
 		eval.EventType("rename"),
 		eval.EventType("rmdir"),
@@ -14222,6 +14223,76 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "ransomware_score.kill":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.Kill)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ransomware_score.new_file":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.NewFile)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ransomware_score.rename":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.Rename)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ransomware_score.score":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.Score)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ransomware_score.time_to_trigger":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.TimeToTrigger)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ransomware_score.unlink":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.Unlink)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ransomware_score.urandom":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RansomwareScore.Urandom)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "removexattr.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -21781,6 +21852,13 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.user_session.k8s_groups",
 		"ptrace.tracee.user_session.k8s_uid",
 		"ptrace.tracee.user_session.k8s_username",
+		"ransomware_score.kill",
+		"ransomware_score.new_file",
+		"ransomware_score.rename",
+		"ransomware_score.score",
+		"ransomware_score.time_to_trigger",
+		"ransomware_score.unlink",
+		"ransomware_score.urandom",
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
 		"removexattr.file.destination.namespace",
@@ -26818,6 +26896,20 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession), nil
 	case "ptrace.tracee.user_session.k8s_username":
 		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession), nil
+	case "ransomware_score.kill":
+		return int(ev.RansomwareScore.Kill), nil
+	case "ransomware_score.new_file":
+		return int(ev.RansomwareScore.NewFile), nil
+	case "ransomware_score.rename":
+		return int(ev.RansomwareScore.Rename), nil
+	case "ransomware_score.score":
+		return int(ev.RansomwareScore.Score), nil
+	case "ransomware_score.time_to_trigger":
+		return int(ev.RansomwareScore.TimeToTrigger), nil
+	case "ransomware_score.unlink":
+		return int(ev.RansomwareScore.Unlink), nil
+	case "ransomware_score.urandom":
+		return int(ev.RansomwareScore.Urandom), nil
 	case "removexattr.file.change_time":
 		return int(ev.RemoveXAttr.File.FileFields.CTime), nil
 	case "removexattr.file.destination.name":
@@ -30862,6 +30954,20 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.user_session.k8s_username":
 		return "ptrace", nil
+	case "ransomware_score.kill":
+		return "ransomware_score", nil
+	case "ransomware_score.new_file":
+		return "ransomware_score", nil
+	case "ransomware_score.rename":
+		return "ransomware_score", nil
+	case "ransomware_score.score":
+		return "ransomware_score", nil
+	case "ransomware_score.time_to_trigger":
+		return "ransomware_score", nil
+	case "ransomware_score.unlink":
+		return "ransomware_score", nil
+	case "ransomware_score.urandom":
+		return "ransomware_score", nil
 	case "removexattr.file.change_time":
 		return "removexattr", nil
 	case "removexattr.file.destination.name":
@@ -33687,6 +33793,20 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.user_session.k8s_username":
 		return reflect.String, nil
+	case "ransomware_score.kill":
+		return reflect.Int, nil
+	case "ransomware_score.new_file":
+		return reflect.Int, nil
+	case "ransomware_score.rename":
+		return reflect.Int, nil
+	case "ransomware_score.score":
+		return reflect.Int, nil
+	case "ransomware_score.time_to_trigger":
+		return reflect.Int, nil
+	case "ransomware_score.unlink":
+		return reflect.Int, nil
+	case "ransomware_score.urandom":
+		return reflect.Int, nil
 	case "removexattr.file.change_time":
 		return reflect.Int, nil
 	case "removexattr.file.destination.name":
@@ -44451,6 +44571,55 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.UserSession.K8SUsername"}
 		}
 		ev.PTrace.Tracee.Process.UserSession.K8SUsername = rv
+		return nil
+	case "ransomware_score.kill":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.Kill"}
+		}
+		ev.RansomwareScore.Kill = uint32(rv)
+		return nil
+	case "ransomware_score.new_file":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.NewFile"}
+		}
+		ev.RansomwareScore.NewFile = uint32(rv)
+		return nil
+	case "ransomware_score.rename":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.Rename"}
+		}
+		ev.RansomwareScore.Rename = uint32(rv)
+		return nil
+	case "ransomware_score.score":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.Score"}
+		}
+		ev.RansomwareScore.Score = uint32(rv)
+		return nil
+	case "ransomware_score.time_to_trigger":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.TimeToTrigger"}
+		}
+		ev.RansomwareScore.TimeToTrigger = uint64(rv)
+		return nil
+	case "ransomware_score.unlink":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.Unlink"}
+		}
+		ev.RansomwareScore.Unlink = uint32(rv)
+		return nil
+	case "ransomware_score.urandom":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RansomwareScore.Urandom"}
+		}
+		ev.RansomwareScore.Urandom = uint32(rv)
 		return nil
 	case "removexattr.file.change_time":
 		rv, ok := value.(int)

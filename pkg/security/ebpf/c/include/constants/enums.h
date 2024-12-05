@@ -52,6 +52,7 @@ enum event_type
     EVENT_LOGIN_UID_WRITE,
     EVENT_CGROUP_WRITE,
     EVENT_RAW_PACKET,
+    EVENT_RANSOMWARE,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

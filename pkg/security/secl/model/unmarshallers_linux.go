@@ -1393,3 +1393,18 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return len(data), nil
 }
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *RansomwareScoreEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 32 {
+		return 0, ErrNotEnoughData
+	}
+	e.TimeToTrigger = binary.NativeEndian.Uint64(data[0:8])
+	e.NewFile = binary.NativeEndian.Uint32(data[8:12])
+	e.Unlink = binary.NativeEndian.Uint32(data[12:16])
+	e.Rename = binary.NativeEndian.Uint32(data[16:20])
+	e.Urandom = binary.NativeEndian.Uint32(data[20:24])
+	e.Kill = binary.NativeEndian.Uint32(data[24:28])
+	e.Score = binary.NativeEndian.Uint32(data[28:32])
+	return 32, nil
+}

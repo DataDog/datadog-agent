@@ -7,8 +7,11 @@
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/ransomware.h"
 
-int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(ctx_t *ctx, u8 async, int dirfd, const char *filename, int flags) {
+    ransomware_score_unlink(ctx);
+
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
@@ -29,18 +32,18 @@ int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const 
 HOOK_SYSCALL_ENTRY1(unlink, const char *, filename) {
     int dirfd = AT_FDCWD;
     int flags = 0;
-    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
+    return trace__sys_unlink(ctx, SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char *, filename, int, flags) {
-    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
+    return trace__sys_unlink(ctx, SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_ENTRY("do_unlinkat")
 int hook_do_unlinkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
-        return trace__sys_unlink(ASYNC_SYSCALL, 0, NULL, 0);
+        return trace__sys_unlink(ctx, ASYNC_SYSCALL, 0, NULL, 0);
     }
     return 0;
 }

@@ -783,6 +783,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.PTrace.Tracee.Parent)
 		}
+	case "ransomware_score":
 	case "removexattr":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.RemoveXAttr.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.RemoveXAttr.File.FileFields)

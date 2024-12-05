@@ -5,8 +5,11 @@
 #include "helpers/approvers.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/ransomware.h"
 
-int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
+int __attribute__((always_inline)) trace__sys_rename(ctx_t *ctx, u8 async, const char *oldpath, const char *newpath) {
+    ransomware_score_rename(ctx);
+
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
@@ -22,22 +25,22 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpa
 }
 
 HOOK_SYSCALL_ENTRY2(rename, const char *, oldpath, const char *, newpath) {
-    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_rename(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_SYSCALL_ENTRY4(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
-    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_rename(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_SYSCALL_ENTRY4(renameat2, int , olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
-    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_rename(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_renameat2")
 int hook_do_renameat2(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
-        return trace__sys_rename(ASYNC_SYSCALL, NULL, NULL);
+        return trace__sys_rename(ctx, ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }

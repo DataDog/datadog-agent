@@ -101,6 +101,8 @@ const (
 	CgroupWriteEventType
 	// RawPacketEventType raw packet event
 	RawPacketEventType
+	// RansomwareScoreEventType raw packet event
+	RansomwareScoreEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -231,6 +233,8 @@ func (t EventType) String() string {
 		return "ondemand"
 	case RawPacketEventType:
 		return "packet"
+	case RansomwareScoreEventType:
+		return "ransomware_score"
 	case CustomEventType:
 		return "custom_event"
 	case CreateNewFileEventType:

@@ -5020,6 +5020,50 @@
       ]
     },
     {
+      "name": "ransomware_score",
+      "definition": "A ransomware has reach the score threshold",
+      "type": "Kernel",
+      "from_agent_version": "7.62",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "ransomware_score.kill",
+          "definition": "Number of kills",
+          "property_doc_link": "ransomware_score-kill-doc"
+        },
+        {
+          "name": "ransomware_score.new_file",
+          "definition": "Number of new files",
+          "property_doc_link": "ransomware_score-new_file-doc"
+        },
+        {
+          "name": "ransomware_score.rename",
+          "definition": "Number of renames",
+          "property_doc_link": "ransomware_score-rename-doc"
+        },
+        {
+          "name": "ransomware_score.score",
+          "definition": "Final score",
+          "property_doc_link": "ransomware_score-score-doc"
+        },
+        {
+          "name": "ransomware_score.time_to_trigger",
+          "definition": "Time to reach the score",
+          "property_doc_link": "ransomware_score-time_to_trigger-doc"
+        },
+        {
+          "name": "ransomware_score.unlink",
+          "definition": "Number of unlinks",
+          "property_doc_link": "ransomware_score-unlink-doc"
+        },
+        {
+          "name": "ransomware_score.urandom",
+          "definition": "Number of urandom",
+          "property_doc_link": "ransomware_score-urandom-doc"
+        }
+      ]
+    },
+    {
       "name": "removexattr",
       "definition": "Remove extended attributes",
       "type": "File",
@@ -10407,6 +10451,90 @@
       ],
       "constants": "Ptrace constants",
       "constants_link": "ptrace-constants",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.kill",
+      "link": "ransomware_score-kill-doc",
+      "type": "int",
+      "definition": "Number of kills",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.new_file",
+      "link": "ransomware_score-new_file-doc",
+      "type": "int",
+      "definition": "Number of new files",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.rename",
+      "link": "ransomware_score-rename-doc",
+      "type": "int",
+      "definition": "Number of renames",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.score",
+      "link": "ransomware_score-score-doc",
+      "type": "int",
+      "definition": "Final score",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.time_to_trigger",
+      "link": "ransomware_score-time_to_trigger-doc",
+      "type": "int",
+      "definition": "Time to reach the score",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.unlink",
+      "link": "ransomware_score-unlink-doc",
+      "type": "int",
+      "definition": "Number of unlinks",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ransomware_score.urandom",
+      "link": "ransomware_score-urandom-doc",
+      "type": "int",
+      "definition": "Number of urandom",
+      "prefixes": [
+        "ransomware_score"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

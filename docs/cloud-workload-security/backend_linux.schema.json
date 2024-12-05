@@ -1333,6 +1333,43 @@
       ],
       "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
     },
+    "RansomwareScore": {
+      "properties": {
+        "time_to_trigger": {
+          "type": "integer"
+        },
+        "new_file": {
+          "type": "integer"
+        },
+        "unlink": {
+          "type": "integer"
+        },
+        "rename": {
+          "type": "integer"
+        },
+        "urandom": {
+          "type": "integer"
+        },
+        "kill": {
+          "type": "integer"
+        },
+        "score": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "time_to_trigger",
+        "new_file",
+        "unlink",
+        "rename",
+        "urandom",
+        "kill",
+        "score"
+      ],
+      "description": "RansomwareScoreSerializer defines a ransomware socre serializer"
+    },
     "RawPacket": {
       "properties": {
         "device": {
@@ -1769,6 +1806,9 @@
     },
     "packet": {
       "$ref": "#/$defs/RawPacket"
+    },
+    "ransomware_score": {
+      "$ref": "#/$defs/RansomwareScore"
     }
   },
   "additionalProperties": false,

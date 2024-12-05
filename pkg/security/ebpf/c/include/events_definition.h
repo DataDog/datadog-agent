@@ -11,6 +11,21 @@ struct invalidate_dentry_event_t {
     u32 padding;
 };
 
+struct ransomware_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+
+    u64 time_to_trigger_ns;
+    u32 new_file;
+    u32 unlink;
+    u32 rename;
+    u32 urandom;
+    u32 kill;
+    u32 score;
+};
+
 struct bind_event_t {
     struct kevent_t event;
     struct process_context_t process;

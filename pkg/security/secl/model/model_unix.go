@@ -78,6 +78,9 @@ type Event struct {
 	IMDS      IMDSEvent      `field:"imds" event:"imds"`     // [7.55] [Network] An IMDS event was captured
 	RawPacket RawPacketEvent `field:"packet" event:"packet"` // [7.60] [Network] A raw network packet captured
 
+	// malware scoring events
+	RansomwareScore RansomwareScoreEvent `field:"ransomware_score" event:"ransomware_score"` // [7.62] [Kernel] [Experimental] A ransomware has reach the score threshold
+
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
 
@@ -717,4 +720,15 @@ type RawPacketEvent struct {
 	Filter      string               `field:"filter" op_override:"PacketFilterMatching"` // SECLDoc[filter] Definition:`pcap filter expression`
 	CaptureInfo gopacket.CaptureInfo `field:"-"`
 	Data        []byte               `field:"-"`
+}
+
+// RansomwareScoreEvent represents a ransomware scoring event
+type RansomwareScoreEvent struct {
+	TimeToTrigger uint64 `field:"time_to_trigger"` // SECLDoc[time_to_trigger] Definition:`Time to reach the score`
+	NewFile       uint32 `field:"new_file"`        // SECLDoc[new_file] Definition:`Number of new files`
+	Unlink        uint32 `field:"unlink"`          // SECLDoc[unlink] Definition:`Number of unlinks`
+	Rename        uint32 `field:"rename"`          // SECLDoc[rename] Definition:`Number of renames`
+	Urandom       uint32 `field:"urandom"`         // SECLDoc[urandom] Definition:`Number of urandom`
+	Kill          uint32 `field:"kill"`            // SECLDoc[kill] Definition:`Number of kills`
+	Score         uint32 `field:"score"`           // SECLDoc[score] Definition:`Final score`
 }

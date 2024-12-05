@@ -5,6 +5,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/ransomware.h"
 #include "constants/fentry_macro.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
@@ -283,6 +284,9 @@ int hook_do_exit(ctx_t *ctx) {
         bpf_map_delete_elem(&pid_ignored, &pid);
         return 0;
     }
+
+    // cleanup ransomware cache
+    ransomware_cleanup(tgid);
 
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);

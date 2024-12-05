@@ -49,6 +49,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `open` | File | A file was opened | 7.27 |
 | `packet` | Network | A raw network packet captured | 7.60 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
+| `ransomware_score` | Kernel | [Experimental] A ransomware has reach the score threshold | 7.62 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -1229,6 +1230,22 @@ A ptrace command was executed
 | [`ptrace.tracee.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `ransomware_score`
+
+_This event type is experimental and may change in the future._
+
+A ransomware has reach the score threshold
+
+| Property | Definition |
+| -------- | ------------- |
+| [`ransomware_score.kill`](#ransomware_score-kill-doc) | Number of kills |
+| [`ransomware_score.new_file`](#ransomware_score-new_file-doc) | Number of new files |
+| [`ransomware_score.rename`](#ransomware_score-rename-doc) | Number of renames |
+| [`ransomware_score.score`](#ransomware_score-score-doc) | Final score |
+| [`ransomware_score.time_to_trigger`](#ransomware_score-time_to_trigger-doc) | Time to reach the score |
+| [`ransomware_score.unlink`](#ransomware_score-unlink-doc) | Number of unlinks |
+| [`ransomware_score.urandom`](#ransomware_score-urandom-doc) | Number of urandom |
 
 ### Event `removexattr`
 
@@ -3099,6 +3116,55 @@ Definition: ptrace request
 
 
 Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `ransomware_score.kill` {#ransomware_score-kill-doc}
+Type: int
+
+Definition: Number of kills
+
+
+
+### `ransomware_score.new_file` {#ransomware_score-new_file-doc}
+Type: int
+
+Definition: Number of new files
+
+
+
+### `ransomware_score.rename` {#ransomware_score-rename-doc}
+Type: int
+
+Definition: Number of renames
+
+
+
+### `ransomware_score.score` {#ransomware_score-score-doc}
+Type: int
+
+Definition: Final score
+
+
+
+### `ransomware_score.time_to_trigger` {#ransomware_score-time_to_trigger-doc}
+Type: int
+
+Definition: Time to reach the score
+
+
+
+### `ransomware_score.unlink` {#ransomware_score-unlink-doc}
+Type: int
+
+Definition: Number of unlinks
+
+
+
+### `ransomware_score.urandom` {#ransomware_score-urandom-doc}
+Type: int
+
+Definition: Number of urandom
 
 
 

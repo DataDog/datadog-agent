@@ -13414,6 +13414,62 @@ func (ev *Event) GetPtraceTraceeUserSessionK8sUsername() string {
 	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
 }
 
+// GetRansomwareScoreKill returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreKill() uint32 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint32(0)
+	}
+	return ev.RansomwareScore.Kill
+}
+
+// GetRansomwareScoreNewFile returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreNewFile() uint32 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint32(0)
+	}
+	return ev.RansomwareScore.NewFile
+}
+
+// GetRansomwareScoreRename returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreRename() uint32 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint32(0)
+	}
+	return ev.RansomwareScore.Rename
+}
+
+// GetRansomwareScoreScore returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreScore() uint32 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint32(0)
+	}
+	return ev.RansomwareScore.Score
+}
+
+// GetRansomwareScoreTimeToTrigger returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreTimeToTrigger() uint64 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint64(0)
+	}
+	return ev.RansomwareScore.TimeToTrigger
+}
+
+// GetRansomwareScoreUnlink returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreUnlink() uint32 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint32(0)
+	}
+	return ev.RansomwareScore.Unlink
+}
+
+// GetRansomwareScoreUrandom returns the value of the field, resolving if necessary
+func (ev *Event) GetRansomwareScoreUrandom() uint32 {
+	if ev.GetEventType().String() != "ransomware_score" {
+		return uint32(0)
+	}
+	return ev.RansomwareScore.Urandom
+}
+
 // GetRemovexattrFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetRemovexattrFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "removexattr" {

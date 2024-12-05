@@ -4,8 +4,11 @@
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
+#include "helpers/ransomware.h"
 
 HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
+    ransomware_score_kill(ctx, type);
+
     if (is_discarded_by_pid()) {
         return 0;
     }

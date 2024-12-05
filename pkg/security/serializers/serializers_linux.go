@@ -519,6 +519,18 @@ type SyscallArgsSerializer struct {
 	FSType *string `json:"fs_type,omitempty"`
 }
 
+// RansomwareScoreSerializer defines a ransomware socre serializer
+// easyjson:json
+type RansomwareScoreSerializer struct {
+	TimeToTrigger uint64 `json:"time_to_trigger"`
+	NewFile       uint32 `json:"new_file"`
+	Unlink        uint32 `json:"unlink"`
+	Rename        uint32 `json:"rename"`
+	Urandom       uint32 `json:"urandom"`
+	Kill          uint32 `json:"kill"`
+	Score         uint32 `json:"score"`
+}
+
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 
 	switch e.GetEventType() {
@@ -623,23 +635,24 @@ type EventSerializer struct {
 	*DDContextSerializer              `json:"dd,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
-	*SELinuxEventSerializer   `json:"selinux,omitempty"`
-	*BPFEventSerializer       `json:"bpf,omitempty"`
-	*MMapEventSerializer      `json:"mmap,omitempty"`
-	*MProtectEventSerializer  `json:"mprotect,omitempty"`
-	*PTraceEventSerializer    `json:"ptrace,omitempty"`
-	*ModuleEventSerializer    `json:"module,omitempty"`
-	*SignalEventSerializer    `json:"signal,omitempty"`
-	*SpliceEventSerializer    `json:"splice,omitempty"`
-	*DNSEventSerializer       `json:"dns,omitempty"`
-	*IMDSEventSerializer      `json:"imds,omitempty"`
-	*BindEventSerializer      `json:"bind,omitempty"`
-	*ConnectEventSerializer   `json:"connect,omitempty"`
-	*MountEventSerializer     `json:"mount,omitempty"`
-	*SyscallsEventSerializer  `json:"syscalls,omitempty"`
-	*UserContextSerializer    `json:"usr,omitempty"`
-	*SyscallContextSerializer `json:"syscall,omitempty"`
-	*RawPacketSerializer      `json:"packet,omitempty"`
+	*SELinuxEventSerializer    `json:"selinux,omitempty"`
+	*BPFEventSerializer        `json:"bpf,omitempty"`
+	*MMapEventSerializer       `json:"mmap,omitempty"`
+	*MProtectEventSerializer   `json:"mprotect,omitempty"`
+	*PTraceEventSerializer     `json:"ptrace,omitempty"`
+	*ModuleEventSerializer     `json:"module,omitempty"`
+	*SignalEventSerializer     `json:"signal,omitempty"`
+	*SpliceEventSerializer     `json:"splice,omitempty"`
+	*DNSEventSerializer        `json:"dns,omitempty"`
+	*IMDSEventSerializer       `json:"imds,omitempty"`
+	*BindEventSerializer       `json:"bind,omitempty"`
+	*ConnectEventSerializer    `json:"connect,omitempty"`
+	*MountEventSerializer      `json:"mount,omitempty"`
+	*SyscallsEventSerializer   `json:"syscalls,omitempty"`
+	*UserContextSerializer     `json:"usr,omitempty"`
+	*SyscallContextSerializer  `json:"syscall,omitempty"`
+	*RawPacketSerializer       `json:"packet,omitempty"`
+	*RansomwareScoreSerializer `json:"ransomware_score,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1021,6 +1034,18 @@ func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawP
 		TLSContext: &TLSContextSerializer{
 			Version: model.TLSVersion(rp.TLSContext.Version).String(),
 		},
+	}
+}
+
+func newRansomwareScoreEventSerializer(rs *model.RansomwareScoreEvent, e *model.Event) *RansomwareScoreSerializer {
+	return &RansomwareScoreSerializer{
+		TimeToTrigger: rs.TimeToTrigger,
+		NewFile:       rs.NewFile,
+		Unlink:        rs.Unlink,
+		Rename:        rs.Rename,
+		Urandom:       rs.Urandom,
+		Kill:          rs.Kill,
+		Score:         rs.Score,
 	}
 }
 
@@ -1439,6 +1464,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		})
 	case model.RawPacketEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
+	case model.RansomwareScoreEventType:
+		s.RansomwareScoreSerializer = newRansomwareScoreEventSerializer(&event.RansomwareScore, event)
 	}
 
 	return s
