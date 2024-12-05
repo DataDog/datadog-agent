@@ -221,6 +221,24 @@ end
 # ------------------------------------
 
 if do_build
+  # Include traps db file in snmp.d/traps_db/
+  dependency 'snmp-traps'
+
+  # Additional software
+  if windows_target?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+      dependency 'datadog-windows-filter-driver'
+    end
+    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+      dependency 'datadog-windows-apminject'
+    end
+    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+      dependency 'datadog-windows-procmon-driver'
+      ## this is a duplicate of the above dependency in linux
+      dependency 'datadog-security-agent-policies'
+    end
+  end
+
   # Datadog agent
   dependency 'datadog-agent'
 
@@ -239,24 +257,6 @@ if do_build
     dependency 'datadog-security-agent-policies'
     if fips_mode?
       dependency 'openssl-fips-provider'
-    end
-  end
-
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
-  # Additional software
-  if windows_target?
-    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-      dependency 'datadog-windows-filter-driver'
-    end
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      dependency 'datadog-windows-apminject'
-    end
-    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-      dependency 'datadog-windows-procmon-driver'
-      ## this is a duplicate of the above dependency in linux
-      dependency 'datadog-security-agent-policies'
     end
   end
 
