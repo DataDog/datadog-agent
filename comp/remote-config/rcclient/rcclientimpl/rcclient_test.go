@@ -77,7 +77,7 @@ type MockComponentImplMrf struct {
 	traces  *bool
 }
 
-func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
+func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
 	v, ok := value.(bool)
 	if !ok {
 		return fmt.Errorf("unexpected value type %T", value)
