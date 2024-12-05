@@ -23,12 +23,11 @@ relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
     prefix = if windows_target? then "perl.exe" else "" end
-    platform = if windows_target? then "mingw64" else "" end
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #
     # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-    command "#{prefix} ./Configure enable-fips #{platform}"
+    command "#{prefix} ./Configure enable-fips"
 
     command "make V=1"
     command "make install V=1"
