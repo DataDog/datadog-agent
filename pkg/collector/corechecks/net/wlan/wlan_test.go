@@ -48,12 +48,14 @@ func TestWLANOK(t *testing.T) {
 	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Count", "wlan.channel_swap_events", 0.0, mock.Anything, expectedTags).Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)
 	wlanCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
+	mockSender.AssertNumberOfCalls(t, "Count", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -89,12 +91,14 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Count", "wlan.channel_swap_events", 0.0, mock.Anything, expectedTags).Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)
 	wlanCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
+	mockSender.AssertNumberOfCalls(t, "Count", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -130,13 +134,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Count", "wlan.channel_swap_events", 0.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Commit").Return().Times(1)
 
 	wlanCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
-	mockSender.AssertNumberOfCalls(t, "Count", 0)
+	mockSender.AssertNumberOfCalls(t, "Count", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 
 	// change channel number from 1 to 2
