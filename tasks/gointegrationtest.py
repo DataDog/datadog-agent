@@ -3,7 +3,7 @@ import sys
 import traceback
 from dataclasses import dataclass
 
-from invoke import task
+from invoke import Context, task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
@@ -84,11 +84,16 @@ TRACE_AGENT = IntegrationTestsConfig(
 
 
 def containerized_integration_tests(
-    ctx, prefixes, go_build_tags, env=None, race=False, remote_docker=False, go_mod="readonly", timeout=""
+    ctx: Context,
+    integration_tests_config: IntegrationTestsConfig,
+    race=False,
+    remote_docker=False,
+    go_mod="readonly",
+    timeout="",
 ):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(go_build_tags),
+        "go_build_tags": " ".join(integration_tests_config.go_build_tags),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
         "timeout_opt": f"-timeout {timeout}" if timeout else "",
@@ -103,8 +108,12 @@ def containerized_integration_tests(
 
     go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}", env=env)
+    for it in integration_tests_config.tests:
+        if it.dir:
+            with ctx.cd(f"{it.dir}"):
+                ctx.run(f"{go_cmd} {it.prefix}", env=integration_tests_config.env)
+        else:
+            ctx.run(f"{go_cmd} {it.prefix}", env=integration_tests_config.env)
 
 
 def dsd_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
@@ -113,14 +122,9 @@ def dsd_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly
     """
     if sys.platform == 'win32':
         raise TestsNotSupportedError('DogStatsD integration tests are not supported on Windows')
-    prefixes = [
-        "./test/integration/dogstatsd/...",
-    ]
-    go_build_tags = get_default_build_tags(build="test")
     containerized_integration_tests(
         ctx,
-        prefixes=prefixes,
-        go_build_tags=go_build_tags,
+        DOGSTATSD,
         race=race,
         remote_docker=remote_docker,
         go_mod=go_mod,
@@ -134,16 +138,9 @@ def dca_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly
     """
     if sys.platform == 'win32':
         raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
-    prefixes = [
-        "./test/integration/util/kube_apiserver",
-        "./test/integration/util/leaderelection",
-    ]
-    # We need docker for the kubeapiserver integration tests
-    go_build_tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
     containerized_integration_tests(
         ctx,
-        prefixes=prefixes,
-        go_build_tags=go_build_tags,
+        CLUSTER_AGENT,
         race=race,
         remote_docker=remote_docker,
         go_mod=go_mod,
@@ -158,15 +155,9 @@ def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     if sys.platform == 'win32':
         raise TestsNotSupportedError('Trace Agent integration tests are not supported on Windows')
 
-    go_build_tags = " ".join(get_default_build_tags(build="test"))
-    prefixes = [
-        "./cmd/trace-agent/test/testsuite/...",
-    ]
     containerized_integration_tests(
         ctx,
-        prefixes=prefixes,
-        go_build_tags=go_build_tags,
-        env={"INTEGRATION": "yes"},
+        TRACE_AGENT,
         race=race,
         remote_docker=False,
         go_mod=go_mod,
@@ -175,17 +166,9 @@ def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
 
 
 def _core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    prefixes = [
-        "./test/integration/config_providers/...",
-        "./test/integration/corechecks/...",
-        "./test/integration/listeners/...",
-        "./test/integration/util/kubelet/...",
-    ]
-    go_build_tags = get_default_build_tags(build="test")
     containerized_integration_tests(
         ctx,
-        prefixes=prefixes,
-        go_build_tags=go_build_tags,
+        CORE_AGENT_LINUX,
         race=race,
         remote_docker=remote_docker,
         go_mod=go_mod,
@@ -194,41 +177,7 @@ def _core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="
 
 
 def _core_windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test")),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-        "timeout_opt": f"-timeout {timeout}" if timeout else "",
-    }
-
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
-
-    tests = [
-        {
-            # Run eventlog tests with the Windows API, which depend on the EventLog service
-            "dir": "./pkg/util/winutil/",
-            'prefix': './eventlog/...',
-            'extra_args': '-evtapi Windows',
-        },
-        {
-            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
-            "dir": ".",
-            'prefix': './pkg/logs/tailers/windowsevent/...',
-            'extra_args': '-evtapi Windows',
-        },
-        {
-            # Run eventlog check tests with the Windows API, which depend on the EventLog service
-            "dir": ".",
-            # Don't include submodules, since the `-evtapi` flag is not defined in them
-            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
-            'extra_args': '-evtapi Windows',
-        },
-    ]
-
-    for test in tests:
-        with ctx.cd(f"{test['dir']}"):
-            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+    containerized_integration_tests(ctx, CORE_AGENT_WINDOWS, race=race, go_mod=go_mod, timeout=timeout)
 
 
 def core_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
