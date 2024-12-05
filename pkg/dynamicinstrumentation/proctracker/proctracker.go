@@ -10,7 +10,6 @@
 package proctracker
 
 import (
-	"debug/elf"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,19 +18,19 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 type processTrackerCallback func(ditypes.DIProcs)
@@ -134,7 +133,7 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 	}
 	defer f.Close()
 
-	elfFile, err := elf.NewFile(f)
+	elfFile, err := safeelf.NewFile(f)
 	if err != nil {
 		log.Infof("file %s could not be parsed as an ELF file: %s", binPath, err)
 		return

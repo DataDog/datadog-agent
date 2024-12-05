@@ -10,12 +10,12 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	procmon "github.com/DataDog/datadog-agent/pkg/process/monitor"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
 // EventMonitor - Event monitor Factory
@@ -24,7 +24,7 @@ var EventMonitor = module.Factory{
 	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
 	Fn:               createEventMonitorModule,
 	NeedsEBPF: func() bool {
-		return !pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled")
+		return !secconfig.IsEBPFLessModeEnabled()
 	},
 }
 

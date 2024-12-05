@@ -7,10 +7,16 @@ package test
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,24 +27,43 @@ import (
 	"github.com/DataDog/viper"
 	yaml "gopkg.in/yaml.v2"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // ErrNotInstalled is returned when the trace-agent can not be found in $PATH.
 var ErrNotInstalled = errors.New("agent: trace-agent not found in $PATH")
 
+// SecretBackendBinary secret binary name
+var SecretBackendBinary = "secret-script.test"
+
+type grpcServer struct {
+	pb.UnimplementedAgentSecureServer
+}
+
 type agentRunner struct {
 	mu  sync.RWMutex // guards pid
 	pid int          // agent pid, if running
 
-	port    int         // agent receiver port
-	log     *safeBuffer // agent log output
-	ddAddr  string      // Datadog intake address (host:port)
-	bindir  string      // the temporary directory where the trace-agent binary is located
-	verbose bool
+	port                 int         // agent receiver port
+	log                  *safeBuffer // agent log output
+	ddAddr               string      // Datadog intake address (host:port)
+	bindir               string      // the temporary directory where the trace-agent binary is located
+	verbose              bool
+	agentServer          *grpc.Server
+	agentServerListerner net.Listener
+	authToken            string
 }
 
-func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
+func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agentRunner, error) {
 	bindir, err := os.MkdirTemp("", "trace-agent-integration-tests")
 	if err != nil {
 		return nil, err
@@ -57,17 +82,75 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 		}
 		return nil, ErrNotInstalled
 	}
+
+	if buildSecretBackend {
+		binSecrets := filepath.Join(bindir, SecretBackendBinary)
+		o, err := exec.Command("go", "build", "-o", binSecrets, "./testdata/secretscript.go").CombinedOutput()
+
+		if err != nil {
+			if verbose {
+				log.Printf("error installing secret-script: %v", err)
+				log.Print(string(o))
+			}
+			return nil, ErrNotInstalled
+		}
+
+		if err := os.Chmod(binSecrets, 0700); err != nil {
+			if verbose {
+				log.Printf("error changing permissions secret-script: %v", err)
+			}
+			return nil, ErrNotInstalled
+		}
+	}
+
+	tlsKeyPair, err := buildSelfSignedTLSCertificate("127.0.0.1")
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate TLS certificate: %v", err)
+	}
+
+	// Generate an authentication token and set up our gRPC server to both serve over TLS and authenticate each RPC
+	// using the authentication token.
+	authToken, err := generateAuthenticationToken()
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate authentication token: %v", err)
+	}
+
+	serverOpts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
+	}
+
+	// Start dummy gRPc server mocking the core agent
+	serverListener, err := net.Listen("tcp", "127.0.0.1:5051")
+	if err != nil {
+		return nil, ErrNotInstalled
+	}
+	s := grpc.NewServer(serverOpts...)
+	pb.RegisterAgentSecureServer(s, &grpcServer{})
+
+	go func() {
+		err := s.Serve(serverListener)
+		if err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
 	return &agentRunner{
-		bindir:  bindir,
-		ddAddr:  ddAddr,
-		log:     newSafeBuffer(),
-		verbose: verbose,
+		bindir:               bindir,
+		ddAddr:               ddAddr,
+		log:                  newSafeBuffer(),
+		verbose:              verbose,
+		agentServer:          s,
+		agentServerListerner: serverListener,
+		authToken:            authToken,
 	}, nil
 }
 
 // cleanup removes the agent binary.
 func (s *agentRunner) cleanup() error {
 	s.Kill()
+	s.agentServer.Stop()
+	s.agentServerListerner.Close()
 	return os.RemoveAll(s.bindir)
 }
 
@@ -137,6 +220,7 @@ func (s *agentRunner) Kill() {
 		}
 		return
 	}
+
 	s.mu.Lock()
 	s.pid = 0
 	s.mu.Unlock()
@@ -196,22 +280,62 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 		v.Set("log_level", "debug")
 	}
 
-	// disable remote tagger to avoid running a core agent for testing
-	v.Set("apm_config.remote_tagger", false)
+	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port)
 
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
 		return "", err
 	}
-	f, err := os.Create(filepath.Join(s.bindir, "datadog.yaml"))
+	confFile, err := os.Create(filepath.Join(s.bindir, "datadog.yaml"))
 	if err != nil {
 		return "", err
 	}
-	if _, err := f.Write(out); err != nil {
+	if _, err := confFile.Write(out); err != nil {
 		return "", err
 	}
-	if err := f.Close(); err != nil {
+	if err := confFile.Close(); err != nil {
 		return "", err
 	}
-	return f.Name(), nil
+	// create auth_token file
+	authTokenFile, err := os.Create(filepath.Join(s.bindir, "auth_token"))
+	if err != nil {
+		return "", err
+	}
+	if _, err := authTokenFile.Write([]byte(s.authToken)); err != nil {
+		return "", err
+	}
+	if err := authTokenFile.Close(); err != nil {
+		return "", err
+	}
+	return confFile.Name(), nil
+}
+
+func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, error) {
+	hosts := []string{host}
+	_, certPEM, key, err := security.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return nil, errors.New("unable to generate certificate")
+	}
+
+	// PEM encode the private key
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key),
+	})
+
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
+	}
+
+	return &pair, nil
+}
+
+func generateAuthenticationToken() (string, error) {
+	rawToken := make([]byte, 32)
+	_, err := rand.Read(rawToken)
+	if err != nil {
+		return "", fmt.Errorf("can't create authentication token value: %s", err)
+	}
+
+	return hex.EncodeToString(rawToken), nil
 }

@@ -1,7 +1,7 @@
 ---
 .kitchen_common:
   stage: kitchen_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/dd-agent-testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   artifacts:
     expire_in: 2 weeks
@@ -81,7 +81,6 @@
   rules:
     !reference [.on_kitchen_tests]
   variables:
-    AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
 
 
@@ -90,16 +89,16 @@
 
 .kitchen_test_chef:
   script:
-    - tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh chef-test 7
 
 .kitchen_test_upgrade5:
   script:
-    - tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh upgrade5-test 7
 
 .kitchen_test_upgrade7:
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
-    - tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh upgrade7-test 7
 
 # Kitchen: Agent flavor
 # -------------------------------

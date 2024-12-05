@@ -12,10 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -40,7 +39,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 		IP: "127.0.0.1",
 	}
 
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := mock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string
@@ -226,7 +225,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := mock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string

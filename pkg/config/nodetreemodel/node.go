@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -15,18 +14,40 @@ import (
 // ErrNotFound is an error for when a key is not found
 var ErrNotFound = fmt.Errorf("not found")
 
-// NewNode constructs a Node from either a map, a slice, or a scalar value
-func NewNode(v interface{}, source model.Source) (Node, error) {
+func mapInterfaceToMapString(m map[interface{}]interface{}) map[string]interface{} {
+	res := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		mk := ""
+		if str, ok := k.(string); ok {
+			mk = str
+		} else {
+			mk = fmt.Sprintf("%s", k)
+		}
+		res[mk] = v
+	}
+	return res
+}
+
+// NewNodeTree will recursively create nodes from the input value to construct a tree
+func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 	switch it := v.(type) {
 	case map[interface{}]interface{}:
-		return newInnerNodeImplWithData(mapInterfaceToMapString(it), source)
+		children, err := makeChildNodeTrees(mapInterfaceToMapString(it), source)
+		if err != nil {
+			return nil, err
+		}
+		return newInnerNode(children), nil
 	case map[string]interface{}:
-		return newInnerNodeImplWithData(it, source)
+		children, err := makeChildNodeTrees(it, source)
+		if err != nil {
+			return nil, err
+		}
+		return newInnerNode(children), nil
 	case []interface{}:
-		return newArrayNodeImpl(it, source)
+		return newLeafNode(it, source), nil
 	}
 	if isScalar(v) {
-		return newLeafNodeImpl(v, source), nil
+		return newLeafNode(v, source), nil
 	}
 	// Finally, try determining node type using reflection, should only be needed for unit tests that
 	// supply data that isn't one of the "plain" types produced by parsing json, yaml, etc
@@ -35,6 +56,18 @@ func NewNode(v interface{}, source model.Source) (Node, error) {
 		return nil, fmt.Errorf("could not create node from: %v of type %T", v, v)
 	}
 	return node, err
+}
+
+func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]Node, error) {
+	children := make(map[string]Node)
+	for k, v := range input {
+		node, err := NewNodeTree(v, source)
+		if err != nil {
+			return nil, err
+		}
+		children[k] = node
+	}
+	return children, nil
 }
 
 // NodeType represents node types in the tree (ie: inner or leaf)
@@ -64,19 +97,13 @@ type InnerNode interface {
 	SetAt([]string, interface{}, model.Source) (bool, error)
 	InsertChildNode(string, Node)
 	makeRemapCase()
+	DumpSettings(func(model.Source) bool) map[string]interface{}
 }
 
 // LeafNode represents a leaf node of the config
 type LeafNode interface {
 	Node
-	GetAny() (interface{}, error)
-	GetBool() (bool, error)
-	GetInt() (int, error)
-	GetFloat() (float64, error)
-	GetString() (string, error)
-	GetTime() (time.Time, error)
-	GetDuration() (time.Duration, error)
-	SetWithSource(interface{}, model.Source) error
+	Get() interface{}
 	Source() model.Source
 	SourceGreaterOrEqual(model.Source) bool
 }

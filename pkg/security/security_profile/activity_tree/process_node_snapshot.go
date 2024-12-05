@@ -287,25 +287,25 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, ne
 	for _, s := range sockets {
 		for _, sock := range TCP {
 			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
+				pn.insertSnapshottedSocket(unix.AF_INET, sock.LocalAddr, unix.IPPROTO_TCP, uint16(sock.LocalPort), stats, newEvent)
 				break
 			}
 		}
 		for _, sock := range UDP {
 			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
+				pn.insertSnapshottedSocket(unix.AF_INET, sock.LocalAddr, unix.IPPROTO_UDP, uint16(sock.LocalPort), stats, newEvent)
 				break
 			}
 		}
 		for _, sock := range TCP6 {
 			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
+				pn.insertSnapshottedSocket(unix.AF_INET6, sock.LocalAddr, unix.IPPROTO_TCP, uint16(sock.LocalPort), stats, newEvent)
 				break
 			}
 		}
 		for _, sock := range UDP6 {
 			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
+				pn.insertSnapshottedSocket(unix.AF_INET6, sock.LocalAddr, unix.IPPROTO_UDP, uint16(sock.LocalPort), stats, newEvent)
 				break
 			}
 		}
@@ -313,13 +313,14 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, ne
 	}
 }
 
-func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *Stats, newEvent func() *model.Event) {
+func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, protocol uint16, port uint16, stats *Stats, newEvent func() *model.Event) {
 	evt := newEvent()
 	evt.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
 	evt.Bind.AddrFamily = family
 	evt.Bind.Addr.IPNet.IP = ip
+	evt.Bind.Protocol = protocol
 	if family == unix.AF_INET {
 		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
 	} else {

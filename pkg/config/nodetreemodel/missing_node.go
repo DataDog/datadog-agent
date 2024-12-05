@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -23,32 +22,8 @@ func (m *missingLeafImpl) GetChild(string) (Node, error) {
 	return nil, fmt.Errorf("GetChild(): missing")
 }
 
-func (m *missingLeafImpl) GetAny() (any, error) {
-	return nil, fmt.Errorf("GetAny(): missing")
-}
-
-func (m *missingLeafImpl) GetBool() (bool, error) {
-	return false, fmt.Errorf("GetBool(): missing")
-}
-
-func (m *missingLeafImpl) GetInt() (int, error) {
-	return 0, fmt.Errorf("GetInt(): missing")
-}
-
-func (m *missingLeafImpl) GetFloat() (float64, error) {
-	return 0.0, fmt.Errorf("GetFloat(): missing")
-}
-
-func (m *missingLeafImpl) GetString() (string, error) {
-	return "", fmt.Errorf("GetString(): missing")
-}
-
-func (m *missingLeafImpl) GetTime() (time.Time, error) {
-	return time.Time{}, fmt.Errorf("GetTime(): missing")
-}
-
-func (m *missingLeafImpl) GetDuration() (time.Duration, error) {
-	return time.Duration(0), fmt.Errorf("GetDuration(): missing")
+func (m *missingLeafImpl) Get() interface{} {
+	return nil
 }
 
 func (m *missingLeafImpl) SetWithSource(interface{}, model.Source) error {

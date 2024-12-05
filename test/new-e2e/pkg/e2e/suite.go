@@ -375,7 +375,7 @@ func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Va
 
 		importKeyFromTag := field.Tag.Get(importKey)
 		isImportable := field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-		isPtrImportable := reflect.PtrTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
+		isPtrImportable := reflect.PointerTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
 
 		// Produce meaningful error in case we have an importKey but field is not importable
 		if importKeyFromTag != "" && !isImportable {

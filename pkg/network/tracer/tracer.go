@@ -189,7 +189,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if cfg.ProtocolClassificationEnabled || usmconfig.IsUSMSupportedAndEnabled(cfg) {
 		connectionProtocolMap, err := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
 		if err == nil {
-			tr.connectionProtocolMapCleaner, err = setupConnectionProtocolMapCleaner(connectionProtocolMap)
+			tr.connectionProtocolMapCleaner, err = setupConnectionProtocolMapCleaner(connectionProtocolMap, probes.ConnectionProtocolMap)
 			if err != nil {
 				log.Warnf("could not set up connection protocol map cleaner: %s", err)
 			}
@@ -329,7 +329,6 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	t.addProcessInfo(cs)
 
 	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
-	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 
 	t.state.StoreClosedConnection(cs)
 }
@@ -566,9 +565,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	// get rid of stale process entries in the cache
 	t.processCache.Trim()
-
-	// remove stale failed connections from map
-	t.ebpfTracer.GetFailedConnections().RemoveExpired()
 
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {
@@ -826,7 +822,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 
 	// some clients have tens of thousands of connections and we need to stop early
-	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	// if netlink takes too long. we indicate this behavior occurred early with IsTruncated
 	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
 
 	return &DebugConntrackTable{
@@ -887,12 +883,12 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 }
 
 const connProtoTTL = 3 * time.Minute
-const connProtoCleaningInterval = 5 * time.Minute
+const connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
 
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
 // It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.
-func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024)
+func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name string) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024, name, "npm_tracer")
 	if err != nil {
 		return nil, err
 	}

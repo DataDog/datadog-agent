@@ -37,7 +37,7 @@ type Controller struct {
 	configStateStore *ConfigStateStore
 
 	// a workqueue to process the config events
-	queue workqueue.DelayingInterface
+	queue workqueue.TypedDelayingInterface[Digest]
 
 	started     bool
 	stopChannel chan struct{}
@@ -50,7 +50,7 @@ func NewController() *Controller {
 		activeSchedulers: make(map[string]Scheduler),
 		// No delay for adding items to the queue first time
 		// Add a delay for subsequent retries if check fails
-		queue: workqueue.NewDelayingQueueWithConfig(workqueue.DelayingQueueConfig{
+		queue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[Digest]{
 			Name: "ADSchedulerController",
 		}),
 		stopChannel:      make(chan struct{}),
@@ -143,15 +143,14 @@ func (ms *Controller) worker() {
 // Scheduled,       Schedule,         None
 // Scheduled,       Unschedule,       Unschedule
 func (ms *Controller) processNextWorkItem() bool {
-	item, quit := ms.queue.Get()
+	configDigest, quit := ms.queue.Get()
 	if quit {
 		return false
 	}
-	configDigest := item.(Digest)
 	desiredConfigState, found := ms.configStateStore.GetConfigState(configDigest)
 	if !found {
 		log.Warnf("config %d not found in configStateStore", configDigest)
-		ms.queue.Done(item)
+		ms.queue.Done(configDigest)
 		return true
 	}
 
@@ -162,7 +161,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		currentState = Scheduled
 	}
 	if desiredState == currentState {
-		ms.queue.Done(item)                       // no action needed
+		ms.queue.Done(configDigest)               // no action needed
 		ms.configStateStore.Cleanup(configDigest) // cleanup the config state if it is unscheduled already
 		return true
 	}
@@ -185,7 +184,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		ms.configStateStore.Cleanup(configDigest)
 	}
 	ms.m.Unlock()
-	ms.queue.Done(item)
+	ms.queue.Done(configDigest)
 	return true
 }
 

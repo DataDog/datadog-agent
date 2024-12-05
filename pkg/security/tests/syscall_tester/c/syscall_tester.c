@@ -185,6 +185,18 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
+int ptrace_attach() {
+    int child = fork();
+    if (child == 0) {
+        sleep(3);
+    } else {
+        ptrace(PTRACE_ATTACH, child, 0, NULL);
+        wait(NULL);
+        sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+    }
+    return EXIT_SUCCESS;
+}
+
 int test_signal_sigusr(int child, int sig) {
     int do_fork = child == 0;
     if (do_fork) {
@@ -536,6 +548,7 @@ int test_connect_af_inet(int argc, char** argv) {
     addr.sin_port = htons(4242);
 
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
         perror("Failed to connect to port");
         return EXIT_FAILURE;
     }
@@ -582,6 +595,7 @@ int test_connect_af_inet6(int argc, char** argv) {
 
     addr.sin6_port = htons(4242);
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
         perror("Failed to connect to port");
         return EXIT_FAILURE;
     }
@@ -601,7 +615,7 @@ int test_connect(int argc, char** argv) {
         return test_connect_af_inet(argc - 1, argv + 1);
     } else if  (!strcmp(addr_family, "AF_INET6")) {
         return test_connect_af_inet6(argc - 1, argv + 1);
-    } 
+    }
     fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
     return EXIT_FAILURE;
 }
@@ -883,6 +897,8 @@ int main(int argc, char **argv) {
             exit_code = span_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "ptrace-traceme") == 0) {
             exit_code = ptrace_traceme();
+        } else if (strcmp(cmd, "ptrace-attach") == 0) {
+            exit_code = ptrace_attach();
         } else if (strcmp(cmd, "span-open") == 0) {
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {

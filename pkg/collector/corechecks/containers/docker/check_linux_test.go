@@ -13,7 +13,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerNetworkTypes "github.com/docker/docker/api/types/network"
 
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -245,7 +245,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	dockerNetworkExtension.Process(tags, container1, mockCollector, 0)
 	dockerNetworkExtension.Process(tags, container2, mockCollector, 0)
 	dockerNetworkExtension.Process(tags, container4, mockCollector, 0)
-	dockerNetworkExtension.PostProcess(nooptagger.NewTaggerClient())
+	dockerNetworkExtension.PostProcess(nooptagger.NewComponent())
 
 	// Running the custom part
 	dockerNetworkExtension.preRun()

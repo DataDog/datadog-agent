@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
+require "./lib/project_helpers.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -85,7 +86,7 @@ else
   end
 
   if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
 
   if osx_target?
@@ -180,6 +181,8 @@ end
 package :pkg do
   skip_packager BUILD_OCIRU
   identifier 'com.datadoghq.agent'
+  # This defines where the package will be installed in the target system
+  install_location "/opt/datadog-agent"
   unless ENV['SKIP_SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
   end
@@ -208,7 +211,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU)
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -222,7 +225,7 @@ if do_build
   dependency 'datadog-agent'
 
   # System-probe
-  if linux_target? && !heroku_target?
+  if sysprobe_enabled?
     dependency 'system-probe'
   end
 
@@ -234,6 +237,9 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
+    if fips_mode?
+      dependency 'openssl-fips-provider'
+    end
   end
 
   # Include traps db file in snmp.d/traps_db/
@@ -323,9 +329,21 @@ if windows_target?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
+  raise_if_fips_symbol_not_found = Proc.new { |symbols|
+    count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
+    if count == 0
+      raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
+    end
+  }
+
   GO_BINARIES.each do |bin|
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
+
+    if fips_mode?
+      # Check that CNG symbols are present
+      inspect_binary(bin, &raise_if_fips_symbol_not_found)
+    end
 
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin

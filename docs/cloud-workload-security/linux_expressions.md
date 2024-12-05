@@ -123,6 +123,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
@@ -146,6 +147,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -228,6 +230,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`process.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -300,6 +303,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -386,7 +390,9 @@ A bind was executed
 | -------- | ------------- |
 | [`bind.addr.family`](#bind-addr-family-doc) | Address family |
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`bind.protocol`](#bind-protocol-doc) | Socket Protocol |
 | [`bind.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `bpf`
@@ -520,11 +526,10 @@ A connect was executed
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
-| [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `dns`
 
@@ -540,12 +545,14 @@ A DNS request was sent
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `exec`
@@ -567,6 +574,7 @@ A process was executed or forked
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -657,6 +665,7 @@ A process was terminated
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
@@ -742,12 +751,14 @@ An IMDS event was captured
 | [`imds.url`](#imds-url-doc) | the queried IMDS URL |
 | [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `link`
@@ -960,6 +971,7 @@ A raw network packet captured
 | Property | Definition |
 | -------- | ------------- |
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`packet.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`packet.filter`](#packet-filter-doc) | pcap filter expression |
@@ -967,6 +979,7 @@ A raw network packet captured
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`packet.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
 
@@ -991,6 +1004,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1073,6 +1087,7 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1145,6 +1160,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1419,6 +1435,7 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1501,6 +1518,7 @@ A signal was sent
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1573,6 +1591,7 @@ A signal was sent
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
+| [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -2135,8 +2154,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -2155,6 +2174,15 @@ Definition: Indicates whether the process is a kworker
 
 `*.is_kworker` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.is_public` {#common-ipportcontext-is_public-doc}
+Type: bool
+
+Definition: Whether the IP address belongs to a public network
+
+`*.is_public` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_thread` {#common-process-is_thread-doc}
@@ -2350,8 +2378,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 7 possible prefixes:
-`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 6 possible prefixes:
+`bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2459,10 +2487,26 @@ Definition: User of the file's owner
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.version` {#common-cgroupcontext-version-doc}
+Type: int
+
+Definition: Version of the cgroup API
+
+`*.version` has 12 possible prefixes:
+`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `bind.addr.family` {#bind-addr-family-doc}
 Type: int
 
 Definition: Address family
+
+
+
+### `bind.protocol` {#bind-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
 
 
 
@@ -2654,10 +2698,10 @@ Definition: Address family
 
 
 
-### `connect.server.addr.family` {#connect-server-addr-family-doc}
+### `connect.protocol` {#connect-protocol-doc}
 Type: int
 
-Definition: Server address family
+Definition: Socket Protocol
 
 
 

@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
@@ -166,7 +166,7 @@ func prepareTest(t *testing.T, v4 bool, env string) (*Check, *fakeWorkloadmetaSt
 
 	systemInfo, _ := checks.CollectSystemInfo()
 
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 
 	c := &Check{
 		sender:            sender,

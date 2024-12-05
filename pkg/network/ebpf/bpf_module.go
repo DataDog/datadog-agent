@@ -21,7 +21,7 @@ import (
 var prebuiltModulesInUse = map[string]struct{}{}
 var telemetrymu sync.Mutex
 
-func ModuleFileName(moduleName string, debug bool) string {
+func ModuleFileName(moduleName string, debug bool) string { //nolint:revive // TODO
 	if debug {
 		return fmt.Sprintf("%s-debug.o", moduleName)
 	}
@@ -66,7 +66,7 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 	return readModule(bpfDir, "offset-guess", debug)
 }
 
-func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) { //nolint:revive // TODO
 	return readModule(bpfDir, "tracer-fentry", debug)
 }
 
@@ -75,7 +75,7 @@ func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 	return readModule(bpfDir, "conntrack", debug)
 }
 
-func GetModulesInUse() []string {
+func GetModulesInUse() []string { //nolint:revive // TODO
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 

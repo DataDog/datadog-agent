@@ -340,7 +340,9 @@ func TestActionSetVariableTTL(t *testing.T) {
 					Name:   "var1",
 					Append: true,
 					Value:  []string{"foo"},
-					TTL:    1 * time.Second,
+					TTL: &HumanReadableDuration{
+						Duration: 1 * time.Second,
+					},
 				},
 			}},
 		}},
@@ -1028,7 +1030,7 @@ func TestPolicySchema(t *testing.T) {
 		},
 	}
 
-	fs := os.DirFS("../../../../pkg/security/tests/schemas")
+	fs := os.DirFS("../../../../pkg/security/secl/schemas")
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(fs))
 
 	for _, test := range tests {

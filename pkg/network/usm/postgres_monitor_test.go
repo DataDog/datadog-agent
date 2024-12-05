@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -46,6 +47,7 @@ const (
 	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery       = "TRUNCATE TABLE dummy"
 	showQuery                = "SHOW search_path"
+	maxSupportedMessages     = protocols.PostgresMaxMessagesPerTailCall * protocols.PostgresMaxTailCalls
 )
 
 var (
@@ -142,7 +144,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			testDecoding(t, tt.isTLS)
@@ -190,7 +192,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []postgresParsingTestAttributes{
@@ -402,11 +404,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
-				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
-					ServerAddress: ctx.serverAddress,
-					EnableTLS:     isTLS,
-				})
-				require.NoError(t, err)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
@@ -591,6 +589,67 @@ func testDecoding(t *testing.T, isTLS bool) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{}, isTLS)
 			},
 		},
+		// The purpose of this test is to validate the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit.
+		{
+			name: "validate supporting max supported messages limit",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				// We reduce the limit by 2 messages because the protocol adds messages at the beginning of the maximum message response.
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages-3)...)))
+				require.NoError(t, pg.RunQuery(selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.SelectOP:      adjustCount(1),
+						postgres.InsertOP:      adjustCount(1),
+						postgres.CreateTableOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that when we exceed the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit,
+		// the request is not captured as we will miss the response.In this case, it applies to the SELECT query.
+		{
+			name: "validate exceeding max supported messages limit is not supported",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages+1)...)))
+				require.NoError(t, pg.RunQuery(selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.InsertOP:      adjustCount(1),
+						postgres.CreateTableOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -703,7 +762,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 }
 
 func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnablePostgresMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.EnableGoTLSSupport = enableTLS

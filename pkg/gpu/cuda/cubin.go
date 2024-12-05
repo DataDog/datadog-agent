@@ -10,12 +10,13 @@ package cuda
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // CubinKernelKey is the key to identify a kernel in a fatbin
@@ -126,7 +127,7 @@ type nvInfoItem struct {
 	Attr   nvInfoAttr
 }
 
-type sectionParserFunc func(*elf.Section, string) error
+type sectionParserFunc func(*safeelf.Section, string) error
 
 // cubinParser is a helper struct to parse the cubin ELF sections
 type cubinParser struct {
@@ -167,7 +168,7 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 	}
 	data[elfVersionOffset] = 1
 
-	cubinElf, err := elf.NewFile(bytes.NewReader(data))
+	cubinElf, err := safeelf.NewFile(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to parse cubin ELF: %w", err)
 	}
@@ -203,7 +204,7 @@ type nvInfoParsedItem struct {
 	value []byte
 }
 
-func (cp *cubinParser) parseNvInfoSection(sect *elf.Section, kernelName string) error {
+func (cp *cubinParser) parseNvInfoSection(sect *safeelf.Section, kernelName string) error {
 	items := make(map[nvInfoAttr]nvInfoParsedItem)
 	buffer := sect.Open()
 
@@ -253,7 +254,7 @@ func (cp *cubinParser) parseNvInfoSection(sect *elf.Section, kernelName string) 
 	return nil
 }
 
-func (cp *cubinParser) parseTextSection(sect *elf.Section, kernelName string) error {
+func (cp *cubinParser) parseTextSection(sect *safeelf.Section, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
@@ -265,7 +266,7 @@ func (cp *cubinParser) parseTextSection(sect *elf.Section, kernelName string) er
 	return nil
 }
 
-func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, kernelName string) error {
+func (cp *cubinParser) parseSharedMemSection(sect *safeelf.Section, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
@@ -278,7 +279,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, kernelName strin
 
 var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 
-func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ string) error {
+func (cp *cubinParser) parseConstantMemSection(sect *safeelf.Section, _ string) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
 	match := constantSectNameRegex.FindStringSubmatch(sect.Name)

@@ -123,10 +123,12 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "beer"})
     @patch("tasks.libs.common.junit_upload_core.Popen")
-    def test_e2e(self, mock_popen):
+    @patch("tasks.libs.common.junit_upload_core.which")
+    def test_e2e(self, mock_which, mock_popen):
         mock_instance = MagicMock()
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
+        mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
         junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 31)

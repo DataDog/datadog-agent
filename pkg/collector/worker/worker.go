@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/utilizationtracker"
 )
 
 const (
@@ -52,11 +54,13 @@ type Worker struct {
 	runnerID                int
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
+	haAgent                 haagent.Component
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	senderManager sender.SenderManager,
+	haAgent haagent.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -83,6 +87,7 @@ func NewWorker(
 		checksTracker,
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
+		haAgent,
 		pollingInterval,
 	)
 }
@@ -97,6 +102,7 @@ func newWorkerWithOptions(
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
+	haAgent haagent.Component,
 	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 
@@ -114,6 +120,7 @@ func newWorkerWithOptions(
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
+		haAgent:                 haAgent,
 		utilizationTickInterval: utilizationTickInterval,
 	}, nil
 }
@@ -122,7 +129,8 @@ func newWorkerWithOptions(
 func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
-	utilizationTracker := NewUtilizationTracker(w.Name, w.utilizationTickInterval)
+	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
+	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
 	defer utilizationTracker.Stop()
 
 	startUtilizationUpdater(w.Name, utilizationTracker)
@@ -132,6 +140,11 @@ func (w *Worker) Run() {
 	for check := range w.pendingChecksChan {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
+
+		if !w.haAgent.ShouldRunIntegration(check.String()) {
+			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
+			continue
+		}
 
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {
@@ -146,12 +159,12 @@ func (w *Worker) Run() {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		utilizationTracker.CheckStarted()
+		utilizationTracker.Started()
 
 		// Run the check
 		checkErr := check.Run()
 
-		utilizationTracker.CheckFinished()
+		utilizationTracker.Finished()
 
 		expvars.DeleteRunningStats(check.ID())
 
@@ -210,7 +223,7 @@ func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(name string, ut *UtilizationTracker) {
+func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
 	})
@@ -229,7 +242,7 @@ func startUtilizationUpdater(name string, ut *UtilizationTracker) {
 	}()
 }
 
-func startTrackerTicker(ut *UtilizationTracker, interval time.Duration) func() {
+func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration) func() {
 	ticker := time.NewTicker(interval)
 	cancel := make(chan struct{}, 1)
 	done := make(chan struct{})

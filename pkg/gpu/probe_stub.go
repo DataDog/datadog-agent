@@ -18,8 +18,9 @@ import (
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
-	Telemetry telemetry.Component
-	NvmlLib   nvml.Interface
+	Telemetry      telemetry.Component
+	NvmlLib        nvml.Interface
+	ProcessMonitor any // uprobes.ProcessMonitor is only compiled with the linux_bpf build tag, so we need to use type any here
 }
 
 // Probe is not implemented on non-linux systems

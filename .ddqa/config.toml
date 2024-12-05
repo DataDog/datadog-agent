@@ -215,8 +215,8 @@ github_labels = ["team/container-app"]
 jira_project = "INPLAT"
 jira_issue_type = "Task"
 jira_statuses = ["Selected For Development", "In Progress", "Done"]
-github_team = "apm-onboarding"
-github_labels = ["team/apm-onboarding"]
+github_team = "injection-platform"
+github_labels = ["team/injection-platform"]
 
 [teams."Agent Release Management"]
 jira_project = "AGNTR"
@@ -227,6 +227,7 @@ github_labels = ["team/agent-release-management"]
 
 [teams."Dynamic Instrumentation"]
 jira_project = "DEBUG"
+jira_component = "datadog-agent"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "debugger-go"

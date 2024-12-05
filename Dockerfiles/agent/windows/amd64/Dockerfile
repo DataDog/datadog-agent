@@ -15,8 +15,13 @@ USER ContainerAdministrator
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 
 COPY ["Datadog Agent", "C:/Program Files/Datadog/Datadog Agent"]
+
 COPY install.ps1 ./
 RUN . ./install.ps1
+
+COPY bouncycastle-fips /fips-build
+COPY install-fips.ps1 ./
+RUN . ./install-fips.ps1
 
 EXPOSE 8125/udp 8126/tcp
 

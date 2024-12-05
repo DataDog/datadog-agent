@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -77,7 +77,7 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(30, factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	require.Len(t, LoaderCatalog(senderManager, logReceiver, tagger), 2)
 	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver, tagger)[1])
 	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver, tagger)[0])
