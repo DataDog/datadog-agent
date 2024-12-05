@@ -77,28 +77,49 @@ func GetLocalSystemSID() (*windows.SID, error) {
 	return localSystem, err
 }
 
-// GetDDAgentUserSID returns the SID of the DataDog Agent account
-func GetDDAgentUserSID() (*windows.SID, error) {
+// GetServiceUserSID returns the SID of the specified service account
+func GetServiceUserSID(service string) (*windows.SID, error) {
 	// get config for datadogagent service
-	user, err := GetServiceUser("datadogagent")
+	user, err := GetServiceUser(service)
 	if err != nil {
 		return nil, fmt.Errorf("could not get datadogagent service user: %s", err)
 	}
 
-	var domain, username string
-	parts := strings.SplitN(user, "\\", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("could not parse user: %s", user)
+	username, err := getUserFromServiceUser(user)
+	if err != nil {
+		return nil, err
 	}
 
-	domain = parts[0]
-	if domain == "." {
-		username = parts[1]
-	} else {
-		username = user
+	if username == "LocalSystem" {
+		return windows.StringToSid("S-1-5-18")
 	}
 
 	// get the SID for the user account
 	sid, _, _, err := windows.LookupSID("", username)
 	return sid, err
+}
+
+func getUserFromServiceUser(user string) (string, error) {
+	var domain, username string
+	parts := strings.SplitN(user, "\\", 2)
+	if len(parts) == 1 {
+		username = user
+	} else if len(parts) == 2 {
+		domain = parts[0]
+		if domain == "." {
+			username = parts[1]
+		} else {
+			username = user
+		}
+	} else {
+		return "", fmt.Errorf("could not parse user: %s", user)
+	}
+
+	return username, nil
+
+}
+
+// GetDDAgentUserSID returns the SID of the DataDog Agent account
+func GetDDAgentUserSID() (*windows.SID, error) {
+	return GetServiceUserSID("datadogagent")
 }
