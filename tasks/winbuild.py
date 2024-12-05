@@ -1,9 +1,18 @@
+import os
+import shutil
+
 from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import get_version
 from tasks.msi import build as agent_msi_build
 from tasks.msi import build_installer
 from tasks.omnibus import build as omnibus_build
+
+# Output directory for package files
+OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
+# Omnibus stores files here, e.g. C:\opt\datadog-agent, C:\opt\dataog-installer
+OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
 
 
 @task
@@ -47,3 +56,15 @@ def installer_package(
 
     # Package MSI into OCI
     ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-installer"')
+
+    # Copy installer.exe to the output dir so it can be deployed as the bootstrapper
+    agent_version = get_version(
+        ctx,
+        include_git=True,
+        url_safe=True,
+        include_pipeline_id=True,
+    )
+    shutil.copy2(
+        os.path.join(OPT_SOURCE_DIR, "datadog-installer\\datadog-installer.exe"),
+        os.path.join(OUTPUT_PATH, f"datadog-installer-{agent_version}-1-x86_64.exe"),
+    )
