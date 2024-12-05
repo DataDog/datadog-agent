@@ -33,7 +33,7 @@ var (
 	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 	architecture          = flag.String("arch", "", "architecture to test (x86_64, arm64))")
 	flavorName            = flag.String("flavor", "datadog-agent", "package flavor to install")
-	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
+	majorVersion          = flag.String("major-version", "6", "major version to test")
 )
 
 type stepByStepSuite struct {
@@ -240,6 +240,14 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
+	if *platform == "centos" {
+		// Centos 7 EOLed on July 1st, 2024. We need to switch to vault.centos.org to get the packages
+		is.T().Run("update centos mirrorlist", func(t *testing.T) {
+			ExecuteWithoutError(t, VMclient, "sudo sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo")
+			ExecuteWithoutError(t, VMclient, "sudo sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo")
+			ExecuteWithoutError(t, VMclient, "sudo sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo")
+		})
+	}
 	is.T().Run("install rhel", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo yum makecache -y")
 		ExecuteWithoutError(t, VMclient, "sudo yum install -y %s", *flavorName)
