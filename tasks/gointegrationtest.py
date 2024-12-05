@@ -8,7 +8,6 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.utils import TestsNotSupportedError, gitlab_section
-from tasks.trace_agent import integration_tests as trace_integration_tests
 
 
 def containerized_integration_tests(
@@ -74,6 +73,29 @@ def dca_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly
         go_build_tags=go_build_tags,
         race=race,
         remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
+
+
+def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
+    """
+    Run integration tests for trace agent
+    """
+    if sys.platform == 'win32':
+        raise TestsNotSupportedError('Trace Agent integration tests are not supported on Windows')
+
+    go_build_tags = " ".join(get_default_build_tags(build="test"))
+    prefixes = [
+        "./cmd/trace-agent/test/testsuite/...",
+    ]
+    containerized_integration_tests(
+        ctx,
+        prefixes=prefixes,
+        go_build_tags=go_build_tags,
+        env={"INTEGRATION": "yes"},
+        race=race,
+        remote_docker=False,
         go_mod=go_mod,
         timeout=timeout,
     )
