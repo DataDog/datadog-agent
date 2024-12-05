@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -62,11 +63,13 @@ func Test_IsLeader_SetLeader(t *testing.T) {
 	}
 	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
 
+	assert.Equal(t, haagent.Unknown, haAgent.GetState())
+
 	haAgent.SetLeader("another-agent")
-	assert.False(t, haAgent.IsLeader())
+	assert.Equal(t, haagent.Standby, haAgent.GetState())
 
 	haAgent.SetLeader("my-agent-hostname")
-	assert.True(t, haAgent.IsLeader())
+	assert.Equal(t, haagent.Active, haAgent.GetState())
 }
 
 func Test_RCListener(t *testing.T) {

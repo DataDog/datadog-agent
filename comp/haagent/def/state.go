@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package haagentimpl
+package haagent
 
-import (
-	"testing"
+// State type for HA Agent State
+type State string
 
-	"github.com/stretchr/testify/assert"
+const (
+	// Active HA Agent state
+	Active State = "active"
+	// Standby HA Agent state
+	Standby State = "standby"
+	// Unknown HA Agent state
+	Unknown State = "unknown"
 )
-
-func Test_leaderStatusToRole(t *testing.T) {
-	assert.Equal(t, "leader", leaderStateToRole(true))
-	assert.Equal(t, "follower", leaderStateToRole(false))
-}
