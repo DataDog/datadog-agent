@@ -27,8 +27,8 @@ import (
 
 // sources lists the known sources, following the order of hierarchy between them
 var sources = []model.Source{
-	model.SourceDefault,
 	model.SourceUnknown,
+	model.SourceDefault,
 	model.SourceFile,
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
@@ -140,10 +140,10 @@ func (c *ntmConfig) setDefault(key string, value interface{}) {
 
 func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	switch source {
-	case model.SourceDefault:
-		return c.defaults, nil
 	case model.SourceUnknown:
 		return c.unknown, nil
+	case model.SourceDefault:
+		return c.defaults, nil
 	case model.SourceFile:
 		return c.file, nil
 	case model.SourceEnvVar:
@@ -577,7 +577,7 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	defer c.RUnlock()
 
 	// We only want to include leaf with a source higher than SourceDefault
-	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterOrEqualThan(model.SourceUnknown) })
+	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
@@ -587,8 +587,8 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 	// We don't return include unknown settings
 	return map[model.Source]interface{}{
-		model.SourceDefault:            c.defaults.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceUnknown:            c.unknown.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceDefault:            c.defaults.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceFile:               c.file.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceEnvVar:             c.envs.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceFleetPolicies:      c.fleetPolicies.DumpSettings(func(model.Source) bool { return true }),

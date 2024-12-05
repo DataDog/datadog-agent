@@ -147,8 +147,8 @@ func TestBasicUsage(t *testing.T) {
 func TestSet(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 
-	cfg.SetDefault("default", 0)
 	cfg.SetDefault("unknown", 0)
+	cfg.SetDefault("default", 0)
 	cfg.SetDefault("file", 0)
 	cfg.SetDefault("env", 0)
 	cfg.SetDefault("runtime", 0)
@@ -159,8 +159,8 @@ func TestSet(t *testing.T) {
 
 	cfg.BuildSchema()
 
-	assert.Equal(t, 0, cfg.Get("default"))
 	assert.Equal(t, 0, cfg.Get("unknown"))
+	assert.Equal(t, 0, cfg.Get("default"))
 	assert.Equal(t, 0, cfg.Get("file"))
 	assert.Equal(t, 0, cfg.Get("env"))
 	assert.Equal(t, 0, cfg.Get("runtime"))
@@ -169,8 +169,8 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, 0, cfg.Get("fleetPolicies"))
 	assert.Equal(t, 0, cfg.Get("cli"))
 
-	cfg.Set("unknown", 1, model.SourceUnknown)
-	assert.Equal(t, 1, cfg.Get("unknown"))
+	cfg.Set("default", 1, model.SourceDefault)
+	assert.Equal(t, 1, cfg.Get("default"))
 
 	cfg.ReadConfig(strings.NewReader(`
 file: 2
@@ -178,7 +178,7 @@ file: 2
 
 	assert.Equal(t, 2, cfg.Get("file"))
 
-	cfg.Set("unknown", 1, model.SourceUnknown)
+	cfg.Set("default", 1, model.SourceDefault)
 	cfg.Set("env", 3, model.SourceEnvVar)
 	cfg.Set("runtime", 4, model.SourceAgentRuntime)
 	cfg.Set("localConfigProcess", 5, model.SourceLocalConfigProcess)
@@ -186,8 +186,8 @@ file: 2
 	cfg.Set("fleetPolicies", 7, model.SourceFleetPolicies)
 	cfg.Set("cli", 8, model.SourceCLI)
 
-	assert.Equal(t, 0, cfg.Get("default"))
-	assert.Equal(t, 1, cfg.Get("unknown"))
+	assert.Equal(t, 0, cfg.Get("unknown"))
+	assert.Equal(t, 1, cfg.Get("default"))
 	assert.Equal(t, 2, cfg.Get("file"))
 	assert.Equal(t, 3, cfg.Get("env"))
 	assert.Equal(t, 4, cfg.Get("runtime"))
@@ -196,8 +196,8 @@ file: 2
 	assert.Equal(t, 7, cfg.Get("fleetPolicies"))
 	assert.Equal(t, 8, cfg.Get("cli"))
 
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("unknown"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("default"))
-	assert.Equal(t, model.SourceUnknown, cfg.GetSource("unknown"))
 	assert.Equal(t, model.SourceFile, cfg.GetSource("file"))
 	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("env"))
 	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("runtime"))

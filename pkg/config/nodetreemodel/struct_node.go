@@ -82,9 +82,9 @@ func (n *structNodeImpl) Clone() Node {
 	return &structNodeImpl{val: n.val}
 }
 
-// SourceGreaterOrEqual returns true if the source of the current node is greater or equal to the one given as a
+// SourceGreaterThan returns true if the source of the current node is greater than the one given as a
 // parameter
-func (n *structNodeImpl) SourceGreaterOrEqual(model.Source) bool {
+func (n *structNodeImpl) SourceGreaterThan(model.Source) bool {
 	return false
 }
 

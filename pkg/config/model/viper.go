@@ -60,8 +60,8 @@ const (
 
 // sources list the known sources, following the order of hierarchy between them
 var sources = []Source{
-	SourceDefault,
 	SourceUnknown,
+	SourceDefault,
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
@@ -74,8 +74,8 @@ var sources = []Source{
 // sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
 // configuration tree (a higher priority overwrites a lower one).
 var sourcesPriority = map[Source]int{
-	SourceDefault:            0,
-	SourceUnknown:            1,
+	SourceUnknown:            0,
+	SourceDefault:            1,
 	SourceFile:               2,
 	SourceEnvVar:             3,
 	SourceFleetPolicies:      4,
@@ -91,9 +91,18 @@ type ValueWithSource struct {
 	Value  interface{}
 }
 
-// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterOrEqualThan(x Source) bool {
-	return sourcesPriority[s] >= sourcesPriority[x]
+// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterThan(x Source) bool {
+	return sourcesPriority[s] > sourcesPriority[x]
+}
+
+// PreviousSource returns the source before the current one, or Unknown if there isn't one
+func (s Source) PreviousSource() Source {
+	previous := sourcesPriority[s]
+	if previous == 0 {
+		return SourceUnknown
+	}
+	return sources[previous-1]
 }
 
 // String casts Source into a string
