@@ -57,8 +57,11 @@ func initF() {
 	tagsetTlm.reset()
 }
 
-func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000)
+func testNewFlushTrigger(start time.Time, waitForSerializer bool, callback func(_ *metrics.Serie)) flushTrigger {
+	if callback == nil {
+		callback = func(_ *metrics.Serie) {}
+	}
+	seriesSink := metrics.NewIterableSeries(callback, 1000, 1000)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
@@ -130,7 +133,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
 	}, time.Second, 10*time.Millisecond)
 
-	agg.Flush(testNewFlushTrigger(time.Now(), false))
+	agg.Flush(testNewFlushTrigger(time.Now(), false, nil))
 
 	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
@@ -265,12 +268,72 @@ func TestDefaultData(t *testing.T) {
 
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.Flush(testNewFlushTrigger(start, false))
+	agg.Flush(testNewFlushTrigger(start, false, nil))
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
 	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
+}
+
+func TestDefaultSeries(t *testing.T) {
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+
+	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+	mockHaAgent.SetEnabled(true)
+	mockHaAgent.SetIsLeader(true)
+
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval)
+
+	start := time.Now()
+
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{"agent_group:group01"}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
+
+	series := metrics.Series{&metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:6.0.0", "agent_group:group01"}),
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.ha_agent.is_leader", agg.agentName),
+		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_group:group01"}),
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_group:group01"}),
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+		NoIndex:        true,
+	}}
+
+	s.On("SendSeries", series).Return(nil).Times(1)
+
+	var flushedSeries metrics.Series
+	triggerInstance := testNewFlushTrigger(start, false, func(serie *metrics.Serie) {
+		flushedSeries = append(flushedSeries, serie)
+	})
+
+	agg.Flush(triggerInstance)
+
+	assert.EqualValues(t, series, flushedSeries)
 }
 
 func TestSeriesTooManyTags(t *testing.T) {

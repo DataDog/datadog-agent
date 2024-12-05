@@ -19,8 +19,9 @@ import (
 type mockHaAgent struct {
 	Logger log.Component
 
-	group   string
-	enabled bool
+	group    string
+	enabled  bool
+	isLeader bool
 }
 
 func (m *mockHaAgent) GetGroup() string {
@@ -34,7 +35,7 @@ func (m *mockHaAgent) Enabled() bool {
 func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mockHaAgent) IsLeader() bool { return false }
+func (m *mockHaAgent) IsLeader() bool { return m.isLeader }
 
 func (m *mockHaAgent) SetGroup(group string) {
 	m.group = group
@@ -42,6 +43,9 @@ func (m *mockHaAgent) SetGroup(group string) {
 
 func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
+}
+func (m *mockHaAgent) SetIsLeader(isLeader bool) {
+	m.isLeader = isLeader
 }
 
 func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
@@ -54,6 +58,7 @@ type Component interface {
 
 	SetGroup(string)
 	SetEnabled(bool)
+	SetIsLeader(bool)
 }
 
 // NewMockHaAgent returns a new Mock
