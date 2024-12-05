@@ -30,9 +30,14 @@
     },
     "25": {
         "timestamp": 0,
-        "arm64": {
-            "datadog-heroku-agent": {
+        "aarch64": {
+            "datadog-agent": {
                 "suse" : 68000000
+            }
+        },
+        "x86_64": {
+            "datadog-iot-agent": {
+                "rpm" : 78000000
             }
         }
     }

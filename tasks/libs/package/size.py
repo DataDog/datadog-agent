@@ -165,10 +165,11 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
     mb = 1000000
     if os_name == 'suse':
         dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
-        path = f'{dir}/{flavor}_7*_{arch}.rpm'
+        path = f'{dir}/{flavor}-7*{arch}.rpm'
     else:
         dir = os.environ['OMNIBUS_PACKAGE_DIR']
-        path = f'{dir}/{flavor}_7*_{arch}.{os_name}'
+        separator = '_' if os_name == 'deb' else '-'
+        path = f'{dir}/{flavor}{separator}7*{arch}.{os_name}'
     package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
     branch = get_current_branch(ctx)
     ancestor = get_common_ancestor(ctx, branch)
