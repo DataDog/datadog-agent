@@ -108,19 +108,17 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
 		var (
-			argName    string
-			captureDef *ditypes.Parameter
-			defPieces  []*ditypes.Parameter
+			argName   string
+			defPieces []*ditypes.Parameter
 		)
 		if idx < len(defs) {
 			argName = defs[idx].Name
-			captureDef = defs[idx]
 		}
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
 		if reflect.Kind(capture.Kind) == reflect.Slice {
-			args[argName] = convertSlice(captureDef, capture)
+			args[argName] = convertSlice(capture)
 			continue
 		}
 		if capture == nil {
@@ -143,12 +141,7 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 	return args
 }
 
-func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.CapturedValue {
-	if def == nil || len(def.ParameterPieces) != 3 {
-		// The definition should have two fields, for type, and for length
-		return nil
-	}
-
+func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
 	defs := []*ditypes.Parameter{}
 	for i := range capture.Fields {
 		defs = append(defs, &ditypes.Parameter{
@@ -158,11 +151,9 @@ func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.Captu
 			TotalSize: int64(capture.Fields[i].Size),
 		})
 	}
-
 	sliceValue := &ditypes.CapturedValue{
-		Fields: map[string]*ditypes.CapturedValue{},
+		Fields: convertArgs(defs, capture.Fields),
 	}
-	sliceValue.Fields = convertArgs(defs, capture.Fields)
 	return sliceValue
 }
 
