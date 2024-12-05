@@ -23,7 +23,7 @@ jobs:
           [
             ubuntu-20.04,
             ubuntu-latest,
-            macos-12,
+            macos-13,
             macos-latest,
             windows-2019,
             windows-latest,
