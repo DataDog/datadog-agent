@@ -214,7 +214,6 @@ def tag_modules(
     ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
-    The version should be given as an Agent 7 version.
 
     Args:
         commit: Will tag `commit` with the tags (default HEAD).
