@@ -4,6 +4,9 @@ name 'agent-dependencies'
 if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
+  if fips_mode?
+    dependency 'openssl-fips-provider'
+  end
 end
 
 # Bundled cacerts file (is this a good idea?)

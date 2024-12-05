@@ -255,9 +255,6 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
-    if fips_mode?
-      dependency 'openssl-fips-provider'
-    end
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
