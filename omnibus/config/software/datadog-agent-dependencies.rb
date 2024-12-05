@@ -43,8 +43,6 @@ if windows_target?
   end
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-windows-procmon-driver'
-    ## this is a duplicate of the above dependency in linux
-    dependency 'datadog-security-agent-policies'
   end
 end
 

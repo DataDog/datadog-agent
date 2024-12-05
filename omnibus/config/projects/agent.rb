@@ -227,6 +227,11 @@ if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
+  # This depends on the agent and must be added after it
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-security-agent-policies'
+  end
+
   # System-probe
   if sysprobe_enabled?
     dependency 'system-probe'
