@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -84,9 +85,11 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
-	if err != nil {
-		log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+	if env.IsFeaturePresent(env.PodResources) {
+		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
+		if err != nil {
+			log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+		}
 	}
 
 	return nil
