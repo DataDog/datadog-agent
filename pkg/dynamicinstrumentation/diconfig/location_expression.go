@@ -134,9 +134,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if str.Location != nil && len.Location != nil {
 						// Fields of the string are directly assigned
 						targetExpressions = append(targetExpressions,
-							// Read length to output buffer:
-							ditypes.DirectReadLocationExpression(len),
-							ditypes.PopLocationExpression(1, 2),
 							// Read string dynamically:
 							ditypes.DirectReadLocationExpression(str),
 							ditypes.DirectReadLocationExpression(len),
