@@ -165,32 +165,20 @@ def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     )
 
 
-def _core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    containerized_integration_tests(
-        ctx,
-        CORE_AGENT_LINUX,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
-
-
-def _core_windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
-    containerized_integration_tests(ctx, CORE_AGENT_WINDOWS, race=race, go_mod=go_mod, timeout=timeout)
-
-
 def core_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
-
     if sys.platform == 'win32':
-        return _core_windows_integration_tests(ctx=ctx, race=race, go_mod=go_mod, timeout=timeout)
+        return containerized_integration_tests(ctx, CORE_AGENT_WINDOWS, race=race, go_mod=go_mod, timeout=timeout)
     else:
-        # TODO: See if these will function on Windows
-        return _core_linux_integration_tests(
-            ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout
+        return containerized_integration_tests(
+            ctx,
+            CORE_AGENT_LINUX,
+            race=race,
+            remote_docker=remote_docker,
+            go_mod=go_mod,
+            timeout=timeout,
         )
 
 
