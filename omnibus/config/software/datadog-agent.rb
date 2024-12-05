@@ -20,7 +20,6 @@ dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # 
 # especially at higher thread counts.
 dependency "libjemalloc" if linux_target?
 
-dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'
