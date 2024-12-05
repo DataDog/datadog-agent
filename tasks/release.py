@@ -124,7 +124,12 @@ def get_next_version_from_branch(ctx, branch: str, as_str=True) -> str | Version
 
     re_branch = re.compile(r"^([0-9]\.[0-9]+\.)x$")
 
-    matched = re_branch.match(branch).group(1)
+    try:
+        matched = re_branch.match(branch).group(1)
+    except Exception as e:
+        raise Exit(
+            f'{color_message("Error:", "red")}: Branch {branch} is not a release branch (should be X.Y.x)', code=1
+        ) from e
 
     tags = [tuple(map(int, tag.split('.'))) for tag in get_all_version_tags(ctx) if tag.startswith(matched)]
     versions = sorted(Version(*tag) for tag in tags)
