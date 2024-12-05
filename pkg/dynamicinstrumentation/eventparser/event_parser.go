@@ -94,26 +94,6 @@ func parseParamValueForProbe(probe *ditypes.Probe, definition *ditypes.Param, bu
 	tempStack.push(definition)
 	for !tempStack.isEmpty() {
 		current := tempStack.pop()
-
-		if reflect.Kind(current.Kind) == reflect.Slice {
-			len, err := readRuntimeSizedLength(buffer[bufferIndex : bufferIndex+2])
-			if err != nil {
-				log.Error(err)
-			}
-			bufferIndex += 2
-			//TODO: Limit `len` to max slice elements
-			current.Size = len
-			if len == 0 {
-				current.Fields = []*ditypes.Param{}
-				_ = definitionStack.pop()
-			} else if len > 1 {
-				for i := 0; i < int(len)-1; i++ {
-					copiedSliceElementDefinition := &ditypes.Param{}
-					deepCopyParam(copiedSliceElementDefinition, current.Fields[0])
-					current.Fields = append(current.Fields, copiedSliceElementDefinition)
-				}
-			}
-		}
 		copiedParam := copyParam(current)
 		definitionStack.push(copiedParam)
 		for n := 0; n < len(current.Fields); n++ {
@@ -127,23 +107,8 @@ func parseParamValueForProbe(probe *ditypes.Probe, definition *ditypes.Param, bu
 		if paramDefinition == nil {
 			break
 		}
-
 		if reflect.Kind(paramDefinition.Kind) == reflect.String {
-			// We read the length first
-			size, err := readRuntimeSizedLength(buffer[bufferIndex : bufferIndex+2])
-			if err != nil {
-				log.Error(err)
-				break
-			}
-			bufferIndex += 2
-			paramDefinition.Size = size
-			if len(buffer) <= bufferIndex+int(size) {
-				paramDefinition.ValueStr = ""
-				valueStack.push(paramDefinition)
-				bufferIndex += int(paramDefinition.Size)
-				break
-			}
-			paramDefinition.ValueStr = string(buffer[bufferIndex : bufferIndex+int(size)])
+			paramDefinition.ValueStr = string(buffer[bufferIndex : bufferIndex+int(paramDefinition.Size)])
 			bufferIndex += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
 		} else if !isTypeWithHeader(paramDefinition.Kind) {
@@ -220,19 +185,9 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		kind := b[i]
 		newParam := &ditypes.Param{
 			Kind: kind,
+			Size: binary.LittleEndian.Uint16(b[i+1 : i+3]),
 			Type: parseKindToString(kind),
 		}
-		if reflect.Kind(kind) == reflect.Slice {
-			stack.push(newParam)
-			i += 1
-			continue
-		}
-		if reflect.Kind(kind) == reflect.String {
-			i += 1
-			goto stackCheck
-		}
-
-		newParam.Size = binary.LittleEndian.Uint16(b[i+1 : i+3])
 		if newParam.Kind == 0 {
 			break
 		}
@@ -254,8 +209,23 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		}
 		top := stack.peek()
 		top.Fields = append(top.Fields, newParam)
+
+		if reflect.Kind(top.Kind) == reflect.Slice {
+			// top.Size is the length of the slice.
+			// We copy+append the type of the slice so we have the correct
+			// number of slice elements to parse values into.
+			if top.Size == 0 {
+				top.Fields = []*ditypes.Param{}
+			} else if top.Size > 1 {
+				for q := 1; q < int(top.Size); q++ {
+					sliceElementTypeCopy := &ditypes.Param{}
+					deepCopyParam(sliceElementTypeCopy, top.Fields[0])
+					top.Fields = append(top.Fields, sliceElementTypeCopy)
+				}
+			}
+		}
+
 		if len(top.Fields) == int(top.Size) ||
-			(reflect.Kind(top.Kind) == reflect.Slice) ||
 			(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
 			newParam = stack.pop()
 			goto stackCheck
@@ -274,14 +244,16 @@ func countBufferUsedByTypeDefinition(root *ditypes.Param) int {
 	for len(queue) != 0 {
 		front := queue[0]
 		queue = queue[1:]
+		counter += 3
 
-		if reflect.Kind(front.Kind) == reflect.String ||
-			reflect.Kind(front.Kind) == reflect.Slice {
-			counter += 1
+		if reflect.Kind(front.Kind) == reflect.Slice && len(front.Fields) > 0 {
+			// The fields of slice elements are amended after the fact to account
+			// for the runtime discovered length. However, only one definition of
+			// the slice element's type is present in the buffer.
+			queue = append(queue, front.Fields[0])
 		} else {
-			counter += 3
+			queue = append(queue, front.Fields...)
 		}
-		queue = append(queue, front.Fields...)
 	}
 	return counter
 }
