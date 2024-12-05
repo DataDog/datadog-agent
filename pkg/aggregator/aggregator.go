@@ -617,7 +617,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		}
 		// Send along a metric to show if HA Agent is leader (1: is leader, 0: not leader).
 		series.Append(&metrics.Serie{
-			Name:           fmt.Sprintf("datadog.%s.ha_agent.is_leader", agg.agentName),
+			Name:           fmt.Sprintf("datadog.%s.ha.is_leader", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(isLeader), Ts: float64(start.Unix())}},
 			Tags:           tagset.CompositeTagsFromSlice(agg.tags(false)),
 			Host:           agg.hostname,
