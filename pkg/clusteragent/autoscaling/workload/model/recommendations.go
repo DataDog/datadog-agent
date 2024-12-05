@@ -56,7 +56,7 @@ type VerticalScalingValues struct {
 	ContainerResources []datadoghq.DatadogPodAutoscalerContainerResources
 }
 
-type CustomRecommenderConfiguration struct {
+type RecommenderConfiguration struct {
 	Endpoint string
 	Settings map[string]any
 }

@@ -110,7 +110,7 @@ type PodAutoscalerInternal struct {
 
 	// customRecommenderConfiguration holds the configuration for custom recommenders,
 	// Parsed from annotations on the autoscaler
-	customRecommenderConfiguration *CustomRecommenderConfiguration
+	customRecommenderConfiguration *RecommenderConfiguration
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
@@ -433,7 +433,7 @@ func (p *PodAutoscalerInternal) TargetGVK() (schema.GroupVersionKind, error) {
 }
 
 // CustomRecommenderConfiguration returns the configuration set on the autoscaler for a customer recommender
-func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *CustomRecommenderConfiguration {
+func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *RecommenderConfiguration {
 	return p.customRecommenderConfiguration
 }
 
@@ -672,8 +672,8 @@ func getLongestScalingRulesPeriod(rules []datadoghq.DatadogPodAutoscalerScalingR
 	return longest
 }
 
-func parseCustomConfigurationAnnotation(annotations map[string]string) *CustomRecommenderConfiguration {
-	customConfiguration := CustomRecommenderConfiguration{}
+func parseCustomConfigurationAnnotation(annotations map[string]string) *RecommenderConfiguration {
+	customConfiguration := RecommenderConfiguration{}
 
 	if err := json.Unmarshal([]byte(annotations[AnnotationsConfigurationKey]), &customConfiguration); err != nil {
 		log.Debugf("Failed to parse annotations for custom recommender configuration: %v", err)

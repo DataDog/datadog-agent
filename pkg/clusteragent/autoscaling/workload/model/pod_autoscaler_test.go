@@ -81,19 +81,19 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
-		expected    CustomRecommenderConfiguration
+		expected    RecommenderConfiguration
 	}{
 		{
 			name:        "Empty annotations",
 			annotations: map[string]string{},
-			expected:    CustomRecommenderConfiguration{},
+			expected:    RecommenderConfiguration{},
 		},
 		{
 			name: "URL annotation",
 			annotations: map[string]string{
 				AnnotationsConfigurationKey: "{\"endpoint\": \"localhost:8080/test\"}",
 			},
-			expected: CustomRecommenderConfiguration{
+			expected: RecommenderConfiguration{
 				Endpoint: "localhost:8080/test",
 			},
 		},
@@ -102,7 +102,7 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 			annotations: map[string]string{
 				AnnotationsConfigurationKey: "{\"endpoint\": \"localhost:8080/test\", \"settings\": {\"key\": \"value\", \"number\": 1, \"bool\": true, \"array\": [1, 2, 3], \"object\": {\"key\": \"value\"}}}",
 			},
-			expected: CustomRecommenderConfiguration{
+			expected: RecommenderConfiguration{
 				Endpoint: "localhost:8080/test",
 				Settings: map[string]any{
 					"key":    "value",
