@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -60,7 +59,7 @@ func (t *localTagger) Start(ctx context.Context) error {
 	)
 
 	go t.tagStore.Run(t.ctx)
-	go t.collector.Run(t.ctx)
+	go t.collector.Run(t.ctx, t.cfg)
 
 	return nil
 }
@@ -105,7 +104,7 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *localTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}

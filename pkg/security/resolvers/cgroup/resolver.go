@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -36,9 +37,9 @@ const (
 type ResolverInterface interface {
 	Start(context.Context)
 	AddPID(*model.ProcessCacheEntry)
-	GetWorkload(string) (*cgroupModel.CacheEntry, bool)
+	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
 	DelPID(uint32)
-	DelPIDWithID(string, uint32)
+	DelPIDWithID(containerutils.ContainerID, uint32)
 	Len() int
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
@@ -47,7 +48,7 @@ type ResolverInterface interface {
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.RWMutex
-	workloads *simplelru.LRU[string, *cgroupModel.CacheEntry]
+	workloads *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 }
 
 // NewResolver returns a new cgroups monitor
@@ -55,7 +56,7 @@ func NewResolver() (*Resolver, error) {
 	cr := &Resolver{
 		Notifier: utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
 	}
-	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
+	workloads, err := simplelru.NewLRU(1024, func(_ containerutils.CGroupID, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
@@ -77,7 +78,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.workloads.Get(string(process.ContainerID))
+	entry, exists := cr.workloads.Get(process.CGroup.CGroupID)
 	if exists {
 		entry.AddPID(process.Pid)
 		return
@@ -85,7 +86,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	var err error
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.CGroupFlags), process.Pid)
+	newCGroup, err := cgroupModel.NewCacheEntry(process.ContainerID, &process.CGroup, process.Pid)
 	if err != nil {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
@@ -93,17 +94,33 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	cr.workloads.Add(string(process.ContainerID), newCGroup)
+	cr.workloads.Add(process.CGroup.CGroupID, newCGroup)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
-// GetWorkload returns the workload referenced by the provided ID
-func (cr *Resolver) GetWorkload(id string) (*cgroupModel.CacheEntry, bool) {
+// Get returns the workload referenced by the provided ID
+func (cr *Resolver) Get(id containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
 	cr.RLock()
 	defer cr.RUnlock()
 
 	return cr.workloads.Get(id)
+}
+
+// GetWorkload returns the workload referenced by the provided ID
+func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
+	cr.RLock()
+	defer cr.RUnlock()
+
+	if id != "" {
+		for _, workload := range cr.workloads.Values() {
+			if workload.ContainerID == id {
+				return workload, true
+			}
+		}
+	}
+
+	return nil, false
 }
 
 // DelPID removes a PID from the cgroup resolver
@@ -111,22 +128,21 @@ func (cr *Resolver) DelPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	for _, id := range cr.workloads.Keys() {
-		entry, exists := cr.workloads.Get(id)
-		if exists {
-			cr.deleteWorkloadPID(pid, entry)
-		}
+	for _, workload := range cr.workloads.Values() {
+		cr.deleteWorkloadPID(pid, workload)
 	}
 }
 
 // DelPIDWithID removes a PID from the cgroup cache entry referenced by the provided ID
-func (cr *Resolver) DelPIDWithID(id string, pid uint32) {
+func (cr *Resolver) DelPIDWithID(id containerutils.ContainerID, pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.workloads.Get(id)
-	if exists {
-		cr.deleteWorkloadPID(pid, entry)
+	for _, workload := range cr.workloads.Values() {
+		if workload.ContainerID == id {
+			cr.deleteWorkloadPID(pid, workload)
+			return
+		}
 	}
 }
 
@@ -139,7 +155,7 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 
 	// check if the workload should be deleted
 	if len(workload.PIDs) <= 0 {
-		cr.workloads.Remove(string(workload.ContainerID))
+		cr.workloads.Remove(workload.CGroupID)
 	}
 }
 

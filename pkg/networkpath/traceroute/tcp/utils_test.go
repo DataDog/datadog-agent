@@ -8,8 +8,10 @@
 package tcp
 
 import (
+	"fmt"
 	"net"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/google/gopacket"
@@ -27,7 +29,25 @@ var (
 	innerDstIP = net.ParseIP("192.168.1.1")
 )
 
+func Test_reserveLocalPort(t *testing.T) {
+	// WHEN we reserve a local port
+	port, listener, err := reserveLocalPort()
+	require.NoError(t, err)
+	defer listener.Close()
+	require.NotNil(t, listener)
+
+	// THEN we should not be able to get another connection
+	// on the same port
+	conn2, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	assert.Error(t, err)
+	assert.Nil(t, conn2)
+}
+
 func Test_createRawTCPSyn(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Test_createRawTCPSyn is broken on macOS")
+	}
+
 	srcIP := net.ParseIP("1.2.3.4")
 	dstIP := net.ParseIP("5.6.7.8")
 	srcPort := uint16(12345)
@@ -58,6 +78,10 @@ func Test_createRawTCPSyn(t *testing.T) {
 }
 
 func Test_createRawTCPSynBuffer(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Test_createRawTCPSyn is broken on macOS")
+	}
+
 	srcIP := net.ParseIP("1.2.3.4")
 	dstIP := net.ParseIP("5.6.7.8")
 	srcPort := uint16(12345)

@@ -36,7 +36,7 @@
 /Makefile.trace                         @DataDog/agent-delivery
 
 /mkdocs.yml                             @DataDog/agent-devx-infra
-/release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
+/release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /repository.datadog.yml                 @DataDog/agent-devx-infra
@@ -45,6 +45,8 @@
 /static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-shared-components
+# if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
+/go.work                                @DataDog/agent-shared-components
 
 /.circleci/                             @DataDog/agent-devx-infra
 
@@ -328,6 +330,9 @@
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
 /comp/core/agenttelemetry               @DataDog/agent-shared-components @iglendd
 
+# trace-agent logging implementation should also notify agent-apm
+/comp/core/log/impl-trace @DataDog/agent-apm
+
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
 /pkg/api/                               @DataDog/agent-shared-components
@@ -428,7 +433,6 @@
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
-/pkg/flare/sysprobe                     @DataDog/Networks @Datadog/windows-agent @DataDog/agent-security @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
@@ -465,6 +469,7 @@
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/util/testutil/flake                @DataDog/agent-devx-loops
+/pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
@@ -610,6 +615,7 @@
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/universal-service-monitoring
+/test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
