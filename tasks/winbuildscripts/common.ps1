@@ -115,8 +115,6 @@ function Expand-ModCache() {
 }
 
 function Install-Deps() {
-    Write-Host "Installing ruby fix"
-    powershell.exe -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
     Write-Host "Installing python requirements"
     pip3.exe install -r .\requirements.txt
     Write-Host "Installing go dependencies"
