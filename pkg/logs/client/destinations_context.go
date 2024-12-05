@@ -59,7 +59,7 @@ func (dc *DestinationsContext) Context() context.Context {
 // GetClientTrace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
 func GetClientTrace() *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
-		TLSHandshakeDone: func(state tls.ConnectionState, _ error) {
+		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
 			metrics.TlmConnectionsOpened.Inc()
 		},
 	}
