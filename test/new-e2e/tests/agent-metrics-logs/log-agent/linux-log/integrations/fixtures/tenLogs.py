@@ -1,13 +1,13 @@
 from datadog_checks.base import AgentCheck
+from datadog_checks.base.utils.time import get_timestamp
 
 
 class HelloCheck(AgentCheck):
     def check(self, instance):
         log_str = instance['log_message']
         data = {}
-        # data['timestamp'] = get_timestamp()
+        data['timestamp'] = get_timestamp()
         data['message'] = log_str
-        # data['ddtags'] = "env:dev,bar:foo"
         tags = instance['integration_tags']
         data['ddtags'] = tags
 
