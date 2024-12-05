@@ -33,19 +33,24 @@ func NewPermission() (*Permission, error) {
 		return nil, err
 	}
 
-	currentUserSid, err := getDataDogUserSid()
+	ddUserSid, err := getDataDogUserSid()
 	if err != nil {
 		return nil, fmt.Errorf("Unable to get datadog user sid %v", err)
 	}
 	return &Permission{
-		ddUserSid:        currentUserSid,
+		ddUserSid:        ddUserSid,
 		administratorSid: administratorSid,
 		systemSid:        systemSid,
 	}, nil
 }
 
-var getDataDogUserSid = func() (*windows.SID, error) {
-	return winutil.GetDDAgentUserSID()
+func getDataDogUserSid() (*windows.SID, error) {
+	ddUserSid, err := winutil.GetDDAgentUserSID()
+	if err != nil {
+		// falls back to current user on falure
+		return winutil.GetSidFromUser()
+	}
+	return ddUserSid, nil
 }
 
 // RestrictAccessToUser update the ACL of a file so only the current user and ADMIN/SYSTEM can access it
