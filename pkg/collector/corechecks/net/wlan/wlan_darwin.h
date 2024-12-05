@@ -1,5 +1,5 @@
-#ifndef WIFI_INFO_H
-#define WIFI_INFO_H
+#ifndef WLAN_DARWIN_H
+#define WLAN_DARWIN_H
 
 typedef struct {
     int rssi;
