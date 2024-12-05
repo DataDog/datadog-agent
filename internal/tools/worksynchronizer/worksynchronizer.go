@@ -10,8 +10,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 
 	"golang.org/x/mod/modfile"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -46,8 +48,10 @@ func parseModulesList(path string) ([]string, error) {
 	}
 
 	res := make([]string, 0, len(parsedModules.Modules))
-	for module := range parsedModules.Modules {
-		fmt.Println(module)
+	for module, moduleConfig := range parsedModules.Modules {
+		if config, ok := moduleConfig.(string); ok && config == "ignored" {
+			continue
+		}
 		res = append(res, module)
 	}
 	return res, nil
@@ -79,14 +83,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	parsedWorkFile.SetUse()
-	parsedWorkFile.Use = []*modfile.Use{}
-	fmt.Println("Modules in the go.mod file:", parsedModules)
-	for _, used := range parsedWorkFile.Use {
-		fmt.Println("1", used.Path)
-		fmt.Println(used.ModulePath)
-		fmt.Println(used.Syntax)
+	slices.Sort(parsedModules)
+
+	parsedWorkFile.SetUse([]*modfile.Use{})
+	for _, module := range parsedModules {
+		parsedWorkFile.AddUse(module, module)
 	}
-	parsedWorkFile.
+
+	if err := os.WriteFile(workPath, modfile.Format(parsedWorkFile.Syntax), 0644); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 }
