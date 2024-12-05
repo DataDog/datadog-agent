@@ -17,7 +17,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import core_linux_integration_tests
+from tasks.gointegrationtest import core_linux_integration_tests, core_windows_integration_tests
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -533,52 +533,12 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, timeout=timeout)
+        return core_windows_integration_tests(ctx=ctx, race=race, go_mod=go_mod, timeout=timeout)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
-
-
-def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
-    test_args = {
-        "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test")),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-        "timeout_opt": f"-timeout {timeout}" if timeout else "",
-    }
-
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
-
-    tests = [
-        {
-            # Run eventlog tests with the Windows API, which depend on the EventLog service
-            "dir": "./pkg/util/winutil/",
-            'prefix': './eventlog/...',
-            'extra_args': '-evtapi Windows',
-        },
-        {
-            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
-            "dir": ".",
-            'prefix': './pkg/logs/tailers/windowsevent/...',
-            'extra_args': '-evtapi Windows',
-        },
-        {
-            # Run eventlog check tests with the Windows API, which depend on the EventLog service
-            "dir": ".",
-            # Don't include submodules, since the `-evtapi` flag is not defined in them
-            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
-            'extra_args': '-evtapi Windows',
-        },
-    ]
-
-    for test in tests:
-        with ctx.cd(f"{test['dir']}"):
-            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
-
-
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    core_linux_integration_tests(ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
+        return core_linux_integration_tests(
+            ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout
+        )
 
 
 def check_supports_python_version(check_dir, python):

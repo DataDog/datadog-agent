@@ -120,6 +120,44 @@ def core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="r
     )
 
 
+def core_windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
+    test_args = {
+        "go_mod": go_mod,
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+        "timeout_opt": f"-timeout {timeout}" if timeout else "",
+    }
+
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+
+    tests = [
+        {
+            # Run eventlog tests with the Windows API, which depend on the EventLog service
+            "dir": "./pkg/util/winutil/",
+            'prefix': './eventlog/...',
+            'extra_args': '-evtapi Windows',
+        },
+        {
+            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            "dir": ".",
+            'prefix': './pkg/logs/tailers/windowsevent/...',
+            'extra_args': '-evtapi Windows',
+        },
+        {
+            # Run eventlog check tests with the Windows API, which depend on the EventLog service
+            "dir": ".",
+            # Don't include submodules, since the `-evtapi` flag is not defined in them
+            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
+            'extra_args': '-evtapi Windows',
+        },
+    ]
+
+    for test in tests:
+        with ctx.cd(f"{test['dir']}"):
+            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+
+
 @task
 def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
