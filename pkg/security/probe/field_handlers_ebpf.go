@@ -11,7 +11,6 @@ package probe
 import (
 	"encoding/binary"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -190,7 +190,7 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	if ev.ContainerContext.ContainerID != "" && !ev.ContainerContext.Resolved {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(string(ev.ContainerContext.ContainerID)); containerContext != nil {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ContainerID); containerContext != nil {
 			if containerContext.CGroupFlags.IsContainer() {
 				ev.ContainerContext = &containerContext.ContainerContext
 			}
@@ -516,20 +516,8 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			path, err := fh.resolvers.DentryResolver.Resolve(e.CGroupFile, true)
-			if err == nil && path != "" {
-				cgroup := filepath.Dir(string(path))
-				if cgroup == "/" {
-					cgroup = path
-				}
-
-				entry.Process.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				entry.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				containerID, _ := containerutils.GetContainerFromCgroup(string(entry.CGroup.CGroupID))
-				entry.Process.ContainerID = containerutils.ContainerID(containerID)
-				entry.ContainerID = containerutils.ContainerID(containerID)
-			} else {
-				entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
+			if err := fh.resolvers.ResolveCGroup(entry, e.CGroupFile, e.CGroupFlags); err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			}
 
 			e.CGroupID = entry.CGroup.CGroupID
@@ -548,6 +536,18 @@ func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGro
 	}
 
 	return ""
+}
+
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
+	if e.CGroupVersion == 0 {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID); filesystem == "cgroup2" {
+			e.CGroupVersion = 2
+		} else {
+			e.CGroupVersion = 1
+		}
+	}
+	return e.CGroupVersion
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -578,7 +578,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ContainerID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(string(e.ContainerID))
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
 	}
 	return e.Tags
 }

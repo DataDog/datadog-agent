@@ -226,7 +226,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Type:      model.ConnectionType_udp,
 		},
 	}
-	npCollector.ScheduleConns(conns)
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -281,7 +281,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	}
 
 	// WHEN
-	npCollector.ScheduleConns(conns)
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -340,6 +340,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	tests := []struct {
 		name              string
 		conns             []*model.Connection
+		dns               map[string]*model.DNSEntry
 		noInputChan       bool
 		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
@@ -480,6 +481,25 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 			expectedLogs: []logCount{},
 		},
+		{
+			name:         "one outgoing TCP conn with known hostname (DNS)",
+			agentConfigs: defaultagentConfigs,
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "known-hostname"}},
+			},
+			dns: map[string]*model.DNSEntry{
+				"10.0.0.4": {Names: []string{"known-hostname"}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -497,7 +517,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			stats := &teststatsd.Client{}
 			npCollector.statsdClient = stats
 
-			npCollector.ScheduleConns(tt.conns)
+			npCollector.ScheduleConns(tt.conns, tt.dns)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
@@ -758,7 +778,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleConns(connections)
+		npCollector.ScheduleConns(connections, make(map[string]*model.DNSEntry))
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}
@@ -791,7 +811,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		},
 	}
 
-	npCollector.enrichPathWithRDNS(&path)
+	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN
 	assert.Equal(t, "hostname-10.0.0.41", path.Destination.ReverseDNSHostname) // private IP should be resolved
@@ -812,7 +832,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		},
 	}
 
-	npCollector.enrichPathWithRDNS(&path)
+	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN
 	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
@@ -843,7 +863,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		},
 	}
 
-	npCollector.enrichPathWithRDNS(&path)
+	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN - no resolution should happen
 	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
@@ -851,6 +871,30 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	assert.Equal(t, "hop2", path.Hops[1].Hostname)
 	assert.Equal(t, "hop3", path.Hops[2].Hostname)
 	assert.Equal(t, "dest-hostname", path.Hops[3].Hostname)
+}
+
+func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
+	// WHEN
+	path := payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
+		Hops:        nil,
+	}
+
+	npCollector.enrichPathWithRDNS(&path, "known-dest-hostname")
+
+	// THEN - destination hostname should resolve to known hostname
+	assert.Equal(t, "known-dest-hostname", path.Destination.ReverseDNSHostname)
+	assert.Empty(t, path.Hops)
 }
 
 func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {

@@ -56,6 +56,7 @@ import (
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
@@ -795,13 +796,15 @@ func TestDocker(t *testing.T) {
 	url, mockContainerProvider := setupDiscoveryModule(t)
 
 	dir, _ := testutil.CurDir()
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("foo-server",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		regexp.MustCompile("Serving.*"),
+		scanner,
 		dockerutils.EmptyEnv,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
-	err := dockerutils.Run(t, dockerCfg)
+	err = dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
 
 	proc, err := procfs.NewDefaultFS()

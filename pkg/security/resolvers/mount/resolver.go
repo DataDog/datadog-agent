@@ -453,7 +453,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, _ := mr.cgroupsResolver.GetWorkload(string(containerID))
+	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, source, origin, err := mr.getMountPath(mountID, device, pid)
 	if err == nil {
@@ -494,7 +494,7 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, _ := mr.cgroupsResolver.GetWorkload(string(containerID))
+	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
 	mount, source, origin := mr.lookupMount(mountID, device, pid)
 	if mount != nil {
