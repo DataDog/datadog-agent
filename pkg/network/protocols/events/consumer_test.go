@@ -87,20 +87,19 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 
 	program, err := newEBPFProgram(config.New())
 	require.NoError(t, err)
+	defer program.Stop(manager.CleanAll)
 
-	consumer, err := NewConsumer("test", program, func([]uint64) {})
-	require.NoError(t, err)
-
-	consumer.handler.(*ddebpf.RingBufferHandler).RecordHandler(&ringbuf.Record{
+	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
+	ringBufferHandler.RecordHandler(&ringbuf.Record{
 		RawSample: []byte("test"),
 	}, nil, nil)
 
-	consumer.invalidBatchCount.Reset()
+	consumer, err := NewConsumer("test", program, func([]uint64) {})
+	require.NoError(t, err)
+	consumer.handler = ringBufferHandler
+
 	consumer.Start()
-	require.Eventually(t, func() bool {
-		program.Stop(manager.CleanAll)
-		return true
-	}, 1*time.Second, 100*time.Millisecond, "failed to stop program")
+	consumer.Stop()
 
 	require.Equalf(t, 1, int(consumer.invalidBatchCount.Get()), "invalidBatchCount should be equal to 1")
 }
