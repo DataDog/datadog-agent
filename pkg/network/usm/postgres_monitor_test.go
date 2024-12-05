@@ -959,7 +959,10 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 			require.NoError(t, monitor.Pause())
 
 			validateKernelBuckets(t, monitor, isTLS, expectedBuckets)
-			expectedBuckets[i] = false
+			if i > 0 {
+				// clear current bucket except the first one, which is always non-empty.
+				expectedBuckets[i] = false
+			}
 		})
 	}
 

@@ -295,9 +295,11 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
     if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
         // reached max messages, add counter and stop iterating.
         __sync_fetch_and_add(&pg_msg_counts->reached_max_messages, 1);
+        return 0;
     }
     if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
         // stop the iterator if the end of the TCP packet is reached.
+        update_msg_count_telemetry(pg_msg_counts, iteration_value->total_msg_count);
         return 0;
     }
     if (read_result == false) {
