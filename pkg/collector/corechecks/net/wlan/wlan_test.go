@@ -16,25 +16,21 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-var testGetWifiInfo = func() (WiFiInfo, error) {
-	return WiFiInfo{
-		Rssi:         10,
-		Ssid:         "test-ssid",
-		Bssid:        "test-bssid",
-		Channel:      1,
-		Noise:        20,
-		TransmitRate: 4.0,
-		SecurityType: "WPA/WPA2 Personal",
-	}, nil
-}
-
-var testSetupLocationAccess = func() {
-}
-
 func TestWLANOK(t *testing.T) {
 	// setup mocks
-	getWifiInfo = testGetWifiInfo
-	setupLocationAccess = testSetupLocationAccess
+	getWifiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			SecurityType: "WPA/WPA2 Personal",
+		}, nil
+	}
+	setupLocationAccess = func() {
+	}
 	defer func() {
 		getWifiInfo = GetWiFiInfo
 		setupLocationAccess = SetupLocationAccess
@@ -48,6 +44,47 @@ func TestWLANOK(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 
 	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "security_type:wpa/wpa2_personal"}
+
+	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
+	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, expectedTags).Return().Times(1)
+
+	mockSender.On("Commit").Return().Times(1)
+	wlanCheck.Run()
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestWLANEmptySSIDandBSSID(t *testing.T) {
+	// setup mocks
+	getWifiInfo = func() (WiFiInfo, error) {
+		return WiFiInfo{
+			Rssi:         10,
+			Ssid:         "",
+			Bssid:        "",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			SecurityType: "WPA/WPA2 Personal",
+		}, nil
+	}
+	setupLocationAccess = func() {
+	}
+	defer func() {
+		getWifiInfo = GetWiFiInfo
+		setupLocationAccess = SetupLocationAccess
+	}()
+
+	wlanCheck := new(WLANCheck)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+
+	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal"}
 
 	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, expectedTags).Return().Times(1)
 	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, expectedTags).Return().Times(1)
