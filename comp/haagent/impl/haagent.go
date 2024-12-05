@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/atomic"
@@ -37,8 +38,11 @@ func (h *haAgentImpl) GetGroup() string {
 	return h.haAgentConfigs.group
 }
 
-func (h *haAgentImpl) IsLeader() bool {
-	return h.isLeader.Load()
+func (h *haAgentImpl) GetRole() haagent.Role {
+	if h.isLeader.Load() {
+		return haagent.Leader
+	}
+	return haagent.Follower
 }
 
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
