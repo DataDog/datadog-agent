@@ -7,7 +7,13 @@ from unittest.mock import Mock, patch
 from invoke.context import Context
 
 import tasks
-from tasks.github_tasks import Exit, assign_team_label, extract_test_qa_description, pr_merge_dd_event_sender
+from tasks.github_tasks import (
+    Exit,
+    assign_team_label,
+    check_qa_labels,
+    extract_test_qa_description,
+    pr_merge_dd_event_sender,
+)
 
 
 class GithubAPIMock:
@@ -136,7 +142,7 @@ class TestExtractQADescriptionFromPR(unittest.TestCase):
 
 ### Motivation
 
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 I added one test
 ### Possible Drawbacks / Trade-offs
 
@@ -150,7 +156,7 @@ I added one test
 
 ### Motivation
 
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 I added one unit test
 and one e2e test
 ### Possible Drawbacks / Trade-offs
@@ -166,7 +172,7 @@ and one e2e test""",
 
 ### Motivation
 
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 
 ### Possible Drawbacks / Trade-offs
 
@@ -180,7 +186,7 @@ and one e2e test""",
 
 ### Motivation
 
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 
 Here is a test description
 
@@ -220,7 +226,7 @@ Pay attentions to this""",
 
 ### Motivation
 
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 
 Here is a test description with special characters: `~!@#$,%^&*()_-+={[]}|\\:;\"'<>.?/
 
@@ -248,7 +254,7 @@ Here is a test description with special characters: `~!@#$,%^&*()_-+={[]}|\\:;\"
 
 ### Motivation
 
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 Here is how to test this PR
 """,
                 expected="Here is how to test this PR",
@@ -285,7 +291,7 @@ class TestPRMergeDDEVentSender(unittest.TestCase):
                 number=123,
                 login="testuser",
                 body="""
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 This is covered by unit tests
 ### Possible Drawbacks / Trade-offs""",
                 ref="main",
@@ -319,7 +325,7 @@ This is covered by unit tests
                 number=123,
                 login="testuser",
                 body="""
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 
 ### Possible Drawbacks / Trade-offs""",
                 ref="main",
@@ -341,7 +347,7 @@ This is covered by unit tests
                 number=123,
                 login="testuser",
                 body="""
-### Describe how to test/QA your changes
+### Describe how you validated your changes
 You should do
 #### Step 1
 Create an ubuntu VM
@@ -408,7 +414,6 @@ Check the logs in DD]""",
 
                 send_event_mock.return_value = None
 
-                # with self.assertRaises(Exit) as exit_mock:
                 try:
                     pr_merge_dd_event_sender(Context(), pr_id=tc.number, dry_run=tc.dry_run)
                 except Exit as exception:
@@ -423,3 +428,39 @@ Check the logs in DD]""",
                     self.fail(f"Test case: {tc.name} should have raised an error")
 
                 send_event_mock.assert_called_once_with(title="PR merged", text=tc.expected_text, tags=tc.expected_tags)
+
+
+class TestCheckQALabels(unittest.TestCase):
+    def test_check_qa_labels(self):
+        @dataclass
+        class TestCheckQALabelsCase:
+            name: str
+            labels: list[str]
+            expected_error: str = None
+
+        testcases: list[TestCheckQALabelsCase] = [
+            TestCheckQALabelsCase(
+                name="No QA labels",
+                labels="team/team-a",
+                expected_error="No QA label set.",
+            ),
+            TestCheckQALabelsCase(
+                name="Multiple labels",
+                labels="qa/done qa/no-code-change team/team-b",
+                expected_error="More than one QA label set.",
+            ),
+            TestCheckQALabelsCase(
+                name="Single label",
+                labels="qa/done team/team-a changelog/yes",
+            ),
+        ]
+
+        for tc in testcases:
+            try:
+                check_qa_labels(Context(), tc.labels)
+            except Exit as exception:
+                if tc.expected_error:
+                    self.assertEqual(exception.code, 1, f"Test case: {tc.name}")
+                    self.assertEqual(exception.message.split("\n")[0], tc.expected_error, f"Test case: {tc.name}")
+                    continue
+                self.fail(f"Test case: {tc.name} should not have raised an error")

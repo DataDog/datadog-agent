@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -105,7 +104,6 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 
 // TestOTelFlareFiles tests that the OTel Agent flares contain the expected files
 func TestOTelFlareFiles(s OTelTestSuite) {
-	flake.Mark(s.T())
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)

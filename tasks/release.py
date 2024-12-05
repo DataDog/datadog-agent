@@ -443,7 +443,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git fetch")
 
         # Check that the current and update branches are valid
-        update_branch = f"release/{new_highest_version}"
+        update_branch = f"release/{new_highest_version}-{int(time.time())}"
 
         check_clean_branch_state(ctx, github, update_branch)
         if not check_base_branch(release_branch, new_highest_version):
@@ -519,9 +519,12 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 4 - If slack workflow webhook is provided, send a slack message
         if slack_webhook:
             print(color_message("Sending slack notification", "bold"))
-            ctx.run(
-                f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
-            )
+            payload = {
+                "pr_url": pr_url,
+                "version": str(new_highest_version),
+            }
+
+            ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
 
 
 @task

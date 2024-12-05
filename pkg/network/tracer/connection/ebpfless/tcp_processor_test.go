@@ -71,10 +71,11 @@ func tcpPacket(srcPort, dstPort uint16, seq, ack uint32, flags uint8) layers.TCP
 }
 
 type testCapture struct {
-	pktType uint8
-	ipv4    *layers.IPv4
-	ipv6    *layers.IPv6
-	tcp     *layers.TCP
+	timestampNs uint64
+	pktType     uint8
+	ipv4        *layers.IPv4
+	ipv6        *layers.IPv6
+	tcp         *layers.TCP
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
@@ -142,10 +143,11 @@ func (pb packetBuilder) incoming(payloadLen uint16, relSeq, relAck uint32, flags
 	ack := relAck + pb.remoteSeqBase
 	tcp := tcpPacket(defaultRemotePort, defaultLocalPort, seq, ack, flags)
 	return testCapture{
-		pktType: unix.PACKET_HOST,
-		ipv4:    &ipv4,
-		ipv6:    nil,
-		tcp:     &tcp,
+		timestampNs: 0, // timestampNs not populated except in tcp_processor_rtt_test
+		pktType:     unix.PACKET_HOST,
+		ipv4:        &ipv4,
+		ipv6:        nil,
+		tcp:         &tcp,
 	}
 }
 
@@ -155,10 +157,11 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 	ack := relAck + pb.localSeqBase
 	tcp := tcpPacket(defaultLocalPort, defaultRemotePort, seq, ack, flags)
 	return testCapture{
-		pktType: unix.PACKET_OUTGOING,
-		ipv4:    &ipv4,
-		ipv6:    nil,
-		tcp:     &tcp,
+		timestampNs: 0, // timestampNs not populated except in tcp_processor_rtt_test
+		pktType:     unix.PACKET_OUTGOING,
+		ipv4:        &ipv4,
+		ipv6:        nil,
+		tcp:         &tcp,
 	}
 }
 
@@ -174,7 +177,7 @@ func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
 	if fixture.conn == nil {
 		fixture.conn = makeTcpStates(pkt)
 	}
-	err := fixture.tcp.Process(fixture.conn, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
+	err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
 	require.NoError(fixture.t, err)
 }
 
@@ -607,47 +610,6 @@ func TestConnReset(t *testing.T) {
 		Retransmits:    0,
 		TCPEstablished: 1,
 		TCPClosed:      1,
-	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
-}
-
-func TestRstRetransmit(t *testing.T) {
-	pb := newPacketBuilder(lowerSeq, higherSeq)
-	basicHandshake := []testCapture{
-		pb.incoming(0, 0, 0, SYN),
-		pb.outgoing(0, 0, 1, SYN|ACK),
-		pb.incoming(0, 1, 1, ACK),
-		// handshake done, now blow up
-		pb.outgoing(0, 1, 1, RST|ACK),
-		pb.outgoing(0, 1, 1, RST|ACK),
-	}
-
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
-		// reset
-		ConnStatClosed,
-		ConnStatClosed,
-	}
-
-	f := newTcpTestFixture(t)
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	// should count as a single failure
-	require.Equal(t, map[uint16]uint32{
-		uint16(syscall.ECONNRESET): 1,
-	}, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    3,
-		RecvPackets:    2,
-		Retransmits:    0,
-		TCPEstablished: 1,
-		// should count as a single closed connection
-		TCPClosed: 1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
