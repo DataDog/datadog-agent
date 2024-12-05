@@ -38,8 +38,8 @@ func (h *haAgentImpl) GetGroup() string {
 	return h.haAgentConfigs.group
 }
 
-func (h *haAgentImpl) GetRole() haagent.Role {
-	return haagent.Role(h.role.Load())
+func (h *haAgentImpl) GetState() haagent.State {
+	return haagent.State(h.role.Load())
 }
 
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
@@ -49,14 +49,14 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 		return
 	}
 
-	var newRole haagent.Role
+	var newRole haagent.State
 	if agentHostname == leaderAgentHostname {
-		newRole = haagent.Primary
+		newRole = haagent.Active
 	} else {
 		newRole = haagent.Standby
 	}
 
-	prevRole := h.GetRole()
+	prevRole := h.GetState()
 
 	if newRole != prevRole {
 		h.log.Infof("agent role switched from %s to %s", prevRole, newRole)
@@ -70,7 +70,7 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 // When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
 func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
 	if h.Enabled() && validHaIntegrations[integrationName] {
-		return h.GetRole() == haagent.Primary
+		return h.GetState() == haagent.Active
 	}
 	return true
 }

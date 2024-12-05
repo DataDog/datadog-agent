@@ -21,7 +21,7 @@ type mockHaAgent struct {
 
 	group   string
 	enabled bool
-	role    haagent.Role
+	role    haagent.State
 }
 
 func (m *mockHaAgent) GetGroup() string {
@@ -35,7 +35,7 @@ func (m *mockHaAgent) Enabled() bool {
 func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mockHaAgent) GetRole() haagent.Role { return haagent.Standby }
+func (m *mockHaAgent) GetState() haagent.State { return haagent.Standby }
 
 func (m *mockHaAgent) SetGroup(group string) {
 	m.group = group
@@ -44,7 +44,7 @@ func (m *mockHaAgent) SetGroup(group string) {
 func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
 }
-func (m *mockHaAgent) SetRole(role haagent.Role) {
+func (m *mockHaAgent) SetState(role haagent.State) {
 	m.role = role
 }
 
@@ -58,7 +58,7 @@ type Component interface {
 
 	SetGroup(string)
 	SetEnabled(bool)
-	SetRole(haagent.Role)
+	SetState(haagent.State)
 }
 
 // NewMockHaAgent returns a new Mock

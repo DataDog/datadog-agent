@@ -283,7 +283,7 @@ func TestDefaultSeries(t *testing.T) {
 
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
-	mockHaAgent.SetRole(haagent.Primary)
+	mockHaAgent.SetState(haagent.Active)
 
 	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval)
 
@@ -311,7 +311,7 @@ func TestDefaultSeries(t *testing.T) {
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_group:group01", "agent_role:standby"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_group:group01", "agent_state:standby"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",

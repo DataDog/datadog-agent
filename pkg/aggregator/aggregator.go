@@ -611,7 +611,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	})
 
 	if agg.haAgent.Enabled() {
-		haAgentTags := append(agg.tags(false), "agent_role:"+string(agg.haAgent.GetRole()))
+		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
 		// Send along a metric to show if HA Agent is leader (1: is leader, 0: not leader).
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),

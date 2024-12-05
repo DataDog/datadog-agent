@@ -5,14 +5,14 @@
 
 package haagent
 
-// Role type for HA Agent Role
-type Role string
+// State type for HA Agent State
+type State string
 
 const (
-	// Primary HA Agent role
-	Primary Role = "primary"
+	// Active HA Agent role
+	Active State = "active"
 	// Standby HA Agent role
-	Standby Role = "standby"
+	Standby State = "standby"
 	// Unknown HA Agent role
-	Unknown Role = "unknown"
+	Unknown State = "unknown"
 )
