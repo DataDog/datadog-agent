@@ -9,20 +9,22 @@ package installer
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"os"
+	"runtime"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
-	"net/url"
-	"os"
-	"runtime"
-	"strings"
 )
 
 const (
@@ -292,7 +294,7 @@ func setupCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
-			return installer.Setup(cmd.ctx, cmd.env)
+			return setup.Setup(cmd.ctx, cmd.env)
 		},
 	}
 	return cmd

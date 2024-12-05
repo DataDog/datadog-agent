@@ -750,7 +750,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	s.cleanIgnoredPids(alivePids)
 
 	if err = s.updateServicesCPUStats(services); err != nil {
-		return nil, err
+		log.Warnf("updating services CPU stats: %s", err)
 	}
 
 	return &services, nil

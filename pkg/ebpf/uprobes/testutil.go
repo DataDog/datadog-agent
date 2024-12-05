@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && test
 
 package uprobes
 
@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -235,4 +236,59 @@ func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, re
 	}
 
 	require.Fail(t, "condition not met after %d retries", maxRetries, msgAndArgs)
+}
+
+// processMonitorProxy is a wrapper around a ProcessMonitor that stores the
+// callbacks subscribed to it, and triggers them which allows manually
+// triggering the callbacks for testing purposes.
+type processMonitorProxy struct {
+	target        ProcessMonitor
+	mutex         sync.Mutex // performance is not a worry for this, so use a single mutex for simplicity
+	execCallbacks map[*func(uint32)]struct{}
+	exitCallbacks map[*func(uint32)]struct{}
+}
+
+// ensure it implements the ProcessMonitor interface
+var _ ProcessMonitor = &processMonitorProxy{}
+
+func newProcessMonitorProxy(target ProcessMonitor) *processMonitorProxy {
+	return &processMonitorProxy{
+		target:        target,
+		execCallbacks: make(map[*func(uint32)]struct{}),
+		exitCallbacks: make(map[*func(uint32)]struct{}),
+	}
+}
+
+func (o *processMonitorProxy) SubscribeExec(cb func(uint32)) func() {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	o.execCallbacks[&cb] = struct{}{}
+
+	return o.target.SubscribeExec(cb)
+}
+
+func (o *processMonitorProxy) SubscribeExit(cb func(uint32)) func() {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	o.exitCallbacks[&cb] = struct{}{}
+
+	return o.target.SubscribeExit(cb)
+}
+
+func (o *processMonitorProxy) triggerExit(pid uint32) {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+
+	for cb := range o.exitCallbacks {
+		(*cb)(pid)
+	}
+}
+
+// Reset resets the state of the processMonitorProxy, removing all callbacks.
+func (o *processMonitorProxy) Reset() {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+
+	o.execCallbacks = make(map[*func(uint32)]struct{})
+	o.exitCallbacks = make(map[*func(uint32)]struct{})
 }
