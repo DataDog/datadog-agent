@@ -4,14 +4,25 @@ set -eEuxo pipefail
 runner_config=$@
 docker_dir=/kmt-dockers
 
+ls -lahR $docker_dir
+
 # Add provisioning steps here !
 ## Start docker
 systemctl start docker
 ## Load docker images
 if [[ -d "${docker_dir}" ]]; then
-  find "${docker_dir}" -maxdepth 1 -type f -exec docker load -i {} \;
+  find "${docker_dir}" -maxdepth 1 -type f -exec /bin/bash -c "echo {} && docker load -i {}" \;
 fi
 # VM provisioning end !
+
+# Copy BTF files. This is a patch for different paths between agent 6 branch code and agent 7 KMT images
+if [ -d "/system-probe-tests" ]; then
+    rsync -avP /system-probe-tests /opt/kmt-ramfs
+fi
+
+find / -name "*btf*"
+ls -lahR /opt
+ls -lahR /system-probe-tests
 
 # Start tests
 code=0
