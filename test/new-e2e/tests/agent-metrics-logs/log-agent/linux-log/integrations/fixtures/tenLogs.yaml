@@ -1,8 +1,0 @@
-init_config:
-instances:
-  [{}]
-
-logs:
-  - type: integration
-    source: ten_logs_source
-    service: ten_logs_service

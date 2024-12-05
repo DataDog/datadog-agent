@@ -7,8 +7,11 @@ package integrationslogs
 
 import (
 	_ "embed"
+	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -25,25 +28,34 @@ type IntegrationsLogsSuite struct {
 //go:embed fixtures/tenLogs.py
 var writeTenLogsCheck string
 
-//go:embed fixtures/tenLogs.yaml
-var writeTenLogsConfig string
-
 //go:embed fixtures/rotation.py
 var rotationCheck string
 
-//go:embed fixtures/rotation.yaml
-var rotationConfig string
+type Config struct {
+	InitConfig interface{}  `yaml:"init_config"`
+	Instances  []Instance   `yaml:"instances"`
+	Logs       []LogsConfig `yaml:"logs"`
+}
+
+type Instance struct {
+	LogMessage      string `yaml:"log_message"`
+	LogSize         int    `yaml:"log_size"`
+	LogCount        int    `yaml:"log_count"`
+	IntegrationTags string `yaml:"integration_tags"`
+}
+
+type LogsConfig struct {
+	Type    string `yaml:"type"`
+	Source  string `yaml:"source"`
+	Service string `yaml:"service"`
+}
 
 // TestLinuxFakeIntakeSuite
 func TestIntegrationsLogsSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(
 			agentparams.WithLogs(),
-			agentparams.WithAgentConfig("logs_config.integrations_logs_files_max_size: 1"),
-			agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", writeTenLogsCheck, true),
-			agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", writeTenLogsConfig, true),
-			agentparams.WithFile("/etc/datadog-agent/checks.d/rotation.py", rotationCheck, true),
-			agentparams.WithFile("/etc/datadog-agent/conf.d/rotation.yaml", rotationConfig, true))))}
+			agentparams.WithAgentConfig("logs_config.integrations_logs_files_max_size: 1"))))}
 
 	suiteParams = append(suiteParams, e2e.WithDevMode())
 
@@ -53,7 +65,16 @@ func TestIntegrationsLogsSuite(t *testing.T) {
 // TestWriteTenLogsCheck ensures a check that logs are written to the file ten
 // logs at a time
 func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
-	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "ten_logs_service", "Custom log message", []string{"env:dev", "bar:foo"})
+	tags := []string{"foo:bar", "env:dev"}
+	yamlData, err := generateYaml("Custom log message", 1, 10, tags, "logs_from_integrations_source", "logs_from_integrations_service")
+	assert.NoError(v.T(), err)
+
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithLogs(),
+		agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", string(yamlData), true),
+		agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", writeTenLogsCheck, true))))
+
+	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "logs_from_integrations_service", "", tags)
 }
 
 // TestIntegrationLogFileRotation ensures logs are captured after a integration
@@ -67,6 +88,15 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// 2. Check that the logs received from fakeIntake are unique by checking the
 	// UUID and at the same time ensure monotonic_count is equal to 1 (indicating
 	// a 1:1 correlation between a log and metric)
+
+	tags := []string{"test:rotate"}
+	yamlData, err := generateYaml("a", 1024*245, 1, tags, "rotation_source", "rotation_service")
+	assert.NoError(v.T(), err)
+
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithLogs(),
+		agentparams.WithFile("/etc/datadog-agent/conf.d/rotation.yaml", string(yamlData), true),
+		agentparams.WithFile("/etc/datadog-agent/checks.d/rotation.py", rotationCheck, true))))
 
 	seen := make(map[string]bool)
 
@@ -93,4 +123,29 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 		}, 2*time.Minute, 5*time.Second)
 
 	}
+}
+
+// generateYaml Generates a YAML config for checks to use
+func generateYaml(logMessage string, logSize int, logCount int, integrationTags []string, logSource string, logService string) ([]byte, error) {
+	// Define the YAML structure
+	config := Config{
+		InitConfig: nil,
+		Instances: []Instance{
+			{
+				LogMessage:      logMessage,
+				LogSize:         logSize,
+				LogCount:        logCount,
+				IntegrationTags: strings.Join(integrationTags, ","),
+			},
+		},
+		Logs: []LogsConfig{
+			{
+				Type:    "integration",
+				Source:  logSource,
+				Service: logService,
+			},
+		},
+	}
+
+	return yaml.Marshal(&config)
 }
