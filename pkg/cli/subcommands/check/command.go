@@ -508,11 +508,7 @@ func run(
 			}
 			instancesData = append(instancesData, instanceData)
 		} else if cliParams.profileMemory {
-			// Every instance will create its own directory
-			instanceID := strings.SplitN(string(c.ID()), ":", 2)[1]
-			// Colons can't be part of Windows file paths
-			instanceID = strings.Replace(instanceID, ":", "_", -1)
-			profileDataDir := filepath.Join(cliParams.profileMemoryDir, cliParams.checkName, instanceID)
+			profileDataDir := filepath.Join(cliParams.profileMemoryDir, "profile_memory")
 
 			snapshotDir := filepath.Join(profileDataDir, "snapshots")
 			if _, err := os.Stat(snapshotDir); !os.IsNotExist(err) {
