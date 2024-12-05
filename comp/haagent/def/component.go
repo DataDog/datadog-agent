@@ -16,8 +16,8 @@ type Component interface {
 	// GetGroup returns the value of ha_agent.group
 	GetGroup() string
 
-	// GetRole returns current agent role
-	GetRole() Role
+	// GetState returns current HA agent state
+	GetState() State
 
 	// SetLeader takes the leader agent hostname as input, if it matches the current agent hostname,
 	// the isLeader state is set to true, otherwise false.
