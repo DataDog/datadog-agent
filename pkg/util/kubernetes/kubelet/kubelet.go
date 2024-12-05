@@ -214,7 +214,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 
 	err = ku.addContainerResourcesData(ctx, pods.Items)
 	if err != nil {
-		log.Errorf("Error adding container resources data: %s", err)
+		log.Debugf("Error adding container resources data: %s", err)
 	}
 
 	// ensure we dont have nil pods
