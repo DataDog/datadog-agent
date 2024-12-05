@@ -2357,7 +2357,6 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 func (s *TracerSuite) TestConnectionDuration() {
 	t := s.T()
 	cfg := testConfig()
-	skipEbpflessTodo(t, cfg)
 	tr := setupTracer(t, cfg)
 
 	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
@@ -2365,15 +2364,17 @@ func (s *TracerSuite) TestConnectionDuration() {
 		for {
 			_, err := c.Read(b[:])
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
-				return
+				break
 			}
 			require.NoError(t, err)
 			_, err = c.Write([]byte("pong"))
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
-				return
+				break
 			}
 			require.NoError(t, err)
 		}
+		err := c.Close()
+		require.NoError(t, err)
 	})
 
 	require.NoError(t, srv.Run(), "error running server")
@@ -2421,7 +2422,10 @@ LOOP:
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var found bool
 		conn, found = findConnection(c.LocalAddr(), srv.Addr(), getConnections(t, tr))
-		assert.True(collect, found, "could not find closed connection")
+		if !assert.True(collect, found, "could not find connection") {
+			return
+		}
+		assert.True(collect, conn.IsClosed, "connection should be closed")
 	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
 
 	// after closing the client connection, the duration should be
