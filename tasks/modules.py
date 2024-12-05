@@ -84,8 +84,9 @@ def go_work(ctx: Context):
     Update the go work to use all the modules defined in modules.yml
     """
 
-    for mod in get_default_modules().values():
-        ctx.run("go work use " + mod.path)
+    ctx.run(
+        "go run ./internal/tools/worksynchronizer/worksynchronizer.go --path ./go.work --modules-file ./modules.yml"
+    )
 
 
 @task
