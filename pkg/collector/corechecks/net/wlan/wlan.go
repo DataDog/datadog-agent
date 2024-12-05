@@ -63,6 +63,8 @@ func (c *WLANCheck) Run() error {
 	tags = append(tags, "bssid:"+wifiInfo.Bssid)
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
+	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)
+
 	sender.Commit()
 	return nil
 }
