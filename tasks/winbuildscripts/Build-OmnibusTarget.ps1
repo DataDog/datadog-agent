@@ -71,7 +71,7 @@ Invoke-BuildScript `
     }
 
     Write-Host "inv -e omnibus.build $inv_args"
-    inv -e winbuild.omnibus.build @inv_args
+    inv -e omnibus.build @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1
