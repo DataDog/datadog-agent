@@ -26,6 +26,8 @@ const (
 var getWifiInfo = GetWiFiInfo
 var setupLocationAccess = SetupLocationAccess
 
+var lastChannelID int = -1
+
 // WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
 type WiFiInfo struct {
 	Rssi         int
@@ -79,6 +81,10 @@ func (c *WLANCheck) Run() error {
 	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)
 	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
 
+	if lastChannelID != -1 && lastChannelID != wifiInfo.Channel {
+		sender.Count("wlan.channel_swap_events", 1, "", tags)
+	}
+	lastChannelID = wifiInfo.Channel
 	sender.Commit()
 	return nil
 }
