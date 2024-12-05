@@ -300,7 +300,7 @@ func TestDefaultSeries(t *testing.T) {
 	})
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 
-	series := metrics.Series{&metrics.Serie{
+	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice([]string{"version:6.0.0", "agent_group:group01"}),
@@ -324,7 +324,7 @@ func TestDefaultSeries(t *testing.T) {
 		NoIndex:        true,
 	}}
 
-	s.On("SendSeries", series).Return(nil).Times(1)
+	s.On("SendSeries", expectedSeries).Return(nil).Times(1)
 
 	var flushedSeries metrics.Series
 	triggerInstance := testNewFlushTrigger(start, false, func(serie *metrics.Serie) {
@@ -333,7 +333,7 @@ func TestDefaultSeries(t *testing.T) {
 
 	agg.Flush(triggerInstance)
 
-	assert.EqualValues(t, series, flushedSeries)
+	assert.EqualValues(t, expectedSeries, flushedSeries)
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
