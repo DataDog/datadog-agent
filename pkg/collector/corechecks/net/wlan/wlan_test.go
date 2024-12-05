@@ -49,11 +49,12 @@ func TestWLANOK(t *testing.T) {
 
 	mockSender.On("Gauge", "wlan.rssi", 10.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
 	mockSender.On("Gauge", "wlan.noise", 20.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
+	mockSender.On("Gauge", "wlan.transmit_rate", 4.0, mock.Anything, []string{"ssid:test-ssid", "bssid:test-bssid"}).Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)
 	wlanCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 2)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }

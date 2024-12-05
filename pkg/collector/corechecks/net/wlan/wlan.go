@@ -64,6 +64,7 @@ func (c *WLANCheck) Run() error {
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
 	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)
+	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
 
 	sender.Commit()
 	return nil
