@@ -10,7 +10,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.libs.common.utils import REPO_PATH, get_build_flags, bin_name
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.version import get_version
 
 DIR_BIN = os.path.join(".", "bin", "installer")
