@@ -860,7 +860,7 @@ def _update_last_stable(_, version, major_version: int = 7):
 
 
 def _get_agent6_latest_release(gh):
-    return max((r for r in gh.get_releases() if r.title.startswith('6.')), key=lambda r: r.created_at).title
+    return max((r for r in gh.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
 
 
 @task
