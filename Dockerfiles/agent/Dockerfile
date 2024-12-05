@@ -95,6 +95,7 @@ RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy
 
 FROM baseimage AS release
 LABEL maintainer="Datadog <package@datadoghq.com>"
+ARG FIPS_ENABLED=0
 ARG WITH_JMX
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
@@ -183,8 +184,8 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # Enable FIPS if needed
 RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
   /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
-  export GOFIPS=1; \
 fi
+ENV GOFIPS=${FIPS_ENABLED}
 
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
