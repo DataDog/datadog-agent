@@ -5,7 +5,6 @@ import traceback
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.utils import TestsNotSupportedError, gitlab_section
 
@@ -101,7 +100,7 @@ def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     )
 
 
-def core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+def _core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     prefixes = [
         "./test/integration/config_providers/...",
         "./test/integration/corechecks/...",
@@ -120,7 +119,7 @@ def core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="r
     )
 
 
-def core_windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
+def _core_windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
@@ -158,13 +157,27 @@ def core_windows_integration_tests(ctx, race=False, go_mod="readonly", timeout="
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
+def core_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+    """
+    Run integration tests for the Agent
+    """
+
+    if sys.platform == 'win32':
+        return _core_windows_integration_tests(ctx=ctx, race=race, go_mod=go_mod, timeout=timeout)
+    else:
+        # TODO: See if these will function on Windows
+        return _core_linux_integration_tests(
+            ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout
+        )
+
+
 @task
 def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
     Run all the available integration tests
     """
     tests = {
-        "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        "Agent": lambda: core_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
         "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
         "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
         "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
