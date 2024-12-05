@@ -10,12 +10,12 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.libs.common.utils import REPO_PATH, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, get_build_flags, bin_name
 from tasks.libs.releasing.version import get_version
 
 DIR_BIN = os.path.join(".", "bin", "installer")
-INSTALLER_BIN = os.path.join(DIR_BIN, "installer")
-DOWNLOADER_BIN = os.path.join(DIR_BIN, "downloader")
+INSTALLER_BIN = os.path.join(DIR_BIN, bin_name("installer"))
+DOWNLOADER_BIN = os.path.join(DIR_BIN, bin_name("downloader"))
 INSTALL_SCRIPT = os.path.join(DIR_BIN, "install.sh")
 INSTALL_SCRIPT_TEMPLATE = os.path.join("pkg", "fleet", "installer", "setup", "install.sh")
 MAJOR_VERSION = '7'
