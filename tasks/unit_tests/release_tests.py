@@ -357,7 +357,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             ddprocmon_driver,
             ddprocmon_version,
             ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, 7, False)
+        ) = _get_windows_release_json_info(self.test_release_json, 7)
 
         self.assertEqual(ddnpm_driver, 'release-signed')
         self.assertEqual(ddnpm_version, 'rc3-ddnpm-version')
@@ -380,7 +380,7 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
     }
 
     def test_get_release_json_info_for_next_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, 7, False)
+        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, 7)
 
         self.assertEqual(
             previous_release_json,
@@ -404,7 +404,7 @@ class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
     }
 
     def test_get_release_json_info(self):
-        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, 7, True)
+        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, 7)
 
         self.assertEqual(jmxfetch_version, "ver7_release")
         self.assertEqual(jmxfetch_hash, "hash7_release")

@@ -62,12 +62,12 @@ def _save_release_json(release_json):
         release_json_stream.write('\n')
 
 
-def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_jmxfetch_release_json_info(release_json, agent_major_version):
     """
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version)
 
     jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
     jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
@@ -77,11 +77,11 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json, agent_major_version):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version)
 
     win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
     win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
@@ -118,7 +118,7 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
     return driver_value, version_value, shasum_value
 
 
-def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
+def _get_release_json_info_for_next_rc(release_json, agent_major_version):
     """
     Gets the version info from the previous entries in the release.json file.
     """
@@ -252,9 +252,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     # Part 2: repositories which have their own version scheme
 
     # jmxfetch version is updated directly by the AML team
-    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(
-        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
-    )
+    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(release_json, new_version.major)
 
     # security agent policies are updated directly by the CWS team
     security_agent_policies_version = _get_release_version_from_release_json(
@@ -269,7 +267,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         windows_ddprocmon_driver,
         windows_ddprocmon_version,
         windows_ddprocmon_shasum,
-    ) = _get_windows_release_json_info(release_json, new_version.major, is_first_rc=(new_version.rc == 1))
+    ) = _get_windows_release_json_info(release_json, new_version.major)
 
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
