@@ -59,11 +59,20 @@ func (c *WLANCheck) Run() error {
 		sender.Commit()
 		return err
 	}
-	tags := []string{}
-	tags = append(tags, "ssid:"+wifiInfo.Ssid)
-	tags = append(tags, "bssid:"+wifiInfo.Bssid)
 
+	ssid := wifiInfo.Ssid
+	if ssid == "" {
+		ssid = "unknown"
+	}
+	bssid := wifiInfo.Bssid
+	if bssid == "" {
+		bssid = "unknown"
+	}
 	securityType := strings.ToLower(strings.Replace(wifiInfo.SecurityType, " ", "_", -1))
+
+	tags := []string{}
+	tags = append(tags, "ssid:"+ssid)
+	tags = append(tags, "bssid:"+bssid)
 	tags = append(tags, "security_type:"+securityType)
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
