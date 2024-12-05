@@ -887,7 +887,7 @@ func TestCache(t *testing.T) {
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_, err = discovery.getServices()
-		require.NoError(t, err)
+		require.NoError(collect, err)
 
 		for _, cmd := range cmds {
 			pid := int32(cmd.Process.Pid)
