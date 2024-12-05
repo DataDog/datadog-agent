@@ -66,10 +66,10 @@ func Test_IsLeader_SetLeader(t *testing.T) {
 	assert.Equal(t, haagent.Unknown, haAgent.GetRole())
 
 	haAgent.SetLeader("another-agent")
-	assert.Equal(t, haagent.Follower, haAgent.GetRole())
+	assert.Equal(t, haagent.Standby, haAgent.GetRole())
 
 	haAgent.SetLeader("my-agent-hostname")
-	assert.Equal(t, haagent.Leader, haAgent.GetRole())
+	assert.Equal(t, haagent.Primary, haAgent.GetRole())
 }
 
 func Test_RCListener(t *testing.T) {

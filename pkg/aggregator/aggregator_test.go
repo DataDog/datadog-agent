@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -282,7 +283,7 @@ func TestDefaultSeries(t *testing.T) {
 
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
-	mockHaAgent.SetIsLeader(true)
+	mockHaAgent.SetRole(haagent.Primary)
 
 	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval)
 
@@ -308,9 +309,9 @@ func TestDefaultSeries(t *testing.T) {
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.ha_agent.is_leader", agg.agentName),
+		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_group:group01"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_group:group01", "agent_role:standby"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",

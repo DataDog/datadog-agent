@@ -19,9 +19,9 @@ import (
 type mockHaAgent struct {
 	Logger log.Component
 
-	group    string
-	enabled  bool
-	isLeader bool
+	group   string
+	enabled bool
+	role    haagent.Role
 }
 
 func (m *mockHaAgent) GetGroup() string {
@@ -35,7 +35,7 @@ func (m *mockHaAgent) Enabled() bool {
 func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mockHaAgent) GetRole() haagent.Role { return haagent.Follower }
+func (m *mockHaAgent) GetRole() haagent.Role { return haagent.Standby }
 
 func (m *mockHaAgent) SetGroup(group string) {
 	m.group = group
@@ -44,8 +44,8 @@ func (m *mockHaAgent) SetGroup(group string) {
 func (m *mockHaAgent) SetEnabled(enabled bool) {
 	m.enabled = enabled
 }
-func (m *mockHaAgent) SetIsLeader(isLeader bool) {
-	m.isLeader = isLeader
+func (m *mockHaAgent) SetRole(role haagent.Role) {
+	m.role = role
 }
 
 func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
@@ -58,7 +58,7 @@ type Component interface {
 
 	SetGroup(string)
 	SetEnabled(bool)
-	SetIsLeader(bool)
+	SetRole(haagent.Role)
 }
 
 // NewMockHaAgent returns a new Mock

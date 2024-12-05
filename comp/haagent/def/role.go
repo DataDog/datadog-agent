@@ -9,10 +9,10 @@ package haagent
 type Role string
 
 const (
-	// Leader HA Agent role
-	Leader Role = "leader"
-	// Follower HA Agent role
-	Follower Role = "follower"
+	// Primary HA Agent role
+	Primary Role = "primary"
+	// Standby HA Agent role
+	Standby Role = "standby"
 	// Unknown HA Agent role
 	Unknown Role = "unknown"
 )
