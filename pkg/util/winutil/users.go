@@ -77,7 +77,7 @@ func GetLocalSystemSID() (*windows.SID, error) {
 	return localSystem, err
 }
 
-// GetDataDogAgentSID returns the SID of the DataDog Agent account
+// GetDDAgentUserSID returns the SID of the DataDog Agent account
 func GetDDAgentUserSID() (*windows.SID, error) {
 	// get config for datadogagent service
 	user, err := GetServiceUser("datadogagent")
