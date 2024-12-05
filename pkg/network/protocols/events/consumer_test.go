@@ -8,6 +8,9 @@
 package events
 
 import (
+	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/perf"
+	"github.com/cilium/ebpf/ringbuf"
 	"math"
 	"os"
 	"path/filepath"
@@ -18,7 +21,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -85,23 +87,24 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 
-	program, err := newEBPFProgram(config.New())
+	c := config.New()
+	program, err := newEBPFProgram(c)
 	require.NoError(t, err)
-	defer program.Stop(manager.CleanAll)
-
-	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
-	ringBufferHandler.RecordHandler(&ringbuf.Record{
-		RawSample: []byte("test"),
-	}, nil, nil)
+	t.Cleanup(func() { program.Stop(manager.CleanAll) })
 
 	consumer, err := NewConsumer("test", program, func([]uint64) {})
 	require.NoError(t, err)
-	consumer.handler = ringBufferHandler
+
+	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
+	// and would be considered an invalid batch.
+	recordSample(c, consumer, []byte("test"))
 
 	consumer.Start()
-	consumer.Stop()
-
-	require.Equalf(t, 1, int(consumer.invalidBatchCount.Get()), "invalidBatchCount should be equal to 1")
+	t.Cleanup(func() { consumer.Stop() })
+	require.Eventually(t, func() bool {
+		// Wait for the consumer to process the invalid batch.
+		return consumer.invalidBatchCount.Get() == 1
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 type eventGenerator struct {
@@ -110,6 +113,22 @@ type eventGenerator struct {
 
 	// file used for triggering write(2) syscalls
 	testFile *os.File
+}
+
+// recordSample records a sample using the consumer handler.
+func recordSample(c *config.Config, consumer *Consumer[uint64], sampleData []byte) {
+	// Ring buffers require kernel version 5.8.0 or higher, therefore, the handler is chosen based on the kernel version.
+	if c.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil {
+		handler := consumer.handler.(*ddebpf.RingBufferHandler)
+		handler.RecordHandler(&ringbuf.Record{
+			RawSample: sampleData,
+		}, nil, nil)
+	} else {
+		handler := consumer.handler.(*ddebpf.PerfHandler)
+		handler.RecordHandler(&perf.Record{
+			RawSample: sampleData,
+		}, nil, nil)
+	}
 }
 
 func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
