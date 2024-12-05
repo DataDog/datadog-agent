@@ -73,6 +73,10 @@ datadog_otel_components_ocb_build:
   script:
     - echo "Building custom collector with datadog components"
     - test/otel/testdata/ocb_build_script.sh
+    - echo "ocb output log:" && cat ocb-output.log
+    - echo "otel custom collector log:" && cat otelcol-custom.log
+    - echo "flare info log:" && cat flare-info.log
+    - echo "go install ocb log:" && cat go-install-ocb.log
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
