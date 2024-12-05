@@ -4,6 +4,8 @@ set -eEuxo pipefail
 runner_config=$@
 docker_dir=/kmt-dockers
 
+ls -lahR $docker_dir
+
 # Add provisioning steps here !
 ## Start docker
 systemctl start docker
