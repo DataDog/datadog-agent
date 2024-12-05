@@ -18,29 +18,7 @@ static __always_inline bool has_available_program(classification_prog_t current_
     return true;
 }
 
-#pragma clang diagnostic push
-// The following check is ignored because *currently* there are no API classification programs registerd.
-// Therefore the enum containing all BPF programs looks like the following:
-//
-// typedef enum {
-//     CLASSIFICATION_PROG_UNKNOWN = 0,
-//     __PROG_ENCRYPTION,
-//     ENCYPTION_PROG_A
-//     ...
-//     __PROG_APPLICATION,
-//     APPLICATION_PROG_A
-//     APPLICATION_PROG_B
-//     APPLICATION_PROG_C
-//     ...
-//     __PROG_API,
-//     // No programs here
-//     CLASSIFICATION_PROG_MAX,
-// } classification_prog_t;
-//
-// Which means that the following conditionals will always evaluate to false:
-// a) current_program > __PROG_API && current_program < __PROG_ENCRYPTION
-// b) current_program > __PROG_ENCRYPTION && current_program < CLASSIFICATION_PROG_MAX
-#pragma clang diagnostic ignored "-Wtautological-overlap-compare"
+// get_current_program_layer returns the layer bit of the current program
 static __always_inline u16 get_current_program_layer(classification_prog_t current_program) {
     if (current_program > __PROG_ENCRYPTION && current_program < __PROG_APPLICATION) {
         return LAYER_ENCRYPTION_BIT;
@@ -54,8 +32,8 @@ static __always_inline u16 get_current_program_layer(classification_prog_t curre
 
     return 0;
 }
-#pragma clang diagnostic pop
 
+// next_layer_entrypoint returns the entrypoint of the next layer that should be executed
 static __always_inline classification_prog_t next_layer_entrypoint(usm_context_t *usm_ctx) {
     u16 to_skip = usm_ctx->routing_skip_layers;
 

@@ -30,9 +30,9 @@ typedef enum {
 #define CONN_DIRECTION_MASK 0b11
 
 typedef struct {
-    __u16 chosen_version;     // 2 bytes
-    __u16 cipher_suite;       // 2 bytes
-    __u8  offered_versions;   // 1 byte
+    __u16 chosen_version;
+    __u16 cipher_suite;
+    __u8  offered_versions;
 } tls_info_t;
 
 typedef struct {

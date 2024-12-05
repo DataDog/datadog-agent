@@ -17,10 +17,10 @@ func TestFormatTLSVersion(t *testing.T) {
 		version  uint16
 		expected string
 	}{
-		{tls.VersionTLS10, "TLS 1.0"},
-		{tls.VersionTLS11, "TLS 1.1"},
-		{tls.VersionTLS12, "TLS 1.2"},
-		{tls.VersionTLS13, "TLS 1.3"},
+		{tls.VersionTLS10, "tls_1.0"},
+		{tls.VersionTLS11, "tls_1.1"},
+		{tls.VersionTLS12, "tls_1.2"},
+		{tls.VersionTLS13, "tls_1.3"},
 		{0xFFFF, ""}, // Unknown version
 		{0x0000, ""}, // Zero value
 		{0x0305, ""}, // Version just above known versions
@@ -43,13 +43,13 @@ func TestParseOfferedVersions(t *testing.T) {
 		expected        []string
 	}{
 		{0x00, []string{}}, // No versions offered
-		{OfferedTLSVersion10, []string{"TLS 1.0"}},
-		{OfferedTLSVersion11, []string{"TLS 1.1"}},
-		{OfferedTLSVersion12, []string{"TLS 1.2"}},
-		{OfferedTLSVersion13, []string{"TLS 1.3"}},
-		{OfferedTLSVersion10 | OfferedTLSVersion12, []string{"TLS 1.0", "TLS 1.2"}},
-		{OfferedTLSVersion11 | OfferedTLSVersion13, []string{"TLS 1.1", "TLS 1.3"}},
-		{0xFF, []string{"TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"}}, // All bits set
+		{OfferedTLSVersion10, []string{"tls_1.0"}},
+		{OfferedTLSVersion11, []string{"tls_1.1"}},
+		{OfferedTLSVersion12, []string{"tls_1.2"}},
+		{OfferedTLSVersion13, []string{"tls_1.3"}},
+		{OfferedTLSVersion10 | OfferedTLSVersion12, []string{"tls_1.0", "tls_1.2"}},
+		{OfferedTLSVersion11 | OfferedTLSVersion13, []string{"tls_1.1", "tls_1.3"}},
+		{0xFF, []string{"tls_1.0", "tls_1.1", "tls_1.2", "tls_1.3"}}, // All bits set
 		{0x40, []string{}}, // Undefined bit set
 		{0x80, []string{}}, // Undefined bit set
 	}
@@ -83,10 +83,10 @@ func TestGetTLSDynamicTags(t *testing.T) {
 				OfferedVersions: OfferedTLSVersion11 | OfferedTLSVersion12,
 			},
 			expected: map[string]struct{}{
-				"tls.version:TLS 1.2":        {},
+				"tls.version:tls_1.2":        {},
 				"tls.cipher_suite_id:0x009C": {},
-				"tls.client_version:TLS 1.1": {},
-				"tls.client_version:TLS 1.2": {},
+				"tls.client_version:tls_1.1": {},
+				"tls.client_version:tls_1.2": {},
 			},
 		},
 		{
@@ -98,7 +98,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 			},
 			expected: map[string]struct{}{
 				"tls.cipher_suite_id:0x00FF": {},
-				"tls.client_version:TLS 1.3": {},
+				"tls.client_version:tls_1.3": {},
 			},
 		},
 		{
@@ -109,7 +109,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 				OfferedVersions: 0x00,
 			},
 			expected: map[string]struct{}{
-				"tls.version:TLS 1.3":        {},
+				"tls.version:tls_1.3":        {},
 				"tls.cipher_suite_id:0x1301": {},
 			},
 		},
@@ -120,8 +120,8 @@ func TestGetTLSDynamicTags(t *testing.T) {
 				OfferedVersions: OfferedTLSVersion10,
 			},
 			expected: map[string]struct{}{
-				"tls.version:TLS 1.0":        {},
-				"tls.client_version:TLS 1.0": {},
+				"tls.version:tls_1.0":        {},
+				"tls.client_version:tls_1.0": {},
 			},
 		},
 		{
@@ -132,12 +132,12 @@ func TestGetTLSDynamicTags(t *testing.T) {
 				OfferedVersions: 0xFF, // All bits set
 			},
 			expected: map[string]struct{}{
-				"tls.version:TLS 1.2":        {},
+				"tls.version:tls_1.2":        {},
 				"tls.cipher_suite_id:0xC02F": {},
-				"tls.client_version:TLS 1.0": {},
-				"tls.client_version:TLS 1.1": {},
-				"tls.client_version:TLS 1.2": {},
-				"tls.client_version:TLS 1.3": {},
+				"tls.client_version:tls_1.0": {},
+				"tls.client_version:tls_1.1": {},
+				"tls.client_version:tls_1.2": {},
+				"tls.client_version:tls_1.3": {},
 			},
 		},
 	}

@@ -21,13 +21,13 @@
 // The maximum number of protocols per stack layer
 #define MAX_ENTRIES_PER_LAYER 255
 
-#define LAYER_ENCRYPTION_BIT  (1 << 13)
+#define LAYER_API_BIT         (1 << 13)
 #define LAYER_APPLICATION_BIT (1 << 14)
-#define LAYER_API_BIT         (1 << 15)
+#define LAYER_ENCRYPTION_BIT  (1 << 15)
 
-#define LAYER_ENCRYPTION_MAX  (LAYER_ENCRYPTION_BIT + MAX_ENTRIES_PER_LAYER)
-#define LAYER_APPLICATION_MAX (LAYER_APPLICATION_BIT + MAX_ENTRIES_PER_LAYER)
 #define LAYER_API_MAX         (LAYER_API_BIT + MAX_ENTRIES_PER_LAYER)
+#define LAYER_APPLICATION_MAX (LAYER_APPLICATION_BIT + MAX_ENTRIES_PER_LAYER)
+#define LAYER_ENCRYPTION_MAX  (LAYER_ENCRYPTION_BIT + MAX_ENTRIES_PER_LAYER)
 
 #define FLAG_FULLY_CLASSIFIED       1 << 0
 #define FLAG_USM_ENABLED            1 << 1
@@ -48,11 +48,6 @@
 typedef enum {
     PROTOCOL_UNKNOWN = 0,
 
-    __LAYER_ENCRYPTION_MIN = LAYER_ENCRYPTION_BIT,
-    //  Add encryption protocols below (eg. TLS)
-    PROTOCOL_TLS,
-    __LAYER_ENCRYPTION_MAX = LAYER_ENCRYPTION_MAX,
-
     __LAYER_API_MIN = LAYER_API_BIT,
     // Add API protocols here (eg. gRPC)
     PROTOCOL_GRPC,
@@ -70,6 +65,10 @@ typedef enum {
     PROTOCOL_MYSQL,
     __LAYER_APPLICATION_MAX = LAYER_APPLICATION_MAX,
 
+    __LAYER_ENCRYPTION_MIN = LAYER_ENCRYPTION_BIT,
+    //  Add encryption protocols below (eg. TLS)
+    PROTOCOL_TLS,
+    __LAYER_ENCRYPTION_MAX = LAYER_ENCRYPTION_MAX,
 } __attribute__ ((packed)) protocol_t;
 
 // This enum represents all existing protocol layers
@@ -81,15 +80,15 @@ typedef enum {
 // users can call `get_protocol_layer`
 typedef enum {
     LAYER_UNKNOWN,
-    LAYER_ENCRYPTION,
     LAYER_API,
     LAYER_APPLICATION,
+    LAYER_ENCRYPTION,
 } __attribute__ ((packed)) protocol_layer_t;
 
 typedef struct {
-    __u8 layer_encryption;
     __u8 layer_api;
     __u8 layer_application;
+    __u8 layer_encryption;
     __u8 flags;
 } protocol_stack_t;
 
@@ -126,7 +125,6 @@ typedef enum {
     __PROG_API,
     // API classification programs go here
     CLASSIFICATION_GRPC_PROG,
-    // Add before this value
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
 

@@ -26,7 +26,7 @@ const (
 	ConnTagNodeJS = http.NodeJS
 )
 
-// GetStaticTags return the string list of static tags from network.ConnectionStats.StaticTags
+// GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
 func GetStaticTags(staticTags uint64) (tags []string) {
 	for tag, str := range http.StaticTags {
 		if (staticTags & tag) > 0 {

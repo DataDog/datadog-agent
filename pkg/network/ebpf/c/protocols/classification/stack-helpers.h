@@ -9,7 +9,7 @@
 // get_protocol_layer(PROTOCOL_HTTP) => LAYER_APPLICATION
 // get_protocol_layer(PROTOCOL_TLS)  => LAYER_ENCRYPTION
 static __always_inline protocol_layer_t get_protocol_layer(protocol_t proto) {
-    u16 layer_bit = proto&(LAYER_ENCRYPTION_BIT|LAYER_API_BIT|LAYER_APPLICATION_BIT);
+    u16 layer_bit = proto&(LAYER_API_BIT|LAYER_APPLICATION_BIT|LAYER_ENCRYPTION_BIT);
 
     switch(layer_bit) {
     case LAYER_API_BIT:

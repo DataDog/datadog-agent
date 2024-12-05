@@ -94,9 +94,9 @@ type BindSyscallArgs struct {
 	Sk   uint64
 }
 type ProtocolStack struct {
-	Encryption  uint8
 	Api         uint8
 	Application uint8
+	Encryption  uint8
 	Flags       uint8
 }
 type ProtocolStackWrapper struct {
