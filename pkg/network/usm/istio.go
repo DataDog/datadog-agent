@@ -9,9 +9,12 @@ package usm
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -19,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -250,7 +252,7 @@ func (m *istioMonitor) handleProcessExec(pid uint32) {
 func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	exePath := fmt.Sprintf("%s/%d/exe", m.procRoot, pid)
 
-	envoyPath, err := utils.ResolveSymlink(exePath)
+	envoyPath, err := os.Readlink(exePath)
 	if err != nil || !strings.Contains(envoyPath, m.envoyCmd) {
 		return ""
 	}

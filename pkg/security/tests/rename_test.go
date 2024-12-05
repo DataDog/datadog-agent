@@ -64,7 +64,7 @@ func TestRename(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
@@ -96,7 +96,7 @@ func TestRename(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
@@ -129,7 +129,7 @@ func TestRename(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
@@ -189,7 +189,7 @@ func TestRename(t *testing.T) {
 				return fmt.Errorf("failed to rename file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
@@ -248,7 +248,7 @@ func TestRenameInvalidate(t *testing.T) {
 	for i := 0; i != 5; i++ {
 		test.WaitSignal(t, func() error {
 			return os.Rename(testOldFile, testNewFile)
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
 			test.validateRenameSchema(t, event)
@@ -318,7 +318,7 @@ func TestRenameReuseInode(t *testing.T) {
 		}
 
 		return f.Close()
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 	})
 
@@ -345,7 +345,7 @@ func TestRenameReuseInode(t *testing.T) {
 			return err
 		}
 		return f.Close()
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
 		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
@@ -390,7 +390,7 @@ func TestRenameFolder(t *testing.T) {
 				return err
 			}
 			return testFile.Close()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "open.file.path", filename)
 			test.validateOpenSchema(t, event)

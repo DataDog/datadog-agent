@@ -303,6 +303,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
 			Port:         uint32(bn.Port),
 			Ip:           bn.IP,
+			Protocol:     uint32(bn.Protocol),
 			ImageTags:    bn.ImageTags,
 		}
 

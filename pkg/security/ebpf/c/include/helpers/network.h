@@ -5,7 +5,7 @@
 #include "constants/macros.h"
 #include "maps.h"
 
-__attribute__((always_inline)) u32 get_flow_pid(struct pid_route_t *key) {
+__attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
     u32 *value = bpf_map_lookup_elem(&flow_pid, key);
     if (!value) {
         // Try with IP set to 0.0.0.0
@@ -13,7 +13,7 @@ __attribute__((always_inline)) u32 get_flow_pid(struct pid_route_t *key) {
         key->addr[1] = 0;
         value = bpf_map_lookup_elem(&flow_pid, key);
         if (!value) {
-            return 0;
+            return -1;
         }
     }
 
@@ -63,8 +63,13 @@ __attribute__((always_inline)) struct packet_t *reset_packet() {
 }
 
 __attribute__((always_inline)) void fill_network_process_context(struct process_context_t *process, struct packet_t *pkt) {
-    process->pid = pkt->pid;
-    process->tid = pkt->pid;
+    if (pkt->pid >= 0) {
+        process->pid = pkt->pid;
+        process->tid = pkt->pid;
+    } else {
+        process->pid = 0;
+        process->tid = 0;
+    }
     process->netns = pkt->translated_ns_flow.netns;
 }
 
@@ -82,10 +87,6 @@ __attribute__((always_inline)) void fill_network_context(struct network_context_
     fill_network_device_context(&net_ctx->device, skb, pkt);
 }
 
-__attribute__((always_inline)) void tail_call_to_classifier(struct __sk_buff *skb, int classifier_id) {
-    bpf_tail_call_compat(skb, &classifier_router, classifier_id);
-}
-
 __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
     flow->sport = tuple->src.u.all;
     flow->dport = tuple->dst.u.all;
@@ -93,7 +94,6 @@ __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple
     bpf_probe_read(&flow->saddr, sizeof(flow->saddr), &tuple->src.u3.all);
     bpf_probe_read(&flow->daddr, sizeof(flow->daddr), &tuple->dst.u3.all);
 }
-
 
 __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *skb, int direction) {
     struct cursor c = {};
