@@ -75,7 +75,7 @@ class TestCheckSize(unittest.TestCase):
         with open('tasks/unit_tests/testdata/package_sizes_real.json') as f:
             new_sizes = json.load(f)
         self.assertIn('25', new_sizes)
-        self.assertEqual(new_sizes['25']['amd64']['datadog-agent']['rpm'], 20000000)
+        self.assertEqual(new_sizes['25']['x86_64']['datadog-agent']['rpm'], 20000000)
         self.assertEqual(new_sizes['25']['arm64']['datadog-iot-agent']['deb'], 43008)
         ctx = Context()
         ctx.run("git checkout -- tasks/unit_tests/testdata/package_sizes_real.json")

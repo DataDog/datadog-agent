@@ -37,10 +37,15 @@ SCANNED_BINARIES = {
 
 PACKAGE_SIZE_TEMPLATE = {
     'amd64': {
-        'datadog-agent': {'deb': 140000000, 'rpm': 140000000, 'suse': 140000000},
-        'datadog-iot-agent': {'deb': 10000000, 'rpm': 10000000, 'suse': 10000000},
-        'datadog-dogstatsd': {'deb': 10000000, 'rpm': 10000000, 'suse': 10000000},
+        'datadog-agent': {'deb': 140000000},
+        'datadog-iot-agent': {'deb': 10000000},
+        'datadog-dogstatsd': {'deb': 10000000},
         'datadog-heroku-agent': {'deb': 70000000},
+    },
+    'x86_64': {
+        'datadog-agent': {'rpm': 140000000, 'suse': 140000000},
+        'datadog-iot-agent': {'rpm': 10000000, 'suse': 10000000},
+        'datadog-dogstatsd': {'rpm': 10000000, 'suse': 10000000},
     },
     'arm64': {
         'datadog-agent': {'deb': 140000000},
