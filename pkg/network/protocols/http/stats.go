@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -138,13 +139,22 @@ func (r *RequestStat) initSketch() (err error) {
 
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
-	Data map[uint16]*RequestStat
+	Data         map[uint16]*RequestStat
+	ddsketchPool *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
 // NewRequestStats creates a new RequestStats object.
 func NewRequestStats() *RequestStats {
 	return &RequestStats{
 		Data: make(map[uint16]*RequestStat),
+	}
+}
+
+// NewRequestStatsWithPool creates a new RequestStats object.
+func NewRequestStatsWithPool(sketchPool *ddsync.TypedPool[ddsketch.DDSketch]) *RequestStats {
+	return &RequestStats{
+		Data:         make(map[uint16]*RequestStat),
+		ddsketchPool: sketchPool,
 	}
 }
 
@@ -219,9 +229,10 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 		stats.FirstLatencySample = latency
 		return
 	}
-
 	if stats.Latencies == nil {
-		if err := stats.initSketch(); err != nil {
+		if r.ddsketchPool != nil {
+			stats.Latencies = r.ddsketchPool.Get()
+		} else if err := stats.initSketch(); err != nil {
 			return
 		}
 
@@ -242,6 +253,16 @@ func (r *RequestStats) HalfAllCounts() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.Count = stats.Count / 2
+		}
+	}
+}
+
+// ReleaseSketches adds all obtained sketch objects to the pool.
+func (r *RequestStats) ReleaseSketches() {
+	if r.ddsketchPool != nil {
+		for _, stats := range r.Data {
+			r.ddsketchPool.Put(stats.Latencies)
+			stats.Latencies = nil
 		}
 	}
 }

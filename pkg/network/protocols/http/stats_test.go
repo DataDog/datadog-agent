@@ -10,8 +10,9 @@ package http
 import (
 	"testing"
 
-	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 func TestAddRequest(t *testing.T) {
@@ -75,4 +76,40 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
 	assert.True(t, val >= expectedValue-acceptableError)
 	assert.True(t, val <= expectedValue+acceptableError)
+}
+
+// BenchmarkHttpRequestsNoPool generates stats requests
+func BenchmarkHttpRequestsNoPool(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		stats := NewRequestStats()
+		// run over expected code range from 100 to 600
+		for n := 100; n < 600; n++ {
+			var code = uint16(n)
+			stats.AddRequest(code, 5.0, 1, nil)
+			// call twice to trigger allocation of DDSketch
+			stats.AddRequest(code, 10.0, 1, nil)
+		}
+	}
+	b.StopTimer()
+}
+
+// BenchmarkHttpRequestsWithPool generates stats requests using pool of DDSketch objects
+func BenchmarkHttpRequestsWithPool(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	pool := NewSketchPool()
+	for i := 0; i < b.N; i++ {
+		stats := NewRequestStatsWithPool(pool)
+		for n := 100; n < 600; n++ {
+			var code = uint16(n)
+			stats.AddRequest(code, 5.0, 1, nil)
+			// call twice to trigger allocation of DDSketch
+			stats.AddRequest(code, 10.0, 1, nil)
+		}
+	}
+	b.StopTimer()
 }

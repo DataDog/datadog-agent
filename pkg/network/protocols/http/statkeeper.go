@@ -12,9 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
@@ -34,6 +37,9 @@ type StatKeeper struct {
 	buffer []byte
 
 	oversizedLogLimit *log.Limit
+
+	// pool of ddsketch objects
+	ddsketchPool *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -59,6 +65,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		buffer:               make([]byte, getPathBufferSize(c)),
 		telemetry:            telemetry,
 		oversizedLogLimit:    log.NewLogLimit(10, time.Minute*10),
+		ddsketchPool:         NewSketchPool(),
 	}
 }
 
@@ -88,6 +95,7 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 
 		// Rotate stats
 		stats = h.stats
+		h.releaseSketchPool()
 		h.stats = make(map[Key]*RequestStats)
 
 		// Rotate ConnectionAggregator
@@ -107,6 +115,7 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
+	h.releaseSketchPool()
 }
 
 func (h *StatKeeper) add(tx Transaction) {
@@ -215,5 +224,23 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 		delete(stats, key)
 		key.ConnectionKey = newConnKey
 		stats[key] = aggregation
+	}
+}
+
+// NewSketchPool - creates new pool of DDSketch objects
+func NewSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
+	sketchPool := ddsync.NewTypedPool(func() *ddsketch.DDSketch {
+		sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+		if err != nil {
+			log.Debugf("http stats, could not create new ddsketch for pool, error: %v", err)
+		}
+		return sketch
+	})
+	return sketchPool
+}
+
+func (h *StatKeeper) releaseSketchPool() {
+	for _, stats := range h.stats {
+		stats.ReleaseSketches()
 	}
 }
