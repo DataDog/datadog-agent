@@ -54,6 +54,6 @@ func IsCoreAgentEnabled(cfg pkgconfigmodel.Reader) bool {
 // Error Tracking standalone only via the apm_config.error_tracking_standalone.enabled option instead of requiring
 // to enable also apm_config.enabled.
 func IsAPMEnabled(cfg pkgconfigmodel.Reader) bool {
-	return (cfg.GetBool("apm_config.enabled") && IsCoreAgentEnabled(cfg)) ||
+	return cfg.GetBool("apm_config.enabled") ||
 		cfg.GetBool("apm_config.error_tracking_standalone.enabled")
 }
