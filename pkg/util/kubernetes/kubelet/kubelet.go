@@ -217,8 +217,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 
 	err = ku.addContainerResourcesData(ctx, pods.Items)
 	if err != nil {
-		// TODO: Switch back to error level once the socket issue is fixed.
-		log.Debugf("Error adding container resources data: %s", err)
+		log.Errorf("Error adding container resources data: %s", err)
 	}
 
 	// ensure we dont have nil pods
