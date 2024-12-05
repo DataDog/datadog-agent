@@ -7,7 +7,7 @@
 package rules
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -199,6 +199,14 @@ type HumanReadableDuration struct {
 	time.Duration
 }
 
+// GetDuration returns the duration embedded in the HumanReadableDuration, or 0 if nil
+func (d *HumanReadableDuration) GetDuration() time.Duration {
+	if d == nil {
+		return 0
+	}
+	return d.Duration
+}
+
 // MarshalYAML marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalYAML() (interface{}, error) {
 	return d.String(), nil
@@ -211,7 +219,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 		return err
 	}
 	switch value := v.(type) {
-	case float64:
+	case int:
 		d.Duration = time.Duration(value)
 		return nil
 	case string:
@@ -222,7 +230,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 		}
 		return nil
 	default:
-		return errors.New("invalid duration")
+		return fmt.Errorf("invalid duration: (yaml type: %T)", v)
 	}
 }
 
