@@ -548,7 +548,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkMonitorEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -600,6 +600,8 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if event.ProcessContext == nil {
 		panic("should always return a process context")
 	}
+
+	event.CGroupContext = event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -1095,6 +1097,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.NetworkMonitorEventType:
+		if _, err = event.NetworkMonitor.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode NetworkMonitor event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1141,6 +1148,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+
+	if event.GetEventType() == model.NetworkMonitorEventType && event.PIDContext.Pid == 0 {
+		fmt.Printf("New flows ! interface: %s, flows_count: %d\n", event.NetworkMonitor.Device.IfName, event.NetworkMonitor.FlowsCount)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
+		if err == nil {
+			fmt.Printf("%s\n", eventJSON)
+		}
+	}
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1944,6 +1959,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
+			Name:  "network_monitor_period",
+			Value: uint64(config.Probe.NetworkMonitorPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
@@ -2297,8 +2316,12 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net", "net/sock.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family", "net/sock.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructSADDR, "struct flowi4", "saddr", "net/flow.h")
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	// constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructProto, "struct flowi4", "flowi4_proto", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructULI, "struct flowi4", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr", "net/flow.h")
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	// constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructProto, "struct flowi6", "flowi6_proto", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk", "linux/net.h")
 

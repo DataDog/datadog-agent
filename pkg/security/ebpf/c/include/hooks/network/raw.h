@@ -1,10 +1,10 @@
 #ifndef _HOOKS_NETWORK_RAW_H_
 #define _HOOKS_NETWORK_RAW_H_
 
-#include "helpers/network.h"
+#include "helpers/network/parser.h"
 #include "perf_ring.h"
 
-__attribute__((always_inline)) struct raw_packet_t *get_raw_packet_event() {
+__attribute__((always_inline)) struct raw_packet_event_t *get_raw_packet_event() {
     u32 key = 0;
     return bpf_map_lookup_elem(&raw_packets, &key);
 }
@@ -17,7 +17,7 @@ int classifier_raw_packet(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    struct raw_packet_t *evt = get_raw_packet_event();
+    struct raw_packet_event_t *evt = get_raw_packet_event();
     if ((evt == NULL) || (skb == NULL)) {
         // should never happen
         return ACT_OK;
@@ -44,7 +44,7 @@ int classifier_raw_packet(struct __sk_buff *skb) {
         evt->len = skb->len;
 
         // process context
-        fill_network_process_context(&evt->process, pkt);
+        fill_network_process_context_from_pkt(&evt->process, pkt);
 
         struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
         if (entry == NULL) {
@@ -53,9 +53,9 @@ int classifier_raw_packet(struct __sk_buff *skb) {
             copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
         }
 
-        fill_network_device_context(&evt->device, skb, pkt);
+        fill_network_device_context_from_pkt(&evt->device, skb, pkt);
 
-        u32 size = offsetof(struct raw_packet_t, data) + len;
+        u32 size = offsetof(struct raw_packet_event_t, data) + len;
         send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, size);
     }
 

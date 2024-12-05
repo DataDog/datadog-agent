@@ -10,7 +10,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
 func newAncestorsIterator[T any](iter *ProcessAncestorsIterator, ctx *eval.Context, ev *Event, perIter func(ev *Event, pce *ProcessCacheEntry) T) []T {
 	results := make([]T, 0, ctx.CachedAncestorsCount)
-	for pce := iter.Front(ctx); pce != nil; pce = iter.Next() {
+	for pce := iter.Front(ctx); pce != nil; pce = iter.Next(ctx) {
 		results = append(results, perIter(ev, pce))
 	}
 	ctx.CachedAncestorsCount = len(results)

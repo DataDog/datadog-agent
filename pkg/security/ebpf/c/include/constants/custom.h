@@ -69,6 +69,13 @@ enum TC_TAIL_CALL_KEYS
     RAW_PACKET_FILTER,
 };
 
+enum PID_ROUTE_TYPE
+{
+    BIND_ENTRY,
+    PROCFS_ENTRY,
+    FLOW_CLASSIFICATION_ENTRY,
+};
+
 #define DNS_MAX_LENGTH 256
 #define DNS_EVENT_KEY 0
 
@@ -193,5 +200,14 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
 #define CGROUP_MANAGER_PODMAN 3
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
+
+#define ACTIVE_FLOWS_MAX_SIZE 128
+#define FLOW_MSG_PER_TICK_COUNT 1024
+
+static __attribute__((always_inline)) u64 get_network_monitor_period() {
+    u64 network_monitor_period;
+    LOAD_CONSTANT("network_monitor_period", network_monitor_period);
+    return network_monitor_period;
+}
 
 #endif

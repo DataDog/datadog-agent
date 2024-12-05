@@ -18,6 +18,19 @@ __attribute__((always_inline)) u64 get_flowi4_saddr_offset() {
     return flowi4_saddr_offset;
 }
 
+// TODO: needed for l4_protocol resolution, see network/flow.h
+__attribute__((always_inline)) u64 get_flowi4_proto_offset() {
+    u64 flowi4_proto_offset;
+    LOAD_CONSTANT("flowi4_proto_offset", flowi4_proto_offset);
+    return flowi4_proto_offset;
+}
+
+__attribute__((always_inline)) u64 get_flowi6_proto_offset() {
+    u64 flowi6_proto_offset;
+    LOAD_CONSTANT("flowi6_proto_offset", flowi6_proto_offset);
+    return flowi6_proto_offset;
+}
+
 __attribute__((always_inline)) u64 get_flowi4_uli_offset() {
     u64 flowi4_uli_offset;
     LOAD_CONSTANT("flowi4_uli_offset", flowi4_uli_offset);

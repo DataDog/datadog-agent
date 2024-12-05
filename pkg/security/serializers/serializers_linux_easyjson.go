@@ -3612,6 +3612,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 	out.UserContextSerializer = new(UserContextSerializer)
 	out.SyscallContextSerializer = new(SyscallContextSerializer)
 	out.RawPacketSerializer = new(RawPacketSerializer)
+	out.NetworkMonitorSerializer = new(NetworkMonitorSerializer)
 	in.Delim('{')
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
@@ -3842,6 +3843,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 					out.RawPacketSerializer = new(RawPacketSerializer)
 				}
 				(*out.RawPacketSerializer).UnmarshalEasyJSON(in)
+			}
+		case "network_monitor":
+			if in.IsNull() {
+				in.Skip()
+				out.NetworkMonitorSerializer = nil
+			} else {
+				if out.NetworkMonitorSerializer == nil {
+					out.NetworkMonitorSerializer = new(NetworkMonitorSerializer)
+				}
+				(*out.NetworkMonitorSerializer).UnmarshalEasyJSON(in)
 			}
 		case "evt":
 			(out.EventContextSerializer).UnmarshalEasyJSON(in)
@@ -4119,6 +4130,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 			out.RawString(prefix)
 		}
 		(*in.RawPacketSerializer).MarshalEasyJSON(out)
+	}
+	if in.NetworkMonitorSerializer != nil {
+		const prefix string = ",\"network_monitor\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.NetworkMonitorSerializer).MarshalEasyJSON(out)
 	}
 	if true {
 		const prefix string = ",\"evt\":"

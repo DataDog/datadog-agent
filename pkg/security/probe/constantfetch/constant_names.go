@@ -86,6 +86,10 @@ const (
 	OffsetNameFlowI4StructULI           = "flowi4_uli_offset"
 	OffsetNameFlowI6StructULI           = "flowi6_uli_offset"
 
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//OffsetNameFlowI4StructProto         = "flowi4_proto_offset"
+	//OffsetNameFlowI6StructProto         = "flowi6_proto_offset"
+
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
 

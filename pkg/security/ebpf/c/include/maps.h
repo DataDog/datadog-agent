@@ -7,6 +7,22 @@
 #include "constants/enums.h"
 #include "structs/all.h"
 
+// TODO: move later if need be
+#define BPF_QUEUE_MAP(_name, _value_type, _max_entries) \
+    struct {                                            \
+        __uint(type, BPF_MAP_TYPE_QUEUE);               \
+        __uint(max_entries, _max_entries);              \
+        __type(value, _value_type);                     \
+    } _name SEC(".maps");
+
+#define BPF_SK_MAP(_name, _value_type)         \
+    struct {                                   \
+        __uint(type, BPF_MAP_TYPE_SK_STORAGE); \
+        __type(value, _value_type);            \
+        __uint(map_flags, BPF_F_NO_PREALLOC);  \
+        __type(key, u32);                      \
+    } _name SEC(".maps");
+
 BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 4)
@@ -54,8 +70,8 @@ BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 4096)
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
-BPF_LRU_MAP(flow_pid, struct pid_route_t, u32, 10240)
-BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096)
+BPF_LRU_MAP(flow_pid, struct pid_route_t, struct pid_route_entry_t, 10240)
+BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
 BPF_LRU_MAP(io_uring_ctx_pid, void *, u64, 2048)
 BPF_LRU_MAP(veth_state_machine, u64, struct veth_state_t, 1024)
 BPF_LRU_MAP(veth_devices, struct device_ifindex_t, struct device_t, 1024)
@@ -65,10 +81,15 @@ BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
 BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
+BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
+BPF_LRU_MAP(active_flows, u32, struct active_flows_t, 1) // max entries will be overridden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
+
+BPF_QUEUE_MAP(flows_queue, struct flow_queue_msg_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
+BPF_SK_MAP(sock_active_pid_route, struct pid_route_t);
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
@@ -88,7 +109,9 @@ BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(is_new_kthread, u32, 1)
 BPF_PERCPU_ARRAY_MAP(syscalls_stats, struct syscalls_stats_t, EVENT_MAX)
-BPF_PERCPU_ARRAY_MAP(raw_packets, struct raw_packet_t, 1)
+BPF_PERCPU_ARRAY_MAP(raw_packets, struct raw_packet_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(active_flows_gen, struct active_flows_t, 1)
+BPF_PERCPU_ARRAY_MAP(network_monitor_event_gen, struct network_monitor_event_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)

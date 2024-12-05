@@ -176,7 +176,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$Check = $SubName | printf "element%s"}}
 								if !{{$Check}}() {
 									results = append(results, {{$Field.GetDefaultScalarReturnValue}})
-									value = iterator.Next()
+									value = iterator.Next(ctx)
 									continue
 								}
 							{{end}}
@@ -207,7 +207,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						results = append(results, result...)
 						{{end}}
 
-						value = iterator.Next()
+						value = iterator.Next(ctx)
 					}
 					{{end}}
 
@@ -217,7 +217,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{- if not $Field.IsIterator}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
 					{{- if not (and $Field.IsLength $Field.IsIterator)}}
 						ev := ctx.Event.(*Event)
 					{{end}}
@@ -368,7 +368,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				values = append(values, result...)
 				{{end}}
 
-				ptr = iterator.Next()
+				ptr = iterator.Next(ctx)
 			}
 
 			return values, nil
@@ -487,7 +487,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{end}}
 		{{end}}
 
-		{{$FieldName := $Field.Name | printf "ev.%s"}}
+		{{$FieldName := $Field | BuildFirstAccessor $.AllFields}}
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
 			{{if $Field.IsLength}}

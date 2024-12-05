@@ -115,6 +115,11 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
 	case OffsetNameFlowI4StructSADDR:
 		value = getFlowi4SAddrOffset(f.kernelVersion)
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	//case OffsetNameFlowI4StructProto:
+	//	value = getFlowi4ProtoOffset(f.kernelVersion)
+	//case OffsetNameFlowI6StructProto:
+	//	value = getFlowi6ProtoOffset(f.kernelVersion)
 	case OffsetNameFlowI6StructSADDR:
 		value = getFlowi6SAddrOffset(f.kernelVersion)
 	case OffsetNameFlowI4StructULI:
@@ -831,6 +836,15 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 
 	return offset
 }
+
+// TODO: needed for l4_protocol resolution, see network/flow.h
+//func getFlowi4ProtoOffset(kv *kernel.Version) uint64 {
+//	return 18
+//}
+//
+//func getFlowi6ProtoOffset(kv *kernel.Version) uint64 {
+//	return 18
+//}
 
 func getFlowi4ULIOffset(kv *kernel.Version) uint64 {
 	return getFlowi4SAddrOffset(kv) + 8

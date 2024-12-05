@@ -638,6 +638,7 @@ type EventSerializer struct {
 	*UserContextSerializer    `json:"usr,omitempty"`
 	*SyscallContextSerializer `json:"syscall,omitempty"`
 	*RawPacketSerializer      `json:"packet,omitempty"`
+	*NetworkMonitorSerializer `json:"network_monitor,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -993,7 +994,7 @@ func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.
 	return &NetworkDeviceSerializer{
 		NetNS:   deviceCtx.NetNS,
 		IfIndex: deviceCtx.IfIndex,
-		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, &e.NetworkContext.Device),
+		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, deviceCtx),
 	}
 }
 
@@ -1004,6 +1005,37 @@ func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawP
 			Version: model.TLSVersion(rp.TLSContext.Version).String(),
 		},
 	}
+}
+
+func newNetworkStatsSerializer(networkStats *model.NetworkStats, e *model.Event) *NetworkStatsSerializer {
+	return &NetworkStatsSerializer{
+		DataSize:    networkStats.DataSize,
+		PacketCount: networkStats.PacketCount,
+	}
+}
+
+func newFlowSerializer(flow *model.Flow, e *model.Event) *FlowSerializer {
+	return &FlowSerializer{
+		L3Protocol:  model.L3Protocol(flow.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(flow.L4Protocol).String(),
+		Source:      newIPPortSerializer(&flow.Source),
+		Destination: newIPPortSerializer(&flow.Destination),
+		Ingress:     newNetworkStatsSerializer(&flow.Ingress, e),
+		Egress:      newNetworkStatsSerializer(&flow.Egress, e),
+	}
+}
+
+func newNetworkMonitorSerializer(nm *model.NetworkMonitorEvent, e *model.Event) *NetworkMonitorSerializer {
+	s := &NetworkMonitorSerializer{
+		Device:     newNetworkDeviceSerializer(&nm.Device, e),
+		FlowsCount: nm.FlowsCount,
+	}
+
+	for _, flow := range nm.Flows {
+		s.Flows = append(s.Flows, newFlowSerializer(&flow, e))
+	}
+
+	return s
 }
 
 func serializeOutcome(retval int64) string {
@@ -1062,7 +1094,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		ancestor = pce
 		prev = s
 
-		ptr = it.Next()
+		ptr = it.Next(ctx)
 	}
 
 	// shrink the middle of the ancestors list if it is too long
@@ -1108,7 +1140,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 			break
 		}
 
-		ptr = it.Next()
+		ptr = it.Next(ctx)
 	}
 	return s
 }
@@ -1116,12 +1148,13 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 // nolint: deadcode, unused
 func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
-		Device:      newNetworkDeviceSerializer(&networkCtx.Device, e),
-		L3Protocol:  model.L3Protocol(networkCtx.L3Protocol).String(),
-		L4Protocol:  model.L4Protocol(networkCtx.L4Protocol).String(),
-		Source:      newIPPortSerializer(&networkCtx.Source),
-		Destination: newIPPortSerializer(&networkCtx.Destination),
-		Size:        networkCtx.Size,
+		Device:           newNetworkDeviceSerializer(&networkCtx.Device, e),
+		L3Protocol:       model.L3Protocol(networkCtx.L3Protocol).String(),
+		L4Protocol:       model.L4Protocol(networkCtx.L4Protocol).String(),
+		Source:           newIPPortSerializer(&networkCtx.Source),
+		Destination:      newIPPortSerializer(&networkCtx.Destination),
+		Size:             networkCtx.Size,
+		NetworkDirection: model.NetworkDirection(networkCtx.NetworkDirection).String(),
 	}
 }
 
@@ -1421,6 +1454,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		})
 	case model.RawPacketEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
+	case model.NetworkMonitorEventType:
+		s.NetworkMonitorSerializer = newNetworkMonitorSerializer(&event.NetworkMonitor, event)
 	}
 
 	return s

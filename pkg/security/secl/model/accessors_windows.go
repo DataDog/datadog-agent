@@ -836,7 +836,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := value
 					result := element.ProcessContext.Process.ContainerID
 					results = append(results, result)
-					value = iterator.Next()
+					value = iterator.Next(ctx)
 				}
 				ctx.StringCache[field] = results
 				return results
@@ -894,7 +894,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := value
 					result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
 					results = append(results, result...)
-					value = iterator.Next()
+					value = iterator.Next(ctx)
 				}
 				ctx.StringCache[field] = results
 				return results
@@ -925,7 +925,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := value
 					result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
 					results = append(results, result...)
-					value = iterator.Next()
+					value = iterator.Next(ctx)
 				}
 				ctx.StringCache[field] = results
 				return results
@@ -1076,7 +1076,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := value
 					result := int(element.ProcessContext.Process.PIDContext.Pid)
 					results = append(results, result)
-					value = iterator.Next()
+					value = iterator.Next(ctx)
 				}
 				ctx.IntCache[field] = results
 				return results
@@ -1106,7 +1106,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := value
 					result := int(element.ProcessContext.Process.PPid)
 					results = append(results, result)
-					value = iterator.Next()
+					value = iterator.Next(ctx)
 				}
 				ctx.IntCache[field] = results
 				return results
@@ -1163,7 +1163,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := value
 					result := element.ProcessContext.Process.OwnerSidString
 					results = append(results, result)
-					value = iterator.Next()
+					value = iterator.Next(ctx)
 				}
 				ctx.StringCache[field] = results
 				return results
@@ -2084,7 +2084,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.container.id":
@@ -2096,7 +2096,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := element.ProcessContext.Process.ContainerID
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.created_at":
@@ -2108,7 +2108,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &element.ProcessContext.Process))
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.envp":
@@ -2120,7 +2120,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
 			values = append(values, result...)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.envs":
@@ -2132,7 +2132,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
 			values = append(values, result...)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.file.name":
@@ -2144,7 +2144,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent)
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.file.name.length":
@@ -2158,7 +2158,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.file.path.length":
@@ -2176,7 +2176,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := int(element.ProcessContext.Process.PIDContext.Pid)
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.ppid":
@@ -2188,7 +2188,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := int(element.ProcessContext.Process.PPid)
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.user":
@@ -2200,7 +2200,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := ev.FieldHandlers.ResolveUser(ev, &element.ProcessContext.Process)
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.ancestors.user_sid":
@@ -2212,7 +2212,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := ptr
 			result := element.ProcessContext.Process.OwnerSidString
 			values = append(values, result)
-			ptr = iterator.Next()
+			ptr = iterator.Next(ctx)
 		}
 		return values, nil
 	case "process.cmdline":

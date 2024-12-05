@@ -22,6 +22,7 @@ func NetworkNFNatSelectors() []manager.ProbesSelector {
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("nf_nat_manip_pkt"),
 			kprobeOrFentry("nf_nat_packet"),
+			kprobeOrFentry("nf_ct_delete"),
 		}},
 	}
 }
@@ -43,8 +44,22 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("security_socket_bind"),
 			kprobeOrFentry("security_socket_connect"),
 			kprobeOrFentry("security_sk_classify_flow"),
+			kprobeOrFentry("inet_release"),
+			kprobeOrFentry("inet_shutdown"),
+			kprobeOrFentry("sk_common_release"),
+			kprobeOrFentry("udp_destroy_sock"),
+			kprobeOrFentry("udpv6_destroy_sock"),
+			kprobeOrFentry("tcp_v4_destroy_sock"),
+			kprobeOrFentry("tcp_shutdown"),
+			kprobeOrFentry("tcp_close"),
 			kprobeOrFentry("path_get"),
 			kprobeOrFentry("proc_fd_link"),
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "hook_inet_bind",
+				},
+			},
 		}},
 
 		// network device probes
@@ -61,6 +76,16 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("dev_new_index"),
 			kretprobeOrFexit("dev_new_index"),
 			kprobeOrFentry("__dev_get_by_index"),
+		}},
+
+		// perf_event probes
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "network_stats_worker",
+				},
+			},
 		}},
 	}
 }
@@ -468,7 +493,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 	}
 
 	// Add probes required to track network interfaces and map network flows to processes
-	// networkEventTypes: dns, imds, packet
+	// networkEventTypes: dns, imds, packet, network_monitor
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
 	for _, networkEventType := range networkEventTypes {
 		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{

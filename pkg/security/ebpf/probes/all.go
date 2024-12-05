@@ -82,6 +82,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
 	allProbes = append(allProbes, GetOnDemandProbes()...)
+	allProbes = append(allProbes, GetPerfEventProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -174,6 +175,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_cache": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"active_flows": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},

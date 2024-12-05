@@ -7,6 +7,7 @@
 package eval
 
 import (
+	"net"
 	"sync"
 	"time"
 )
@@ -23,6 +24,7 @@ type Context struct {
 
 	// cache available across all the evaluations
 	StringCache map[string][]string
+	IPNetCache  map[string][]net.IPNet
 	IntCache    map[string][]int
 	BoolCache   map[string][]bool
 
@@ -56,6 +58,7 @@ func (c *Context) Reset() {
 	c.now = time.Time{}
 
 	clear(c.StringCache)
+	clear(c.IPNetCache)
 	clear(c.IntCache)
 	clear(c.BoolCache)
 	clear(c.Registers)
@@ -68,6 +71,7 @@ func NewContext(evt Event) *Context {
 	return &Context{
 		Event:         evt,
 		StringCache:   make(map[string][]string),
+		IPNetCache:    make(map[string][]net.IPNet),
 		IntCache:      make(map[string][]int),
 		BoolCache:     make(map[string][]bool),
 		Registers:     make(map[RegisterID]int),
