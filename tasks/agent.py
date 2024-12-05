@@ -17,7 +17,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import containerized_integration_tests
+from tasks.gointegrationtest import core_linux_integration_tests
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -578,22 +578,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
 
 
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    prefixes = [
-        "./test/integration/config_providers/...",
-        "./test/integration/corechecks/...",
-        "./test/integration/listeners/...",
-        "./test/integration/util/kubelet/...",
-    ]
-    go_build_tags = get_default_build_tags(build="test")
-    containerized_integration_tests(
-        ctx,
-        prefixes=prefixes,
-        go_build_tags=go_build_tags,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
+    core_linux_integration_tests(ctx=ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
 def check_supports_python_version(check_dir, python):

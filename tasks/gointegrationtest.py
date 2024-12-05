@@ -101,6 +101,25 @@ def trace_integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     )
 
 
+def core_linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+    prefixes = [
+        "./test/integration/config_providers/...",
+        "./test/integration/corechecks/...",
+        "./test/integration/listeners/...",
+        "./test/integration/util/kubelet/...",
+    ]
+    go_build_tags = get_default_build_tags(build="test")
+    containerized_integration_tests(
+        ctx,
+        prefixes=prefixes,
+        go_build_tags=go_build_tags,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
+
+
 @task
 def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     """
