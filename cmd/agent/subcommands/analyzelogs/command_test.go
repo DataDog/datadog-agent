@@ -6,9 +6,8 @@
 package analyzelogs
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -113,40 +113,48 @@ Auto-discovery IDs:
 		CoreConfigPath: tempConfigFile.Name(),
 	}
 
-	// Wait for code to finish running before trying to read
-	time.Sleep(3 * time.Second)
+	outputChan, launcher, pipelineProvider := runAnalyzeLogsHelper(cliParams, config)
 
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	assert.NoError(t, err)
-	os.Stdout = w
+	inactivityTimeout := 1 * time.Second
+	idleTimer := time.NewTimer(inactivityTimeout)
 
-	err = runAnalyzeLogs(cliParams, config)
-	assert.NoError(t, err)
+	expectedOutput := []string{
+		"=== apm check ===",
+		"Configuration provider: file",
+		"Config for instance ID: apm:1234567890abcdef",
+		"{}",
+		"=== container_image check ===",
+		"Configuration provider: file",
+		"Config for instance ID: container_image:abcdef1234567890",
+		"{}",
+		"~",
+		"Auto-discovery IDs:",
+		"* _container_image",
+		"===",
+	}
+	i := 0
+	for {
+		select {
+		case msg := <-outputChan:
+			parsedMessage := processor.JSONPayload
+			err := json.Unmarshal(msg.GetContent(), &parsedMessage)
+			if err != nil {
+				fmt.Printf("Failed to parse message: %v\n", err)
+				continue
+			}
 
-	w.Close() // Close the write end of the pipe when done
+			assert.Equal(t, parsedMessage.Message, expectedOutput[i])
+			i = i + 1
+			// Reset the inactivity timer every time a message is processed
+			if !idleTimer.Stop() {
+				<-idleTimer.C
+			}
+			idleTimer.Reset(inactivityTimeout)
+		case <-idleTimer.C:
+			launcher.Stop()
+			pipelineProvider.Stop()
+			return
+		}
+	}
 
-	// // Read and verify the output
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, r)
-	assert.NoError(t, err)
-	os.Stdout = oldStdout // Restore original stdout
-
-	// Assert output matches expected
-	expectedOutput := `=== apm check ===
-Configuration provider: file
-Config for instance ID: apm:1234567890abcdef
-{}
-=== container_image check ===
-Configuration provider: file
-Config for instance ID: container_image:abcdef1234567890
-{}
-~
-Auto-discovery IDs:
-* _container_image
-===`
-
-	// // Use contains isntead of equals since there is also debug logs sent to stdout
-	assert.Contains(t, buf.String(), expectedOutput)
 }

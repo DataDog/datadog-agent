@@ -22,6 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -73,33 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
 func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
-
-	configSource := sources.NewConfigSources()
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	absolutePath := wd + "/" + cliParams.LogConfigPath
-	data, err := os.ReadFile(absolutePath)
-	if err != nil {
-		return err
-	}
-	sources, err := ad.CreateSources(integration.Config{
-		Provider:   names.File,
-		LogsConfig: data,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	for _, source := range sources {
-		if source.Config.TailingMode == "" {
-			source.Config.TailingMode = "beginning"
-		}
-		configSource.AddSource(source)
-	}
-	outputChan, pipelineProvider := agentimpl.SetUpLaunchers(config, configSource)
+	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config)
 	// Set up an inactivity timeout
 	inactivityTimeout := 1 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
@@ -124,7 +101,41 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 		case <-idleTimer.C:
 			// Timeout reached, signal quit
 			pipelineProvider.Stop()
+			launchers.Stop()
 			return nil
 		}
 	}
+}
+
+// Used to make testing easier
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+	configSource := sources.NewConfigSources()
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Cannot get working directory")
+		return nil, nil, nil
+	}
+	absolutePath := wd + "/" + cliParams.LogConfigPath
+	data, err := os.ReadFile(absolutePath)
+	if err != nil {
+		fmt.Println("Cannot read file path of logs config")
+		return nil, nil, nil
+	}
+	sources, err := ad.CreateSources(integration.Config{
+		Provider:   names.File,
+		LogsConfig: data,
+	})
+
+	if err != nil {
+		fmt.Println("Cannot create source")
+		return nil, nil, nil
+	}
+
+	for _, source := range sources {
+		if source.Config.TailingMode == "" {
+			source.Config.TailingMode = "beginning"
+		}
+		configSource.AddSource(source)
+	}
+	return agentimpl.SetUpLaunchers(config, configSource)
 }
