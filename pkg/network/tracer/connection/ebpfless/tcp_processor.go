@@ -54,11 +54,11 @@ type connectionState struct {
 	rttTracker rttTracker
 }
 
-type TCPProcessor struct { //nolint:revive // TODO
+type TCPProcessor struct {
 	conns map[network.ConnectionTuple]connectionState
 }
 
-func NewTCPProcessor() *TCPProcessor { //nolint:revive // TODO
+func NewTCPProcessor() *TCPProcessor {
 	return &TCPProcessor{
 		conns: map[network.ConnectionTuple]connectionState{},
 	}
@@ -106,7 +106,7 @@ func checkInvalidTCP(tcp *layers.TCP) bool {
 	return false
 }
 
-func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) { //nolint:revive // TODO
+func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
 	if tcp.RST {
 		return
 	}
@@ -131,7 +131,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 
 // updateTcpStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
 // https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
-func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) { //nolint:revive // TODO
+func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	if pktType == unix.PACKET_OUTGOING {
@@ -208,7 +208,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	}
 }
 
-func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) { //nolint:revive // TODO
+func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
 	if !tcp.RST || st.tcpState == ConnStatClosed {
 		return
 	}

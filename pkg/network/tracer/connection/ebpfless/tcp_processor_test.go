@@ -21,14 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-var localhost net.IP = net.ParseIP("127.0.0.1")  //nolint:revive // TODO
-var remoteIP net.IP = net.ParseIP("12.34.56.78") //nolint:revive // TODO
+var localhost net.IP = net.ParseIP("127.0.0.1")
+var remoteIP net.IP = net.ParseIP("12.34.56.78")
 
 const (
 	minIhl            = 5
 	defaultLocalPort  = 12345
 	defaultRemotePort = 8080
-	defaultNsId       = 123 //nolint:revive // TODO
+	defaultNsID       = 123
 )
 
 const (
@@ -79,7 +79,7 @@ type testCapture struct {
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
-func makeTcpStates(synPkt testCapture) *network.ConnectionStats { //nolint:revive // TODO
+func makeTcpStates(synPkt testCapture) *network.ConnectionStats {
 	var family network.ConnectionFamily
 	var srcIP, dstIP net.IP
 	if synPkt.ipv4 != nil && synPkt.ipv6 != nil {
@@ -110,7 +110,7 @@ func makeTcpStates(synPkt testCapture) *network.ConnectionStats { //nolint:reviv
 			Source: util.AddressFromNetIP(srcIP),
 			Dest:   util.AddressFromNetIP(dstIP),
 			Pid:    0, // @stu we can't know this right
-			NetNS:  defaultNsId,
+			NetNS:  defaultNsID,
 			SPort:  uint16(synPkt.tcp.SrcPort),
 			DPort:  uint16(synPkt.tcp.DstPort),
 			Type:   network.TCP,
@@ -165,7 +165,7 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 	}
 }
 
-func newTcpTestFixture(t *testing.T) *tcpTestFixture { //nolint:revive // TODO
+func newTcpTestFixture(t *testing.T) *tcpTestFixture {
 	return &tcpTestFixture{
 		t:    t,
 		tcp:  NewTCPProcessor(),
