@@ -7,7 +7,6 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"net/http/httptrace"
 	"sync"
 
@@ -59,7 +58,7 @@ func (dc *DestinationsContext) Context() context.Context {
 // GetClientTrace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
 func GetClientTrace() *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
-		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
+		ConnectDone: func(_ string, _ string, _ error) {
 			metrics.TlmConnectionsOpened.Inc()
 		},
 	}
