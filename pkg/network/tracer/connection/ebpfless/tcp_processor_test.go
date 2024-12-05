@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-var localhost net.IP = net.ParseIP("127.0.0.1")
-var remoteIP net.IP = net.ParseIP("12.34.56.78")
+var localhost = net.ParseIP("127.0.0.1")
+var remoteIP = net.ParseIP("12.34.56.78")
 
 const (
 	minIhl            = 5
@@ -79,7 +79,7 @@ type testCapture struct {
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
-func makeTcpStates(synPkt testCapture) *network.ConnectionStats {
+func makeTCPStates(synPkt testCapture) *network.ConnectionStats {
 	var family network.ConnectionFamily
 	var srcIP, dstIP net.IP
 	if synPkt.ipv4 != nil && synPkt.ipv6 != nil {
@@ -165,7 +165,7 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 	}
 }
 
-func newTcpTestFixture(t *testing.T) *tcpTestFixture {
+func newTCPTestFixture(t *testing.T) *tcpTestFixture {
 	return &tcpTestFixture{
 		t:    t,
 		tcp:  NewTCPProcessor(),
@@ -175,7 +175,7 @@ func newTcpTestFixture(t *testing.T) *tcpTestFixture {
 
 func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
 	if fixture.conn == nil {
-		fixture.conn = makeTcpStates(pkt)
+		fixture.conn = makeTCPStates(pkt)
 	}
 	err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
 	require.NoError(fixture.t, err)
@@ -239,7 +239,7 @@ func testBasicHandshake(t *testing.T, pb packetBuilder) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -307,7 +307,7 @@ func testReversedBasicHandshake(t *testing.T, pb packetBuilder) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -373,7 +373,7 @@ func testCloseWaitState(t *testing.T, pb packetBuilder) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -443,7 +443,7 @@ func testFinWait2State(t *testing.T, pb packetBuilder) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -496,7 +496,7 @@ func TestImmediateFin(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -525,7 +525,7 @@ func TestConnRefusedSyn(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Equal(t, map[uint16]uint32{
@@ -558,7 +558,7 @@ func TestConnRefusedSynAck(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Equal(t, map[uint16]uint32{
@@ -595,7 +595,7 @@ func TestConnReset(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Equal(t, map[uint16]uint32{
@@ -638,7 +638,7 @@ func TestConnectTwice(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	state := f.tcp.conns[f.conn.ConnectionTuple]
@@ -688,7 +688,7 @@ func TestSimultaneousClose(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -731,7 +731,7 @@ func TestUnusualAckSyn(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -752,7 +752,7 @@ func TestUnusualAckSyn(t *testing.T) {
 func TestOpenCloseConn(t *testing.T) {
 	pb := newPacketBuilder(lowerSeq, higherSeq)
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 
 	// send a SYN packet to kick things off
 	f.runPkt(pb.incoming(0, 0, 0, SYN))

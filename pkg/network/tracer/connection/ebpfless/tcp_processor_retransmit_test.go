@@ -67,7 +67,7 @@ func TestAllRetransmitsOutgoing(t *testing.T) {
 	t.Run("retransmit SYN", func(t *testing.T) {
 		traffic := retransmitNth(basicHandshake, 0)
 
-		f := newTcpTestFixture(t)
+		f := newTCPTestFixture(t)
 		f.runPkts(traffic)
 
 		require.Empty(t, f.conn.TCPFailures)
@@ -77,7 +77,7 @@ func TestAllRetransmitsOutgoing(t *testing.T) {
 	t.Run("retransmit data", func(t *testing.T) {
 		traffic := retransmitNth(basicHandshake, 3)
 
-		f := newTcpTestFixture(t)
+		f := newTCPTestFixture(t)
 		f.runPkts(traffic)
 
 		require.Empty(t, f.conn.TCPFailures)
@@ -87,7 +87,7 @@ func TestAllRetransmitsOutgoing(t *testing.T) {
 	t.Run("retransmit FIN", func(t *testing.T) {
 		traffic := retransmitNth(basicHandshake, 8)
 
-		f := newTcpTestFixture(t)
+		f := newTCPTestFixture(t)
 		f.runPkts(traffic)
 
 		require.Empty(t, f.conn.TCPFailures)
@@ -130,7 +130,7 @@ func TestAllRetransmitsIncoming(t *testing.T) {
 	t.Run("retransmit SYNACK", func(t *testing.T) {
 		traffic := retransmitNth(basicHandshake, 1)
 
-		f := newTcpTestFixture(t)
+		f := newTCPTestFixture(t)
 		f.runPkts(traffic)
 
 		require.Empty(t, f.conn.TCPFailures)
@@ -140,7 +140,7 @@ func TestAllRetransmitsIncoming(t *testing.T) {
 	t.Run("retransmit data", func(t *testing.T) {
 		traffic := retransmitNth(basicHandshake, 5)
 
-		f := newTcpTestFixture(t)
+		f := newTCPTestFixture(t)
 		f.runPkts(traffic)
 
 		require.Empty(t, f.conn.TCPFailures)
@@ -150,7 +150,7 @@ func TestAllRetransmitsIncoming(t *testing.T) {
 	t.Run("retransmit FIN", func(t *testing.T) {
 		traffic := retransmitNth(basicHandshake, 6)
 
-		f := newTcpTestFixture(t)
+		f := newTCPTestFixture(t)
 		f.runPkts(traffic)
 
 		require.Empty(t, f.conn.TCPFailures)
@@ -180,7 +180,7 @@ func TestRstTwice(t *testing.T) {
 		ConnStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	// should count as a single failure
@@ -220,7 +220,7 @@ func TestKeepAlivePacketsArentRetransmits(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runPkts(basicHandshake)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -255,7 +255,7 @@ func TestRetransmitMultipleSegments(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runPkts(traffic)
 
 	require.Empty(t, f.conn.TCPFailures)

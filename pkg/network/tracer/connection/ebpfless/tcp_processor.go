@@ -54,10 +54,12 @@ type connectionState struct {
 	rttTracker rttTracker
 }
 
+// TCPProcessor encapsulates TCP state tracking for the ebpfless tracer
 type TCPProcessor struct {
 	conns map[network.ConnectionTuple]connectionState
 }
 
+// NewTCPProcessor constructs an empty TCPProcessor
 func NewTCPProcessor() *TCPProcessor {
 	return &TCPProcessor{
 		conns: map[network.ConnectionTuple]connectionState{},
@@ -106,7 +108,7 @@ func checkInvalidTCP(tcp *layers.TCP) bool {
 	return false
 }
 
-func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, _payloadLen uint16) {
 	if tcp.RST {
 		return
 	}
@@ -129,9 +131,9 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 	}
 }
 
-// updateTcpStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
+// updateTCPStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
 // https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
-func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
+func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	if pktType == unix.PACKET_OUTGOING {
@@ -208,7 +210,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	}
 }
 
-func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, _pktType uint8, tcp *layers.TCP, payloadLen uint16) {
 	if !tcp.RST || st.tcpState == ConnStatClosed {
 		return
 	}
@@ -251,7 +253,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	st := t.conns[conn.ConnectionTuple]
 
 	t.updateSynFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateTcpStats(conn, &st, pktType, tcp, payloadLen, timestampNs)
+	t.updateTCPStats(conn, &st, pktType, tcp, payloadLen, timestampNs)
 	t.updateFinFlag(conn, &st, pktType, tcp, payloadLen)
 	t.updateRstFlag(conn, &st, pktType, tcp, payloadLen)
 
