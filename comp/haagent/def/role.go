@@ -13,4 +13,6 @@ const (
 	Leader Role = "leader"
 	// Follower HA Agent role
 	Follower Role = "follower"
+	// Unknown HA Agent role
+	Unknown Role = "unknown"
 )
