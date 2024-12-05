@@ -8,13 +8,16 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +31,9 @@ const (
 
 	// statusRetainedActions is the number of horizontal actions kept in status
 	statusRetainedActions = 5
+
+	// AnnotationsConfigurationKey is the key used to store custom recommender configuration in annotations
+	AnnotationsConfigurationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -37,9 +43,6 @@ type PodAutoscalerInternal struct {
 
 	// name is the name of the PodAutoscaler
 	name string
-
-	// annotations are the annotations of the PodAutoscaler
-	annotations Annotations
 
 	// creationTimestamp is the time when the kubernetes object was created
 	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
@@ -104,14 +107,18 @@ type PodAutoscalerInternal struct {
 	// horizontalEventsRetention is the time to keep horizontal events in memory
 	// based on scale policies
 	horizontalEventsRetention time.Duration
+
+	// customRecommenderConfiguration holds the configuration for custom recommenders,
+	// Parsed from annotations on the autoscaler
+	customRecommenderConfiguration *CustomRecommenderConfiguration
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
 func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace:   podAutoscaler.Namespace,
-		name:        podAutoscaler.Name,
-		annotations: ParseAnnotations(podAutoscaler.Annotations),
+		namespace:                      podAutoscaler.Namespace,
+		name:                           podAutoscaler.Name,
+		customRecommenderConfiguration: parseCustomConfigurationAnnotation(podAutoscaler.Annotations),
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
@@ -138,7 +145,7 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
-	p.annotations = ParseAnnotations(podAutoscaler.Annotations)
+	p.customRecommenderConfiguration = parseCustomConfigurationAnnotation(podAutoscaler.Annotations)
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
@@ -326,11 +333,6 @@ func (p *PodAutoscalerInternal) Name() string {
 	return p.name
 }
 
-// Annotations returns the annotations on the PodAutoscaler
-func (p *PodAutoscalerInternal) Annotations() Annotations {
-	return p.annotations
-}
-
 // ID returns the functional identifier of the PodAutoscaler
 func (p *PodAutoscalerInternal) ID() string {
 	return p.namespace + "/" + p.name
@@ -428,6 +430,11 @@ func (p *PodAutoscalerInternal) TargetGVK() (schema.GroupVersionKind, error) {
 		Kind:    p.spec.TargetRef.Kind,
 	}
 	return p.targetGVK, nil
+}
+
+// CustomRecommenderConfiguration returns the configuration set on the autoscaler for a customer recommender
+func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *CustomRecommenderConfiguration {
+	return p.customRecommenderConfiguration
 }
 
 //
@@ -663,4 +670,14 @@ func getLongestScalingRulesPeriod(rules []datadoghq.DatadogPodAutoscalerScalingR
 	}
 
 	return longest
+}
+
+func parseCustomConfigurationAnnotation(annotations map[string]string) *CustomRecommenderConfiguration {
+	customConfiguration := CustomRecommenderConfiguration{}
+
+	if err := json.Unmarshal([]byte(annotations[AnnotationsConfigurationKey]), &customConfiguration); err != nil {
+		log.Debugf("Failed to parse annotations for custom recommender configuration: %v", err)
+	}
+
+	return &customConfiguration
 }

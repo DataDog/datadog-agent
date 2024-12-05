@@ -56,6 +56,11 @@ type VerticalScalingValues struct {
 	ContainerResources []datadoghq.DatadogPodAutoscalerContainerResources
 }
 
+type CustomRecommenderConfiguration struct {
+	Endpoint string
+	Settings map[string]any
+}
+
 // SumCPUMemoryRequests sums the CPU and memory requests of all containers
 func (v *VerticalScalingValues) SumCPUMemoryRequests() (cpu, memory resource.Quantity) {
 	for _, container := range v.ContainerResources {
