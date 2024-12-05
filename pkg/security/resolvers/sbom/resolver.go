@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -57,7 +58,7 @@ type SBOM struct {
 	Host        string
 	Source      string
 	Service     string
-	ContainerID string
+	ContainerID containerutils.ContainerID
 	workloadKey string
 
 	deleted        *atomic.Bool
@@ -98,7 +99,7 @@ func (s *SBOM) reset() {
 }
 
 // NewSBOM returns a new empty instance of SBOM
-func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
+func NewSBOM(host string, source string, id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	sbom := &SBOM{
 		files:          fileQuerier{},
 		Host:           host,
@@ -117,7 +118,7 @@ func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEnt
 type Resolver struct {
 	cfg            *config.RuntimeSecurityConfig
 	sbomsLock      sync.RWMutex
-	sboms          map[string]*SBOM
+	sboms          map[containerutils.ContainerID]*SBOM
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
@@ -165,7 +166,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	resolver := &Resolver{
 		cfg:                   c,
 		statsdClient:          statsdClient,
-		sboms:                 make(map[string]*SBOM),
+		sboms:                 make(map[containerutils.ContainerID]*SBOM),
 		sbomsCache:            sbomsCache,
 		scannerChan:           make(chan *SBOM, 100),
 		sbomScanner:           sbomScanner,
@@ -258,7 +259,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 }
 
 // RefreshSBOM regenerates a SBOM for a container
-func (r *Resolver) RefreshSBOM(containerID string) error {
+func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	if sbom := r.getSBOM(containerID); sbom != nil {
 		seclog.Debugf("Refreshing SBOM for container %s", containerID)
 		sbom.refresh.Call()
@@ -318,7 +319,7 @@ func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
 			sbom.cgroup.RemovePID(rootCandidatePID)
 			continue
 		}
-		if string(computedID) != sbom.ContainerID {
+		if computedID != sbom.ContainerID {
 			sbom.cgroup.RemovePID(rootCandidatePID)
 			continue
 		}
@@ -403,7 +404,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	return nil
 }
 
-func (r *Resolver) getSBOM(containerID string) *SBOM {
+func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
@@ -416,7 +417,7 @@ func (r *Resolver) getSBOM(containerID string) *SBOM {
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
-func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
+func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *Package {
 	sbom := r.getSBOM(containerID)
 	if sbom == nil {
 		return nil
@@ -430,7 +431,7 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 
 // newWorkloadEntry (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
 // entry
-func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
+func (r *Resolver) newWorkloadEntry(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	sbom, err := NewSBOM(r.hostname, r.source, id, cgroup, workloadKey)
 	if err != nil {
 		return nil, err
@@ -493,7 +494,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		return
 	}
 
-	id := string(cgroup.ContainerID)
+	id := cgroup.ContainerID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -511,7 +512,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 }
 
 // GetWorkload returns the sbom of a provided ID
-func (r *Resolver) GetWorkload(id string) *SBOM {
+func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
@@ -524,11 +525,11 @@ func (r *Resolver) GetWorkload(id string) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	r.Delete(string(cgroup.CGroupID))
+	r.Delete(cgroup.ContainerID)
 }
 
 // Delete removes the SBOM of the provided cgroup id
-func (r *Resolver) Delete(id string) {
+func (r *Resolver) Delete(id containerutils.ContainerID) {
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
 		return

@@ -6,53 +6,24 @@
 package containers
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
-	"github.com/stretchr/testify/suite"
-	"os"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
 )
 
 type DockerSuite struct {
-	baseSuite
+	baseSuite[environments.DockerHost]
 }
 
 func TestDockerSuite(t *testing.T) {
-	suite.Run(t, &DockerSuite{})
+	e2e.Run(t, &DockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithTestingWorkload())))
 }
 
 func (suite *DockerSuite) SetupSuite() {
-	ctx := context.Background()
-
-	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":     auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
-	}
-
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "dockerstack", stackConfig, ec2.VMRunWithDocker, false)
-	suite.Require().NoError(err)
-
-	var fakeintake components.FakeIntake
-	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-aws-vm"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(fakeintake.Import(fiSerialized, &fakeintake))
-	suite.Require().NoError(fakeintake.Init(suite))
-	suite.Fakeintake = fakeintake.Client()
-
-	var host components.RemoteHost
-	hostSerialized, err := json.Marshal(stackOutput.Outputs["dd-Host-aws-vm"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(host.Import(hostSerialized, &host))
-	suite.Require().NoError(host.Init(suite))
-	suite.clusterName = fmt.Sprintf("%s-%v", os.Getenv("USER"), host.Address)
-
 	suite.baseSuite.SetupSuite()
+	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
 func (suite *DockerSuite) TestDSDWithUDS() {

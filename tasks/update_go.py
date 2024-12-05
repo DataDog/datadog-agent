@@ -32,7 +32,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
-    ("./docs/public/setup.md", "version `", "` or higher", True),
+    ("./docs/public/setup.md", "version `", "` or later", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'

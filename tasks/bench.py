@@ -22,7 +22,7 @@ def build_kubernetes_state(ctx):
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/kubernetes_state"
     args = {
-        "go_mod": "mod",
+        "go_mod": "readonly",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("kubernetes_state")),
         "REPO_PATH": REPO_PATH,

@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
@@ -31,7 +32,9 @@ const (
 
 // agentConfig represents the agent configuration from the CDN.
 type agentConfig struct {
-	version       string
+	version   string
+	policyIDs []string
+
 	datadog       []byte
 	securityAgent []byte
 	systemProbe   []byte
@@ -45,14 +48,17 @@ type agentConfigLayer struct {
 	SystemProbeConfig   map[string]interface{} `json:"system_probe"`
 }
 
-// Version returns the version (hash) of the agent configuration.
-func (a *agentConfig) Version() string {
-	return a.version
+// State returns the agent policies state
+func (a *agentConfig) State() *pbgo.PoliciesState {
+	return &pbgo.PoliciesState{
+		MatchedPolicies: a.policyIDs,
+		Version:         a.version,
+	}
 }
 
 func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 	// Compile ordered layers into a single config
-	layerIDs := []string{}
+	policyIDs := []string{}
 	compiledLayer := &agentConfigLayer{
 		AgentConfig:         map[string]interface{}{},
 		SecurityAgentConfig: map[string]interface{}{},
@@ -69,7 +75,7 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 			continue
 		}
 
-		layerIDs = append(layerIDs, layer.ID)
+		policyIDs = append(policyIDs, layer.ID)
 
 		if layer.AgentConfig != nil {
 			agentConfig, err := merge(compiledLayer.AgentConfig, layer.AgentConfig)
@@ -97,7 +103,7 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 	}
 
 	// Report applied layers
-	compiledLayer.AgentConfig[layerKeys] = layerIDs
+	compiledLayer.AgentConfig[layerKeys] = policyIDs
 
 	// Marshal into YAML configs
 	config, err := marshalAgentConfig(compiledLayer.AgentConfig)
@@ -121,7 +127,9 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 	hash.Write(version)
 
 	return &agentConfig{
-		version:       fmt.Sprintf("%x", hash.Sum(nil)),
+		version:   fmt.Sprintf("%x", hash.Sum(nil)),
+		policyIDs: policyIDs,
+
 		datadog:       config,
 		securityAgent: securityAgentConfig,
 		systemProbe:   systemProbeConfig,
@@ -171,7 +179,7 @@ func (a *agentConfig) Write(dir string) error {
 			}
 		}
 	}
-	return nil
+	return writePolicyMetadata(a, dir)
 }
 
 // marshalAgentConfig marshals the config as YAML.

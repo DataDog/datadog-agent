@@ -24,15 +24,11 @@ import (
 func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	//
-	// TODO: do this once for the probe and hang on to the
-	// listener until we decide to close the probe
 	addr, err := localAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
 	t.srcIP = addr.IP
-	t.srcPort = addr.AddrPort().Port()
 
 	// So far I haven't had success trying to simply create a socket
 	// using syscalls directly, but in theory doing so would allow us
@@ -50,6 +46,15 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get raw ICMP listener: %w", err)
 	}
+
+	// Create a TCP listener with port 0 to get a random port from the OS
+	// and reserve it for the duration of the traceroute
+	port, tcpListener, err := reserveLocalPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
+	}
+	defer tcpListener.Close()
+	t.srcPort = port
 
 	// Create a raw TCP listener to catch the TCP response from our final
 	// hop if we get one
