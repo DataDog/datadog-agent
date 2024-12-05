@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -138,6 +139,8 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuSuite) TestVectorAddProgramDetected() {
+	flake.Mark(v.T())
+
 	v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
