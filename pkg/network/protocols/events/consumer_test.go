@@ -8,9 +8,6 @@
 package events
 
 import (
-	"github.com/cilium/ebpf/features"
-	"github.com/cilium/ebpf/perf"
-	"github.com/cilium/ebpf/ringbuf"
 	"math"
 	"os"
 	"path/filepath"
@@ -21,6 +18,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/perf"
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
