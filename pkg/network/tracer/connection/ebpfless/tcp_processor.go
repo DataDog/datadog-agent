@@ -210,7 +210,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	}
 }
 
-func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, _pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, _pktType uint8, tcp *layers.TCP, _payloadLen uint16) {
 	if !tcp.RST || st.tcpState == ConnStatClosed {
 		return
 	}
