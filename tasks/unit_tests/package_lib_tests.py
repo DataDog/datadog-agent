@@ -3,7 +3,7 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from invoke import Exit, MockContext, Result
+from invoke import MockContext, Result
 
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
@@ -185,7 +185,8 @@ class TestCompare(unittest.TestCase):
         )
         self.package_sizes['12345'] = PACKAGE_SIZE_TEMPLATE
         self.assertEqual(self.package_sizes['12345'][arch][flavor][os_name], 70000000)
-        compare(c, self.package_sizes, arch, flavor, os_name, 2001)
+        res = compare(c, self.package_sizes, arch, flavor, os_name, 2001)
+        self.assertIsNone(res)
         self.assertEqual(self.package_sizes['12345'][arch][flavor][os_name], 43008)
         mock_print.assert_not_called()
 
@@ -200,11 +201,11 @@ class TestCompare(unittest.TestCase):
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
         )
-        compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
-        mock_print.assert_called_with(f"""{flavor}-{arch}-{os_name} size increase is OK:
-  New package size is 69.00MB
-  Ancestor package (25) size is 68.00MB
-  Diff is 1.00MB (max allowed diff: 70.00MB)""")
+        res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
+        self.assertEqual(res, "|datadog-agent-aarch64-suse|1.00MB|✅|69.00MB|68.00MB|70.00MB|")
+        mock_print.assert_called_with(
+            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: 1.00MB diff with 25 size 68.00MB (max: 70.00MB)"
+        )
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages'})
     @patch('builtins.print')
@@ -219,11 +220,11 @@ class TestCompare(unittest.TestCase):
                 ),
             }
         )
-        compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
-        mock_print.assert_called_with(f"""{flavor}-{arch}-{os_name} size increase is OK:
-  New package size is 69.00MB
-  Ancestor package (25) size is 78.00MB
-  Diff is -9.00MB (max allowed diff: 70.00MB)""")
+        res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
+        self.assertEqual(res, "|datadog-iot-agent-x86_64-rpm|-9.00MB|✅|69.00MB|78.00MB|70.00MB|")
+        mock_print.assert_called_with(
+            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: -9.00MB diff with 25 size 78.00MB (max: 70.00MB)"
+        )
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages'})
     @patch('builtins.print')
@@ -238,12 +239,9 @@ class TestCompare(unittest.TestCase):
                 ),
             }
         )
-        with self.assertRaises(Exit):
-            compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
+        res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
+        self.assertEqual(res, "|datadog-agent-aarch64-suse|71.00MB|❌|139.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            """\x1b[91mdatadog-agent-aarch64-suse size increase is too large:
-  New package size is 139.00MB
-  Ancestor package (25) size is 68.00MB
-  Diff is 71.00MB (max allowed diff: 70.00MB)\x1b[0m""",
+            "\x1b[91mdatadog-agent-aarch64-suse size 139.00MB is too large: 71.00MB diff with 25 size 68.00MB (max: 70.00MB)\x1b[0m",
             file=sys.stderr,
         )

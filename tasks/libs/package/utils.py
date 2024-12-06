@@ -3,6 +3,7 @@ import json
 
 from invoke import Exit, UnexpectedExit
 
+from tasks.github_tasks import pr_commenter
 from tasks.libs.common.color import color_message
 from tasks.libs.notify.utils import AWS_S3_CP_CMD
 
@@ -74,3 +75,19 @@ def upload_package_sizes(ctx, package_sizes: dict, package_size_file: str, dista
             f"{AWS_S3_CP_CMD} {package_size_file} {PACKAGE_SIZE_S3_CI_BUCKET_URL}/{package_size_file}",
             hide="stdout",
         )
+
+
+def display_message(ancestor, rows, decision):
+    message = f"""Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) `{ancestor}`
+<details>
+  <summary> Diff per package </summary>
+
+|package|diff|status|size|ancestor|threshold|
+|--|--|--|--|--|--|
+{rows}
+</details>
+
+## Decision
+{decision}
+"""
+    pr_commenter(title="Package size comparison", body=message)
