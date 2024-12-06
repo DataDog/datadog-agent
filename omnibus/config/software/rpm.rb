@@ -47,6 +47,7 @@ build do
   env["CFLAGS"] << " -fPIC"
 
   patch source: "rpmdb-no-create.patch", env: env # don't create db if it doesn't exist already
+  patch source: "0001-remove-__plugindir.patch", env: env
 
   cmake_options = [
     "-DENABLE_NLS=OFF",
@@ -64,6 +65,7 @@ build do
     "-DWITH_LIBDW=OFF",
     "-DWITH_SEQUOIA=OFF",
     "-DENABLE_TESTSUITE=OFF",
+    "-DCMAKE_INSTALL_FULL_LOCALSTATEDIR=/var",
   ]
 
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
