@@ -116,6 +116,10 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  internal/tools/worksynchronizer:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   pkg/aggregator/ckey:
     used_by_otel: true
   pkg/api:
