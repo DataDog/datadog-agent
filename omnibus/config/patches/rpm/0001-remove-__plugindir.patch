@@ -1,0 +1,28 @@
+From 585f1ca18ffc8925aa5c37c07c1a9db789cafc14 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Fri, 6 Dec 2024 14:25:31 +0100
+Subject: [PATCH] remove __plugindir
+
+Since we disable plugin support this leads to an incorrect line in the
+resulting macros
+---
+ macros.in | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/macros.in b/macros.in
+index 613ed5756..7ff97cf85 100644
+--- a/macros.in
++++ b/macros.in
+@@ -1211,9 +1211,6 @@ Supplements:   (%{name} = %{version}-%{release} and langpacks-%{1})\
+ %__urlhelper_proxyopts   %{?_httpproxy:--proxy %{_httpproxy}%{?_httpport::%{_httpport}}}%{!?_httpproxy:%{nil}}
+ %_urlhelper             %{__urlhelpercmd} %{?__urlhelper_localopts} %{?__urlhelper_proxyopts} %{__urlhelperopts}
+ 
+-# Transaction plugin directory macros
+-%__plugindir		@RPM_PLUGINDIR@
+-
+ #------------------------------------------------------------------------------
+ # Macros for further automated spec %setup and patch application
+ 
+-- 
+2.34.1
+
