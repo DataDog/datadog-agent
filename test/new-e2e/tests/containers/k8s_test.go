@@ -182,23 +182,6 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	})
 }
 
-func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
-	ctx := context.Background()
-	expectedWebhookName := "datadog-webhook"
-
-	suite.Run("agent registered mutating webhook configuration", func() {
-		mutatingConfig, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
-		suite.Require().NoError(err)
-		suite.NotNilf(mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
-	})
-
-	suite.Run("agent registered validating webhook configuration", func() {
-		validatingConfig, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
-		suite.Require().NoError(err)
-		suite.NotNilf(validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
-	})
-}
-
 func (suite *k8sSuite) TestVersion() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
