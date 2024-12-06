@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
 var testCtx = context.TODO()
