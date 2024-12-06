@@ -88,6 +88,8 @@ type LocationExpressionOpcode uint
 
 const (
 	OpInvalid LocationExpressionOpcode = iota
+	OpComment
+	OpPrintStatement
 	OpReadUserRegister
 	OpReadUserStack
 	OpReadUserRegisterToOutput
@@ -264,6 +266,18 @@ func SetLimitEntry(collectionIdentifier string, limit uint) LocationExpression {
 // Label = label to jump to if the value is equal to the global limit variable
 func JumpToLabelIfEqualToLimit(val uint, collectionIdentifier, label string) LocationExpression {
 	return LocationExpression{Opcode: OpJumpIfGreaterThanLimit, CollectionIdentifier: collectionIdentifier, Arg1: val, Label: label}
+}
+
+// Label = comment
+func InsertComment(comment string) LocationExpression {
+	return LocationExpression{Opcode: OpComment, Label: comment}
+}
+
+// Label = format
+// CollectionIdentifier = arguments
+// Example usage: PrintStatement("%d", "variableName")
+func PrintStatement(format, arguments string) LocationExpression {
+	return LocationExpression{Opcode: OpPrintStatement, Label: format, CollectionIdentifier: arguments}
 }
 
 type LocationExpression struct {

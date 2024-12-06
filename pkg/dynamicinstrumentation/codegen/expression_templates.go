@@ -104,3 +104,11 @@ if ({{.Arg1}} == *collectionLimit) {
 var labelTemplateText = `
 {{.Label}}:
 `
+
+var commentText = `
+// {{.Label}}
+`
+
+var printStatementText = `
+bpf_printk("{{.Label}}", "{{.CollectionIdentifier}}");
+`

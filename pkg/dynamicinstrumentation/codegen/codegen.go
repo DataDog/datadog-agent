@@ -188,6 +188,12 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 	if locationExpression.Opcode == ditypes.OpJumpIfGreaterThanLimit {
 		return template.New("jump_if_greater_than_limit").Parse(jumpIfGreaterThanLimitText)
 	}
+	if locationExpression.Opcode == ditypes.OpPrintStatement {
+		return template.New("print_statement").Parse(printStatementText)
+	}
+	if locationExpression.Opcode == ditypes.OpComment {
+		return template.New("comment").Parse(commentText)
+	}
 	return nil, errors.New("invalid location expression opcode")
 }
 
