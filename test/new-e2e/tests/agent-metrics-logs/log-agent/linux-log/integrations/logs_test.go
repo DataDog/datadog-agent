@@ -25,7 +25,7 @@ type IntegrationsLogsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed fixtures/customIntegration.py
+//go:embed fixtures/integration.py
 var customIntegration string
 
 type Config struct {
