@@ -676,7 +676,7 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
 def build(
     ctx,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
@@ -711,7 +711,7 @@ def build(
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
-        incremental_build=incremental_build,
+        rebuild=rebuild,
         strip_binary=strip_binary,
         arch=arch,
         static=static,
@@ -733,7 +733,7 @@ def clean(
 def build_sysprobe_binary(
     ctx,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
@@ -784,7 +784,7 @@ def build_sysprobe_binary(
     args = {
         "go_mod": go_mod,
         "race_opt": " -race" if race else "",
-        "build_type": "" if incremental_build else " -a",
+        "build_type": " -a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": binary,
         "gcflags": gcflags,
