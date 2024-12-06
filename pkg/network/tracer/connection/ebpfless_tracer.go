@@ -224,10 +224,8 @@ func (t *ebpfLessTracer) processConnection(
 		return fmt.Errorf("error processing connection: %w", err)
 	}
 
-	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
-		conn.LastUpdateEpoch = uint64(ts)
-		t.conns[t.scratchConn.ConnectionTuple] = conn
-	}
+	conn.LastUpdateEpoch = uint64(ts)
+	t.conns[t.scratchConn.ConnectionTuple] = conn
 
 	log.TraceFunc(func() string {
 		return fmt.Sprintf("connection: %s", conn)
@@ -251,6 +249,14 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		// incoming connection
 		conn.Direction = network.INCOMING
 		return
+	}
+	// only used for local connections - "outgoing" local packets
+	if conn.Dest.IsLoopback() {
+		ok := t.boundPorts.Find(conn.Type, conn.DPort)
+		if ok {
+			conn.Direction = network.OUTGOING
+			return
+		}
 	}
 
 	switch pktType {
@@ -285,6 +291,9 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 	log.Trace(t.conns)
 	conns := make([]network.ConnectionStats, 0, len(t.conns))
 	for _, c := range t.conns {
+		if c.Type == network.TCP && !t.tcp.HasConnEstablished(c) {
+			continue
+		}
 		if filter != nil && !filter(c) {
 			continue
 		}
