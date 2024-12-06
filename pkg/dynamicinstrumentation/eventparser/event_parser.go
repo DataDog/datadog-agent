@@ -108,8 +108,10 @@ func parseParamValueForProbe(probe *ditypes.Probe, definition *ditypes.Param, bu
 			break
 		}
 		if reflect.Kind(paramDefinition.Kind) == reflect.String {
-			paramDefinition.ValueStr = string(buffer[bufferIndex : bufferIndex+int(paramDefinition.Size)])
-			bufferIndex += int(paramDefinition.Size)
+			if len(buffer) > bufferIndex+int(paramDefinition.Size) {
+				paramDefinition.ValueStr = string(buffer[bufferIndex : bufferIndex+int(paramDefinition.Size)])
+				bufferIndex += int(paramDefinition.Size)
+			}
 			valueStack.push(paramDefinition)
 		} else if !isTypeWithHeader(paramDefinition.Kind) {
 			if bufferIndex+int(paramDefinition.Size) >= len(buffer) {

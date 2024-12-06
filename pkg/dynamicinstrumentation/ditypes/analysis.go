@@ -254,23 +254,25 @@ func InsertLabel(label string) LocationExpression {
 }
 
 // Arg1 = limit to set
-func SetGlobalLimitVariable(limit uint) LocationExpression {
-	return LocationExpression{Opcode: OpSetGlobalLimit, Arg1: limit}
+// CollectionIdentifier = the collection that we're limiting
+func SetLimitEntry(collectionIdentifier string, limit uint) LocationExpression {
+	return LocationExpression{Opcode: OpSetGlobalLimit, CollectionIdentifier: collectionIdentifier, Arg1: limit}
 }
 
 // Arg1 = value to compare to global limit variable
+// CollectionIdentifier = the collection that we're limiting
 // Label = label to jump to if the value is equal to the global limit variable
-func JumpToLabelIfEqualToLimit(val uint, label string) LocationExpression {
-	return LocationExpression{Opcode: OpJumpIfGreaterThanLimit, Arg1: val, Label: label}
+func JumpToLabelIfEqualToLimit(val uint, collectionIdentifier, label string) LocationExpression {
+	return LocationExpression{Opcode: OpJumpIfGreaterThanLimit, CollectionIdentifier: collectionIdentifier, Arg1: val, Label: label}
 }
 
 type LocationExpression struct {
-	Opcode        LocationExpressionOpcode
-	Arg1          uint
-	Arg2          uint
-	Arg3          uint
-	Label         string
-	InstructionID string
+	Opcode               LocationExpressionOpcode
+	Arg1                 uint
+	Arg2                 uint
+	Arg3                 uint
+	CollectionIdentifier string
+	Label                string
 }
 
 // Location represents where a particular datatype is found on probe entry

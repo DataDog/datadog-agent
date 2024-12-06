@@ -99,7 +99,6 @@ func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, o
 	for i := range params {
 		collectedExpressions := collectLocationExpressions(params[i])
 		for _, locationExpression := range collectedExpressions {
-			locationExpression.InstructionID = randomID()
 			template, err := resolveLocationExpressionTemplate(locationExpression)
 			if err != nil {
 				return err
@@ -184,7 +183,7 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 		return template.New("label").Parse(labelTemplateText)
 	}
 	if locationExpression.Opcode == ditypes.OpSetGlobalLimit {
-		return template.New("set_global_limit").Parse(setGlobalLimitText)
+		return template.New("set_limit_entry").Parse(setLimitEntryText)
 	}
 	if locationExpression.Opcode == ditypes.OpJumpIfGreaterThanLimit {
 		return template.New("jump_if_greater_than_limit").Parse(jumpIfGreaterThanLimitText)

@@ -144,11 +144,21 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
 	defs := []*ditypes.Parameter{}
 	for i := range capture.Fields {
+		var (
+			fieldType string
+			fieldKind uint
+			fieldSize int64
+		)
+		if capture.Fields[i] != nil {
+			fieldType = capture.Fields[i].Type
+			fieldKind = uint(capture.Fields[i].Kind)
+			fieldSize = int64(capture.Fields[i].Size)
+		}
 		defs = append(defs, &ditypes.Parameter{
-			Name:      fmt.Sprintf("[%d]%s", i, capture.Fields[i].Type),
-			Type:      capture.Fields[i].Type,
-			Kind:      uint(capture.Fields[i].Kind),
-			TotalSize: int64(capture.Fields[i].Size),
+			Name:      fmt.Sprintf("[%d]%s", i, fieldType),
+			Type:      fieldType,
+			Kind:      fieldKind,
+			TotalSize: fieldSize,
 		})
 	}
 	sliceValue := &ditypes.CapturedValue{
