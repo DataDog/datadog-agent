@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -547,6 +548,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		Ports:               ports,
 		APMInstrumentation:  string(info.apmInstrumentation),
 		Language:            string(info.language),
+		Type:                string(servicetype.Detect(ports)),
 		RSS:                 rss,
 		CommandLine:         info.cmdLine,
 		StartTimeMilli:      info.startTimeMilli,

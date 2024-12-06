@@ -78,7 +78,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 		APIVersion:  "v2",
 		Payload: &eventPayload{
 			NamingSchemaVersion:        "1",
-			ServiceName:                svc.meta.Name,
+			ServiceName:                svc.service.Name,
 			GeneratedServiceName:       svc.service.GeneratedName,
 			GeneratedServiceNameSource: svc.service.GeneratedNameSource,
 			ContainerServiceName:       svc.service.ContainerServiceName,
@@ -86,12 +86,12 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			DDService:                  svc.service.DDService,
 			HostName:                   host,
 			Env:                        env,
-			ServiceLanguage:            svc.meta.Language,
-			ServiceType:                svc.meta.Type,
+			ServiceLanguage:            svc.service.Language,
+			ServiceType:                svc.service.Type,
 			StartTime:                  int64(svc.service.StartTimeMilli / 1000),
 			StartTimeMilli:             int64(svc.service.StartTimeMilli),
 			LastSeen:                   svc.LastHeartbeat.Unix(),
-			APMInstrumentation:         svc.meta.APMInstrumentation,
+			APMInstrumentation:         svc.service.APMInstrumentation,
 			ServiceNameSource:          nameSource,
 			Ports:                      svc.service.Ports,
 			PID:                        svc.service.PID,
@@ -113,7 +113,7 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
 		svc.service.PID,
-		svc.meta.Name,
+		svc.service.Name,
 		svc.service.Ports,
 	)
 
@@ -130,7 +130,7 @@ func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] heartbeat-service",
 		svc.service.PID,
-		svc.meta.Name,
+		svc.service.Name,
 	)
 
 	e := ts.newEvent(eventTypeHeartbeatService, svc)
@@ -146,7 +146,7 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 func (ts *telemetrySender) sendEndServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] end-service",
 		svc.service.PID,
-		svc.meta.Name,
+		svc.service.Name,
 	)
 
 	e := ts.newEvent(eventTypeEndService, svc)

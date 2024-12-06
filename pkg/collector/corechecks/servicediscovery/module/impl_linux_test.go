@@ -259,7 +259,7 @@ func TestPorts(t *testing.T) {
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
 
-	var startTCP = func(proto string) {
+	startTCP := func(proto string) {
 		serverf, server := startTCPServer(t, proto, "")
 		t.Cleanup(func() { serverf.Close() })
 		clientf, client := startTCPClient(t, proto, server)
@@ -269,7 +269,7 @@ func TestPorts(t *testing.T) {
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 	}
 
-	var startUDP = func(proto string) {
+	startUDP := func(proto string) {
 		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
@@ -668,6 +668,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Equal(collect, string(usm.Nodejs), svcMap[pid].GeneratedNameSource)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assert.Equal(collect, "web_service", svcMap[pid].Type)
 		assertStat(collect, svcMap[pid])
 		assertCPU(collect, url, pid)
 	}, 30*time.Second, 100*time.Millisecond)
@@ -852,6 +853,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, portMap[pid1111].ContainerServiceName, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].ContainerServiceNameSource, "app")
+	require.Contains(t, portMap[pid1111].Type, "web_service")
 }
 
 // Check that the cache is cleaned when procceses die.

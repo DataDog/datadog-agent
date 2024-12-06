@@ -20,6 +20,7 @@ type Service struct {
 	Ports                      []uint16 `json:"ports"`
 	APMInstrumentation         string   `json:"apm_instrumentation"`
 	Language                   string   `json:"language"`
+	Type                       string   `json:"service_type"`
 	RSS                        uint64   `json:"rss"`
 	CommandLine                []string `json:"cmdline"`
 	StartTimeMilli             uint64   `json:"start_time"`
