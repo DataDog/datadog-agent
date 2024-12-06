@@ -192,7 +192,7 @@ class TestCompare(unittest.TestCase):
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages'})
     @patch('builtins.print')
-    def test_on_branch_ok(self, mock_print):
+    def test_on_branch_warning(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
         c = MockContext(
             run={
@@ -202,7 +202,7 @@ class TestCompare(unittest.TestCase):
             }
         )
         res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
-        self.assertEqual(res, "|datadog-agent-aarch64-suse|1.00MB|✅|69.00MB|68.00MB|70.00MB|")
+        self.assertEqual(res, "|datadog-agent-aarch64-suse|1.00MB|⚠️|69.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
             f"{flavor}-{arch}-{os_name} size 69.00MB is OK: 1.00MB diff with 25 size 68.00MB (max: 70.00MB)"
         )

@@ -44,6 +44,8 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
     else:
         if any("❌" in line for line in pr_message_lines):
             decision = "❌ Failed"
+        elif any("⚠️" in line for line in pr_message_lines):
+            decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
         display_message(ancestor, pr_message_lines, decision)
