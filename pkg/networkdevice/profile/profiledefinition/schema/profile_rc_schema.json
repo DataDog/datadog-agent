@@ -156,6 +156,21 @@
         },
         "metric_type": {
           "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/MetricsConfigOption"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MetricsConfigOption": {
+      "properties": {
+        "placement": {
+          "type": "integer"
+        },
+        "metric_suffix": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
