@@ -668,6 +668,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Equal(collect, string(usm.Nodejs), svcMap[pid].GeneratedNameSource)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assert.Equal(collect, "web_service", svcMap[pid].Type)
 		assertStat(collect, svcMap[pid])
 		assertCPU(t, url, pid)
 	}, 30*time.Second, 100*time.Millisecond)
@@ -850,6 +851,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap[pid1111].Name, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
 	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.Container))
+	require.Contains(t, portMap[pid1111].Type, "web_service")
 }
 
 // Check that the cache is cleaned when procceses die.
