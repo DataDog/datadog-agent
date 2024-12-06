@@ -109,7 +109,7 @@ func makeTCPStates(synPkt testCapture) *network.ConnectionStats {
 		ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromNetIP(srcIP),
 			Dest:   util.AddressFromNetIP(dstIP),
-			Pid:    0, // @stu we can't know this right
+			Pid:    0,
 			NetNS:  defaultNsID,
 			SPort:  uint16(synPkt.tcp.SrcPort),
 			DPort:  uint16(synPkt.tcp.DstPort),
