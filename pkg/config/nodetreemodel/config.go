@@ -248,13 +248,26 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
 	defer c.Unlock()
 
-	// Validate that the value at the given leaf is from the source we expect
-	var node Node = c.leafAtPathFromNode(key, c.root)
-	destNode, ok := node.(LeafNode)
-	if !ok {
+	// Remove it from the original source tree
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
 		return
 	}
-	if destNode.Source() != source {
+	parentNode, childName, err := c.parentOfNode(tree, key)
+	if err != nil {
+		return
+	}
+	// Only remove if the setting is a leaf
+	if child, err := parentNode.GetChild(childName); err == nil {
+		if _, ok := child.(LeafNode); ok {
+			parentNode.RemoveChild(childName)
+		} else {
+			log.Errorf("cannot remove setting %q, not a leaf", key)
+		}
+	}
+
+	// If the node in the merged tree doesn't match the source we expect, we're done
+	if c.leafAtPathFromNode(key, c.root).Source() != source {
 		return
 	}
 
@@ -265,23 +278,30 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	// Get the parent node of the leaf we're unsetting
-	node = c.root
+	parentNode, childName, err = c.parentOfNode(c.root, key)
+	if err != nil {
+		return
+	}
+	// Replace the child with the node from the previous layer
+	parentNode.InsertChildNode(childName, prevNode.Clone())
+}
+
+func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, error) {
 	parts := splitKey(key)
 	lastPart := parts[len(parts)-1]
 	parts = parts[:len(parts)-1]
+	var err error
 	for _, p := range parts {
 		node, err = node.GetChild(p)
 		if err != nil {
-			return
+			return nil, "", err
 		}
 	}
-
-	// Replace the child with the previous layer
 	innerNode, ok := node.(InnerNode)
 	if !ok {
-		return
+		return nil, "", ErrNotFound
 	}
-	innerNode.InsertChildNode(lastPart, prevNode.Clone())
+	return innerNode, lastPart, nil
 }
 
 // SetKnown adds a key to the set of known valid config keys

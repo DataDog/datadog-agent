@@ -163,6 +163,12 @@ func (n *innerNode) InsertChildNode(name string, node Node) {
 	n.makeRemapCase()
 }
 
+// RemoveChild removes a node from the current node
+func (n *innerNode) RemoveChild(name string) {
+	delete(n.children, name)
+	n.makeRemapCase()
+}
+
 // DumpSettings clone the entire tree starting from the node into a map based on the leaf source.
 //
 // The selector will be call with the source of each leaf to determine if it should be included in the dump.
