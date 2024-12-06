@@ -49,11 +49,6 @@ func TestIPCEndpointTestSuite(t *testing.T) {
 	os.WriteFile(authTokenPath, []byte("0123456789abcdef0123456789abcdef"), 0640)
 	testSuite.conf.Set("auth_token_file_path", authTokenPath, pkgconfigmodel.SourceAgentRuntime)
 
-	// set a tmp path for the cert/key path
-	f, err := os.CreateTemp("", "ipc_cert")
-	require.NoError(t, err)
-	testSuite.conf.Set("ipc_cert_file_path", f.Name(), pkgconfigmodel.SourceAgentRuntime)
-
 	// use the cert in the httptest server
 	CreateAndSetAuthToken(testSuite.conf)
 
