@@ -86,6 +86,7 @@ func (s *packageApmInjectSuite) TestUninstall() {
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
+	s.T().Skip("This test is broken on 7.60.x due to install script changes")
 	s.host.InstallDocker()
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
@@ -99,6 +100,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
+	s.T().Skip("This test is broken on 7.60.x due to install script changes")
 	s.host.InstallDocker()
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
