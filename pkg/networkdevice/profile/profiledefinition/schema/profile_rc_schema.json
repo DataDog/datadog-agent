@@ -168,6 +168,11 @@
         "version"
       ]
     },
+    "Regexp": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
     "StringArray": {
       "items": {
         "type": "string"
@@ -183,6 +188,12 @@
           "type": "string"
         },
         "extract_value": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_pattern": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {
@@ -210,6 +221,12 @@
           "type": "string"
         },
         "extract_value": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_pattern": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {

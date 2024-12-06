@@ -8,8 +8,6 @@ package configvalidation
 
 import (
 	"fmt"
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -150,22 +148,6 @@ func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext 
 			errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 		}
 	}
-	if symbol.ExtractValue != "" {
-		pattern, err := regexp.Compile(symbol.ExtractValue)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s", symbol.ExtractValue, err.Error()))
-		} else {
-			symbol.ExtractValueCompiled = pattern
-		}
-	}
-	if symbol.MatchPattern != "" {
-		pattern, err := regexp.Compile(symbol.MatchPattern)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s", symbol.ExtractValue, err.Error()))
-		} else {
-			symbol.MatchPatternCompiled = pattern
-		}
-	}
 	if symbolContext != ColumnSymbol && symbol.ConstantValueOne {
 		errors = append(errors, "`constant_value_one` cannot be used outside of tables")
 	}
@@ -205,13 +187,7 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 		errors = append(errors, validateEnrichSymbol(&symbol, MetricTagSymbol)...)
 		metricTag.Symbol = profiledefinition.SymbolConfigCompat(symbol)
 	}
-	if metricTag.Match != "" {
-		pattern, err := regexp.Compile(metricTag.Match)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s", metricTag.Match, err.Error()))
-		} else {
-			metricTag.Pattern = pattern
-		}
+	if metricTag.Match != nil {
 		if len(metricTag.Tags) == 0 {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))
 		}

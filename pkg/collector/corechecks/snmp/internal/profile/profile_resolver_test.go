@@ -46,8 +46,8 @@ func Test_resolveProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	validationErrorProfileFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
-	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
-	require.NoError(t, err)
+	_, err = readProfileDefinition(validationErrorProfileFile)
+	require.ErrorContains(t, err, "error parsing regexp")
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", userProfilesCaseConfdPath)
@@ -129,25 +129,12 @@ func Test_resolveProfiles(t *testing.T) {
 				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
 		},
-		{
-			name: "validation error profile",
-			userProfiles: ProfileConfigMap{
-				"f5-big-ip": {
-					Definition: *validationErrorProfile,
-				},
-			},
-			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
-				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
-				{"cannot compile `match` (`table_match[\\w)`)", 1},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
@@ -159,9 +146,18 @@ func Test_resolveProfiles(t *testing.T) {
 			w.Flush()
 			logs := b.String()
 
+			ok := true
 			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+				ok = ok && assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), "Missing log: %s", aLogCount.log)
 			}
+			if !ok {
+				if len(logs) > 0 {
+					t.Errorf("Logs:\n%s", logs)
+				} else {
+					t.Error("No log messages.")
+				}
+			}
+			t.Log(logs)
 
 			for i, profile := range profiles {
 				profiledefinition.NormalizeMetrics(profile.Definition.Metrics)

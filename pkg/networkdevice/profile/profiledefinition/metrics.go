@@ -56,13 +56,10 @@ type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 
-	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
-	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
+	ExtractValue *regexp.Regexp `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 
-	// MatchPattern/MatchValue are not exposed as json (UI) since ExtractValue can be used instead
-	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"-"`
-	MatchValue           string         `yaml:"match_value,omitempty" json:"-"`
-	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
+	MatchPattern *regexp.Regexp `yaml:"match_pattern,omitempty" json:"match_pattern,omitempty"`
+	MatchValue   string         `yaml:"match_value,omitempty" json:"match_value,omitempty"`
 
 	ScaleFactor      float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
 	Format           string  `yaml:"format,omitempty" json:"format,omitempty"`
@@ -94,11 +91,10 @@ type MetricTagConfig struct {
 
 	Mapping ListMap[string] `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
-	// Regex
-	// Match/Tags are not exposed as json (UI) since ExtractValue can be used instead
-	Match   string            `yaml:"match,omitempty" json:"-"`
-	Tags    map[string]string `yaml:"tags,omitempty" json:"-"`
-	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
+	// DEPRECATED: Use MatchPattern/MatchValue on the Symbol instead
+	Match *regexp.Regexp `yaml:"match,omitempty" json:"-"`
+	// DEPRECATED: Use MatchPattern/MatchValue on the Symbol instead
+	Tags map[string]string `yaml:"tags,omitempty" json:"-"`
 
 	SymbolTag string `yaml:"-" json:"-"`
 }

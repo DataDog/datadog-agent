@@ -220,7 +220,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 								OID:  "1.2.3",
 								Name: "abc",
 							},
-							Match: "([a-z])",
+							Match: regexp.MustCompile("([a-z])"),
 						},
 					},
 				},
@@ -230,35 +230,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "match cannot compile regex",
-			metrics: []profiledefinition.MetricsConfig{
-				{
-					Symbols: []profiledefinition.SymbolConfig{
-						{
-							OID:  "1.2",
-							Name: "abc",
-						},
-					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
-								OID:  "1.2.3",
-								Name: "abc",
-							},
-							Match: "([a-z)",
-							Tags: map[string]string{
-								"foo": "bar",
-							},
-						},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"cannot compile `match` (`([a-z)`)",
-			},
-		},
-		{
-			name: "match cannot compile regex",
+			name: "match has invalid transform",
 			metrics: []profiledefinition.MetricsConfig{
 				{
 					Symbols: []profiledefinition.SymbolConfig{
@@ -286,84 +258,6 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 			expectedErrors: []string{
 				"transform rule end should be greater than start. Invalid rule",
-			},
-		},
-		{
-			name: "compiling extract_value",
-			metrics: []profiledefinition.MetricsConfig{
-				{
-					Symbol: profiledefinition.SymbolConfig{
-						OID:          "1.2.3",
-						Name:         "myMetric",
-						ExtractValue: `(\d+)C`,
-					},
-				},
-				{
-					Symbols: []profiledefinition.SymbolConfig{
-						{
-							OID:          "1.2",
-							Name:         "hey",
-							ExtractValue: `(\d+)C`,
-						},
-					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
-								OID:          "1.2.3",
-								Name:         "abc",
-								ExtractValue: `(\d+)C`,
-							},
-							Tag: "hello",
-						},
-					},
-				},
-			},
-			expectedMetrics: []profiledefinition.MetricsConfig{
-				{
-					Symbol: profiledefinition.SymbolConfig{
-						OID:                  "1.2.3",
-						Name:                 "myMetric",
-						ExtractValue:         `(\d+)C`,
-						ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
-					},
-				},
-				{
-					Symbols: []profiledefinition.SymbolConfig{
-						{
-							OID:                  "1.2",
-							Name:                 "hey",
-							ExtractValue:         `(\d+)C`,
-							ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
-						},
-					},
-					MetricTags: profiledefinition.MetricTagConfigList{
-						profiledefinition.MetricTagConfig{
-							Symbol: profiledefinition.SymbolConfigCompat{
-								OID:                  "1.2.3",
-								Name:                 "abc",
-								ExtractValue:         `(\d+)C`,
-								ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
-							},
-							Tag: "hello",
-						},
-					},
-				},
-			},
-			expectedErrors: []string{},
-		},
-		{
-			name: "error compiling extract_value",
-			metrics: []profiledefinition.MetricsConfig{
-				{
-					Symbol: profiledefinition.SymbolConfig{
-						OID:          "1.2.3",
-						Name:         "myMetric",
-						ExtractValue: "[{",
-					},
-				},
-			},
-			expectedErrors: []string{
-				"cannot compile `extract_value`",
 			},
 		},
 		{
@@ -753,77 +647,6 @@ func Test_validateEnrichMetadata(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid regex pattern for symbol",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Symbol: profiledefinition.SymbolConfig{
-								OID:          "1.2.3",
-								Name:         "someSymbol",
-								ExtractValue: "(\\w[)",
-							},
-						},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"cannot compile `extract_value`",
-			},
-		},
-		{
-			name: "invalid regex pattern for multiple symbols",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Symbols: []profiledefinition.SymbolConfig{
-								{
-									OID:          "1.2.3",
-									Name:         "someSymbol",
-									ExtractValue: "(\\w[)",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedErrors: []string{
-				"cannot compile `extract_value`",
-			},
-		},
-		{
-			name: "field regex pattern is compiled",
-			metadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Symbol: profiledefinition.SymbolConfig{
-								OID:          "1.2.3",
-								Name:         "someSymbol",
-								ExtractValue: "(\\w)",
-							},
-						},
-					},
-				},
-			},
-			expectedErrors: []string{},
-			expectedMetadata: profiledefinition.MetadataConfig{
-				"device": profiledefinition.MetadataResourceConfig{
-					Fields: map[string]profiledefinition.MetadataField{
-						"name": {
-							Symbol: profiledefinition.SymbolConfig{
-								OID:                  "1.2.3",
-								Name:                 "someSymbol",
-								ExtractValue:         "(\\w)",
-								ExtractValueCompiled: regexp.MustCompile(`(\w)`),
-							},
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "invalid resource",
 			metadata: profiledefinition.MetadataConfig{
 				"invalid-res": profiledefinition.MetadataResourceConfig{
@@ -868,7 +691,6 @@ func Test_validateEnrichMetadata(t *testing.T) {
 								OID:  "1.2.3",
 								Name: "abc",
 							},
-							Match: "([a-z)",
 							Tags: map[string]string{
 								"foo": "bar",
 							},
@@ -878,7 +700,6 @@ func Test_validateEnrichMetadata(t *testing.T) {
 			},
 			expectedErrors: []string{
 				"invalid resource (interface) field: invalid-field",
-				"cannot compile `match` (`([a-z)`)",
 			},
 		},
 		{

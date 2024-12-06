@@ -50,23 +50,23 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol profil
 }
 
 func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol profiledefinition.SymbolConfig) (valuestore.ResultValue, error) {
-	if symbol.ExtractValueCompiled != nil {
-		extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
+	if symbol.ExtractValue != nil {
+		extractedValue, err := value.ExtractStringValue(symbol.ExtractValue)
 		if err != nil {
-			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValueCompiled, err)
+			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, symbol.ExtractValue, err)
 			return valuestore.ResultValue{}, err
 		}
 		value = extractedValue
 	}
-	if symbol.MatchPatternCompiled != nil {
+	if symbol.MatchPattern != nil {
 		strValue, err := value.ToString()
 		if err != nil {
 			log.Debugf("error converting value to string (value=%v): %v", value, err)
 			return valuestore.ResultValue{}, err
 		}
 
-		if symbol.MatchPatternCompiled.MatchString(strValue) {
-			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
+		if symbol.MatchPattern.MatchString(strValue) {
+			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPattern, symbol.MatchValue)
 			if replacedVal == "" {
 				return valuestore.ResultValue{}, fmt.Errorf("the pattern `%v` matched value `%v`, but template `%s` is not compatible", symbol.MatchPattern, strValue, symbol.MatchValue)
 			}

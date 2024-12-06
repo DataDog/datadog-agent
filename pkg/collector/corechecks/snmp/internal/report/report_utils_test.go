@@ -59,10 +59,9 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "extract value pattern error",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				ExtractValue:         "abc",
-				ExtractValueCompiled: regexp.MustCompile("abc"),
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				ExtractValue: regexp.MustCompile("abc"),
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "extract value extractValuePattern does not match (extractValuePattern=abc, srcValue=value1)",
@@ -71,10 +70,10 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "OK match pattern without replace",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				MatchPatternCompiled: regexp.MustCompile(`value\d`),
-				MatchValue:           "matched-value-with-digit",
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				MatchPattern: regexp.MustCompile(`value\d`),
+				MatchValue:   "matched-value-with-digit",
 			},
 			expectedValue: valuestore.ResultValue{
 				Value: "matched-value-with-digit",
@@ -85,11 +84,10 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "Error match pattern does not match",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				MatchPattern:         "doesNotMatch",
-				MatchPatternCompiled: regexp.MustCompile("doesNotMatch"),
-				MatchValue:           "noMatch",
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				MatchPattern: regexp.MustCompile("doesNotMatch"),
+				MatchValue:   "noMatch",
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "match pattern `doesNotMatch` does not match string `value1`",
@@ -98,11 +96,10 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "Error match pattern template does not match",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				MatchPattern:         "value(\\d)",
-				MatchPatternCompiled: regexp.MustCompile(`value(\d)`),
-				MatchValue:           "$2",
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				MatchPattern: regexp.MustCompile(`value(\d)`),
+				MatchValue:   "$2",
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "the pattern `value(\\d)` matched value `value1`, but template `$2` is not compatible",
@@ -111,10 +108,9 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "OK Extract value case",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				ExtractValue:         "[a-z]+(\\d)",
-				ExtractValueCompiled: regexp.MustCompile(`[a-z]+(\d)`),
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				ExtractValue: regexp.MustCompile(`[a-z]+(\d)`),
 			},
 			expectedValue: valuestore.ResultValue{
 				Value: "1",
@@ -125,10 +121,9 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "Error extract value pattern des not contain any matching group",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				ExtractValue:         "[a-z]+\\d",
-				ExtractValueCompiled: regexp.MustCompile(`[a-z]+\d`),
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				ExtractValue: regexp.MustCompile(`[a-z]+\d`),
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "extract value pattern des not contain any matching group (extractValuePattern=[a-z]+\\d, srcValue=value1)",
@@ -137,10 +132,9 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			name:   "Error extract value extractValuePattern does not match",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				ExtractValue:         "[a-z]+(\\d)",
-				ExtractValueCompiled: regexp.MustCompile("doesNotMatch"),
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				ExtractValue: regexp.MustCompile("doesNotMatch"),
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "extract value extractValuePattern does not match (extractValuePattern=doesNotMatch, srcValue=value1)",
@@ -230,10 +224,9 @@ func Test_getColumnValueFromSymbol(t *testing.T) {
 			name:   "invalid extract value pattern",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{
-				OID:                  "1.2.3.4",
-				Name:                 "mySymbol",
-				ExtractValue:         "abc",
-				ExtractValueCompiled: regexp.MustCompile("abc"),
+				OID:          "1.2.3.4",
+				Name:         "mySymbol",
+				ExtractValue: regexp.MustCompile("abc"),
 			},
 			expectedValues: make(map[string]valuestore.ResultValue),
 			expectedError:  "",
@@ -777,14 +770,14 @@ metric_tags:
 			log.SetupLogger(l, "debug")
 
 			m := profiledefinition.MetricsConfig{}
-			yaml.Unmarshal(tt.rawMetricConfig, &m)
+			assert.NoError(t, yaml.Unmarshal(tt.rawMetricConfig, &m))
 
 			configvalidation.ValidateEnrichMetrics([]profiledefinition.MetricsConfig{m})
 			tags := getTagsFromMetricTagConfigList(m.MetricTags, tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)
 
-			w.Flush()
+			assert.NoError(t, w.Flush())
 			logs := b.String()
 
 			for _, aLogCount := range tt.expectedLogs {
