@@ -1330,7 +1330,7 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
-	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
+	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
