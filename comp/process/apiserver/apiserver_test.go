@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -39,6 +40,7 @@ func TestLifecycle(t *testing.T) {
 		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
+		fetchonlyimpl.MockModule(),
 	))
 
 	assert.Eventually(t, func() bool {
