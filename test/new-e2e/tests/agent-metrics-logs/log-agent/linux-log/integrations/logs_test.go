@@ -102,7 +102,7 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*message.*")
 			assert.NoError(c, err)
 
-			if assert.NotEmpty(c, logs) && len(logs) >= i {
+			if assert.NotEmpty(c, logs) && len(logs) >= i+1 {
 				log := logs[i]
 				// Take the first 48 characters of the log, this part contains the UUID
 				logID := log.Message[:48]
