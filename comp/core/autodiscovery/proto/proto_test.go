@@ -17,12 +17,12 @@ import (
 func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    integration.Config
+		input    *integration.Config
 		expected *core.Config
 	}{
 		{
 			name: "all fields set",
-			input: integration.Config{
+			input: &integration.Config{
 				Name: "test_config",
 				Instances: []integration.Data{
 					[]byte("instance1"),
@@ -89,7 +89,7 @@ func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 		},
 		{
 			name: "some fields set",
-			input: integration.Config{
+			input: &integration.Config{
 				Name: "test_config",
 				Instances: []integration.Data{
 					[]byte("instance1"),
@@ -131,17 +131,22 @@ func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 		},
 		{
 			name:  "no fields set",
-			input: integration.Config{},
+			input: &integration.Config{},
 			expected: &core.Config{
 				Instances:             [][]byte{},
 				AdvancedAdIdentifiers: []*core.AdvancedADIdentifier{},
 			},
 		},
+		{
+			"nil",
+			nil,
+			nil,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := ProtobufConfigFromAutodiscoveryConfig(&test.input)
+			result := ProtobufConfigFromAutodiscoveryConfig(test.input)
 			assert.Equal(t, test.expected, result)
 		})
 	}
@@ -269,6 +274,11 @@ func TestAutodiscoveryConfigFromProtobufConfig(t *testing.T) {
 				AdvancedADIdentifiers: []integration.AdvancedADIdentifier{},
 				Instances:             []integration.Data{},
 			},
+		},
+		{
+			"nil",
+			nil,
+			integration.Config{},
 		},
 	}
 
