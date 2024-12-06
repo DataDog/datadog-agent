@@ -145,8 +145,6 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 
 func (c *ntmConfig) addToSchema(key string, source model.Source) {
 	parts := splitKey(key)
-	// TODO: Ensure that for default tree, setting nil to a node will not override
-	// an existing value
 	_, _ = c.schema.SetAt(parts, nil, source)
 
 	c.addToKnownKeys(key)
@@ -751,6 +749,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
+		configName:         "datadog",
 	}
 
 	config.SetConfigName(name)

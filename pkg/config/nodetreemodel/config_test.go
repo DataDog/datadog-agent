@@ -334,7 +334,13 @@ func TestIsSet(t *testing.T) {
 	assert.True(t, cfg.IsSet("a"))
 	assert.True(t, cfg.IsSet("b"))
 	assert.False(t, cfg.IsSet("c"))
+
+	assert.True(t, cfg.IsKnown("a"))
+	assert.True(t, cfg.IsKnown("b"))
+	assert.True(t, cfg.IsKnown("c"))
+
 	assert.False(t, cfg.IsSet("unknown"))
+	assert.False(t, cfg.IsKnown("unknown"))
 }
 
 func TestAllKeysLowercased(t *testing.T) {

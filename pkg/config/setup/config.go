@@ -1038,12 +1038,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
-	config.SetDefault("proxy.http", nil)
-	config.SetDefault("proxy.https", nil)
-	config.SetDefault("proxy.no_proxy", nil)
-	//config.SetDefault("proxy.http", "")
-	//config.SetDefault("proxy.https", "")
-	//config.SetDefault("proxy.no_proxy", []string{})
+	config.SetDefault("proxy.http", "")
+	config.SetDefault("proxy.https", "")
+	config.SetDefault("proxy.no_proxy", []string{})
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -1126,10 +1123,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
-
-	config.SetKnown("proxy.http")
-	config.SetKnown("proxy.https")
-	config.SetKnown("proxy.no_proxy")
 
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)

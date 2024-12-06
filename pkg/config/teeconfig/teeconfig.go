@@ -142,21 +142,22 @@ func (t *teeConfig) AllKeysLowercased() []string {
 	base := t.baseline.AllKeysLowercased()
 	compare := t.compare.AllKeysLowercased()
 	if !reflect.DeepEqual(base, compare) {
-		log.Warnf("difference in config: allkeyslowercased() -> base len: %d | compare len: %d", len(base), len(compare))
+		log.Warnf("difference in config: AllKeysLowercased() -> base len: %d | compare len: %d", len(base), len(compare))
 
 		i := 0
 		j := 0
 		for i < len(base) && j < len(compare) {
-			if base[i] != compare[j] {
+			if base[i] == compare[j] {
 				i++
 				j++
 				continue
 			}
 
-			log.Warnf("difference in config: allkeyslowercased() -> base[%d]: %v | compare[%d]: %v", i, base[i], j, compare[j])
 			if strings.Compare(base[i], compare[j]) == -1 {
+				log.Warnf("difference in config: allkeyslowercased() missing key in compare -> base[%d]: %#v", i, base[i])
 				i++
 			} else {
+				log.Warnf("difference in config: allkeyslowercased() extra key in compare -> --- | compare[%d]: %#v", j, compare[j])
 				j++
 			}
 		}
@@ -164,18 +165,18 @@ func (t *teeConfig) AllKeysLowercased() []string {
 	return base
 }
 
-func (t *teeConfig) compareResult(key, method string, base, compare interface{}) interface{} {
+func (t *teeConfig) compareResult(key, method string, base, compare interface{}) {
 	if !reflect.DeepEqual(base, compare) {
 		log.Warnf("difference in config: %s(%s) -> base[%s]: %#v | compare[%s] %#v | from %s", method, key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
 	}
-	return compare
 }
 
 // Get wraps Viper for concurrent access
 func (t *teeConfig) Get(key string) interface{} {
 	base := t.baseline.Get(key)
 	compare := t.compare.Get(key)
-	return t.compareResult(key, "Get", base, compare)
+	t.compareResult(key, "Get", base, compare)
+	return base
 }
 
 // GetAllSources returns the value of a key for each source
