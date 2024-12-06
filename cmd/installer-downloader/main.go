@@ -45,8 +45,8 @@ func main() {
 	ctx := context.Background()
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), env.APIKey, env.Site, "datadog-installer-downloader")
-	t.Start(ctx)
-	defer t.Stop(ctx)
+	_ = t.Start(ctx)
+	defer func() { _ = t.Stop(ctx) }()
 	var err error
 	span, ctx := telemetry.StartSpanFromEnv(ctx, "downloader")
 	defer func() { span.Finish(tracer.WithError(err)) }()

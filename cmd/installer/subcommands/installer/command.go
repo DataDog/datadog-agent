@@ -283,7 +283,7 @@ func setupCommand() *cobra.Command {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
 			if flavor == "" {
-				return setup.SetupAgent7InstallScript(cmd.ctx, cmd.env)
+				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
 			}
 			return setup.Setup(cmd.ctx, cmd.env, flavor)
 		},

@@ -31,8 +31,8 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	}
 }
 
-// SetupAgent7InstallScript is the setup used by the agent7 install script.
-func SetupAgent7InstallScript(ctx context.Context, env *env.Env) error {
+// Agent7InstallScript is the setup used by the agent7 install script.
+func Agent7InstallScript(ctx context.Context, env *env.Env) error {
 	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
 	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {
