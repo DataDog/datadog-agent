@@ -61,7 +61,7 @@ func (ct *chainConntracker) Collect(metrics chan<- prometheus.Metric) {
 	}
 }
 
-func (ct *chainConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+func (ct *chainConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
 	for _, ctk := range ct.ctks {
 		if trans := ctk.GetTranslationForConn(c); trans != nil {
 			return trans
@@ -76,7 +76,7 @@ func (ct *chainConntracker) GetType() string {
 	return "chain"
 }
 
-func (ct *chainConntracker) DeleteTranslation(c *network.ConnectionStats) {
+func (ct *chainConntracker) DeleteTranslation(c *network.ConnectionTuple) {
 	for _, ctk := range ct.ctks {
 		ctk.DeleteTranslation(c)
 	}
