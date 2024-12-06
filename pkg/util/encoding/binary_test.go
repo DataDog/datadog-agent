@@ -35,13 +35,6 @@ func (tt *dataTestType) UnmarshalBinary(data []byte) error {
 }
 
 func TestBinaryUnmarshalCallback(t *testing.T) {
-	assert.Panics(t, func() {
-		type x struct{}
-		BinaryUnmarshalCallback(func() *x {
-			return new(x)
-		}, func(_ *x, _ error) {})
-	})
-
 	cb := BinaryUnmarshalCallback(func() *emptyTestType {
 		return new(emptyTestType)
 	}, func(x *emptyTestType, err error) {

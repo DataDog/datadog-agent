@@ -10,30 +10,23 @@ import (
 	"encoding"
 )
 
-// BinaryUnmarshalCallback returns a function that will decode the argument byte slice into *T
-// using `newFn` to create an instance of *T and the encoding.BinaryUnmarshaler interface to do the actual conversion.
-// `callback` will be called with the resulting *T.
+// BinaryUnmarshalCallback returns a function that will decode the argument byte slice into T
+// using `newFn` to create an instance of T and the encoding.BinaryUnmarshaler interface to do the actual conversion.
+// `callback` will be called with the resulting T.
 // If the argument byte slice is empty, callback will be called with `nil`.
 // Unmarshalling errors will be provided to the callback as the second argument. The data argument to the callback
 // may still be non-nil even if there was an error. This allows the callback to handle the allocated object, even
 // in the face of errors.
-// This function panics if `*T` does not implement encoding.BinaryUnmarshaler.
-func BinaryUnmarshalCallback[T any](newFn func() *T, callback func(*T, error)) func(buf []byte) {
-	// we use `any` as the type constraint rather than encoding.BinaryUnmarshaler because we are not allowed to
-	// callback with `nil` in the latter case. There is a workaround, but it requires specifying two type constraints.
-	// For sake of cleanliness, we resort to a runtime check here.
-	if _, ok := any(new(T)).(encoding.BinaryUnmarshaler); !ok {
-		panic("pointer type *T must implement encoding.BinaryUnmarshaler")
-	}
-
+func BinaryUnmarshalCallback[T encoding.BinaryUnmarshaler](newFn func() T, callback func(T, error)) func(buf []byte) {
 	return func(buf []byte) {
 		if len(buf) == 0 {
-			callback(nil, nil)
+			var nilvalue T
+			callback(nilvalue, nil)
 			return
 		}
 
 		d := newFn()
-		if err := any(d).(encoding.BinaryUnmarshaler).UnmarshalBinary(buf); err != nil {
+		if err := d.UnmarshalBinary(buf); err != nil {
 			// pass d here so callback can choose how to deal with the data
 			callback(d, err)
 			return
