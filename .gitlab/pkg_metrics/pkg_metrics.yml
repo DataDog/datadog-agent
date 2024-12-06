@@ -183,7 +183,7 @@ check_pkg_size-arm64-a7:
 new_check_pkg_size:
   stage: pkg_metrics
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
