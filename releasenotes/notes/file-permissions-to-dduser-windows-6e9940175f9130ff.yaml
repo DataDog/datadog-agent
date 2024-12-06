@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix windows issue when privledge processes create the authToken.
+    Fix windows file permissions on authToken to give access to the datadog user even when privledge processes create it.
