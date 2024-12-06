@@ -183,7 +183,7 @@ func (clb *ciliumLoadBalancerConntracker) Describe(descs chan<- *prometheus.Desc
 func (clb *ciliumLoadBalancerConntracker) Collect(metrics chan<- prometheus.Metric) {
 }
 
-func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
 	// TODO: add ipv6 support
 	if c.Family != network.AFINET {
 		return nil
@@ -253,7 +253,7 @@ func (clb *ciliumLoadBalancerConntracker) GetType() string {
 	return "cilium_lb"
 }
 
-func (clb *ciliumLoadBalancerConntracker) DeleteTranslation(*network.ConnectionStats) {
+func (clb *ciliumLoadBalancerConntracker) DeleteTranslation(*network.ConnectionTuple) {
 }
 
 func (clb *ciliumLoadBalancerConntracker) DumpCachedTable(context.Context) (map[uint32][]netlink.DebugConntrackEntry, error) {
