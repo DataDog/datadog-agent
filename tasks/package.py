@@ -48,7 +48,7 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
             decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
-        display_message(ancestor, pr_message_lines, decision)
+        display_message(ctx, ancestor, pr_message_lines, decision)
         if "Failed" in decision:
             raise Exit(code=1)
 

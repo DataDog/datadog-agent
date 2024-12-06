@@ -77,7 +77,7 @@ def upload_package_sizes(ctx, package_sizes: dict, package_size_file: str, dista
         )
 
 
-def display_message(ancestor, rows, decision):
+def display_message(ctx, ancestor, rows, decision):
     is_open = '' if "Passed" in decision else ' open'
     message = f"""Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) `{ancestor}`
 <details{is_open}>
@@ -91,4 +91,4 @@ def display_message(ancestor, rows, decision):
 ## Decision
 {decision}
 """
-    pr_commenter(title="Package size comparison", body=message)
+    pr_commenter(ctx, title="Package size comparison", body=message)
