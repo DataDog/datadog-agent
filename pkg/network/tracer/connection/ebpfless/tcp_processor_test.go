@@ -747,3 +747,31 @@ func TestUnusualAckSyn(t *testing.T) {
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
+
+// TestOpenCloseConn checks whether IsClosed is set correctly in ConnectionStats
+func TestOpenCloseConn(t *testing.T) {
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+
+	f := newTcpTestFixture(t)
+
+	// send a SYN packet to kick things off
+	f.runPkt(pb.incoming(0, 0, 0, SYN))
+	require.False(t, f.conn.IsClosed)
+
+	// finish up the connection handshake and close it
+	remainingPkts := []testCapture{
+		pb.outgoing(0, 0, 1, SYN|ACK),
+		pb.incoming(0, 1, 1, ACK),
+		// active close after sending no data
+		pb.outgoing(0, 1, 1, FIN|ACK),
+		pb.incoming(0, 1, 2, FIN|ACK),
+		pb.outgoing(0, 2, 2, ACK),
+	}
+	f.runPkts(remainingPkts)
+	// should be closed now
+	require.True(t, f.conn.IsClosed)
+
+	// open it up again, it should not be marked closed afterward
+	f.runPkt(pb.incoming(0, 0, 0, SYN))
+	require.False(t, f.conn.IsClosed)
+}

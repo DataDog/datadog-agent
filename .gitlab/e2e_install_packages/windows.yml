@@ -14,7 +14,7 @@
     - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::7")
+    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::7" --no-worktree)
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_domain_test:
@@ -28,7 +28,7 @@
     - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::7")
+    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::7" --no-worktree)
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_installer_v7_tests:
