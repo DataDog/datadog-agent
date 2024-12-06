@@ -6,6 +6,8 @@
 package invocationlifecycle
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -126,8 +128,12 @@ func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEve
 }
 
 func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
-	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
-		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
+	if !lp.DetectLambdaLibrary() {
+		if lp.InferredSpansEnabled {
+			lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
+		}
+		fmt.Println("[AGENT] Adding span pointers")
+		lp.addSpanPointersFromS3Event(event)
 	}
 
 	lp.requestHandler.event = event
@@ -223,4 +229,26 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 
 func (lp *LifecycleProcessor) initFromStepFunctionPayload(event events.StepFunctionPayload) {
 	lp.requestHandler.event = event
+}
+
+func (lp *LifecycleProcessor) addSpanPointersFromS3Event(event events.S3Event) {
+	for _, record := range event.Records {
+		bucketName := record.S3.Bucket.Name
+		key := record.S3.Object.Key
+		eTag := strings.Trim(record.S3.Object.ETag, "\"") // Remove any quotes from ETag
+
+		hash := calculateSpanPointerHash([]string{bucketName, key, eTag})
+
+		spanPointer := SpanPointer{
+			Hash: hash,
+			Kind: "aws.s3.object",
+		}
+		lp.requestHandler.spanPointers = append(lp.requestHandler.spanPointers, spanPointer)
+	}
+}
+
+func calculateSpanPointerHash(components []string) string {
+	dataToHash := strings.Join(components, "|")
+	sum := sha256.Sum256([]byte(dataToHash))
+	return hex.EncodeToString(sum[:])[:32]
 }
