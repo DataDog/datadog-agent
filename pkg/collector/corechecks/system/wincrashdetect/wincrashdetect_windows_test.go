@@ -9,6 +9,7 @@ package wincrashdetect
 
 import (
 	"net/http"
+	"os/user"
 	"sync"
 	"testing"
 	"time"
@@ -28,9 +29,6 @@ import (
 const (
 	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
-
-	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone for tests.
-	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;WD)"
 )
 
 func testSetup(t *testing.T) {
@@ -52,8 +50,12 @@ func TestWinCrashReporting(t *testing.T) {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
-	listener, err := server.NewListenerWithSecurityDescriptor(
-		systemProbeTestPipeName, systemProbeTestPipeSecurityDescriptor)
+	// Prepare a security descriptor that allows the current user.
+	currentUser, err := user.Current()
+	assert.NoError(t, err)
+	sd := server.FormatSecurityDescriptorWithSid(currentUser.Uid)
+
+	listener, err := server.NewListenerWithSecurityDescriptor(systemProbeTestPipeName, sd)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 

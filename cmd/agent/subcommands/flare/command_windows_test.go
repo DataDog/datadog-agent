@@ -11,6 +11,7 @@ package flare
 import (
 	"net/http"
 	"net/http/httptest"
+	"os/user"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,8 +24,8 @@ const (
 	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
 
-	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone for tests.
-	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;WD)"
+	// systemProbeTestSecurityDescriptorTemplate is a template for a DACL with the current user.
+	systemProbeTestSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FA;;;%s)"
 )
 
 func sysprobeSocketPath(_ *testing.T) string {
@@ -35,8 +36,14 @@ func sysprobeSocketPath(_ *testing.T) string {
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	server := httptest.NewUnstartedServer(handler)
 
-	conn, err := sysprobeserver.NewListenerWithSecurityDescriptor(
-		systemProbeTestPipeName, systemProbeTestPipeSecurityDescriptor)
+	// Prepare a security descriptor that allows the current user.
+	currentUser, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	sd := sysprobeserver.FormatSecurityDescriptorWithSid(currentUser.Uid)
+
+	conn, err := sysprobeserver.NewListenerWithSecurityDescriptor(systemProbeTestPipeName, sd)
 	if err != nil {
 		return nil, err
 	}

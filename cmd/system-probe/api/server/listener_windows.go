@@ -24,15 +24,15 @@ const (
 	namedPipeInputBufferSize  = int32(4096)
 	namedPipeOutputBufferSize = int32(4096)
 
-	// DACL template for the system probe named pipe with ddagentuser.
+	// DACL template for the system probe named pipe that allows a specific SID.
 	// SE_DACL_PROTECTED (P), SE_DACL_AUTO_INHERITED (AI)
-	// Allow Administorators (BA), Local System (SY), Event Log Readers (ER)
-	// Allow ddagentuser, NO_PROPAGATE_INHERIT_ACE (NP)
-	namedPipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;ER)(A;NP;FRFW;;;%s)"
+	// Allow Administorators (BA), Local System (SY)
+	// Allow placeholder SID, NO_PROPAGATE_INHERIT_ACE (NP)
+	namedPipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;%s)"
 
 	// Default DACL for the system probe named pipe.
-	// Allow Administorators (BA), Local System (SY), Event Log Readers (ER)
-	namedPipeDefaultSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFW;;;ER)"
+	// Allow Administorators (BA), Local System (SY)
+	namedPipeDefaultSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)"
 
 	// SID representing Everyone
 	everyoneSid = "S-1-1-0"
@@ -95,10 +95,16 @@ func SetupPermissions() {
 		return
 	}
 
-	sd := fmt.Sprintf(namedPipeSecurityDescriptorTemplate, sidString)
+	sd := FormatSecurityDescriptorWithSid(sidString)
 
 	log.Debugf("named pipe DACL prepared with ddagentuser %s", user)
 	namedPipeSecurityDescriptor = sd
+}
+
+// FormatSecurityDescriptorWithSid creates a security descriptor string for the system probe
+// named pipe that allows a set of default users and the specified SID.
+func FormatSecurityDescriptorWithSid(sidString string) string {
+	return fmt.Sprintf(namedPipeSecurityDescriptorTemplate, sidString)
 }
 
 // NewListener sets up a named pipe listener for the system probe service.
