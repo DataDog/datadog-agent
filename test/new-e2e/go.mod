@@ -46,13 +46,13 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/version v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/test/fakeintake v0.60.0-rc.6
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/version v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/test/fakeintake v0.60.0-rc.7
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -98,8 +98,8 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.60.0-rc.6 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.60.0-rc.6
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.60.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.60.0-rc.7
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -290,15 +290,15 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/trace v0.60.0-rc.6
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/trace v0.60.0-rc.7
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.5.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0-rc.7 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
