@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    The autoinstrumentation webhook no longer injects default environment
+    The auto-instrumentation webhook no longer injects the default environment
     variables when disabled.
