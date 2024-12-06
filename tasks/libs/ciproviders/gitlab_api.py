@@ -176,7 +176,7 @@ class GitlabCIDiff:
             added=set(data['added']),
             removed=set(data['removed']),
             modified=set(data['modified']),
-            renamed=set(data['renamed']),
+            renamed=data['renamed'],
             modified_diffs=data['modied_diffs'],
             added_contents=data['added_contents'],
         )

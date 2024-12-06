@@ -85,7 +85,7 @@ send_pkg_size:
     - if [[ "${ARCH}" == "amd64" ]]; then ls -l $OMNIBUS_PACKAGE_DIR_SUSE; fi
 
     - export failures=0
-    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
+    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}" --no-worktree)
     # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes
     # The loop assumes that all flavors start with "da", which is currently the case
     # We want to run all package size comparisons before failing, so we set +e while doing the comparisons

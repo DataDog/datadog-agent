@@ -10,6 +10,7 @@ package ebpfless
 import (
 	"fmt"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -49,6 +50,8 @@ type connectionState struct {
 	localFinSeq uint32
 	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
 	remoteFinSeq uint32
+
+	rttTracker rttTracker
 }
 
 type TCPProcessor struct { //nolint:revive // TODO
@@ -59,6 +62,19 @@ func NewTCPProcessor() *TCPProcessor { //nolint:revive // TODO
 	return &TCPProcessor{
 		conns: map[network.ConnectionTuple]connectionState{},
 	}
+}
+
+// updateConnStatsForOpen sets the duration to a "timestamp" representing the open time
+func updateConnStatsForOpen(conn *network.ConnectionStats) {
+	conn.IsClosed = false
+	conn.Duration = time.Duration(time.Now().UnixNano())
+}
+
+// updateConnStatsForClose writes the actual duration once the connection closed
+func updateConnStatsForClose(conn *network.ConnectionStats) {
+	conn.IsClosed = true
+	nowNs := time.Now().UnixNano()
+	conn.Duration = time.Duration(nowNs - int64(conn.Duration))
 }
 
 // calcNextSeq returns the seq "after" this segment, aka, what the ACK will be once this segment is received
@@ -103,6 +119,8 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 	// if any SynState has progressed, move to attempted
 	if st.tcpState == ConnStatClosed && (st.localSynState != SynStateNone || st.remoteSynState != SynStateNone) {
 		st.tcpState = ConnStatAttempted
+
+		updateConnStatsForOpen(conn)
 	}
 	// if both synStates are ack'd, move to established
 	if st.tcpState == ConnStatAttempted && st.localSynState == SynStateAcked && st.remoteSynState == SynStateAcked {
@@ -113,15 +131,23 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 
 // updateTcpStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
 // https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
-func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) { //nolint:revive // TODO
+func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) { //nolint:revive // TODO
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	if pktType == unix.PACKET_OUTGOING {
 		conn.Monotonic.SentPackets++
+		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
+		packetCanRetransmit := nextSeq != tcp.Seq
 		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, nextSeq) {
 			st.hasSentPacket = true
 			conn.Monotonic.SentBytes += uint64(payloadLen)
 			st.maxSeqSent = nextSeq
+
+			st.rttTracker.processOutgoing(timestampNs, nextSeq)
+		} else if packetCanRetransmit {
+			conn.Monotonic.Retransmits++
+
+			st.rttTracker.clearTrip()
 		}
 
 		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)
@@ -147,6 +173,12 @@ func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connect
 		if tcp.ACK && ackOutdated {
 			st.hasRemoteAck = true
 			st.lastRemoteAck = tcp.Ack
+
+			hasNewRoundTrip := st.rttTracker.processIncoming(timestampNs, tcp.Ack)
+			if hasNewRoundTrip {
+				conn.RTT = nanosToMicros(st.rttTracker.rttSmoothNs)
+				conn.RTTVar = nanosToMicros(st.rttTracker.rttVarNs)
+			}
 		}
 	}
 }
@@ -172,6 +204,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 			tcpState: ConnStatClosed,
 		}
 		conn.Monotonic.TCPClosed++
+		updateConnStatsForClose(conn)
 	}
 }
 
@@ -184,6 +217,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	if st.tcpState == ConnStatAttempted {
 		reason = syscall.ECONNREFUSED
 	}
+	conn.TCPFailures[uint16(reason)]++
 
 	if st.tcpState == ConnStatEstablished {
 		conn.Monotonic.TCPClosed++
@@ -191,12 +225,12 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	*st = connectionState{
 		tcpState: ConnStatClosed,
 	}
-	conn.TCPFailures[uint16(reason)]++
+	updateConnStatsForClose(conn)
 }
 
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
-func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
+func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
 	if pktType != unix.PACKET_OUTGOING && pktType != unix.PACKET_HOST {
 		return fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
@@ -217,7 +251,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 	st := t.conns[conn.ConnectionTuple]
 
 	t.updateSynFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateTcpStats(conn, &st, pktType, tcp, payloadLen)
+	t.updateTcpStats(conn, &st, pktType, tcp, payloadLen, timestampNs)
 	t.updateFinFlag(conn, &st, pktType, tcp, payloadLen)
 	t.updateRstFlag(conn, &st, pktType, tcp, payloadLen)
 

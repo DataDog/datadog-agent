@@ -27,22 +27,29 @@ const (
 var (
 	ddmTelemetryValues = []string{ddmTelemetryValid, ddmTelemetryInvalid}
 
+	// Leader metrics
 	ddmTelemetry = telemetry.NewGaugeWithOpts("external_metrics", "datadog_metrics",
 		[]string{"namespace", "name", "valid", "active", le.JoinLeaderLabel}, "The label valid is true if the DatadogMetric CR is valid, false otherwise. The label active is true if DatadogMetrics CR is used, false otherwise.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
+	retrieverElapsed = telemetry.NewHistogramWithOpts("external_metrics", "retriever_elapsed",
+		[]string{le.JoinLeaderLabel}, "Wall time spent to retrieve metrics (seconds)",
+		[]float64{0.5, 1, 5, 10, 20, 30, 60, 120, 300},
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	// All instances metrics
+	reconcileElapsed = telemetry.NewHistogramWithOpts("external_metrics", "reconcile_elapsed",
+		[]string{"operation", "in_error", le.JoinLeaderLabel}, "Wall time spent to reconcile a datadogmetric object (seconds)",
+		[]float64{0.001, 0.01, 0.05, 0.1, 0.2, 0.4, 0.8, 1},
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
 	requestsTelemetry = telemetry.NewGaugeWithOpts("external_metrics", "api_requests",
-		[]string{"namespace", "handler", "in_error"}, "Count of API Requests received",
+		[]string{"handler", "in_error"}, "Count of API Requests received",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	elapsedTelemetry = telemetry.NewHistogramWithOpts("external_metrics", "api_elapsed",
-		[]string{"namespace", "handler", "in_error"}, "Wall time spent on API request (seconds)",
+		[]string{"handler", "in_error"}, "Wall time spent on API request (seconds)",
 		prometheus.DefBuckets,
-		telemetry.Options{NoDoubleUnderscoreSep: true})
-
-	retrieverElapsed = telemetry.NewHistogramWithOpts("external_metrics", "retriever_elapsed",
-		[]string{}, "Wall time spent to retrieve metrics (seconds)",
-		[]float64{0.5, 1, 5, 10, 20, 30, 60, 120, 300},
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
@@ -84,13 +91,16 @@ func isDatadogMetricConditionTrue(ddm *datadoghq.DatadogMetric, conditionType da
 	return false
 }
 
-func setQueryTelemtry(handler, namespace string, startTime time.Time, err error) {
-	// Handle telemtry
-	inErrror := "false"
+func inErrorLabelValue(err error) string {
 	if err != nil {
-		inErrror = "true"
+		return "true"
 	}
+	return "false"
+}
 
-	requestsTelemetry.Inc(namespace, handler, inErrror)
-	elapsedTelemetry.Observe(time.Since(startTime).Seconds(), namespace, handler, inErrror)
+func setQueryTelemtry(handler string, startTime time.Time, err error) {
+	inError := inErrorLabelValue(err)
+
+	requestsTelemetry.Inc(handler, inError)
+	elapsedTelemetry.Observe(time.Since(startTime).Seconds(), handler, inError)
 }

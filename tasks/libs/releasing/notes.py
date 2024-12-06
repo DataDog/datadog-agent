@@ -2,7 +2,7 @@ from datetime import date
 
 from invoke import Failure
 
-from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
 
@@ -10,6 +10,7 @@ from tasks.libs.releasing.version import current_version
 def _add_prelude(ctx, version):
     res = ctx.run(f"reno new prelude-release-{version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+    branch = DEFAULT_INTEGRATIONS_CORE_BRANCH
 
     with open(new_releasenote, "w") as f:
         f.write(
@@ -17,7 +18,7 @@ def _add_prelude(ctx, version):
     |
     Release on: {date.today()}
 
-    - Please refer to the `{version} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{version.replace('.', '')}>`_ for the list of changes on the Core Checks
+    - Please refer to the `{version} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/{branch}/AGENT_CHANGELOG.md#datadog-agent-version-{version.replace('.', '')}>`_ for the list of changes on the Core Checks
 """
         )
 
@@ -26,29 +27,25 @@ def _add_prelude(ctx, version):
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
-def _add_dca_prelude(ctx, agent7_version, agent6_version=""):
-    """
-    Release of the Cluster Agent should be pinned to a version of the Agent.
-    """
-    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{agent7_version}")
-    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+def _add_dca_prelude(ctx, version=None):
+    """Release of the Cluster Agent should be pinned to a version of the Agent."""
 
-    if agent6_version != "":
-        agent6_version = (
-            f"--{agent6_version.replace('.', '')}"  # generate the right hyperlink to the agent's changelog.
-        )
+    branch = get_default_branch()
+
+    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
+    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     with open(new_releasenote, "w") as f:
         f.write(
             f"""prelude:
     |
     Released on: {date.today()}
-    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{get_default_branch()}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
+    Pinned to datadog-agent v{version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{branch}/CHANGELOG.rst#{version.replace('.', '')}>`_."""
         )
 
     ctx.run(f"git add {new_releasenote}")
     print("\nIf not run as part of finish task, commit this with:")
-    print(f"git commit -m \"Add prelude for {agent7_version} release\"")
+    print(f"git commit -m \"Add prelude for {version} release\"")
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):

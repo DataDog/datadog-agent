@@ -9,8 +9,9 @@ package docker
 
 import (
 	"fmt"
-	"regexp"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 const (
@@ -49,7 +50,7 @@ var _ LifecycleConfig = (*composeConfig)(nil)
 type LifecycleConfig interface {
 	Timeout() time.Duration
 	Retries() int
-	LogPattern() *regexp.Regexp
+	PatternScanner() *testutil.PatternScanner
 	Env() []string
 	Name() string
 	command() string
@@ -66,9 +67,9 @@ func (b baseConfig) Retries() int {
 	return b.retries
 }
 
-// LogPattern returns the regex pattern to match logs for readiness
-func (b baseConfig) LogPattern() *regexp.Regexp {
-	return b.logPattern
+// PatternScanner returns the patternScanner object used to match logs for readiness and completion of the target container/s
+func (b baseConfig) PatternScanner() *testutil.PatternScanner {
+	return b.patternScanner
 }
 
 // Env returns the environment variables to set for the container/s
@@ -83,11 +84,11 @@ func (b baseConfig) Name() string {
 
 // baseConfig contains shared configurations for both Docker and Docker Compose.
 type baseConfig struct {
-	name       string         // Container name for docker or an alias for docker-compose
-	timeout    time.Duration  // Timeout for the entire operation.
-	retries    int            // Number of retries for starting.
-	logPattern *regexp.Regexp // Regex pattern to match logs for readiness.
-	env        []string       // Environment variables to set.
+	name           string                   // Container name for docker or an alias for docker-compose
+	timeout        time.Duration            // Timeout for the entire operation.
+	retries        int                      // Number of retries for starting.
+	patternScanner *testutil.PatternScanner // Used to monitor container logs for known patterns.
+	env            []string                 // Environment variables to set.
 }
 
 // runConfig contains specific configurations for Docker containers, embedding BaseConfig.
@@ -153,16 +154,20 @@ func (c composeConfig) commandArgs(t subCommandType) []string {
 	}
 }
 
+func createBaseConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string) baseConfig {
+	return baseConfig{
+		name:           name,
+		timeout:        timeout,
+		retries:        retries,
+		patternScanner: patternScanner,
+		env:            env,
+	}
+}
+
 // NewRunConfig creates a new runConfig instance for a single docker container.
-func NewRunConfig(name string, timeout time.Duration, retries int, logPattern *regexp.Regexp, env []string, imageName, binary string, binaryArgs []string, mounts map[string]string) LifecycleConfig {
+func NewRunConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string, imageName, binary string, binaryArgs []string, mounts map[string]string) LifecycleConfig {
 	return runConfig{
-		baseConfig: baseConfig{
-			timeout:    timeout,
-			retries:    retries,
-			logPattern: logPattern,
-			env:        env,
-			name:       name,
-		},
+		baseConfig: createBaseConfig(name, timeout, retries, patternScanner, env),
 		ImageName:  imageName,
 		Binary:     binary,
 		BinaryArgs: binaryArgs,
@@ -171,15 +176,9 @@ func NewRunConfig(name string, timeout time.Duration, retries int, logPattern *r
 }
 
 // NewComposeConfig creates a new composeConfig instance for the docker-compose.
-func NewComposeConfig(name string, timeout time.Duration, retries int, logPattern *regexp.Regexp, env []string, file string) LifecycleConfig {
+func NewComposeConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string, file string) LifecycleConfig {
 	return composeConfig{
-		baseConfig: baseConfig{
-			timeout:    timeout,
-			retries:    retries,
-			logPattern: logPattern,
-			env:        env,
-			name:       name,
-		},
-		File: file,
+		baseConfig: createBaseConfig(name, timeout, retries, patternScanner, env),
+		File:       file,
 	}
 }
