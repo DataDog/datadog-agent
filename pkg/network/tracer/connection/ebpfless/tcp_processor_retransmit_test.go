@@ -171,13 +171,13 @@ func TestRstTwice(t *testing.T) {
 		pb.outgoing(0, 1, 1, RST|ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
 		// reset
-		ConnStatClosed,
-		ConnStatClosed,
+		connStatClosed,
+		connStatClosed,
 	}
 
 	f := newTCPTestFixture(t)
