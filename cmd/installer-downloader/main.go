@@ -27,12 +27,16 @@ const (
 
 var (
 	// Version is the version of the installer to download.
-	Version string = "latest"
+	Version string
 	// Flavor is the flavor of the setup to run.
-	Flavor string = "djm"
+	Flavor string
 )
 
 func main() {
+	if Version == "" || Flavor == "" {
+		fmt.Fprintln(os.Stderr, "Version and Flavor must be set at build time.")
+		os.Exit(1)
+	}
 	if !user.IsRoot() {
 		fmt.Fprintln(os.Stderr, "This installer requires root privileges.")
 		os.Exit(1)
