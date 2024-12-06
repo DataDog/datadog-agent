@@ -62,6 +62,8 @@ datadog_otel_components_ocb_build:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps"]
+  variables:
+    RUNNER_SCRIPT_TIMEOUT: 1hr50m
   artifacts:
     paths:
       - ocb-output.log
