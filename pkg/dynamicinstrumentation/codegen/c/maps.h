@@ -31,4 +31,11 @@ struct {
     __type(value, __u64[4000]);
 } temp_storage_array SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, char[6]);
+    __type(value, __u16);
+} collection_limits SEC(".maps");
+
 #endif

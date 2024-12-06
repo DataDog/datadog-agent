@@ -240,16 +240,24 @@ static __always_inline int dereference_dynamic_to_output(struct expression_conte
     return err;
 }
 
-static __always_inline int set_global_limit(struct expression_context context, __u16 limit)
+static __always_inline int set_limit_entry(struct expression_context context, __u16 limit, char collection_identifier[6])
 {
     // Read the 2 byte length from top of the stack, then set collectionLimit to the minimum of the two
     __u64 length;
     bpf_map_pop_elem(&param_stack, &length);
 
-    *context.limit = (__u16)length;
-    if (*context.limit > limit) {
-        *context.limit = limit;
+    __u16 lengthShort = (__u16)length;
+    if (lengthShort > limit) {
+        lengthShort = limit;
     }
+
+    long err = 0;
+    err = bpf_map_update_elem(&collection_limits, collection_identifier, &lengthShort, BPF_ANY);
+    if (err != 0) {
+        bpf_printk("error updating collection limit for %s to %d: %d", collection_identifier, lengthShort, err);
+    }
+
+    bpf_printk("set limit entry for %s to %d", collection_identifier, lengthShort);
     return 0;
 }
 

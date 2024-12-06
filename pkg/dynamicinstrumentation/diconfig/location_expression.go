@@ -151,6 +151,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if len(elementParam.ParameterPieces) != 3 {
 						continue
 					}
+					sliceIdentifier := randomLabel()
 					ptr := elementParam.ParameterPieces[0]
 					len := elementParam.ParameterPieces[1]
 					if len.Location != nil {
@@ -168,23 +169,24 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
 					sliceElementType := ptr.ParameterPieces[0]
-					GenerateLocationExpression(limitsInfo, sliceElementType)
-					expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 
-					labelName := randomLabel()
 					if ptr.Location != nil && len.Location != nil {
 						// Fields of the slice are directly assigned
 						targetExpressions = append(targetExpressions,
 							ditypes.DirectReadLocationExpression(len),
-							ditypes.SetGlobalLimitVariable(uint(ditypes.SliceMaxLength)),
+							ditypes.SetLimitEntry(sliceIdentifier, uint(ditypes.SliceMaxLength)),
 						)
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
+							GenerateLocationExpression(limitsInfo, sliceElementType)
+							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
+							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
-								ditypes.JumpToLabelIfEqualToLimit(uint(i), labelName),
+								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
 								ditypes.DirectReadLocationExpression(ptr),
 								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
+							targetExpressions = append(targetExpressions, ditypes.InsertLabel(labelName))
 						}
 					} else {
 						// Expect address of the slice struct on stack, use offsets accordingly
@@ -192,20 +194,23 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
 							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
 							ditypes.DereferenceLocationExpression(8), // Dereference to place length on top of the stack
-							ditypes.SetGlobalLimitVariable(uint(ditypes.SliceMaxLength)),
+							ditypes.SetLimitEntry(sliceIdentifier, uint(ditypes.SliceMaxLength)),
 						)
 						// Expect address of slice struct on top of the stack, check limit and copy/apply offset accordingly
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
+							GenerateLocationExpression(limitsInfo, sliceElementType)
+							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
+							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
-								ditypes.JumpToLabelIfEqualToLimit(uint(i), labelName),
+								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
 								ditypes.CopyLocationExpression(),
 								ditypes.DereferenceLocationExpression(8),
 								ditypes.ApplyOffsetLocationExpression(uint(i*(int(sliceElementType.TotalSize)))),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
+							targetExpressions = append(targetExpressions, ditypes.InsertLabel(labelName))
 						}
 					}
-					targetExpressions = append(targetExpressions, ditypes.InsertLabel(labelName))
 					continue
 					/* end parsing slices */
 				} else if elementParam.Kind == uint(reflect.Array) {

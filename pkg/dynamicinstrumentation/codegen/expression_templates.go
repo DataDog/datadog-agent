@@ -84,13 +84,19 @@ var copyTemplateText = `
 copy(context);
 `
 
-var setGlobalLimitText = `
+var setLimitEntryText = `
 // Arg1 = Maximum limit
-set_global_limit(context, {{.Arg1}});
+set_limit_entry(context, {{.Arg1}}, "{{.CollectionIdentifier}}");
 `
 
 var jumpIfGreaterThanLimitText = `
-if ({{.Arg1}} == collectionLimit) {
+collectionLimit = bpf_map_lookup_elem(&collection_limits, "{{.CollectionIdentifier}}");
+if (!collectionLimit) {
+    bpf_printk("couldn't find collection limit for %s", "{{.CollectionIdentifier}}");
+    collectionLimit = &collectionMax;
+}
+if ({{.Arg1}} == *collectionLimit) {
+    bpf_printk("collection limit for {{.CollectionIdentifier}} exceeded: %d", *collectionLimit);
     goto {{.Label}};
 }
 `
