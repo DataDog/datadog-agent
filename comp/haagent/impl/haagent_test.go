@@ -57,7 +57,7 @@ func Test_GetGroup(t *testing.T) {
 	assert.Equal(t, "my-group-01", haAgent.GetGroup())
 }
 
-func Test_IsLeader_SetLeader(t *testing.T) {
+func Test_GetState(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
@@ -201,7 +201,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			},
 		},
 		{
-			name: "ha agent enabled and agent is not leader",
+			name: "ha agent enabled and agent is not active",
 			// should skip HA-integrations
 			// should run "non HA integrations"
 			agentConfigs: map[string]interface{}{
@@ -209,7 +209,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 				"ha_agent.enabled": true,
 				"ha_agent.group":   testGroup,
 			},
-			leader: "another-agent-is-leader",
+			leader: "another-agent-is-active",
 			expectShouldRunIntegration: map[string]bool{
 				"snmp":                false,
 				"cisco_aci":           false,
