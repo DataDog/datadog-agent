@@ -68,6 +68,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -81,6 +82,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -101,6 +103,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -112,6 +115,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -123,6 +127,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -136,18 +141,21 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 						{
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
 							IamEnabled: false,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 						{
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
 							IamEnabled: false,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -168,6 +176,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -179,6 +188,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("terminating"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -190,6 +200,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("terminating"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -203,6 +214,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -223,6 +235,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -236,6 +249,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -256,6 +270,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -267,6 +282,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -278,6 +294,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1c"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -291,12 +308,14 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 						{
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
 							IamEnabled: false,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -307,6 +326,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Port:       5444,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},

@@ -32,6 +32,7 @@ type Instance struct {
 	Port       int32
 	IamEnabled bool
 	Engine     string
+	DbName     string
 }
 
 const (
@@ -77,6 +78,9 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 			}
 			if db.Engine != nil {
 				instance.Engine = *db.Engine
+			}
+			if db.DBName != nil {
+				instance.DbName = *db.DBName
 			}
 			if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 				clusters[*db.DBClusterIdentifier] = &AuroraCluster{
