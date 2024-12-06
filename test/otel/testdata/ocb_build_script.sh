@@ -7,7 +7,6 @@ trap 'rm -rf /tmp/otel-ci && kill $OTELCOL_PID' EXIT
 cp ./test/otel/testdata/builder-config.yaml /tmp/otel-ci/
 cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
 cp ./tools/ci/retry.sh /tmp/otel-ci/
-chmod +x /tmp/otel-ci/retry.sh
 
 OCB_VERSION="0.114.0"
 CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
@@ -15,7 +14,7 @@ mv "$(go env GOPATH)/bin/builder" /tmp/otel-ci/ocb
 
 chmod +x /tmp/otel-ci/ocb
 
-/tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-output.log 2>&1
+timeout 10m /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-output.log 2>&1
 grep -q 'Compiled' ocb-output.log || (echo "OCB failed to build custom collector" && exit 1)
 grep -q '{"binary": "/tmp/otel-ci/otelcol-custom/otelcol-custom"}' ocb-output.log || (echo "OCB failed to build custom collector" && exit 1)
 
