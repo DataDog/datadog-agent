@@ -183,7 +183,7 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
         emoji = "❌"
         print(color_message(message.replace('OK', 'too large'), Color.RED), file=sys.stderr)
     else:
-        emoji = "✅"
+        emoji = "✅" if diff <= 0 else "⚠️"
         print(message)
     return f"|{flavor}-{arch}-{os_name}|{mb(diff)}|{emoji}|{mb(package_size)}|{mb(previous_size)}|{mb(threshold)}|"
 
