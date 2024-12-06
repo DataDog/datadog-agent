@@ -74,9 +74,6 @@ deploy_rpm_testing*                  @DataDog/agent-delivery
 deploy_suse_rpm_testing*             @DataDog/agent-delivery
 deploy_windows_testing*              @DataDog/agent-delivery
 
-# Kitchen tests
-kitchen_windows*                     @DataDog/windows-agent
-
 # Image build
 docker_build*                        @DataDog/agent-delivery
 
@@ -138,10 +135,6 @@ agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
 
 # Functional test
-kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
-kitchen_*_security_agent*                      @DataDog/agent-security
-kitchen_*_process_agent*                       @DataDog/processes
-cleanup_kitchen_functional_test                @DataDog/windows-kernel-integrations @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 oracle*                                        @DataDog/database-monitoring
 

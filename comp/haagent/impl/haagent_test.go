@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -56,17 +57,19 @@ func Test_GetGroup(t *testing.T) {
 	assert.Equal(t, "my-group-01", haAgent.GetGroup())
 }
 
-func Test_IsLeader_SetLeader(t *testing.T) {
+func Test_GetState(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
 	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
 
+	assert.Equal(t, haagent.Unknown, haAgent.GetState())
+
 	haAgent.SetLeader("another-agent")
-	assert.False(t, haAgent.IsLeader())
+	assert.Equal(t, haagent.Standby, haAgent.GetState())
 
 	haAgent.SetLeader("my-agent-hostname")
-	assert.True(t, haAgent.IsLeader())
+	assert.Equal(t, haagent.Active, haAgent.GetState())
 }
 
 func Test_RCListener(t *testing.T) {
@@ -198,7 +201,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 			},
 		},
 		{
-			name: "ha agent enabled and agent is not leader",
+			name: "ha agent enabled and agent is not active",
 			// should skip HA-integrations
 			// should run "non HA integrations"
 			agentConfigs: map[string]interface{}{
@@ -206,7 +209,7 @@ func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
 				"ha_agent.enabled": true,
 				"ha_agent.group":   testGroup,
 			},
-			leader: "another-agent-is-leader",
+			leader: "another-agent-is-active",
 			expectShouldRunIntegration: map[string]bool{
 				"snmp":                false,
 				"cisco_aci":           false,
