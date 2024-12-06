@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build bootstrapper
-
-// Package main implements 'installer'.
+// Package main implements the installer downloader
 package main
 
 import (

@@ -2219,7 +2219,7 @@ def install_ddagent(
     assert len(domains) > 0, err_msg
 
     if version is not None:
-        check_version(version)
+        check_version(ctx, version)
     else:
         with open("release.json") as f:
             release = json.load(f)
