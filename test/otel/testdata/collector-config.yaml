@@ -11,41 +11,25 @@ processors:
 
 exporters:
   debug:
-  otlp:
-    endpoint: "localhost:4317"
-    tls:
-      insecure: true  # Set to true for testing; adjust for production.
-  datadog/exporter:
-    api:
-      site: datadoghq.com
-      key: "12345"
 
 extensions:
   ddflare:
     include_metadata: true  # Set to true for testing; adjust for production.
-  health_check:
-  zpages:
-  pprof:
 
 service:
-  extensions:
-    - ddflare
-    - health_check
-    - pprof
-    - zpages
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug, otlp]
+      exporters: [debug]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug, otlp]
+      exporters: [debug]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog/exporter]
+      exporters: [debug]
 
 # TODO: enable Additional configuration providers
 # providers:
