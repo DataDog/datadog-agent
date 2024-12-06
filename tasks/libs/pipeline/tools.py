@@ -130,9 +130,9 @@ def trigger_agent_pipeline(
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
     - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
-    - run a pipeline with all kitchen tests,
+    - run a pipeline with all e2e tests,
     - run a pipeline with all end-to-end tests,
-    - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
+    - run a deploy pipeline (includes all builds & e2e tests + uploads artifacts to staging repositories);
     """
 
     ref = ref or get_default_branch()
