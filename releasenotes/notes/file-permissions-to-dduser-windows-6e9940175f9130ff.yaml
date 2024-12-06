@@ -8,4 +8,5 @@
 ---
 fixes:
   - |
-    Fix windows file permissions on authToken to give access to the datadog user even when privledge processes create it.
+    Fix Windows file permissions on authToken to give access to the Datadog user even when privilege processes create it.
+
