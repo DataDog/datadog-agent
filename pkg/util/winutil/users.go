@@ -90,9 +90,9 @@ func GetServiceUserSID(service string) (*windows.SID, error) {
 		return nil, err
 	}
 
-        // Manually map some aliases that SCM uses and are not recognized by the
-        // security subsystem (`LookupAccountName()` will fail)
-        // https://learn.microsoft.com/en-us/windows/win32/services/service-user-accounts
+	// Manually map some aliases that SCM uses and are not recognized by the
+	// security subsystem (`LookupAccountName()` will fail)
+	// https://learn.microsoft.com/en-us/windows/win32/services/service-user-accounts
 	if username == "LocalSystem" {
 		return windows.StringToSid("S-1-5-18")
 	}
