@@ -34,7 +34,8 @@ def agent_package(
     build_agent_msi(ctx, release_version=release_version)
 
     # Package MSI into OCI
-    ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent"')
+    if AgentFlavor[flavor] == AgentFlavor.base:
+        ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent"')
 
 
 @task
