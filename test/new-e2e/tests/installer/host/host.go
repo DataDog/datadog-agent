@@ -649,7 +649,7 @@ func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, gro
 func (s *State) AssertPathDoesNotExist(path string) {
 	path = evalSymlinkPath(path, s.FS)
 	_, ok := s.FS[path]
-	assert.False(s.t, ok, "something exists at path", path)
+	assert.False(s.t, ok, "something exists at path %s", path)
 }
 
 // AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.
