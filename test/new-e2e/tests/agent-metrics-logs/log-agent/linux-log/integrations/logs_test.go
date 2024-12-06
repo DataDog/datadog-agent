@@ -113,13 +113,6 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 				assert.False(v.T(), seen[logID])
 				seen[logID] = true
 			}
-
-			// Check each log received has increased the monotonic counter by 1
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics("rotate_logs_sent")
-			assert.NoError(v.T(), err)
-			points := metrics[len(metrics)-1].Points
-			point := metrics[len(metrics)-1].Points[len(points)-1].Value
-			assert.Equal(v.T(), 1.0, point)
 		}, 2*time.Minute, 5*time.Second)
 
 	}

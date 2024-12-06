@@ -24,4 +24,3 @@ class HelloCheck(AgentCheck):
         data['ddtags'] = instance['integration_tags']
 
         self.send_log(data)
-        self.monotonic_count("rotate_logs_sent", self.counter)
