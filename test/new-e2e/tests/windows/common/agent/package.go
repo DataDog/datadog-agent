@@ -28,6 +28,11 @@ const (
 	stableURL            = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
+// Environment variable constants
+const (
+	PackageFlavorEnvVar = "WINDOWS_AGENT_FLAVOR"
+)
+
 // Package contains identifying information about an Agent MSI package.
 type Package struct {
 	// PipelineID is the pipeline ID used to lookup the MSI URL from the CI pipeline artifacts.
@@ -197,7 +202,7 @@ func LookupChannelFromEnv() (string, bool) {
 //
 // Default Flavor: base
 func LookupFlavorFromEnv() (string, bool) {
-	flavor := os.Getenv("WINDOWS_AGENT_FLAVOR")
+	flavor := os.Getenv(PackageFlavorEnvVar)
 	if flavor != "" {
 		return flavor, true
 	}
