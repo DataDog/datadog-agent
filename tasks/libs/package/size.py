@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 from datetime import datetime
 
@@ -190,7 +191,7 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
   Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
 
     if diff > threshold:
-        print(color_message(message.replace('OK', 'too large'), Color.RED))
+        print(color_message(message.replace('OK', 'too large'), Color.RED), file=sys.stderr)
         raise Exit(code=1)
 
     print(message)

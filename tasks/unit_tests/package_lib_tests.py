@@ -1,4 +1,5 @@
 import json
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -239,7 +240,10 @@ class TestCompare(unittest.TestCase):
         )
         with self.assertRaises(Exit):
             compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
-        mock_print.assert_called_with("""\x1b[91mdatadog-agent-aarch64-suse size increase is too large:
+        mock_print.assert_called_with(
+            """\x1b[91mdatadog-agent-aarch64-suse size increase is too large:
   New package size is 139.00MB
   Ancestor package (25) size is 68.00MB
-  Diff is 71.00MB (max allowed diff: 70.00MB)\x1b[0m""")
+  Diff is 71.00MB (max allowed diff: 70.00MB)\x1b[0m""",
+            file=sys.stderr,
+        )
