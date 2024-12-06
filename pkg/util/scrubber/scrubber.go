@@ -17,6 +17,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -40,6 +42,17 @@ type Replacer struct {
 	// ReplFunc, if set, is called with the matched bytes (see regexp#Regexp.ReplaceAllFunc). Only
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
+
+	// ImplementVersion is the version of the implementation of the replacer.
+	ImplementVersion *version.Version
+}
+
+func parseVersion(versionString string) *version.Version {
+	v, err := version.New(versionString, "")
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 // ReplacerKind modifies how a Replacer is applied
@@ -71,6 +84,8 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
+
+	CondFunction func(repl Replacer) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -174,6 +189,10 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
+			continue
+		}
+
+		if c.CondFunction != nil && !c.CondFunction(repl) {
 			continue
 		}
 
