@@ -63,7 +63,7 @@ datadog_otel_components_ocb_build:
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   variables:
-    RUNNER_SCRIPT_TIMEOUT: 50m
+    RUNNER_SCRIPT_TIMEOUT: 20m
   artifacts:
     paths:
       - ocb-output.log
