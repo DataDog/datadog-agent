@@ -32,7 +32,7 @@ func (h *Handler) GetState() (types.StateResponse, error) {
 }
 
 // NewHandler not implemented
-func NewHandler(_ autodiscovery.Component, tagger tagger.Component) (*Handler, error) {
+func NewHandler(_ autodiscovery.Component, _ tagger.Component) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 
