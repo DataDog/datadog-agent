@@ -46,3 +46,23 @@ func NewProfileDefinition() *ProfileDefinition {
 	p.Metadata = make(MetadataConfig)
 	return p
 }
+
+func (p *ProfileDefinition) Clone() *ProfileDefinition {
+	if p == nil {
+		return nil
+	}
+	return &ProfileDefinition{
+		Name:         p.Name,
+		Description:  p.Description,
+		SysObjectIDs: CopySlice(p.SysObjectIDs),
+		Extends:      CopySlice(p.Extends),
+		Metadata:     CloneMap(p.Metadata),
+		MetricTags:   CloneSlice(p.MetricTags),
+		StaticTags:   CopySlice(p.StaticTags),
+		Metrics:      CopySlice(p.Metrics),
+		Device: DeviceMeta{
+			Vendor: p.Device.Vendor,
+		},
+		Version: p.Version,
+	}
+}

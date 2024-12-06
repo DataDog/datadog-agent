@@ -51,6 +51,11 @@ const (
 // When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
 type SymbolConfigCompat SymbolConfig
 
+// Clone creates a duplicate of this SymbolConfigCompat
+func (s SymbolConfigCompat) Clone() SymbolConfigCompat {
+	return SymbolConfigCompat(SymbolConfig(s).Clone())
+}
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -70,6 +75,26 @@ type SymbolConfig struct {
 	//   Valid `metric_type` types: `gauge`, `rate`, `monotonic_count`, `monotonic_count_and_rate`
 	//   Deprecated types: `counter` (use `rate` instead), percent (use `scale_factor` instead)
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
+}
+
+// Clone creates a duplicate of this SymbolConfig
+func (s SymbolConfig) Clone() SymbolConfig {
+	s2 := SymbolConfig{
+		OID:              s.OID,
+		Name:             s.Name,
+		MatchValue:       s.MatchValue,
+		ScaleFactor:      s.ScaleFactor,
+		Format:           s.Format,
+		ConstantValueOne: s.ConstantValueOne,
+		MetricType:       s.MetricType,
+	}
+	if s.ExtractValue != nil {
+		s2.ExtractValue = s.ExtractValue.Copy()
+	}
+	if s.MatchPattern != nil {
+		s2.MatchPattern = s.MatchPattern.Copy()
+	}
+	return s2
 }
 
 // MetricTagConfig holds metric tag info
@@ -102,6 +127,35 @@ type MetricTagConfig struct {
 	SymbolTag string `yaml:"-" json:"-"`
 }
 
+// Clone duplicates this MetricTagConfig
+func (m MetricTagConfig) Clone() MetricTagConfig {
+	m2 := MetricTagConfig{
+		Tag:            m.Tag,
+		Index:          m.Index,
+		Column:         m.Column.Clone(),
+		OID:            m.OID,
+		Symbol:         m.Symbol.Clone(),
+		IndexTransform: CloneSlice(m.IndexTransform),
+		SymbolTag:      m.SymbolTag,
+	}
+	if m.Mapping != nil {
+		m2.Mapping = make(ListMap[string], len(m.Mapping))
+		for k, v := range m.Mapping {
+			m2.Mapping[k] = v
+		}
+	}
+	if m.Match != nil {
+		m2.Match = m.Match.Copy()
+	}
+	if m.Tags != nil {
+		m2.Tags = make(map[string]string, len(m.Tags))
+		for k, v := range m.Tags {
+			m2.Tags[k] = v
+		}
+	}
+	return m2
+}
+
 // MetricTagConfigList holds configs for a list of metric tags
 type MetricTagConfigList []MetricTagConfig
 
@@ -111,10 +165,26 @@ type MetricIndexTransform struct {
 	End   uint `yaml:"end" json:"end"`
 }
 
+// Clone duplicates this MetricIndexTransform
+func (m MetricIndexTransform) Clone() MetricIndexTransform {
+	return MetricIndexTransform{
+		Start: m.Start,
+		End:   m.End,
+	}
+}
+
 // MetricsConfigOption holds config for metrics options
 type MetricsConfigOption struct {
 	Placement    uint   `yaml:"placement,omitempty" json:"placement,omitempty"`
 	MetricSuffix string `yaml:"metric_suffix,omitempty" json:"metric_suffix,omitempty"`
+}
+
+// Clone duplicates this MetricsConfigOption
+func (o MetricsConfigOption) Clone() MetricsConfigOption {
+	return MetricsConfigOption{
+		Placement:    o.Placement,
+		MetricSuffix: o.MetricSuffix,
+	}
 }
 
 // MetricsConfig holds configs for a metric
@@ -145,6 +215,25 @@ type MetricsConfig struct {
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
+}
+
+// Clone duplicates this MetricsConfig
+func (m *MetricsConfig) Clone() *MetricsConfig {
+	m2 := MetricsConfig{
+		MIB:        m.MIB,
+		Table:      m.Table.Clone(),
+		Symbol:     m.Symbol.Clone(),
+		OID:        m.OID,
+		Name:       m.Name,
+		Symbols:    CloneSlice(m.Symbols),
+		StaticTags: make([]string, len(m.StaticTags)),
+		MetricTags: CloneSlice(m.MetricTags),
+		ForcedType: m.ForcedType,
+		MetricType: m.MetricType,
+		Options:    m.Options.Clone(),
+	}
+	copy(m2.StaticTags, m.StaticTags)
+	return &m2
 }
 
 // GetSymbolTags returns symbol tags
