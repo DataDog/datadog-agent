@@ -15,6 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 )
 
+var (
+	// Version is the version of the installer to download
+	Version string
+	// Flavor is the flavor of the setup to execute
+	Flavor string
+)
+
 func main() {
 	if !user.IsRoot() {
 		fmt.Fprintln(os.Stderr, "This command requires root privileges.")
