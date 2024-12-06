@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/testutils"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
