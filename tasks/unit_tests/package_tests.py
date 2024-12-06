@@ -16,6 +16,7 @@ class TestCheckSize(unittest.TestCase):
         },
     )
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
+    @patch('tasks.package.display_message', new=MagicMock())
     def test_dev_branch_ko(self):
         flavor = 'datadog-agent'
         c = MockContext(
@@ -38,7 +39,9 @@ class TestCheckSize(unittest.TestCase):
         },
     )
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
-    def test_dev_branch_ok(self, print_mock):
+    @patch('tasks.package.display_message', new=MagicMock())
+    @patch('tasks.package.upload_package_sizes')
+    def test_dev_branch_ok(self, upload_mock, print_mock):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
@@ -51,8 +54,8 @@ class TestCheckSize(unittest.TestCase):
         check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)
         print_mock.assert_called()
         self.assertEqual(print_mock.call_count, 15)
+        upload_mock.assert_not_called()
 
-    @patch('builtins.print')
     @patch.dict(
         'os.environ',
         {
@@ -61,7 +64,8 @@ class TestCheckSize(unittest.TestCase):
         },
     )
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
-    def test_main_branch_ok(self, print_mock):
+    @patch('tasks.package.display_message', new=MagicMock())
+    def test_main_branch_ok(self):
         flavor = 'datadog-agent'
         c = MockContext(
             run={

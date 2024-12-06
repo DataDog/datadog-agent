@@ -3,8 +3,6 @@ import sys
 import tempfile
 from datetime import datetime
 
-from invoke import Exit
-
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
@@ -163,7 +161,6 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
     """
     Compare (or update) a package size with the ancestor package size.
     """
-    mb = 1000000
     if os_name == 'suse':
         dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
         path = f'{dir}/{flavor}-7*{arch}.rpm'
@@ -180,21 +177,19 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
     previous_size = get_previous_size(package_sizes, ancestor, arch, flavor, os_name)
     diff = package_size - previous_size
 
-    # For printing purposes
-    new_package_size_mb = package_size / mb
-    stable_package_size_mb = previous_size / mb
-    threshold_mb = threshold / mb
-    diff_mb = diff / mb
-    message = f"""{flavor}-{arch}-{os_name} size increase is OK:
-  New package size is {new_package_size_mb:.2f}MB
-  Ancestor package ({ancestor}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
+    message = f"{flavor}-{arch}-{os_name} size {mb(package_size)} is OK: {mb(diff)} diff with {ancestor} size {mb(previous_size)} (max: {mb(threshold)})"
 
     if diff > threshold:
+        emoji = "❌"
         print(color_message(message.replace('OK', 'too large'), Color.RED), file=sys.stderr)
-        raise Exit(code=1)
+    else:
+        emoji = "✅"
+        print(message)
+    return f"|{flavor}-{arch}-{os_name}|{mb(diff)}|{emoji}|{mb(package_size)}|{mb(previous_size)}|{mb(threshold)}|"
 
-    print(message)
+
+def mb(value):
+    return f"{value / 1000000:.2f}MB"
 
 
 def get_previous_size(package_sizes, ancestor, arch, flavor, os_name):

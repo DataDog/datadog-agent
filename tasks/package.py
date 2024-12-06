@@ -13,25 +13,42 @@ from tasks.libs.package.size import (
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_sizes
+from tasks.libs.package.utils import (
+    display_message,
+    get_package_path,
+    list_packages,
+    retrieve_package_sizes,
+    upload_package_sizes,
+)
 
 
 @task
 def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
     package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
-    if get_current_branch(ctx) == get_default_branch():
+    ancestor = get_common_ancestor(ctx, get_current_branch(ctx))
+    on_main = get_current_branch(ctx) == get_default_branch()
+    if on_main:
         # Initialize to default values
-        ancestor = get_common_ancestor(ctx, get_default_branch())
         if ancestor in package_sizes:
             # The test already ran on this commit
             return
         package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
+    pr_message_lines = []
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        compare(ctx, package_sizes, *package_info)
-    if get_current_branch(ctx) == get_default_branch():
+        pr_message_lines.append(compare(ctx, package_sizes, *package_info))
+
+    if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
+    else:
+        if any("❌" in line for line in pr_message_lines):
+            decision = "❌ Failed"
+        else:
+            decision = "✅ Passed"
+        display_message(ancestor, pr_message_lines, decision)
+        if "Failed" in decision:
+            raise Exit(code=1)
 
 
 @task
