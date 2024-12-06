@@ -120,7 +120,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 		tf := flow.TCPFlow()
 		if tf != nil {
-			cs.TCPFailures = make(map[uint32]uint32)
+			cs.TCPFailures = make(map[uint16]uint32)
 			cs.Monotonic.Retransmits = uint32(tf.RetransmitCount)
 			cs.RTT = uint32(tf.SRTT)
 			cs.RTTVar = uint32(tf.RttVariance)

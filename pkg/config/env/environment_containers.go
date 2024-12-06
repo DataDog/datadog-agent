@@ -37,6 +37,7 @@ func init() {
 	registerFeature(Docker)
 	registerFeature(Containerd)
 	registerFeature(Cri)
+	registerFeature(Crio)
 	registerFeature(Kubernetes)
 	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
@@ -52,6 +53,7 @@ func IsAnyContainerFeaturePresent() bool {
 	return IsFeaturePresent(Docker) ||
 		IsFeaturePresent(Containerd) ||
 		IsFeaturePresent(Cri) ||
+		IsFeaturePresent(Crio) ||
 		IsFeaturePresent(Kubernetes) ||
 		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
@@ -63,7 +65,7 @@ func IsAnyContainerFeaturePresent() bool {
 func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
-	detectContainerd(features, cfg)
+	detectCriRuntimes(features, cfg)
 	detectAWSEnvironments(features, cfg)
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
@@ -102,40 +104,55 @@ func detectDocker(features FeatureMap) {
 	}
 }
 
-func detectContainerd(features FeatureMap, cfg model.Reader) {
+// detectCriRuntimes checks for both containerd and crio runtimes
+func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
+
+	// If no cri_socket_path is provided and the Agent is not running in Docker, check default paths
 	if criSocket == "" && !IsDockerRuntime() {
 		for _, defaultCriPath := range getDefaultCriPaths() {
-			exists, reachable := socket.IsAvailable(defaultCriPath, socketTimeout)
-			if exists && !reachable {
-				log.Infof(
-					"Agent found cri socket at: %s but socket not reachable (permissions?)",
-					defaultCriPath,
-				)
-				continue
-			}
-
-			if exists && reachable {
-				criSocket = defaultCriPath
-				model.AddOverride("cri_socket_path", defaultCriPath)
+			// Check default CRI paths
+			criSocket = checkCriSocket(defaultCriPath)
+			if criSocket != "" {
+				model.AddOverride("cri_socket_path", criSocket)
 				// Currently we do not support multiple CRI paths
 				break
 			}
 		}
+	} else {
+		// Check manually provided CRI socket path
+		criSocket = checkCriSocket(criSocket)
 	}
 
+	// If a valid CRI socket path was found, determine the runtime (containerd or crio)
 	if criSocket != "" {
 		if isCriSupported() {
 			features[Cri] = struct{}{}
 		}
-
 		if strings.Contains(criSocket, "containerd") {
 			features[Containerd] = struct{}{}
+			mergeContainerdNamespaces(cfg)
+		} else if strings.Contains(criSocket, "crio") {
+			features[Crio] = struct{}{}
 		}
 	}
+}
 
+func checkCriSocket(socketPath string) string {
+	// Check if the socket exists and is reachable
+	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && reachable {
+		log.Infof("Agent found cri socket at: %s", socketPath)
+		return socketPath
+	} else if exists && !reachable {
+		log.Infof("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
+	}
+	return ""
+}
+
+func mergeContainerdNamespaces(cfg model.Reader) {
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(
 		cfg.GetStringSlice("containerd_namespaces"),

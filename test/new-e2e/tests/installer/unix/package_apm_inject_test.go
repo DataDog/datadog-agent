@@ -54,6 +54,10 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
+	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+		state.AssertDirExists("/etc/apparmor.d/abstractions/base.d", 0755, "root", "root")
+		state.AssertFileExists("/etc/apparmor.d/abstractions/base.d/datadog", 0644, "root", "root")
+	}
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -78,6 +82,7 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
 	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
+	state.AssertPathDoesNotExist("/etc/apparmor.d/abstractions/base.d/datadog")
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
@@ -162,6 +167,9 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
+	s.host.Run("sudo dd-container-install --no-agent-restart")
+	s.host.Run("sudo dd-host-install --no-agent-restart")
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
 
@@ -212,6 +220,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	defer s.purgeInjectorDebInstall()
 
 	// OCI mustn't be overridden
@@ -337,6 +346,9 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/stable", 0755, "root", "root")
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdNotInstrumented()
+	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+		s.assertAppArmorProfile() // AppArmor profile should still be there
+	}
 }
 
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
@@ -355,6 +367,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
 
@@ -419,6 +432,23 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 	oldmask := s.host.SetUmask("0027")
 	defer s.host.SetUmask(oldmask)
 	s.TestInstall()
+}
+
+func (s *packageApmInjectSuite) TestAppArmor() {
+	if s.os != e2eos.Ubuntu2204 && s.os != e2eos.Debian12 {
+		s.T().Skip("AppArmor not installed by default")
+	}
+	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		envForceInstall("datadog-agent"),
+	)
+	defer s.Purge()
+	s.assertAppArmorProfile()
+	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
+	assert.Contains(s.T(), res, "not injecting; on deny list")
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
@@ -495,6 +525,13 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 	assert.Equal(s.T(), runtimeConfig, "")
 }
 
+func (s *packageApmInjectSuite) assertAppArmorProfile() {
+	content, err := s.host.ReadFile("/etc/apparmor.d/abstractions/base.d/datadog")
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), string(content), "/opt/datadog-packages/** rix,\n/proc/@{pid}/** rix,")
+	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+}
+
 func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
 	s.Env().RemoteHost.MustExecute("sudo rm -f /opt/datadog-packages/run/environment")
 	s.Env().RemoteHost.MustExecute("sudo rm -f /etc/datadog-agent/datadog.yaml")
@@ -502,10 +539,6 @@ func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
 	packageList := []string{
 		"datadog-agent",
 		"datadog-apm-inject",
-		"datadog-apm-library-java",
-		"datadog-apm-library-ruby",
-		"datadog-apm-library-js",
-		"datadog-apm-library-dotnet",
 		"datadog-apm-library-python",
 	}
 	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo apt-get remove -y --purge %[1]s || sudo yum remove -y %[1]s", strings.Join(packageList, " ")))

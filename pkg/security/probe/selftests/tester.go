@@ -45,6 +45,7 @@ type SelfTester struct {
 	lastTimestamp   time.Time
 	selfTests       []SelfTest
 	tmpDir          string
+	isClosed        bool
 	done            chan bool
 	selfTestRunning chan time.Duration
 }
@@ -152,6 +153,10 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 
 // Close removes temp directories and files used by the self tester
 func (t *SelfTester) Close() error {
+	t.Lock()
+	defer t.Unlock()
+
+	t.isClosed = true
 	close(t.selfTestRunning)
 	close(t.done)
 
@@ -187,6 +192,11 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 }
 
 func (t *SelfTester) beginSelfTests(timeout time.Duration) {
+	// t.Lock is held here
+	if t.isClosed {
+		return
+	}
+
 	t.waitingForEvent.Store(true)
 	t.selfTestRunning <- timeout
 }

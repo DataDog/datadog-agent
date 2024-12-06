@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
@@ -60,7 +59,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 			ProviderFactories: []confmap.ProviderFactory{
 				NewProviderFactory(cfgMap),
 			},
-			ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
+			ConverterFactories: []confmap.ConverterFactory{},
 		},
 	}
 	// build default provider from same data
@@ -72,7 +71,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 				envprovider.NewFactory(),
 				yamlprovider.NewFactory(),
 			},
-			ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
+			ConverterFactories: []confmap.ConverterFactory{},
 		},
 	}
 

@@ -51,12 +51,6 @@ func getNetDeviceProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook___dev_get_by_name",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
 				EBPFFuncName: "rethook_register_netdevice",
 			},
 		},

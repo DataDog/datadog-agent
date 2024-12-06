@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 // Package diagnostics provides a facility for dynamic instrumentation to upload diagnostic information
 package diagnostics
@@ -78,7 +78,7 @@ func (m *DiagnosticManager) update(id probeInstanceID, d *ditypes.DiagnosticUplo
 	}
 }
 
-func StopGlobalDiagnostics() {
+func StopGlobalDiagnostics() { //nolint:revive // TODO
 	close(Diagnostics.Updates)
 }
 

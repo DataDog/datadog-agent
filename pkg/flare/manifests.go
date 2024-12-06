@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -31,15 +32,19 @@ var (
 	magicGzip = []byte{0x1f, 0x8b, 0x08}
 )
 
-//nolint:revive
 const (
-	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
-	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"
-	HELM_AGENT_DAEMONSET          = "AGENT_DAEMONSET"
-	HELM_CLUSTER_AGENT_DEPLOYMENT = "CLUSTER_AGENT_DEPLOYMENT"
+	// Name of the Helm chart release to install the Datadog Agent
+	helmChartReleaseName = "CHART_RELEASE_NAME"
+	// Name of the DatadogAgent custom resource to install the Datadog Agent
+	datadogAgentCustomResourceName = "DATADOGAGENT_CR_NAME"
+	// Namespace where the Datadog Agent and Cluster Agent are installed
+	agentResourcesNamespace = "DD_KUBE_RESOURCES_NAMESPACE"
+	// Environment variables to retrieve the DaemonSet and Deployment names of the Agent and Cluster Agent
+	agentDaemonsetEnvV     = "AGENT_DAEMONSET"
+	clusterAgentDeployEnvV = "CLUSTER_AGENT_DEPLOYMENT"
 )
 
-// chartUserValues is defined to unmarshall JSON data decoded from a Helm cart release into accessible fields
+// chartUserValues is defined to unmarshall JSON data decoded from a Helm chart release into accessible fields
 type chartUserValues struct {
 	// user-defined values overriding the chart defaults
 	Config map[string]interface{} `json:"config,omitempty"`
@@ -67,7 +72,7 @@ func getDaemonset(cl *apiserver.APIClient, name string, namespace string) ([]byt
 
 // getAgentDaemonSet retrieves the DaemonSet manifest of the Agent
 func getAgentDaemonSet() ([]byte, error) {
-	// The Agent DaemonSet name is based on the Helm chart template and added to the Cluster Agent as an environment variable
+	// The Agent DaemonSet name is based on the Helm chart template/DatadogAgent custom resource and added to the Cluster Agent as an environment variable
 	var agentDaemonsetName string
 	var releaseNamespace string
 	var agentDaemonset []byte
@@ -76,10 +81,10 @@ func getAgentDaemonSet() ([]byte, error) {
 	if err != nil {
 		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
 	}
-	agentDaemonsetName = os.Getenv(HELM_AGENT_DAEMONSET)
-	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
+	agentDaemonsetName = os.Getenv(agentDaemonsetEnvV)
+	releaseNamespace = os.Getenv(agentResourcesNamespace)
 	if agentDaemonsetName == "" || releaseNamespace == "" {
-		return nil, log.Errorf("Can't collect the Agent Daemonset name and/or namespace from the environment variables %s and %v", HELM_AGENT_DAEMONSET, HELM_CHART_RELEASE_NAMESPACE)
+		return nil, log.Errorf("Can't collect the Agent Daemonset name and/or namespace from the environment variables %s and %v", agentDaemonsetEnvV, agentResourcesNamespace)
 	}
 	agentDaemonset, err = getDaemonset(cl, agentDaemonsetName, releaseNamespace)
 	if err != nil {
@@ -101,7 +106,7 @@ func getDeployment(cl *apiserver.APIClient, name string, namespace string) ([]by
 
 // getClusterAgentDeployment retrieves the Deployment manifest of the Cluster Agent
 func getClusterAgentDeployment() ([]byte, error) {
-	// The Cluster Agent Deployment name is based on the Helm chart template and added to the Cluster Agent as an environment variable
+	// The Cluster Agent Deployment name is based on the Helm chart template/DatadogAgent custom resource and added to the Cluster Agent as an environment variable
 	var clusterAgentDeploymentName string
 	var releaseNamespace string
 	var clusterAgentDeployment []byte
@@ -110,10 +115,10 @@ func getClusterAgentDeployment() ([]byte, error) {
 	if err != nil {
 		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
 	}
-	clusterAgentDeploymentName = os.Getenv(HELM_CLUSTER_AGENT_DEPLOYMENT)
-	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
+	clusterAgentDeploymentName = os.Getenv(clusterAgentDeployEnvV)
+	releaseNamespace = os.Getenv(agentResourcesNamespace)
 	if clusterAgentDeploymentName == "" || releaseNamespace == "" {
-		return nil, log.Errorf("Can't collect the Cluster Agent Deployment name and/or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
+		return nil, log.Errorf("Can't collect the Cluster Agent Deployment name and/or namespace from the environment variables %s and %v", clusterAgentDeployEnvV, agentResourcesNamespace)
 	}
 	clusterAgentDeployment, err = getDeployment(cl, clusterAgentDeploymentName, releaseNamespace)
 	if err != nil {
@@ -221,10 +226,10 @@ func getHelmValues() ([]byte, error) {
 	if err != nil {
 		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
 	}
-	releaseName = os.Getenv(HELM_CHART_RELEASE_NAME)
-	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
+	releaseName = os.Getenv(helmChartReleaseName)
+	releaseNamespace = os.Getenv(agentResourcesNamespace)
 	if releaseName == "" || releaseNamespace == "" {
-		return nil, log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", HELM_CHART_RELEASE_NAME, HELM_CHART_RELEASE_NAMESPACE)
+		return nil, log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", helmChartReleaseName, agentResourcesNamespace)
 	}
 	// Attempting to retrieve Helm chart data from secrets (default storage in Helm v3)
 	secret, err := getDeployedHelmSecret(cl, releaseName, releaseNamespace)
@@ -254,4 +259,32 @@ func getHelmValues() ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("Unable to collect Helm values from secrets/configmaps")
+}
+
+// getDatadogAgentManifest retrieves the user-defined manifest for the Datadog Agent resource (managed by the Operator)
+func getDatadogAgentManifest() ([]byte, error) {
+	cl, err := apiserver.GetAPIClient()
+	if err != nil {
+		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
+	}
+	ddaName := os.Getenv(datadogAgentCustomResourceName)
+	releaseNamespace := os.Getenv(agentResourcesNamespace)
+	if ddaName == "" || releaseNamespace == "" {
+		return nil, log.Errorf("Can't collect the Datadog Agent custom resource name and/or namespace from the environment variables %s and %s", datadogAgentCustomResourceName, agentResourcesNamespace)
+	}
+
+	// Retrieving the Datadog Agent custom resource from the API server using a dynamic client
+	ddaGroupVersionResource := schema.GroupVersionResource{
+		Group:    "datadoghq.com",
+		Version:  "v2alpha1",
+		Resource: "datadogagents",
+	}
+	dda, err := cl.DynamicCl.Resource(ddaGroupVersionResource).Namespace(releaseNamespace).Get(context.TODO(), ddaName, metav1.GetOptions{})
+
+	if err != nil {
+		return nil, log.Errorf("Can't retrieve the Datadog Agent custom resource %v from the API server: %s", ddaName, err.Error())
+	}
+
+	// Converting the custom resource into a readable YAML manifest
+	return convertToYAMLBytes(dda.Object)
 }

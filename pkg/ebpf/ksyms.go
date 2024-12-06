@@ -109,17 +109,33 @@ func findKernelFuncs(ksymsReader io.Reader, writeKsym func(string, uint64), chec
 		scanner := bufio.NewScanner(ksymsReader)
 		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
-			fields := bytes.Fields(scanner.Bytes())
-			if len(fields) >= 3 {
-				if idx := check.Search(fields[2]); idx >= 0 {
-					s, err := strconv.ParseUint(string(fields[0]), 16, 64)
-					if err != nil {
-						return fmt.Errorf("failed to parse kallsyms address for symbol %s: %w", string(fields[2]), err)
-					}
+			line := scanner.Bytes()
 
-					writeKsym(string(check[idx]), s)
-					check = append(check[:idx], check[idx+1:]...)
+			// if the line doesn't contain any of the functions we're looking for, skip it
+			earlyCheck := false
+			for _, rf := range check {
+				if bytes.Contains(line, rf) {
+					earlyCheck = true
+					break
 				}
+			}
+			if !earlyCheck {
+				continue
+			}
+
+			fields := bytes.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+
+			if idx := check.Search(fields[2]); idx >= 0 {
+				s, err := strconv.ParseUint(string(fields[0]), 16, 64)
+				if err != nil {
+					return fmt.Errorf("failed to parse kallsyms address for symbol %s: %w", string(fields[2]), err)
+				}
+
+				writeKsym(string(check[idx]), s)
+				check = append(check[:idx], check[idx+1:]...)
 			}
 		}
 		if err := scanner.Err(); err != nil {

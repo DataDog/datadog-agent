@@ -69,7 +69,7 @@ func TestGetIPCAddress(t *testing.T) {
 }
 
 func getConfig() model.Config {
-	cfg := model.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg := model.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	cfg.BindEnv("ipc_address")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
 	return cfg

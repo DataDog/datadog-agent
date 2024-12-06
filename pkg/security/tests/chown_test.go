@@ -113,7 +113,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(101), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(201), event.Chown.GID, "wrong user")
@@ -184,7 +184,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(103), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(203), event.Chown.GID, "wrong user")
@@ -255,7 +255,7 @@ func TestChown(t *testing.T) {
 		})
 	}))
 
-	test.Run(t, "pipe-chown-discarded", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "pipe-chown-discarded", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		_ = test.GetSignal(t, func() error {
 			syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 			if err != nil {
@@ -343,7 +343,7 @@ func TestChownUserGroup(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
 			assert.Equal(t, testUser, event.Chown.User, "wrong user")
@@ -368,7 +368,7 @@ func TestChownUserGroup(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
 			assert.Equal(t, testUser, event.Chown.User, "wrong user")
@@ -405,7 +405,7 @@ func TestChownUserGroup(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
 			assert.Equal(t, testUser, event.Chown.User, "wrong user")
@@ -430,7 +430,7 @@ func TestChownUserGroup(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
 			assert.Equal(t, testUser, event.Chown.User, "wrong user")
@@ -456,7 +456,7 @@ func TestChownUserGroup(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
 			assert.Equal(t, testUser, event.Chown.User, "wrong user")
@@ -482,7 +482,7 @@ func TestChownUserGroup(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(-1), event.Chown.UID, "wrong user")
 			assert.Equal(t, "", event.Chown.User, "wrong user")

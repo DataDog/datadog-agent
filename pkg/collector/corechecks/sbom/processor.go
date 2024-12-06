@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -41,6 +41,7 @@ var /* const */ (
 type processor struct {
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
+	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
@@ -51,7 +52,7 @@ type processor struct {
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -76,8 +77,10 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 			}
 
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
+			log.Debugf("SBOM event sent with %d entities", len(entities))
 		}),
 		workloadmetaStore:     workloadmetaStore,
+		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
@@ -92,24 +95,39 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
+	// Separate events into images and containers
+	var imageEvents []workloadmeta.Event
+	var containerEvents []workloadmeta.Event
+
 	for _, event := range evBundle.Events {
-		switch event.Entity.GetID().Kind {
+		entityID := event.Entity.GetID()
+		switch entityID.Kind {
 		case workloadmeta.KindContainerImageMetadata:
-			switch event.Type {
-			case workloadmeta.EventTypeSet:
-				p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-				p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
-			case workloadmeta.EventTypeUnset:
-				p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-				// Let the SBOM expire on back-end side
-			}
+			imageEvents = append(imageEvents, event)
 		case workloadmeta.KindContainer:
-			switch event.Type {
-			case workloadmeta.EventTypeSet:
-				p.registerContainer(event.Entity.(*workloadmeta.Container))
-			case workloadmeta.EventTypeUnset:
-				p.unregisterContainer(event.Entity.(*workloadmeta.Container))
-			}
+			containerEvents = append(containerEvents, event)
+		}
+	}
+
+	// Process all image events first
+	for _, event := range imageEvents {
+		switch event.Type {
+		case workloadmeta.EventTypeSet:
+			p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+			p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		case workloadmeta.EventTypeUnset:
+			p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+			// Let the SBOM expire on back-end side
+		}
+	}
+
+	// Process all container events after images
+	for _, event := range containerEvents {
+		switch event.Type {
+		case workloadmeta.EventTypeSet:
+			p.registerContainer(event.Entity.(*workloadmeta.Container))
+		case workloadmeta.EventTypeUnset:
+			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
 	}
 }
@@ -242,8 +260,8 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID).String()
-	ddTags, err := tagger.Tag(entityID, types.HighCardinality)
+	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
+	ddTags, err := p.tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

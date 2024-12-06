@@ -36,7 +36,7 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	client, err := client.NewClient(
 		rcFetcher,
 		client.WithUpdater(),
-		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterTask),
+		client.WithProducts(state.ProductUpdaterCatalogDD),
 		client.WithoutTufVerification(),
 	)
 	if err != nil {

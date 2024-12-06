@@ -20,8 +20,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/gorilla/mux"
+
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 type server struct {
@@ -39,7 +40,7 @@ func validateToken(next http.Handler) http.Handler {
 	})
 }
 
-func newServer(endpoint string, handler http.Handler) (*server, error) {
+func newServer(endpoint string, handler http.Handler, auth bool) (*server, error) {
 
 	// Generate a self-signed certificate
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -112,7 +113,12 @@ func newServer(endpoint string, handler http.Handler) (*server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", handler)
 
-	r.Use(validateToken)
+	// no easy way currently to pass required bearer auth token to OSS collector;
+	// skip the validation if running inside a separate collector
+	// TODO: determine way to allow OSS collector to authenticate with agent, OTEL-2226
+	if auth {
+		r.Use(validateToken)
+	}
 
 	s := &http.Server{
 		Addr:      endpoint,

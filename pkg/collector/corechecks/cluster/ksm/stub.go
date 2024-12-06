@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Package ksm implements the Kubernetes State Core cluster check.
 package ksm
 
 import (

@@ -174,7 +174,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		return
 	}
 
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](redisInFlight, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](redisInFlight, 1024, inFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return

@@ -39,27 +39,28 @@ var (
 func HTMLFmap() htemplate.FuncMap {
 	htmlFuncOnce.Do(func() {
 		htmlFuncMap = htemplate.FuncMap{
-			"doNotEscape":        doNotEscape,
-			"lastError":          lastError,
-			"configError":        configError,
-			"printDashes":        PrintDashes,
-			"formatUnixTime":     formatUnixTime,
-			"humanize":           mkHuman,
-			"humanizeDuration":   mkHumanDuration,
-			"toUnsortedList":     toUnsortedList,
-			"formatTitle":        formatTitle,
-			"add":                add,
-			"redText":            redText,
-			"yellowText":         yellowText,
-			"greenText":          greenText,
-			"ntpWarning":         ntpWarning,
-			"version":            getVersion,
-			"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
-			"complianceResult":   complianceResult,
-			"lastErrorTraceback": lastErrorTracebackHTML,
-			"lastErrorMessage":   lastErrorMessageHTML,
-			"pythonLoaderError":  pythonLoaderErrorHTML,
-			"status":             statusHTML,
+			"doNotEscape":         doNotEscape,
+			"lastError":           lastError,
+			"configError":         configError,
+			"printDashes":         PrintDashes,
+			"formatUnixTime":      formatUnixTime,
+			"formatUnixTimeSince": formatUnixTimeSince,
+			"humanize":            mkHuman,
+			"humanizeDuration":    mkHumanDuration,
+			"toUnsortedList":      toUnsortedList,
+			"formatTitle":         formatTitle,
+			"add":                 add,
+			"redText":             redText,
+			"yellowText":          yellowText,
+			"greenText":           greenText,
+			"ntpWarning":          ntpWarning,
+			"version":             getVersion,
+			"percent":             func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+			"complianceResult":    complianceResult,
+			"lastErrorTraceback":  lastErrorTracebackHTML,
+			"lastErrorMessage":    lastErrorMessageHTML,
+			"pythonLoaderError":   pythonLoaderErrorHTML,
+			"status":              statusHTML,
 		}
 	})
 	return htmlFuncMap
@@ -69,24 +70,25 @@ func HTMLFmap() htemplate.FuncMap {
 func TextFmap() ttemplate.FuncMap {
 	textFuncOnce.Do(func() {
 		textFuncMap = ttemplate.FuncMap{
-			"lastErrorTraceback": lastErrorTraceback,
-			"lastErrorMessage":   lastErrorMessage,
-			"printDashes":        PrintDashes,
-			"formatUnixTime":     formatUnixTime,
-			"formatJSON":         formatJSON,
-			"humanize":           mkHuman,
-			"humanizeDuration":   mkHumanDuration,
-			"toUnsortedList":     toUnsortedList,
-			"formatTitle":        formatTitle,
-			"add":                add,
-			"status":             status,
-			"redText":            redText,
-			"yellowText":         yellowText,
-			"greenText":          greenText,
-			"ntpWarning":         ntpWarning,
-			"version":            getVersion,
-			"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
-			"complianceResult":   complianceResult,
+			"lastErrorTraceback":  lastErrorTraceback,
+			"lastErrorMessage":    lastErrorMessage,
+			"printDashes":         PrintDashes,
+			"formatUnixTime":      formatUnixTime,
+			"formatUnixTimeSince": formatUnixTimeSince,
+			"formatJSON":          formatJSON,
+			"humanize":            mkHuman,
+			"humanizeDuration":    mkHumanDuration,
+			"toUnsortedList":      toUnsortedList,
+			"formatTitle":         formatTitle,
+			"add":                 add,
+			"status":              status,
+			"redText":             redText,
+			"yellowText":          yellowText,
+			"greenText":           greenText,
+			"ntpWarning":          ntpWarning,
+			"version":             getVersion,
+			"percent":             func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+			"complianceResult":    complianceResult,
 		}
 	})
 
@@ -152,34 +154,59 @@ func lastErrorMessage(value string) string {
 }
 
 // formatUnixTime formats the unix time to make it more readable
-func formatUnixTime(unixTime any) string {
-	// Initially treat given unixTime is in nanoseconds
-	parseFunction := func(value int64) string {
-		t := time.Unix(0, value)
-		// If year returned 1970, assume unixTime actually in seconds
-		if t.Year() == time.Unix(0, 0).Year() {
-			t = time.Unix(value, 0)
-		}
-
-		_, tzoffset := t.Zone()
-		result := t.Format(timeFormat)
-		if tzoffset != 0 {
-			result += " / " + t.UTC().Format(timeFormat)
-		}
-		msec := t.UnixNano() / int64(time.Millisecond)
-		result += " (" + strconv.Itoa(int(msec)) + ")"
-
-		return result
+func formatUnixTime(rawUnixTime any) string {
+	t, err := parseUnixTime(rawUnixTime)
+	if err != nil {
+		return err.Error()
 	}
 
-	switch v := unixTime.(type) {
+	_, tzoffset := t.Zone()
+	result := t.Format(timeFormat)
+	if tzoffset != 0 {
+		result += " / " + t.UTC().Format(timeFormat)
+	}
+	msec := t.UnixNano() / int64(time.Millisecond)
+	result += " (" + strconv.Itoa(int(msec)) + ")"
+
+	return result
+}
+
+// formatUnixTimeSince parses a Unix timestamp and calculates the elapsed time between the timestamp and the current
+// time and formats the duration in a human-readable format
+func formatUnixTimeSince(rawUnixTime any) string {
+	t, err := parseUnixTime(rawUnixTime)
+	if err != nil {
+		return err.Error()
+	}
+
+	now := time.Now()
+
+	if t.After(now) {
+		delta := t.Sub(now)
+		return fmt.Sprintf("%s from now", delta)
+	}
+
+	delta := now.Sub(t)
+	return fmt.Sprintf("%s ago", delta)
+}
+
+func parseUnixTime(value any) (time.Time, error) {
+	raw := int64(0)
+	switch v := value.(type) {
 	case int64:
-		return parseFunction(v)
+		raw = v
 	case float64:
-		return parseFunction(int64(v))
+		raw = int64(v)
 	default:
-		return fmt.Sprintf("Invalid time parameter %T", v)
+		return time.Time{}, fmt.Errorf("invalid time parameter %T", v)
 	}
+
+	t := time.Unix(0, raw)
+	// If year returned 1970, assume unixTime actually in seconds
+	if t.Year() == time.Unix(0, 0).Year() {
+		t = time.Unix(raw, 0)
+	}
+	return t, nil
 }
 
 // formatJSON formats the given value as JSON. The indent parameter is used to indent the entire JSON output.

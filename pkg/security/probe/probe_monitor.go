@@ -165,20 +165,20 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
 		)
 	}
 
 	if errors.Is(event.Error, model.ErrNoProcessContext) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
 		)
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
 		)
 	}
 }

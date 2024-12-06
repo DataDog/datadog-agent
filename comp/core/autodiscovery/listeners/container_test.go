@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 )
@@ -159,6 +161,8 @@ func TestCreateContainerService(t *testing.T) {
 		Ready: false,
 	}
 
+	taggerComponent := mock.SetupFakeTagger(t)
+
 	tests := []struct {
 		name             string
 		container        *workloadmeta.Container
@@ -171,6 +175,7 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					service: &service{
+						tagger: taggerComponent,
 						entity: basicContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -207,6 +212,7 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					service: &service{
+						tagger: taggerComponent,
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -226,6 +232,7 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					service: &service{
+						tagger: taggerComponent,
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -254,6 +261,7 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
 					service: &service{
+						tagger: taggerComponent,
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -277,7 +285,7 @@ func TestCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, wlm := newContainerListener(t)
+			listener, wlm := newContainerListener(t, taggerComponent)
 
 			if tt.container != nil {
 				listener.Store().(workloadmetamock.Mock).Set(tt.container)
@@ -348,8 +356,8 @@ func TestComputeContainerServiceIDs(t *testing.T) {
 	}
 }
 
-func newContainerListener(t *testing.T) (*ContainerListener, *testWorkloadmetaListener) {
+func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
 
-	return &ContainerListener{workloadmetaListener: wlm}, wlm
+	return &ContainerListener{workloadmetaListener: wlm, tagger: tagger}, wlm
 }

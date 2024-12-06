@@ -39,30 +39,32 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 
 // Process processes the kafka transaction
 func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
-	statKeeper.statsMutex.Lock()
-	defer statKeeper.statsMutex.Unlock()
+	latency := tx.RequestLatency()
+	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
+	if tx.APIKey() == FetchAPIKey && latency <= 0 {
+		statKeeper.telemetry.invalidLatency.Add(int64(tx.RecordsCount()))
+		return
+	}
 
+	// extractTopicName is an expensive operation but, it is also concurrent safe, so we can do it here
+	// without holding the lock.
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
 		TopicName:      statKeeper.extractTopicName(&tx.Transaction),
 		ConnectionKey:  tx.ConnTuple(),
 	}
+
+	statKeeper.statsMutex.Lock()
+	defer statKeeper.statsMutex.Unlock()
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
-			statKeeper.telemetry.dropped.Add(1)
+			statKeeper.telemetry.dropped.Add(int64(tx.RecordsCount()))
 			return
 		}
 		requestStats = NewRequestStats()
 		statKeeper.stats[key] = requestStats
-	}
-
-	latency := tx.RequestLatency()
-	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
-	if key.RequestAPIKey == FetchAPIKey && latency <= 0 {
-		statKeeper.telemetry.invalidLatency.Add(1)
-		return
 	}
 
 	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)

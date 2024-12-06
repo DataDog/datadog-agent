@@ -7,9 +7,9 @@ package http
 
 import (
 	"errors"
+	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,14 +17,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
-
-func getNewConfig() pkgconfigmodel.ReaderWriter {
-	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-}
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 	url := buildURL(config.NewEndpoint("bar", "foo", 0, true))
@@ -50,8 +47,8 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestDestinationSend200(_ *testing.T) {
-	cfg := getNewConfig()
+func TestDestinationSend200(t *testing.T) {
+	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
@@ -78,8 +75,8 @@ func TestNoRetries(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func testNoRetry(_ *testing.T, statusCode int) {
-	cfg := getNewConfig()
+func testNoRetry(t *testing.T, statusCode int) {
+	cfg := configmock.New(t)
 	server := NewTestServer(statusCode, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
@@ -96,7 +93,7 @@ func testNoRetry(_ *testing.T, statusCode int) {
 }
 
 func retryTest(t *testing.T, statusCode int) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(statusCode, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
@@ -126,7 +123,7 @@ func retryTest(t *testing.T, statusCode int) {
 }
 
 func TestDestinationContextCancel(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(429, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
@@ -152,7 +149,7 @@ func TestDestinationContextCancel(t *testing.T) {
 }
 
 func TestConnectivityCheck(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	// Connectivity is ok when server return 200
 	server := NewTestServer(200, cfg)
 	connectivity := CheckConnectivity(server.Endpoint, cfg)
@@ -173,7 +170,7 @@ func TestErrorToTag(t *testing.T) {
 }
 
 func TestDestinationSendsV2Protocol(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
@@ -184,7 +181,7 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 }
 
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
@@ -194,7 +191,7 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 }
 
 func TestDestinationSendsTimestampHeaders(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 	currentTimestamp := time.Now().UnixMilli()
@@ -211,7 +208,7 @@ func TestDestinationSendsTimestampHeaders(t *testing.T) {
 }
 
 func TestDestinationSendsUserAgent(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
@@ -221,7 +218,7 @@ func TestDestinationSendsUserAgent(t *testing.T) {
 }
 
 func TestDestinationConcurrentSends(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
@@ -276,7 +273,7 @@ func TestDestinationConcurrentSends(t *testing.T) {
 
 // This test ensure the destination's final state is isRetrying = false even if there are pending concurrent sends.
 func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
@@ -325,7 +322,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 }
 
 func TestBackoffDelayEnabled(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
@@ -342,7 +339,7 @@ func TestBackoffDelayEnabled(t *testing.T) {
 }
 
 func TestBackoffDelayDisabled(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(500, 0, false, respondChan, cfg)
 	input := make(chan *message.Payload)
@@ -365,9 +362,135 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", getNewConfig())
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, client.NewNoopDestinationMetadata(), configmock.New(t), metrics.NewNoopPipelineMonitor(""))
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
 	}
+}
+
+func TestTransportProtocol_HTTP1(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use HTTP/1
+	c.SetWithoutSource("logs_config.http_protocol", "http1")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	s := NewTestHTTPSServer(false)
+	defer s.Close()
+
+	timeout := 5 * time.Second
+	// Force HTTP/1 transport
+	client := httpClientFactory(timeout, c)()
+
+	// Create an HTTP/1.1 request
+	req, err := http.NewRequest("POST", s.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Client send an HTTP1 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert the protocol is HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP2(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	s := NewTestHTTPSServer(false)
+	defer s.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", s.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Client send an HTTP/2 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert the protocol is HTTP/2.0
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_InvalidProtocol(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to default to ALNP from invalid protocol
+	c.SetWithoutSource("logs_config.http_protocol", "htto2")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// Start the test server
+	server := NewTestHTTPSServer(false)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	// Client send an HTTP/1.1 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server responds with best available protocol(http/2.0)
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// Start the test server that only support HTTP/1.1
+	server := NewTestHTTPSServer(true)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	// Client send HTTP/2 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server automatically falls back to HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
 }

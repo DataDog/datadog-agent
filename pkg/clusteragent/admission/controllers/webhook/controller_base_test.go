@@ -40,6 +40,7 @@ func TestNewController(t *testing.T) {
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -56,6 +57,7 @@ func TestNewController(t *testing.T) {
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

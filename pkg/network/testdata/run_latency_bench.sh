@@ -23,7 +23,7 @@ STATFILE=/tmp/ebpf-bench-benchstat.${now}
 for _ in {1..5}
 do
   go test \
-    -mod=mod \
+    -mod=readonly \
     -tags linux_bpf \
     ./pkg/network/ebpf/... \
     -bench BenchmarkTCPLatency \
@@ -31,7 +31,7 @@ do
     -run XXX \
     >> "${RESFILE}"
   go test \
-    -mod=mod \
+    -mod=readonly \
     -tags linux_bpf \
     ./pkg/network/ebpf/... \
     -bench BenchmarkUDPLatency \

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -43,6 +44,7 @@ var testOptions = fx.Options(
 	defaultforwarder.MockModule(),
 	core.MockBundle(),
 	eventplatformimpl.MockModule(),
+	rdnsqueriermock.MockModule(),
 )
 
 func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any) (*fxtest.App, *npCollectorImpl) {

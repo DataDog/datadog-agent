@@ -42,20 +42,20 @@ func applyContext(ruleDef *rules.RuleDefinition, opts SECLRuleOpts) {
 	var context []string
 
 	if opts.ImageName != "" {
-		context = append(context, fmt.Sprintf(`container.tags == "image_name:%s"`, opts.ImageName))
+		context = append(context, fmt.Sprintf(`"short_image:%s"`, opts.ImageName))
 	}
 	if opts.ImageTag != "" {
-		context = append(context, fmt.Sprintf(`container.tags == "image_tag:%s"`, opts.ImageTag))
+		context = append(context, fmt.Sprintf(`"image_tag:%s"`, opts.ImageTag))
 	}
 	if opts.Service != "" {
-		context = append(context, fmt.Sprintf(`process.envp == "DD_SERVICE=%s"`, opts.Service))
+		context = append(context, fmt.Sprintf(`"service:%s"`, opts.Service))
 	}
 
 	if len(context) == 0 {
 		return
 	}
 
-	ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, strings.Join(context, " && "))
+	ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, fmt.Sprintf(`container.tags in [%s]`, strings.Join(context, ", ")))
 }
 
 func getGroupID(opts SECLRuleOpts) string {

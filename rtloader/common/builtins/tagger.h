@@ -21,14 +21,6 @@
     tag and get_tags methods are registered with the module. This function is python3
     only.
 */
-/*! \fn void Py2_init_tagger()
-    \brief Initializes the tagger builtin python module.
-
-    The tagger python builtin is created and registered here as per the methods
-    PyMethodDef array definition. A fresh reference to the module is created here.
-    The tag and get_tags methods are registered with the module.This function is
-    python2 only.
-*/
 /*! \fn void _set_tags_cb(cb_tags_t)
     \brief Sets a callback to be used by rtloader for setting the relevant tags.
     \param object A function pointer with the cb_tags_t prototype to the
@@ -46,16 +38,10 @@
 
 #define TAGGER_MODULE_NAME "tagger"
 
-#ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_tagger(void);
-#endif
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifdef DATADOG_AGENT_TWO
-void Py2_init_tagger();
 #endif
 
 void _set_tags_cb(cb_tags_t);

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -50,7 +51,7 @@ func (c *Check) Run() error {
 	}
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
-	cfg := traceroute.Config{
+	cfg := config.Config{
 		DestHostname: c.config.DestHostname,
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
@@ -73,6 +74,12 @@ func (c *Check) Run() error {
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = c.config.Tags
+
+	// Perform reverse DNS lookup
+	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
+	for i := range path.Hops {
+		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
+	}
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)

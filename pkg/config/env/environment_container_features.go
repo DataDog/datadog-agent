@@ -13,6 +13,8 @@ const (
 	Containerd Feature = "containerd"
 	// Cri is any cri socket present
 	Cri Feature = "cri"
+	// Crio socket present
+	Crio Feature = "crio"
 	// Kubernetes environment
 	Kubernetes Feature = "kubernetes"
 	// ECSEC2 environment

@@ -15,7 +15,7 @@ import (
 
 // newTestConf generates and returns a new configuration
 func newTestConf() pkgconfigmodel.Config {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	InitConfig(conf)
 	conf.SetConfigFile("")
 	pkgconfigmodel.ApplyOverrideFuncs(conf)

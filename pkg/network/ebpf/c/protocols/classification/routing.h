@@ -55,6 +55,11 @@ static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_
     usm_ctx->routing_skip_layers = 0;
     usm_ctx->routing_current_program = CLASSIFICATION_PROG_UNKNOWN;
 
+    // No protocol stack, nothing to mark for skipping
+    if (!stack) {
+        return;
+    }
+
     // We skip a given layer in two cases:
     // 1) If the protocol for that layer is known
     // 2) If there are no programs registered for that layer

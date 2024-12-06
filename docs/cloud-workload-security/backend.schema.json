@@ -172,6 +172,21 @@
       ],
       "description": "BindEventSerializer serializes a bind event to JSON"
     },
+    "CGroupContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "CGroup ID"
+        },
+        "manager": {
+          "type": "string",
+          "description": "CGroup manager"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+    },
     "ContainerContext": {
       "properties": {
         "id": {
@@ -1260,6 +1275,10 @@
           "type": "string",
           "description": "Filesystem Group name"
         },
+        "auid": {
+          "type": "integer",
+          "description": "Login UID"
+        },
         "cap_effective": {
           "items": {
             "type": "string"
@@ -1287,10 +1306,52 @@
         "egid",
         "fsuid",
         "fsgid",
+        "auid",
         "cap_effective",
         "cap_permitted"
       ],
       "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
+    },
+    "RawPacket": {
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/NetworkDevice",
+          "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+          "type": "string",
+          "description": "l3_protocol is the layer 3 protocol name"
+        },
+        "l4_protocol": {
+          "type": "string",
+          "description": "l4_protocol is the layer 4 protocol name"
+        },
+        "source": {
+          "$ref": "#/$defs/IPPort",
+          "description": "source is the emitter of the network event"
+        },
+        "destination": {
+          "$ref": "#/$defs/IPPort",
+          "description": "destination is the receiver of the network event"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the size in bytes of the network event"
+        },
+        "tls": {
+          "$ref": "#/$defs/TLSContext"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+      ],
+      "description": "RawPacketSerializer defines a raw packet serializer"
     },
     "SELinuxBoolChange": {
       "properties": {
@@ -1452,9 +1513,33 @@
           "type": "string",
           "description": "Path argument"
         },
+        "flags": {
+          "type": "integer",
+          "description": "Flags argument"
+        },
         "mode": {
           "type": "integer",
           "description": "Mode argument"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "UID argument"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "GID argument"
+        },
+        "dirfd": {
+          "type": "integer",
+          "description": "Directory file descriptor argument"
+        },
+        "destination_path": {
+          "type": "string",
+          "description": "Destination path argument"
+        },
+        "fs_type": {
+          "type": "string",
+          "description": "File system type argument"
         }
       },
       "additionalProperties": false,
@@ -1466,10 +1551,31 @@
         "chmod": {
           "$ref": "#/$defs/SyscallArgs"
         },
+        "chown": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
         "chdir": {
           "$ref": "#/$defs/SyscallArgs"
         },
         "exec": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "open": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "unlink": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "link": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "rename": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "utimes": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "mount": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },
@@ -1483,6 +1589,16 @@
       },
       "type": "array",
       "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
+    },
+    "TLSContext": {
+      "properties": {
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TLSContextSerializer defines a tls context serializer"
     },
     "UserContext": {
       "properties": {
@@ -1570,6 +1686,9 @@
     "container": {
       "$ref": "#/$defs/ContainerContext"
     },
+    "cgroup": {
+      "$ref": "#/$defs/CGroupContext"
+    },
     "network": {
       "$ref": "#/$defs/NetworkContext"
     },
@@ -1623,6 +1742,9 @@
     },
     "syscall": {
       "$ref": "#/$defs/SyscallContext"
+    },
+    "packet": {
+      "$ref": "#/$defs/RawPacket"
     }
   },
   "additionalProperties": false,

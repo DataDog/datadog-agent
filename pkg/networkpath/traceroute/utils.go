@@ -11,24 +11,32 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	reverseDNSTimeouts = telemetry.NewStatCounterWrapper("traceroute", "reverse_dns_timeouts", []string{}, "Counter measuring the number of traceroute reverse DNS timeouts")
 )
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
-func getReverseDNSForIP(destIP net.IP) string {
+// GetReverseDNSForIP returns the reverse DNS for the given IP address as a net.IP.
+func GetReverseDNSForIP(destIP net.IP) string {
 	if destIP == nil {
 		return ""
 	}
-	return getHostname(destIP.String())
+	return GetHostname(destIP.String())
 }
 
-func getHostname(ipAddr string) string {
+// GetHostname returns the hostname for the given IP address as a string.
+func GetHostname(ipAddr string) string {
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	currHostList, err := lookupAddrFn(ctx, ipAddr)
 	if errors.Is(err, context.Canceled) {
-		tracerouteRunnerTelemetry.reverseDNSTimetouts.Inc()
+		reverseDNSTimeouts.Inc()
 	}
 
 	if len(currHostList) > 0 {

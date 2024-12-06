@@ -50,5 +50,5 @@ agents:
 }
 
 func (s *otlpIngestSamplingTestSuite) TestSampling() {
-	utils.TestSampling(s)
+	utils.TestSampling(s, false)
 }

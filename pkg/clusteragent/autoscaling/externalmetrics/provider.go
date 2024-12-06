@@ -70,6 +70,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
 	wpaEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller")
+	numWorkers := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.num_workers")
 
 	provider := &datadogMetricProvider{
 		apiCl:            apiCl,
@@ -117,7 +118,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	apiCl.InformerFactory.Start(ctx.Done())
 
 	go autoscalerWatcher.Run(ctx.Done())
-	go controller.Run(ctx)
+	go controller.Run(ctx, numWorkers)
 
 	return provider, nil
 }
@@ -133,7 +134,7 @@ func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace s
 		}
 	}
 
-	setQueryTelemtry("get", namespace, startTime, err)
+	setQueryTelemtry("get", startTime, err)
 	return res, err
 }
 

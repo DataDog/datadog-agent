@@ -11,7 +11,7 @@ import (
 	"go.uber.org/atomic"
 
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

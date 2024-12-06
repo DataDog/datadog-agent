@@ -20,6 +20,13 @@ import (
 const (
 	// InfraURLPrefix is the default infra URL prefix for datadog
 	InfraURLPrefix = "https://app."
+
+	// MRFLogsPrefix is the logs-specific MRF site prefix. This is used for both pure logs as well as EvP-based payloads (Database
+	// Monitoring, Netflow, etc)
+	MRFLogsPrefix = "logs.mrf."
+
+	// MRFInfraPrefix is the infrastructure-specific MRF site prefix. This is used for metadata, metrics, etc.
+	MRFInfraPrefix = "mrf."
 )
 
 func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
@@ -126,15 +133,35 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
 }
 
-// GetMRFEndpoint returns the MRF DD URL defined in the config, based on `multi_region_failover.site` and the prefix, or ddMRFURLKey
+// GetMRFEndpoint returns the generic MRF endpoint to use.
+//
+// This is based on the `multi_region_failover.site` setting. If `ddMRFURLKey` is not empty, we attempt to use it as a
+// lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
+// precedence over `multi_region_failover.site`.
 func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
-	// value under ddURLKey takes precedence over 'multi_region_failover.site'
 	if c.IsSet(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
 		return getResolvedMRFDDURL(c, ddMRFURLKey), nil
 	} else if c.GetString("multi_region_failover.site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("multi_region_failover.site")), nil
 	}
-	return "", fmt.Errorf("`multi_region_failover.site` or `multi_region_failover.dd_url` must be set when Multi-Region Failover is enabled")
+	return "", fmt.Errorf("`multi_region_failover.site` or `%s` must be set when Multi-Region Failover is enabled", ddMRFURLKey)
+}
+
+// GetMRFLogsEndpoint returns the logs-specific MRF endpoint to use.
+//
+// This is based on the `multi_region_failover.site` setting. If `ddMRFURLKey` is not empty, we attempt to use it as a
+// lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
+// precedence over `multi_region_failover.site`.
+func GetMRFLogsEndpoint(c pkgconfigmodel.Reader, prefix string) (string, error) {
+	// For pure logs, we already use a prefix that looks like `agent-http-intake.logs.`, but for other EvP intake
+	// tracks, they just have a generic prefix that looks like the product name (e.g., `dbm-metrics-intake.`), so we
+	// only want to append the `.logs.` suffix if it's not already present.
+	logsSpecificPrefix := prefix + MRFInfraPrefix
+	if !strings.HasSuffix(prefix, ".logs.") {
+		logsSpecificPrefix = prefix + MRFLogsPrefix
+	}
+
+	return GetMRFEndpoint(c, logsSpecificPrefix, "multi_region_failover.dd_url")
 }
 
 func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
@@ -150,14 +177,19 @@ func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
 	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")
 }
 
-// GetMRFInfraEndpoint returns the MRF DD Infra URL defined in config, based on the value of `multi_region_failover.site` and `multi_region_failover.dd_url`
+// GetMRFInfraEndpoint returns the infrastructure-specific MRF endpoint to use.
+//
+// This is based on the `multi_region_failover.site` setting. If `ddMRFURLKey` is not empty, we attempt to use it as a
+// lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
+// precedence over `multi_region_failover.site`.
 func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
-	return GetMRFEndpoint(c, InfraURLPrefix, "multi_region_failover.dd_url")
+	fullInfraURLPrefix := InfraURLPrefix + MRFInfraPrefix
+	return GetMRFEndpoint(c, fullInfraURLPrefix, "multi_region_failover.dd_url")
 }
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {

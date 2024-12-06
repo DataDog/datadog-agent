@@ -45,7 +45,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	taskID := arnParts[len(arnParts)-1]
 
 	taskContainers, containerEvents := ParseV4TaskContainers(task, seen)
-	region, awsAccountID := parseRegionAndAWSAccountID(task.TaskARN)
+	region, awsAccountID := ParseRegionAndAWSAccountID(task.TaskARN)
 
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
@@ -122,6 +122,15 @@ func ParseV4TaskContainers(
 			}
 		}
 
+		var restartCount int
+		// Unless the restartPolicy is explicitly specified in the task definition,
+		// "RestartCount" will not be included in the results from the task metadata endpoint v4.
+		// Additionally, there are the following considerations.
+		// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-restart-policy.html
+		if container.RestartCount != nil {
+			restartCount = *container.RestartCount
+		}
+
 		containerEvent := &workloadmeta.Container{
 			EntityID: entityID,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -148,9 +157,10 @@ func ParseV4TaskContainers(
 				Networks:      make([]workloadmeta.ContainerNetwork, 0, len(container.Networks)),
 				Volumes:       make([]workloadmeta.ContainerVolume, 0, len(container.Volumes)),
 			},
-			Image:      image,
-			NetworkIPs: ips,
-			Ports:      make([]workloadmeta.ContainerPort, 0, len(container.Ports)),
+			Image:        image,
+			NetworkIPs:   ips,
+			Ports:        make([]workloadmeta.ContainerPort, 0, len(container.Ports)),
+			RestartCount: restartCount,
 		}
 
 		containerEvent.Resources = workloadmeta.ContainerResources{}
@@ -231,8 +241,8 @@ func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {
 	return &result
 }
 
-// parseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
-func parseRegionAndAWSAccountID(taskARN string) (string, int) {
+// ParseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
+func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
 	arnParts := strings.Split(taskARN, ":")
 	if len(arnParts) < 5 {
 		return "", 0

@@ -10,11 +10,12 @@ package crashreport
 
 import (
 	"fmt"
+	"net/http"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -27,6 +28,7 @@ type WinCrashReporter struct {
 	baseKey          string
 	startupWarnCount int
 	hasRunOnce       bool
+	sysProbeClient   *http.Client
 }
 
 const (
@@ -38,8 +40,9 @@ const (
 // crash registry keys
 func NewWinCrashReporter(hive registry.Key, key string) (*WinCrashReporter, error) {
 	wcr := &WinCrashReporter{
-		hive:    hive,
-		baseKey: key,
+		hive:           hive,
+		baseKey:        key,
+		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}
 	return wcr, nil
 }
@@ -101,20 +104,18 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	if wcr.hasRunOnce {
 		return nil, nil
 	}
-	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+
+	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](wcr.sysProbeClient, sysconfig.WindowsCrashDetectModule)
 	if err != nil {
 		return nil, wcr.handleStartupError(err)
 	}
 
-	data, err := sysProbeUtil.GetCheck(sysconfig.WindowsCrashDetectModule)
-	if err != nil {
-		return nil, wcr.handleStartupError(err)
+	// Crash dump processing is not done yet, nothing to send at the moment. Try later.
+	if crash.StatusCode == probe.WinCrashStatusCodeBusy {
+		log.Infof("Crash dump processing is busy")
+		return nil, nil
 	}
-	crash, ok := data.(probe.WinCrashStatus)
-	if !ok {
-		return nil, fmt.Errorf("Raw data has incorrect type")
-	}
+
 	/*
 	 * originally did this with a sync.once.  The problem is the check is run prior to the
 	 * system probe being successfully started.  This is OK; we just need to detect the BSOD
@@ -124,7 +125,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	 * we don't need to run any more
 	 */
 	wcr.hasRunOnce = true
-	if !crash.Success {
+	if crash.StatusCode == probe.WinCrashStatusCodeFailed {
 		return nil, fmt.Errorf("Error getting crash data %s", crash.ErrString)
 	}
 

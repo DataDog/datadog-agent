@@ -25,6 +25,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
@@ -33,9 +34,13 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
-	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	}
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
 	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
+	_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 	}
@@ -44,6 +49,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 	_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -113,6 +119,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	if ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 	}
+	_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.BaseEvent.ProcessContext.Process)
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -132,6 +139,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -213,6 +223,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
@@ -227,6 +240,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "bind":
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
 	case "bpf":
 	case "capset":
 	case "chdir":
@@ -288,6 +302,8 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
 		}
+	case "connect":
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
@@ -324,6 +340,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exec.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exec.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
 		if ev.Exec.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
@@ -370,6 +387,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
 		}
@@ -408,6 +426,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exit.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exit.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
 		if ev.Exit.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
@@ -454,6 +473,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exit.Process)
 	case "imds":
 	case "link":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Link.Source.FileFields)
@@ -573,6 +593,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
 		}
+	case "packet":
+		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -608,6 +632,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
 		if ev.PTrace.Tracee.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
@@ -654,6 +679,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.PTrace.Tracee.Process)
+		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.PTrace.Tracee.Process)
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields)
 		}
@@ -691,6 +717,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Parent.CGroup)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Parent.CGroup)
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent)
@@ -761,6 +790,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.PTrace.Tracee.Parent)
 		}
 	case "removexattr":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.RemoveXAttr.File.FileFields)
@@ -881,6 +913,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
 		if ev.Signal.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
@@ -927,6 +960,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Signal.Target.Process)
+		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Signal.Target.Process)
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.FileEvent.FileFields)
 		}
@@ -964,6 +998,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Parent.CGroup)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Parent.CGroup)
 		}
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent)
@@ -1035,6 +1072,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Signal.Target.Parent)
 		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Signal.Target.Parent)
+		}
 	case "splice":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Splice.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Splice.File.FileFields)
@@ -1094,6 +1134,7 @@ type FieldHandlers interface {
 	ResolveAsync(ev *Event) bool
 	ResolveCGroupID(ev *Event, e *CGroupContext) string
 	ResolveCGroupManager(ev *Event, e *CGroupContext) string
+	ResolveCGroupVersion(ev *Event, e *CGroupContext) int
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
@@ -1110,6 +1151,7 @@ type FieldHandlers interface {
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
+	ResolveIsIPPublic(ev *Event, e *IPPortContext) bool
 	ResolveK8SGroups(ev *Event, e *UserSessionContext) []string
 	ResolveK8SUID(ev *Event, e *UserSessionContext) string
 	ResolveK8SUsername(ev *Event, e *UserSessionContext) string
@@ -1145,6 +1187,7 @@ type FieldHandlers interface {
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
 	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
+	ResolveProcessIsThread(ev *Event, e *Process) bool
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
 	ResolveService(ev *Event, e *BaseEvent) string
@@ -1173,6 +1216,9 @@ func (dfh *FakeFieldHandlers) ResolveCGroupID(ev *Event, e *CGroupContext) strin
 }
 func (dfh *FakeFieldHandlers) ResolveCGroupManager(ev *Event, e *CGroupContext) string {
 	return string(e.CGroupManager)
+}
+func (dfh *FakeFieldHandlers) ResolveCGroupVersion(ev *Event, e *CGroupContext) int {
+	return int(e.CGroupVersion)
 }
 func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 	return string(e.Group)
@@ -1219,6 +1265,9 @@ func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []
 }
 func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string {
 	return string(e.Hostname)
+}
+func (dfh *FakeFieldHandlers) ResolveIsIPPublic(ev *Event, e *IPPortContext) bool {
+	return bool(e.IsPublic)
 }
 func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
 	return []string(e.K8SGroups)
@@ -1322,6 +1371,9 @@ func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string
 }
 func (dfh *FakeFieldHandlers) ResolveProcessEnvsTruncated(ev *Event, e *Process) bool {
 	return bool(e.EnvsTruncated)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessIsThread(ev *Event, e *Process) bool {
+	return bool(e.IsThread)
 }
 func (dfh *FakeFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { return int(e.Mode) }
 func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {

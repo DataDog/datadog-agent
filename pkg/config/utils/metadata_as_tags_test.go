@@ -7,13 +7,11 @@ package utils
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetMetadataAsTagsNoError(t *testing.T) {
@@ -101,8 +99,7 @@ func TestGetMetadataAsTagsNoError(t *testing.T) {
 	for _, test := range tests {
 
 		t.Run(test.name, func(tt *testing.T) {
-			mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-			pkgconfigsetup.InitConfig(mockConfig)
+			mockConfig := configmock.New(t)
 
 			mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", test.podLabelsAsTags)
 			mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", test.podAnnotationsAsTags)

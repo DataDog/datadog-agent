@@ -1,7 +1,9 @@
 #!/opt/datadog-agent/embedded/bin/python
 
+import grp
 import os
 import os.path
+import pwd
 import stat
 import unittest
 from hashlib import sha256
@@ -47,18 +49,34 @@ class TestFiles(unittest.TestCase):
             self.assertEqual(sha.hexdigest(), digest, file + " checksum mismatch")
 
     def test_files_permissions(self):
-        def has_write_permissions(path):
-            try:
-                return bool(os.stat(path).st_mode & stat.S_IWOTH)
-            except Exception:
-                return False
+        for root, dirs, files in os.walk("/"):
+            dirs[:] = filter(
+                lambda dir: not os.path.ismount(os.path.join(root, dir)), dirs
+            )
 
-        for root, dirs, files in os.walk("/etc"):
-            for name in files:
-                self.assertFalse(has_write_permissions(os.path.join(root, name)))
-            for name in dirs:
-                os.path.join(root, name)
-                self.assertFalse(has_write_permissions(os.path.join(root, name)))
+            for name in dirs + files:
+                f = os.path.join(root, name)
+
+                try:
+                    s = os.stat(f)
+                except FileNotFoundError:
+                    pass
+                except Exception as e:
+                    self.fail(f"Failed to stat {f}: {e}")
+                self.assertFalse(
+                    s.st_mode & (stat.S_IWOTH | stat.S_ISVTX) == stat.S_IWOTH,
+                    f"{f} should not be world-writable",
+                )
+
+                try:
+                    pwd.getpwuid(s.st_uid)
+                except KeyError:
+                    self.fail(f"Unknown user {s.st_uid} for {f}")
+
+                try:
+                    grp.getgrgid(s.st_gid)
+                except KeyError:
+                    self.fail(f"Unknown group {s.st_gid} for {f}")
 
 
 if __name__ == "__main__":

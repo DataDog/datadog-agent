@@ -29,6 +29,8 @@ enum telemetry_counter {
     tcp_done_failed_tuple,
     tcp_finish_connect_failed_tuple,
     tcp_close_target_failures,
+    tcp_done_connection_flush,
+    tcp_close_connection_flush
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -81,6 +83,12 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case tcp_close_target_failures:
         __sync_fetch_and_add(&val->tcp_close_target_failures, 1);
+        break;
+    case tcp_done_connection_flush:
+        __sync_fetch_and_add(&val->tcp_done_connection_flush, 1);
+        break;
+    case tcp_close_connection_flush:
+        __sync_fetch_and_add(&val->tcp_close_connection_flush, 1);
         break;
     }
 }

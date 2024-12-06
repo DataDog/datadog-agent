@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"runtime"
 	"strconv"
@@ -161,9 +162,30 @@ func (c *client) SendTraces(traces pb.Traces) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	payload := TracePayload{
-		Traces: traces,
+		Traces: c.sampleTraces(traces),
 	}
 	c.sendPayload(RequestTypeTraces, payload)
+}
+
+// sampleTraces is a simple uniform sampling function that samples traces based
+// on the sampling rate, given that there is no trace agent to sample the traces
+// We try to keep the tracer behaviour: the first rule that matches apply its rate to the whole trace
+func (c *client) sampleTraces(traces pb.Traces) pb.Traces {
+	tracesWithSampling := pb.Traces{}
+	for _, trace := range traces {
+		samplingRate := 1.0
+		for _, span := range trace {
+			if val, ok := span.Metrics["_dd.rule_psr"]; ok {
+				samplingRate = val
+				break
+			}
+		}
+		if rand.Float64() < samplingRate {
+			tracesWithSampling = append(tracesWithSampling, trace)
+		}
+	}
+	log.Debugf("sampling telemetry traces (had %d, kept %d)", len(traces), len(tracesWithSampling))
+	return tracesWithSampling
 }
 
 func (c *client) sendPayload(requestType RequestType, payload interface{}) {

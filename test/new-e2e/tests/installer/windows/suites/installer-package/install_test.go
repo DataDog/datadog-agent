@@ -31,8 +31,12 @@ func (s *testInstallerSuite) TestInstalls() {
 		s.Run("Uninstall", func() {
 			s.uninstall()
 			s.Run("Install with existing configuration file", func() {
-				s.installWithExistingConfigFile()
+				s.installWithExistingConfigFile("with-config-install.log")
 				s.Run("Repair", s.repair)
+				s.Run("Purge", s.purge)
+				s.Run("Install after purge", func() {
+					s.installWithExistingConfigFile("after-purge-install.log")
+				})
 			})
 		})
 	})
@@ -48,7 +52,31 @@ func (s *testInstallerSuite) startServiceWithConfigFile() {
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
-		WithStatus("Running")
+		WithStatus("Running").
+		HasNamedPipe(installerwindows.NamedPipe).
+		WithSecurity(
+			// Only accessible to Administrators and LocalSystem
+			common.NewProtectedSecurityInfo(
+				common.GetIdentityForSID(common.AdministratorsSID),
+				common.GetIdentityForSID(common.LocalSystemSID),
+				[]common.AccessRule{
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.LocalSystemSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.AdministratorsSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+				},
+			))
+	status, err := s.Installer().Status()
+	s.Require().NoError(err)
+	// with no packages installed just prints version
+	// e.g. Datadog Installer v7.60.0-devel+git.56.86b2ae2
+	s.Require().Contains(status, "Datadog Installer")
 }
 
 func (s *testInstallerSuite) uninstall() {
@@ -63,12 +91,12 @@ func (s *testInstallerSuite) uninstall() {
 		FileExists(installerwindows.ConfigPath)
 }
 
-func (s *testInstallerSuite) installWithExistingConfigFile() {
+func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Arrange
 
 	// Act
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithMSILogFile("with-config-install.log"),
+		installerwindows.WithMSILogFile(logFilename),
 	))
 
 	// Assert
@@ -93,4 +121,17 @@ func (s *testInstallerSuite) repair() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
+}
+
+func (s *testInstallerSuite) purge() {
+	// Arrange
+
+	// Act
+	_, err := s.Installer().Purge()
+
+	// Assert
+	s.Assert().NoError(err)
+	s.requireUninstalled()
+	s.Require().Host(s.Env().RemoteHost).
+		NoFileExists(`C:\ProgramData\Datadog Installer\packages\packages.db`)
 }

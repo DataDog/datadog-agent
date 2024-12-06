@@ -13,6 +13,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +37,10 @@ type batchStrategy struct {
 	contentEncoding ContentEncoding
 	stopChan        chan struct{} // closed when the goroutine has finished
 	clock           clock.Clock
+
+	// Telemtry
+	pipelineMonitor metrics.PipelineMonitor
+	utilization     metrics.UtilizationMonitor
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -49,8 +54,9 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
-	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	contentEncoding ContentEncoding,
+	pipelineMonitor metrics.PipelineMonitor) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding, pipelineMonitor)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -64,7 +70,8 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	contentEncoding ContentEncoding) Strategy {
+	contentEncoding ContentEncoding,
+	pipelineMonitor metrics.PipelineMonitor) Strategy {
 
 	return &batchStrategy{
 		inputChan:       inputChan,
@@ -79,6 +86,8 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
+		pipelineMonitor: pipelineMonitor,
+		utilization:     pipelineMonitor.MakeUtilizationMonitor("strategy"),
 	}
 }
 
@@ -144,6 +153,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		return
 	}
+	s.utilization.Start()
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
@@ -161,6 +171,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		s.utilization.Stop()
 		return
 	}
 
@@ -169,10 +180,14 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.flushWg.Add(1)
 	}
 
-	outputChan <- &message.Payload{
+	p := &message.Payload{
 		Messages:      messages,
 		Encoded:       encodedPayload,
 		Encoding:      s.contentEncoding.name(),
 		UnencodedSize: len(serializedMessage),
 	}
+	s.utilization.Stop()
+	outputChan <- p
+	s.pipelineMonitor.ReportComponentEgress(p, "strategy")
+	s.pipelineMonitor.ReportComponentIngress(p, "sender")
 }

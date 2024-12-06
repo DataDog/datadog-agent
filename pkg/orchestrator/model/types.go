@@ -83,6 +83,8 @@ const (
 	K8sLimitRange = 25
 	// K8sStorageClass represents a Kubernetes StorageClass
 	K8sStorageClass = 26
+	// K8sPodDisruptionBudget represents a Kubernetes PodDisruptionBudget
+	K8sPodDisruptionBudget = 27
 	// ECSTask represents an ECS Task
 	ECSTask = 150
 )
@@ -90,33 +92,34 @@ const (
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
 	return []NodeType{
-		K8sCluster,
-		K8sCronJob,
-		K8sDeployment,
-		K8sDaemonSet,
-		K8sJob,
-		K8sNode,
-		K8sPod,
-		K8sReplicaSet,
-		K8sService,
-		K8sStatefulSet,
-		K8sPersistentVolumeClaim,
-		K8sPersistentVolume,
-		K8sRole,
-		K8sRoleBinding,
-		K8sClusterRole,
-		K8sClusterRoleBinding,
-		K8sServiceAccount,
-		K8sIngress,
-		K8sNamespace,
+		ECSTask,
 		K8sCR,
 		K8sCRD,
-		K8sVerticalPodAutoscaler,
+		K8sCluster,
+		K8sClusterRole,
+		K8sClusterRoleBinding,
+		K8sCronJob,
+		K8sDaemonSet,
+		K8sDeployment,
 		K8sHorizontalPodAutoscaler,
-		K8sNetworkPolicy,
+		K8sIngress,
+		K8sJob,
 		K8sLimitRange,
+		K8sNamespace,
+		K8sNetworkPolicy,
+		K8sNode,
+		K8sPersistentVolume,
+		K8sPersistentVolumeClaim,
+		K8sPod,
+		K8sPodDisruptionBudget,
+		K8sReplicaSet,
+		K8sRole,
+		K8sRoleBinding,
+		K8sService,
+		K8sServiceAccount,
+		K8sStatefulSet,
 		K8sStorageClass,
-		ECSTask,
+		K8sVerticalPodAutoscaler,
 	}
 }
 
@@ -178,6 +181,8 @@ func (n NodeType) String() string {
 		return "UnsetType"
 	case ECSTask:
 		return "ECSTask"
+	case K8sPodDisruptionBudget:
+		return "PodDisruptionBudget"
 	default:
 		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"

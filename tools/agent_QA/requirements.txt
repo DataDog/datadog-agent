@@ -1,2 +1,0 @@
-py_trello==0.18.0
-python-dotenv==0.20.0

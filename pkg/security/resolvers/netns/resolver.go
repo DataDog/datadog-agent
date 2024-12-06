@@ -163,7 +163,9 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 	}()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
-		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
+		if err = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager); err != nil {
+			seclog.Errorf("error setting up new tc classifier on queued device: %v", err)
+		}
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -346,6 +348,8 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
 				attachedDeviceCountNoLazyDeletion++
 			}
+		} else {
+			seclog.Errorf("error setting up new tc classifier on snapshot: %v", err)
 		}
 	}
 

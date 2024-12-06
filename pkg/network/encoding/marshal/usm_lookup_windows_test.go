@@ -31,19 +31,19 @@ func TestUSMLookup(t *testing.T) {
 
 	// In windows the USMLookup operation is done only once and using the
 	// original tuple order, so in the case below only c1 should match the data
-	c1 := network.ConnectionStats{
+	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("2.2.2.2"),
 		SPort:  60000,
 		DPort:  80,
-	}
+	}}
 
-	c2 := network.ConnectionStats{
+	c2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("2.2.2.2"),
 		Dest:   util.AddressFromString("1.1.1.1"),
 		SPort:  80,
 		DPort:  60000,
-	}
+	}}
 
 	assert.Equal(t, val, USMLookup(c1, data))
 	assert.Equal(t, (*USMConnectionData[struct{}, any])(nil), USMLookup(c2, data))

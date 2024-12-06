@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -285,6 +286,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			continue
 		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
+			// new source inherits the old source's status
+			source.Status = tailer.Source().Status
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
 			tailer.ReplaceSource(source)
@@ -309,7 +312,8 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	tailer := s.createTailer(file, channel, monitor)
 
 	var offset int64
 	var whence int
@@ -380,16 +384,17 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:    outputChan,
-		File:          file,
-		SleepDuration: s.tailerSleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:          tailerInfo,
-		TagAdder:      s.tagger,
+		OutputChan:      outputChan,
+		File:            file,
+		SleepDuration:   s.tailerSleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:            tailerInfo,
+		TagAdder:        s.tagger,
+		PipelineMonitor: pipelineMonitor,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -397,7 +402,8 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

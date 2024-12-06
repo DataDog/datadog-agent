@@ -36,6 +36,7 @@ var (
 
 func TestVMSuite(t *testing.T) {
 	flake.Mark(t)
+
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
@@ -51,9 +52,7 @@ func (v *vmSuite) SetupSuite() {
 	currDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	kitchenDir := filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	v.testspath = filepath.Join(kitchenDir, "dd-security-agent-check", "files", "tests")
+	v.testspath = filepath.Join(currDir, "artifacts")
 }
 
 func (v *vmSuite) TestSystemProbeCWSSuite() {

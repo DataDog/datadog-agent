@@ -3,34 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
+//go:build !unix && !windows
 
 package client
 
 import (
 	"context"
 	"net"
-	"net/http"
 	"time"
 )
 
 const (
-	netType = "tcp"
+	idleConnTimeout = 30 * time.Second
 )
 
-// newSystemProbeClient returns a http client configured to talk to the system-probe
-func newSystemProbeClient(socketPath string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial(netType, socketPath)
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
+// DialContextFunc is not supported on this platform.
+func DialContextFunc(_ string) func(context.Context, string, string) (net.Conn, error) {
+	return func(_ context.Context, _, _ string) (net.Conn, error) {
+		return nil, ErrNotImplemented
 	}
 }

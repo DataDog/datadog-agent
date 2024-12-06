@@ -9,16 +9,19 @@ package usm
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -103,7 +106,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 
 	procRoot := kernel.ProcFSRoot()
 	return &istioMonitor{
-		registry: utils.NewFileRegistry("istio"),
+		registry: utils.NewFileRegistry(consts.USMModuleName, "istio"),
 		procRoot: procRoot,
 		envoyCmd: c.EnvoyPath,
 		done:     make(chan struct{}),
@@ -187,7 +190,7 @@ func (m *istioMonitor) Start() {
 		}
 	}()
 
-	utils.AddAttacher("istio", m)
+	utils.AddAttacher(consts.USMModuleName, "istio", m)
 	log.Info("Istio monitoring enabled")
 }
 
@@ -249,7 +252,7 @@ func (m *istioMonitor) handleProcessExec(pid uint32) {
 func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	exePath := fmt.Sprintf("%s/%d/exe", m.procRoot, pid)
 
-	envoyPath, err := utils.ResolveSymlink(exePath)
+	envoyPath, err := os.Readlink(exePath)
 	if err != nil || !strings.Contains(envoyPath, m.envoyCmd) {
 		return ""
 	}

@@ -86,6 +86,17 @@ apm_config:
 			out:     "?",
 			version: "v0.7",
 		},
+		{
+			conf: []byte(`
+apm_config:
+  env: my-env
+  obfuscation:
+    credit_cards:
+      enabled: false
+      keep_values: ["credit_card_number"]`),
+			out:     "4166 6766 6766 6746",
+			version: "v0.5",
+		},
 	} {
 		t.Run(string(tt.version)+"/"+tt.out, func(t *testing.T) {
 			if err := r.RunAgent(tt.conf); err != nil {

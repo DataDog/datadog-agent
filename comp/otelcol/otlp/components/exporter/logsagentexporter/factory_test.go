@@ -24,6 +24,6 @@ func TestNewLogsExporter(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings()
-	_, err := factory.CreateLogsExporter(context.Background(), set, cfg)
+	_, err := factory.CreateLogs(context.Background(), set, cfg)
 	assert.NoError(t, err)
 }

@@ -162,7 +162,7 @@ func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersG
 			fieldHandled = append(fieldHandled, handled...)
 		}
 
-		kfs, handled, err := getProcessKFilters(model.FileOpenEventType, approvers)
+		kfs, handled, err := getProcessKFilters(eventType, approvers)
 		if err != nil {
 			return nil, nil, err
 		}

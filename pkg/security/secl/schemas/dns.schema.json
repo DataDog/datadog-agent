@@ -1,0 +1,66 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "dns.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "$ref": "network.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "dns": {
+                    "type": "object",
+                    "required": [
+                        "id"
+                    ],
+                    "properties": {
+                        "id": {
+                            "type": "number"
+                        },
+                        "question": {
+                            "type": "object",
+                            "required": [
+                                "count",
+                                "class",
+                                "type",
+                                "size",
+                                "name"
+                            ],
+                            "properties": {
+                                "count": {
+                                    "type": "number"
+                                },
+                                "class":{
+                                    "type": "string"
+                                },
+                                "type": {
+                                    "type": "string"
+                                },
+                                "size": {
+                                    "type": "number"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

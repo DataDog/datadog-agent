@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 // Package dynamicinstrumentation provides the main entrypoint into running the
 // dynamic instrumentation for Go product
@@ -51,14 +51,14 @@ func newGoDIStats() GoDIStats {
 	}
 }
 
-type OfflineOptions struct {
+type OfflineOptions struct { //nolint:revive // TODO
 	Offline          bool
 	ProbesFilePath   string
 	SnapshotOutput   string
 	DiagnosticOutput string
 }
 
-type ReaderWriterOptions struct {
+type ReaderWriterOptions struct { //nolint:revive // TODO
 	CustomReaderWriters bool
 	SnapshotWriter      io.Writer
 	DiagnosticWriter    io.Writer
@@ -155,7 +155,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	return goDI, nil
 }
 
-func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) {
+func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) { //nolint:unused // TODO
 	if event == nil {
 		return
 	}

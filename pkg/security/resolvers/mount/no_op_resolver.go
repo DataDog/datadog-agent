@@ -11,6 +11,7 @@ package mount
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -34,7 +35,7 @@ func (mr *NoOpResolver) Delete(_ uint32) error {
 }
 
 // ResolveFilesystem returns the name of the filesystem
-func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32, _ uint32, _ string) (string, error) {
+func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, error) {
 	return "", nil
 }
 
@@ -47,17 +48,17 @@ func (mr *NoOpResolver) Insert(_ model.Mount, _ uint32) error {
 func (mr *NoOpResolver) DelPid(_ uint32) {}
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32, _ uint32, _ string) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32, _ uint32, _ string) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMount returns the mount
-func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ uint32, _ string) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, errors.New("not available")
 }
 

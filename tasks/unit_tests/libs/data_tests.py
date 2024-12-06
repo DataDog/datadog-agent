@@ -9,14 +9,6 @@ class TestGetInfraFailuresJob(unittest.TestCase):
         self.assertEqual(get_infra_failure_info(''), FailedJobReason.GITLAB)
         self.assertEqual(get_infra_failure_info(None), FailedJobReason.GITLAB)
 
-    def test_kitchen(self):
-        self.assertEqual(
-            get_infra_failure_info(
-                'something ERROR: The kitchen tests failed due to infrastructure failures. something'
-            ),
-            FailedJobReason.KITCHEN,
-        )
-
     def test_gitlab_5xx(self):
         self.assertEqual(
             get_infra_failure_info(

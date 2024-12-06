@@ -26,7 +26,7 @@ dependency "libxslt"
 dependency "libtool"
 dependency "libgcrypt"
 dependency "gnutls"
-dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
+dependency "openssl3"
 
 version("1.3.1") { source sha256: "10f48384d4fd1afc05fea545b74fbf7c152582f0a895c189f164d55270400c63" }
 

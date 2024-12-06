@@ -205,16 +205,22 @@ def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
     """
     with open(main_cov_file, encoding='utf-8') as main_cov:
         main_cov_lines = main_cov.readlines()
-        main_mode_line = main_cov_lines.pop(0)
     with open(dev_cov_file, encoding='utf-8') as dev_cov:
         dev_cov_lines = dev_cov.readlines()
-        dev_mode_line = dev_cov_lines.pop(0)
 
+    if len(main_cov_lines) == 0:
+        print(f"[{color_message('WARNING', Color.ORANGE)}] Main coverage file {main_cov_file} is empty.")
+        with open(main_cov_file, 'w', encoding='utf-8') as main_cov:
+            main_cov.writelines(dev_cov_lines)
+            return
+
+    main_mode = main_cov_lines.pop(0)
+    dev_mode = dev_cov_lines.pop(0)
     # Check if the mode is the same in both files.
-    if dev_mode_line != main_mode_line:
+    if dev_mode != main_mode:
         raise Exit(
             color_message(
-                f"Error: the mode in the dev coverage file ({dev_mode_line}) is different from the one in the main coverage file {main_mode_line}.",
+                f"Error: the mode in the dev coverage file ({dev_mode}) is different from the one in the main coverage file {main_mode}.",
                 Color.RED,
             ),
             code=1,
@@ -227,7 +233,7 @@ def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
         if file_path not in browsed_dev_files:
             final_file_lines.append(line)
 
-    final_file_lines = [main_mode_line] + sorted(final_file_lines + dev_cov_lines)
+    final_file_lines = [main_mode] + sorted(final_file_lines + dev_cov_lines)
     with open(main_cov_file, 'w', encoding='utf-8') as main_cov:
         main_cov.writelines(final_file_lines)
 

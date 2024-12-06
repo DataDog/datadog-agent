@@ -38,39 +38,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
 		resourceAttributes := rls.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes, ialp.generateID)
-		tagMap := make(map[string]string)
-
-		// Get all unique tags from resource attributes and global tags
-		for _, entityID := range entityIDs {
-			entityTags, err := ialp.tagger.Tag(entityID.String(), ialp.cardinality)
-			if err != nil {
-				ialp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
-				continue
-			}
-			for _, tag := range entityTags {
-				k, v := splitTag(tag)
-				_, hasTag := tagMap[k]
-				if k != "" && v != "" && !hasTag {
-					tagMap[k] = v
-				}
-			}
-		}
-		globalTags, err := ialp.tagger.GlobalTags(ialp.cardinality)
-		if err != nil {
-			ialp.logger.Error("Cannot get global tags", zap.Error(err))
-		}
-		for _, tag := range globalTags {
-			k, v := splitTag(tag)
-			_, hasTag := tagMap[k]
-			if k != "" && v != "" && !hasTag {
-				tagMap[k] = v
-			}
-		}
-		// Add all tags as resource attributes
-		for k, v := range tagMap {
-			resourceAttributes.PutStr(k, v)
-		}
+		processInfraTags(ialp.logger, ialp.tagger, ialp.cardinality, ialp.generateID, resourceAttributes)
 	}
 	return ld, nil
 }

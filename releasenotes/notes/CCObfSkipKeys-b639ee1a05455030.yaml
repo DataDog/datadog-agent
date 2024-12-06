@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+
+features:
+  - |
+    APM: New configuration apm_config.obfuscation.credit_cards.keep_values (DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES)
+    can be used to skip specific tag keys that are known to never contain credit card numbers. This is especially useful
+    in cases where a span tag value is a number that triggers false positives from the credit card obfuscator.

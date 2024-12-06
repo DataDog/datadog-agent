@@ -26,10 +26,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -72,8 +78,8 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
-		taggerimpl.MockModule(),
-		fx.Provide(func(mock tagger.Mock) tagger.Component {
+		taggermock.Module(),
+		fx.Provide(func(mock taggermock.Mock) tagger.Component {
 			return mock
 		}),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
@@ -90,6 +96,11 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 				Provider: nil,
 			}
 		}),
+		fx.Provide(func() remoteagentregistry.Component { return nil }),
+		telemetryimpl.MockModule(),
+		config.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	)
 }
 

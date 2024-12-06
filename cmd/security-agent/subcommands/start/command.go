@@ -44,8 +44,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -53,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -111,12 +113,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						AgentType: catalog,
 					}
 				}),
-				taggerimpl.Module(),
-				fx.Provide(func(config config.Component) tagger.Params {
-					if config.GetBool("security_agent.remote_tagger") {
-						return tagger.NewNodeRemoteTaggerParams()
-					}
-					return tagger.NewTaggerParams()
+				remoteTaggerfx.Module(tagger.RemoteParams{
+					RemoteTarget: func(c config.Component) (string, error) {
+						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+					},
+					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+						return func() (string, error) {
+							return security.FetchAuthToken(c)
+						}
+					},
+					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				fx.Provide(func() startstop.Stopper {
 					return startstop.NewSerialStopper()
@@ -205,7 +211,7 @@ func start(log log.Component, config config.Component, _ secrets.Component, _ st
 	defer StopAgent(log)
 
 	err := RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
-	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
+	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
 	if err != nil {
@@ -251,7 +257,8 @@ var (
 	expvarServer *http.Server
 )
 
-var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
+// ErrAllComponentsDisabled is returned when all components are disabled
+var ErrAllComponentsDisabled = errors.New("all security-agent component are disabled")
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
@@ -268,7 +275,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 		// to startup because of an error. Only applies on Debian 7.
 		time.Sleep(5 * time.Second)
 
-		return errAllComponentsDisabled
+		return ErrAllComponentsDisabled
 	}
 
 	if !config.IsSet("api_key") {
@@ -346,8 +353,6 @@ func StopAgent(log log.Component) {
 
 func setupInternalProfiling(config config.Component) error {
 	if config.GetBool(secAgentKey("internal_profiling.enabled")) {
-		v, _ := version.Agent()
-
 		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
 		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
 
@@ -363,7 +368,7 @@ func setupInternalProfiling(config config.Component) error {
 		}
 
 		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
-		tags = append(tags, fmt.Sprintf("version:%v", v))
+		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
 
 		profSettings := profiling.Settings{
 			ProfilingURL:         site,

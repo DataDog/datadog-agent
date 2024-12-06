@@ -113,7 +113,7 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 	state = s.host.State()
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
 }
 
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
@@ -348,6 +348,10 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)
 
 		// ensure experiment is running
+		s.host.WaitForUnitActive(
+			"datadog-agent-trace-exp.service",
+			"datadog-agent-process-exp.service",
+		)
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(traceUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(processUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(securityUnitXP))
@@ -370,7 +374,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
 				Started(processUnit).
-				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
+				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)
@@ -418,7 +422,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 	state = s.host.State()
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
 
 	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
 }
@@ -426,6 +430,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
 	// create /opt/datadog-agent to simulate a disabled agent
 	s.host.Run("sudo mkdir -p /opt/datadog-agent")
+	defer func() { s.host.Run("sudo rm -rf /opt/datadog-agent") }()
 
 	// install OCI agent
 	s.RunInstallScript(envForceInstall("datadog-agent"))
@@ -447,6 +452,9 @@ func (s *packageAgentSuite) purgeAgentDebInstall() {
 	default:
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 	}
+	// Make sure everything is cleaned up -- there are tests where the package is
+	// removed but not purged so the directory remains
+	s.Env().RemoteHost.Execute("sudo rm -rf /opt/datadog-agent")
 }
 
 func (s *packageAgentSuite) installDebRPMAgent() {

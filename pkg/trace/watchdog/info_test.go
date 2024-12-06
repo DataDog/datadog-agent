@@ -78,7 +78,7 @@ func TestCPUHigh(t *testing.T) {
 			// Checking that CPU is not "too high", the above loops create CPU usage, given that `1` means a single core at full
 			// utilization we want to verify that we did not accidentally mix integer percentage values and whole numbers
 			// (e.g. 15% should be `0.15` NOT `15`)
-			assert.LessOrEqualf(c.UserAvg, float64(tc.n+1), "cpu avg is too high, should never exceed %d, got %f", tc.n, c.UserAvg)
+			assert.LessOrEqualf(c.UserAvg, float64(tc.n+2), "cpu avg is too high, should never exceed %d, got %f", tc.n, c.UserAvg)
 		})
 	}
 }

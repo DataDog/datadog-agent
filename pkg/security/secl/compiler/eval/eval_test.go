@@ -41,7 +41,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	rule := NewRule("id1", expr, opts)
 
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 
 	if err := rule.Parse(pc); err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
@@ -608,7 +608,7 @@ func TestConstants(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -638,7 +638,7 @@ func TestMacroList(t *testing.T) {
 
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -677,7 +677,7 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -738,7 +738,7 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro1, err := NewMacro(
@@ -817,13 +817,15 @@ func TestRegisterSyntaxError(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: false},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA"`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[B].value == "AAA"`, Expected: false},
+		{Expr: `process.list[A].key == 10 && process.array[A].value == "AAA"`, Expected: false},
 		{Expr: `process.list[].key == 10 && process.list.value == "AAA"`, Expected: false},
-		{Expr: `process.list[_].key == 10 && process.list.value == "AAA"`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list.value == "AAA"`, Expected: true},
 		{Expr: `process.list.key[] == 10 && process.list.value == "AAA"`, Expected: false},
 		{Expr: `process[].list.key == 10 && process.list.value == "AAA"`, Expected: false},
 		{Expr: `[]process.list.key == 10 && process.list.value == "AAA"`, Expected: false},
-		//{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA" && process.array[B].key == 10 && process.array[B].value == "AAA"`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -853,85 +855,90 @@ func TestRegister(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.list[_].key == 10`, Expected: true},
-		{Expr: `process.list[_].key == 9999`, Expected: false},
-		{Expr: `process.list[_].key != 10`, Expected: false},
-		{Expr: `process.list[_].key != 9999`, Expected: true},
+		{Expr: `process.list[A].key == 10`, Expected: true},
+		{Expr: `process.list[A].key == 9999`, Expected: false},
+		{Expr: `process.list[A].key != 10`, Expected: true},
+		{Expr: `process.list.key != 10`, Expected: false},
+		{Expr: `process.list[A].key != 9999`, Expected: true},
+		{Expr: `process.list[A].key >= 200`, Expected: true},
+		{Expr: `process.list[A].key > 100`, Expected: true},
+		{Expr: `process.list[A].key <= 200`, Expected: true},
+		{Expr: `process.list[A].key < 100`, Expected: true},
 
-		{Expr: `process.list[_].key >= 200`, Expected: true},
-		{Expr: `process.list[_].key > 100`, Expected: true},
-		{Expr: `process.list[_].key <= 200`, Expected: true},
-		{Expr: `process.list[_].key < 100`, Expected: true},
+		{Expr: `10 == process.list[A].key`, Expected: true},
+		{Expr: `9999 == process.list[A].key`, Expected: false},
+		{Expr: `10 != process.list[A].key`, Expected: true},
+		{Expr: `9999 != process.list[A].key`, Expected: true},
 
-		{Expr: `10 == process.list[_].key`, Expected: true},
-		{Expr: `9999 == process.list[_].key`, Expected: false},
-		{Expr: `10 != process.list[_].key`, Expected: false},
-		{Expr: `9999 != process.list[_].key`, Expected: true},
+		{Expr: `9999 in process.list[A].key`, Expected: false},
+		{Expr: `9999 not in process.list[A].key`, Expected: true},
+		{Expr: `10 in process.list[A].key`, Expected: true},
+		{Expr: `10 not in process.list[A].key`, Expected: true},
 
-		{Expr: `9999 in process.list[_].key`, Expected: false},
-		{Expr: `9999 not in process.list[_].key`, Expected: true},
-		{Expr: `10 in process.list[_].key`, Expected: true},
-		{Expr: `10 not in process.list[_].key`, Expected: false},
+		{Expr: `process.list[A].key > 10`, Expected: true},
+		{Expr: `process.list[A].key > 9999`, Expected: false},
+		{Expr: `process.list[A].key < 10`, Expected: false},
+		{Expr: `process.list[A].key < 9999`, Expected: true},
 
-		{Expr: `process.list[_].key > 10`, Expected: true},
-		{Expr: `process.list[_].key > 9999`, Expected: false},
-		{Expr: `process.list[_].key < 10`, Expected: false},
-		{Expr: `process.list[_].key < 9999`, Expected: true},
+		{Expr: `5 < process.list[A].key`, Expected: true},
+		{Expr: `9999 < process.list[A].key`, Expected: false},
+		{Expr: `10 > process.list[A].key`, Expected: false},
+		{Expr: `9999 > process.list[A].key`, Expected: true},
 
-		{Expr: `5 < process.list[_].key`, Expected: true},
-		{Expr: `9999 < process.list[_].key`, Expected: false},
-		{Expr: `10 > process.list[_].key`, Expected: false},
-		{Expr: `9999 > process.list[_].key`, Expected: true},
+		{Expr: `true in process.array[A].flag`, Expected: true},
+		{Expr: `false not in process.array[A].flag`, Expected: false},
 
-		{Expr: `true in process.array[_].flag`, Expected: true},
-		{Expr: `false not in process.array[_].flag`, Expected: false},
+		{Expr: `process.array[A].flag == true`, Expected: true},
+		{Expr: `process.array[A].flag != false`, Expected: false},
 
-		{Expr: `process.array[_].flag == true`, Expected: true},
-		{Expr: `process.array[_].flag != false`, Expected: false},
+		{Expr: `"AAA" in process.list[A].value`, Expected: true},
+		{Expr: `"ZZZ" in process.list[A].value`, Expected: false},
+		{Expr: `"AAA" not in process.list[A].value`, Expected: true},
+		{Expr: `"ZZZ" not in process.list[A].value`, Expected: true},
 
-		{Expr: `"AAA" in process.list[_].value`, Expected: true},
-		{Expr: `"ZZZ" in process.list[_].value`, Expected: false},
-		{Expr: `"AAA" not in process.list[_].value`, Expected: false},
-		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},
+		{Expr: `~"AA*" in process.list[A].value`, Expected: true},
+		{Expr: `~"ZZ*" in process.list[A].value`, Expected: false},
+		{Expr: `~"AA*" not in process.list[A].value`, Expected: true},
+		{Expr: `~"ZZ*" not in process.list[A].value`, Expected: true},
 
-		{Expr: `~"AA*" in process.list[_].value`, Expected: true},
-		{Expr: `~"ZZ*" in process.list[_].value`, Expected: false},
-		{Expr: `~"AA*" not in process.list[_].value`, Expected: false},
-		{Expr: `~"ZZ*" not in process.list[_].value`, Expected: true},
+		{Expr: `r"[A]{1,3}" in process.list[A].value`, Expected: true},
+		{Expr: `process.list[A].value in [r"[A]{1,3}", "nnnnn"]`, Expected: true},
 
-		{Expr: `r"[A]{1,3}" in process.list[_].value`, Expected: true},
-		{Expr: `process.list[_].value in [r"[A]{1,3}", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value == ~"AA*"`, Expected: true},
+		{Expr: `process.list[A].value == ~"ZZ*"`, Expected: false},
+		{Expr: `process.list[A].value != ~"AA*"`, Expected: true},
+		{Expr: `process.list[A].value != ~"ZZ*"`, Expected: true},
 
-		{Expr: `process.list[_].value == ~"AA*"`, Expected: true},
-		{Expr: `process.list[_].value == ~"ZZ*"`, Expected: false},
-		{Expr: `process.list[_].value != ~"AA*"`, Expected: false},
-		{Expr: `process.list[_].value != ~"ZZ*"`, Expected: true},
+		{Expr: `process.list[A].value =~ "AA*"`, Expected: true},
+		{Expr: `process.list[A].value =~ "ZZ*"`, Expected: false},
+		{Expr: `process.list[A].value !~ "AA*"`, Expected: true},
+		{Expr: `process.list[A].value !~ "ZZ*"`, Expected: true},
 
-		{Expr: `process.list[_].value =~ "AA*"`, Expected: true},
-		{Expr: `process.list[_].value =~ "ZZ*"`, Expected: false},
-		{Expr: `process.list[_].value !~ "AA*"`, Expected: false},
-		{Expr: `process.list[_].value !~ "ZZ*"`, Expected: true},
+		{Expr: `process.list[A].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value in ["~zzzz", "AAA", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value in ["~zzzz", "AA*", "nnnnn"]`, Expected: false},
 
-		{Expr: `process.list[_].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
-		{Expr: `process.list[_].value in ["~zzzz", ~"AA*", "nnnnn"]`, Expected: true},
-		{Expr: `process.list[_].value in ["~zzzz", "AAA", "nnnnn"]`, Expected: true},
-		{Expr: `process.list[_].value in ["~zzzz", "AA*", "nnnnn"]`, Expected: false},
+		{Expr: `process.list[A].value in [~"ZZ*", "nnnnn"]`, Expected: false},
+		{Expr: `process.list[A].value not in [~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value not in [~"ZZ*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value not in [~"ZZ*", "AAA", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[A].value not in [~"ZZ*", ~"AA*", "nnnnn"]`, Expected: true},
 
-		{Expr: `process.list[_].value in [~"ZZ*", "nnnnn"]`, Expected: false},
-		{Expr: `process.list[_].value not in [~"AA*", "nnnnn"]`, Expected: false},
-		{Expr: `process.list[_].value not in [~"ZZ*", "nnnnn"]`, Expected: true},
-		{Expr: `process.list[_].value not in [~"ZZ*", "AAA", "nnnnn"]`, Expected: false},
-		{Expr: `process.list[_].value not in [~"ZZ*", ~"AA*", "nnnnn"]`, Expected: false},
-
-		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: true},
-		{Expr: `process.list[_].key == 9999 && process.list[_].value == "AAA"`, Expected: false},
-		{Expr: `process.list[_].key == 100 && process.list[_].value == "BBB"`, Expected: true},
-		{Expr: `process.list[_].key == 200 && process.list[_].value == "CCC"`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA"`, Expected: true},
+		{Expr: `process.list[A].key == 9999 && process.list[A].value == "AAA"`, Expected: false},
+		{Expr: `process.list[A].key == 100 && process.list[A].value == "BBB"`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[A].value == "CCC"`, Expected: true},
 		{Expr: `process.list.key == 200 && process.list.value == "AAA"`, Expected: true},
-		{Expr: `process.list[_].key == 10 && process.list.value == "AAA"`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA"`, Expected: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == "BBB"`, Expected: false},
+		{Expr: `process.list[A].key == 100 && process.list[A].value == "BBB"`, Expected: true},
+		{Expr: `process.list.key == 10 && process.list.value == "BBB"`, Expected: true},
 
-		{Expr: `process.array[_].key == 1000 && process.array[_].value == "EEEE"`, Expected: true},
-		{Expr: `process.array[_].key == 1002 && process.array[_].value == "EEEE"`, Expected: true},
+		{Expr: `process.array[A].key == 1000 && process.array[A].value == "EEEE"`, Expected: true},
+		{Expr: `process.array[A].key == 1002 && process.array[A].value == "EEEE"`, Expected: false},
+
+		{Expr: `process.array[A].key == 1000`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -966,12 +973,11 @@ func TestRegisterPartial(t *testing.T) {
 		Field       Field
 		IsDiscarder bool
 	}{
-		{Expr: `process.list[_].key == 10 && process.list[_].value == "AA"`, Field: "process.list.key", IsDiscarder: false},
-		{Expr: `process.list[_].key == 55 && process.list[_].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
-		{Expr: `process.list[_].key == 55 && process.list[_].value == "AA"`, Field: "process.list.value", IsDiscarder: false},
-		{Expr: `process.list[_].key == 10 && process.list[_].value == "ZZZ"`, Field: "process.list.value", IsDiscarder: true},
-		//{Expr: `process.list[A].key == 10 && process.list[B].value == "ZZZ"`, Field: "process.list.key", IsDiscarder: false},
-		//{Expr: `process.list[A].key == 55 && process.list[B].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == "AA"`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[A].key == 55 && process.list[A].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[A].key in [55, 10] && process.list[A].value == "AA"`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[A].key == 55 && process.list[A].value == "AA"`, Field: "process.list.value", IsDiscarder: false},
+		{Expr: `process.list[A].key == 10 && process.list[A].value == "ZZZ"`, Field: "process.list.value", IsDiscarder: true},
 	}
 
 	ctx := NewContext(event)
@@ -1012,8 +1018,8 @@ func TestOptimizer(t *testing.T) {
 		Expr      string
 		Evaluated func() bool
 	}{
-		{Expr: `process.list[_].key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
-		{Expr: `process.gid == 55 && process.list[_].key == 44`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.list[A].key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.gid == 55 && process.list[A].key == 44`, Evaluated: func() bool { return event.listEvaluated }},
 		{Expr: `process.uid in [66, 77, 88] && process.gid == 55`, Evaluated: func() bool { return event.uidEvaluated }},
 		{Expr: `process.gid == 55 && process.uid in [66, 77, 88]`, Evaluated: func() bool { return event.uidEvaluated }},
 	}
@@ -1553,7 +1559,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	if err := rule.GenEvaluator(model, pc); err != nil {
 		b.Fatal(err)
 	}

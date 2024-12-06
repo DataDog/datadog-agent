@@ -11,8 +11,6 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	//nolint:revive // TODO(CINT) Fix revive linter
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -45,10 +43,10 @@ func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresou
 }
 
 type crdFactory struct {
-	client interface{}
+	client clientset.Interface
 }
 
-func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *crdFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionAnnotationsName,
@@ -56,8 +54,8 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", c.Annotations, allowAnnotationsList)
+			wrapCustomResourceDefinition(func(c *v1.CustomResourceDefinition) *metric.Family {
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", c.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -75,8 +73,8 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", c.Labels, allowLabelsList)
+			wrapCustomResourceDefinition(func(c *v1.CustomResourceDefinition) *metric.Family {
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", c.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -94,7 +92,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
-			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
+			wrapCustomResourceDefinition(func(c *v1.CustomResourceDefinition) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(c.Status.Conditions)*len(conditionStatusesExtensionV1))
 
 				for _, c := range c.Status.Conditions {
@@ -120,36 +118,37 @@ func (f *crdFactory) Name() string {
 	return "customresourcedefinitions"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *crdFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *crdFactory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ExpectedType() interface{} {
-	return &crd.CustomResourceDefinition{}
+	return &v1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *crdFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *crdFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.ApiextensionsV1().CustomResourceDefinitions().List(context.TODO(), opts)
+			return client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.ApiextensionsV1().CustomResourceDefinitions().Watch(context.TODO(), opts)
+			return client.ApiextensionsV1().CustomResourceDefinitions().Watch(ctx, opts)
 		},
 	}
 }
 
 func wrapCustomResourceDefinition(f func(*v1.CustomResourceDefinition) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		crd := obj.(*crd.CustomResourceDefinition)
+		crd := obj.(*v1.CustomResourceDefinition)
 
 		metricFamily := f(crd)
 

@@ -94,6 +94,8 @@ func DeviceOIDFromPDU(deviceID string, snmpPDU *gosnmp.SnmpPDU) (*DeviceOID, err
 	}
 	return &DeviceOID{
 		DeviceID: deviceID,
-		PDU:      pdu,
+		OID:      pdu.OID,
+		Type:     pdu.Type.String(),
+		Value:    pdu.Value,
 	}, nil
 }

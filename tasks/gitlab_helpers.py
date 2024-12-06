@@ -1,6 +1,4 @@
-"""
-Helper for generating links to CI Visibility for Gitlab CI jobs
-"""
+"""Helper tasks related to the gitlab CI (website, API, configuration etc.)."""
 
 from __future__ import annotations
 
@@ -33,11 +31,12 @@ from tasks.libs.common.utils import experimental
 
 @task
 def generate_ci_visibility_links(_ctx, output: str | None):
+    """Generates links to CI Visibility for the current job.
+
+    Usage:
+        $ inv gitlab.generate-ci-visibility-links
     """
-    Generate links to CI Visibility for the current job
-    usage deva gitlab.generate-ci-visibility-links
-    Generated file
-    """
+
     ci_job_id = os.environ.get("CI_JOB_ID")
     if not ci_job_id:
         print(
@@ -105,9 +104,8 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
 
 
 def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """
-    Print one or more Gitlab objects in JSON and potentially query them with jq
-    """
+    """Prints one or more Gitlab objects in JSON and potentially query them with jq."""
+
     repo = get_gitlab_repo(repo)
     ids = [i for i in ids.split(",") if i]
     for id in ids:
@@ -126,8 +124,12 @@ def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: 
 
 @task
 def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """
-    Print one or more Gitlab pipelines in JSON and potentially query them with jq
+    """Prints one or more Gitlab pipelines in JSON and potentially query them with jq.
+
+    Usage:
+        $ inv gitlab.print-pipeline 1234
+        $ inv gitlab.print-pipeline 1234 -j .source
+        $ inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
     """
 
     def get_pipeline(repo, id):
@@ -138,8 +140,14 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
 
 @task
 def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """
-    Print one or more Gitlab jobs in JSON and potentially query them with jq
+    """Prints one or more Gitlab jobs in JSON and potentially query them with jq.
+
+    Usage:
+        $ inv gitlab.print-job 1234
+        $ inv gitlab.print-job 1234 -j '.commit.id'
+        $ inv gitlab.print-job 1234 -j '.pipeline.id'
+        $ inv gitlab.print-job 1234 -j '.web_url.stage,.ref,.duration,.status'
+        $ inv gitlab.print-job 1234 -j '.artifacts | length'
     """
 
     def get_job(repo, id):
@@ -153,18 +161,20 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
     'This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored'
 )
 def gen_config_subset(ctx, jobs, dry_run=False, force=False):
-    """
-    Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs `jobs`.
+    """Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs `jobs`.
+
     That is, the resulting pipeline will have `jobs` as last jobs to run.
 
-    Warning: This doesn't take implicit dependencies into account (stages order), only explicit dependencies (job `needs` / `dependencies`).
+    Warning:
+        This doesn't take implicit dependencies into account (stages order), only explicit dependencies (job `needs` / `dependencies`).
 
-    - dry_run: Print only the new configuration without writing it to the .gitlab-ci.yml file.
-    - force: Force the update of the .gitlab-ci.yml file even if it has been modified.
+    Args:
+        dry_run: Print only the new configuration without writing it to the .gitlab-ci.yml file.
+        force: Force the update of the .gitlab-ci.yml file even if it has been modified.
 
     Example:
-    $ inv gitlab.gen-config-subset tests_deb-arm64-py3
-    $ inv gitlab.gen-config-subset tests_rpm-arm64-py3,tests_deb-arm64-py3 --dry-run
+        $ inv gitlab.gen-config-subset tests_deb-arm64-py3
+        $ inv gitlab.gen-config-subset tests_rpm-arm64-py3,tests_deb-arm64-py3 --dry-run
     """
 
     jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']
@@ -224,9 +234,8 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
 
 @task
 def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
-    """
-    Print the trace (the log) of a Gitlab job
-    """
+    """Prints the trace (the log) of a Gitlab job."""
+
     repo = get_gitlab_repo(repo)
     trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
 
@@ -245,17 +254,20 @@ def print_ci(
     git_ref: str | None = None,
     with_lint: bool = True,
 ):
-    """
-    Prints the full gitlab ci configuration.
+    """Prints the full gitlab ci configuration.
 
-    - job: If provided, print only one job
-    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
-    - keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
-    - expand_matrix: Will expand matrix jobs into multiple jobs
-    - with_lint: If False, do not lint the configuration
-    - git_ref: If provided, use this git reference to fetch the configuration
-    - NOTE: This requires a full api token access level to the repository
+    Args:
+        job: If provided, print only one job
+        clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
+        keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
+        expand_matrix: Will expand matrix jobs into multiple jobs
+        with_lint: If False, do not lint the configuration
+        git_ref: If provided, use this git reference to fetch the configuration
+
+    Notes:
+        This requires a full api token access level to the repository
     """
+
     yml = get_gitlab_ci_configuration(
         ctx,
         input_file,
@@ -273,9 +285,8 @@ def print_ci(
 
 @task
 def print_entry_points(ctx):
-    """
-    Print gitlab ci configuration entry points.
-    """
+    """Prints gitlab ci configuration entry points."""
+
     print(color_message('info:', Color.BLUE), 'Fetching entry points...')
     entry_points = get_all_gitlab_ci_configurations(ctx, filter_configs=True, clean_configs=True)
 
@@ -293,8 +304,12 @@ def compute_gitlab_ci_config(
     after_file: str = 'after.gitlab-ci.yml',
     diff_file: str = 'diff.gitlab-ci.yml',
 ):
-    """
-    Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
+    """Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
+
+    The resulting files can be loaded via yaml and the diff file can be used to instantiate a MultiGitlabCIDiff object.
+
+    Side effects:
+        before_file, after_file and diff_file will be written with the corresponding configuration.
     """
 
     before_config, after_config, diff = compute_gitlab_ci_config_diff(ctx, before, after)

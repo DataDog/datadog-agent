@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -95,7 +95,7 @@ func (suite *AgentTestSuite) SetupTest() {
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	fakeTagger := taggerMock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 }
 
@@ -106,7 +106,6 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsSent.Set(0)
 	metrics.DestinationErrors.Set(0)
 	metrics.DestinationLogsDropped.Init()
-	suite.tagger.(tagger.Mock).ResetTagger()
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
@@ -126,8 +125,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		inventoryagentimpl.MockModule(),
 	))
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(suite.T())
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -389,9 +387,9 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
 			if test.enabled {
-				assert.NotNil(suite.T(), provides.FlareProvider.Callback)
+				assert.NotNil(suite.T(), provides.FlareProvider.FlareFiller.Callback)
 			} else {
-				assert.Nil(suite.T(), provides.FlareProvider.Callback)
+				assert.Nil(suite.T(), provides.FlareProvider.FlareFiller)
 			}
 		})
 	}

@@ -852,6 +852,9 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 	// handle overweight dumps
 	for _, ad := range dumps {
+		// restart a new dump for the same workload
+		newDump := adm.loadController.NextPartialDump(ad)
+
 		// stop the dump but do not release the cgroup
 		ad.Finalize(false)
 		seclog.Infof("tracing paused for [%s]", ad.GetSelectorStr())
@@ -866,9 +869,6 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		} else {
 			adm.emptyDropped.Inc()
 		}
-
-		// restart a new dump for the same workload
-		newDump := adm.loadController.NextPartialDump(ad)
 
 		adm.Lock()
 		if err := adm.insertActivityDump(newDump); err != nil {

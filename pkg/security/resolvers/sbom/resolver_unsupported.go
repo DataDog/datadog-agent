@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -36,7 +37,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(_ *cgroupModel.CacheEntry) {
 }
 
 // ResolvePackage returns the Package that owns the provided file
-func (r *Resolver) ResolvePackage(_ string, _ *model.FileEvent) *Package {
+func (r *Resolver) ResolvePackage(_ containerutils.ContainerID, _ *model.FileEvent) *Package {
 	return nil
 }
 
@@ -51,6 +52,6 @@ func (r *Resolver) Start(_ context.Context) error {
 }
 
 // RefreshSBOM regenerates a SBOM for a container
-func (r *Resolver) RefreshSBOM(_ string) error {
+func (r *Resolver) RefreshSBOM(_ containerutils.ContainerID) error {
 	return nil
 }

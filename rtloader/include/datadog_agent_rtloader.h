@@ -28,17 +28,7 @@ typedef struct rtloader_s rtloader_t;
 struct rtloader_pyobject_s;
 typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 
-// FACTORIES
-/*! \fn rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-    \brief Factory function to load the python2 backend DLL and create its relevant RtLoader
-    instance.
-    \param python_home A C-string with the path to the PYTHONHOME for said DLL.
-    \param python_exe A C-string with the path to the python interpreter.
-    \param error A C-string pointer output parameter to return error messages.
-    \return A rtloader_t * pointer to the RtLoader instance.
-    \sa rtloader_t
-*/
-DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *python_home, const char *python_exe, char **error);
+// FACTORY
 /*! \fn rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python3 backend DLL and create its relevant RtLoader
     instance.

@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 )
 
-func TestConfigSetHandler(t *testing.T) {
+func TestConfigSetHandlerUnauthenticated(t *testing.T) {
 	var r test.Runner
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
@@ -41,8 +41,6 @@ func TestConfigSetHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	logstr = r.AgentLog()
-	assert.NotContains(t, logstr, "Switched log level to")
-	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	resp.Body.Close()
 }

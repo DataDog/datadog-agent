@@ -9,7 +9,7 @@ package dwarfutils
 import (
 	"debug/dwarf"
 
-	"github.com/go-delve/delve/pkg/dwarf/util"
+	delvedwarf "github.com/go-delve/delve/pkg/dwarf"
 )
 
 // CompileUnits is a collection of compile units from a binary,
@@ -55,7 +55,7 @@ func (c *CompileUnits) FindCompileUnit(pc uint64) *CompileUnit {
 // LoadCompileUnits scans the debug information entries (DIEs) in a binary
 // for a list of compile units.
 func LoadCompileUnits(dwarfData *dwarf.Data, debugInfoBytes []byte) (*CompileUnits, error) {
-	offsetToVersion := util.ReadUnitVersions(debugInfoBytes)
+	offsetToVersion := delvedwarf.ReadUnitVersions(debugInfoBytes)
 	entryReader := dwarfData.Reader()
 	compileUnits := []CompileUnit{}
 	for entry, err := entryReader.Next(); entry != nil; entry, err = entryReader.Next() {

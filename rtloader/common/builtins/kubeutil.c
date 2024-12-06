@@ -19,22 +19,12 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, KUBEUTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_kubeutil(void)
 {
     return PyModule_Create(&module_def);
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init_kubeutil()
-{
-    module = Py_InitModule(KUBEUTIL_MODULE_NAME, methods);
-}
-#endif
 
 void _set_get_connection_info_cb(cb_get_connection_info_t cb)
 {

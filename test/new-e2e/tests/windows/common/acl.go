@@ -329,30 +329,25 @@ func placeACLHelpers(host *components.RemoteHost) error {
 //
 // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-acl
 func GetSecurityInfoForPath(host *components.RemoteHost, path string) (ObjectSecurity, error) {
-	var s ObjectSecurity
-
-	err := placeACLHelpers(host)
-	if err != nil {
-		return s, err
-	}
-
-	// Get the ACL information
 	cmd := fmt.Sprintf(`. %s; Get-Acl -Audit -Path '%s' | ConvertTo-ACLDTO`, aclHelpersPath, path)
-	output, err := host.Execute(cmd)
-	if err != nil {
-		return s, err
-	}
+	return objectSecurityDTOFromCommand(host, cmd)
+}
 
-	err = json.Unmarshal([]byte(output), &s)
-	if err != nil {
-		return s, fmt.Errorf("failed to unmarshal ACL information: %w\n%s", err, output)
-	}
-
-	return s, nil
+// GetNamedPipeSecurityInfo returns the security information for the given named pipe
+//   - Example pipe name: \\.\pipe\mypipe
+//   - Example pipe name: mypipe
+func GetNamedPipeSecurityInfo(host *components.RemoteHost, pipeName string) (ObjectSecurity, error) {
+	cmd := fmt.Sprintf(`. %s; Get-PipeSecurity('%s') | ConvertTo-ACLDTO`, aclHelpersPath, pipeName)
+	return objectSecurityDTOFromCommand(host, cmd)
 }
 
 // GetServiceSecurityInfo returns the security information for the given service
 func GetServiceSecurityInfo(host *components.RemoteHost, serviceName string) (ObjectSecurity, error) {
+	cmd := fmt.Sprintf(`. %s; GetServiceSDDL('%s') | ConvertTo-ServiceSecurityDTO`, aclHelpersPath, serviceName)
+	return objectSecurityDTOFromCommand(host, cmd)
+}
+
+func objectSecurityDTOFromCommand(host *components.RemoteHost, cmd string) (ObjectSecurity, error) {
 	var s ObjectSecurity
 
 	err := placeACLHelpers(host)
@@ -361,7 +356,6 @@ func GetServiceSecurityInfo(host *components.RemoteHost, serviceName string) (Ob
 	}
 
 	// Get the ACL information
-	cmd := fmt.Sprintf(`. %s; GetServiceSDDL('%s') | ConvertTo-ServiceSecurityDTO`, aclHelpersPath, serviceName)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return s, err

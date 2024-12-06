@@ -214,6 +214,10 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
+			if conf.OTLPReceiver.SpanNameAsResourceName {
+				// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameAsResourceName overrides it
+				conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+			}
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
 			conf.Ignore["resource"] = tt.ignoreRes
 			if !tt.legacyTopLevel {

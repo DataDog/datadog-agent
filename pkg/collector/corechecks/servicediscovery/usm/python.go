@@ -8,6 +8,7 @@ package usm
 import (
 	"io/fs"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -19,7 +20,8 @@ const (
 )
 
 type pythonDetector struct {
-	ctx DetectionContext
+	ctx      DetectionContext
+	gunicorn detector
 }
 
 type gunicornDetector struct {
@@ -31,10 +33,18 @@ func newGunicornDetector(ctx DetectionContext) detector {
 }
 
 func newPythonDetector(ctx DetectionContext) detector {
-	return &pythonDetector{ctx: ctx}
+	return &pythonDetector{ctx: ctx, gunicorn: newGunicornDetector(ctx)}
 }
 
 func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
+	// When Gunicorn is invoked via its wrapper script the command line ends up
+	// looking like the example below, so redirect to the Gunicorn detector for
+	// this case:
+	//  /usr/bin/python3 /usr/bin/gunicorn foo:app()
+	if len(args) > 0 && filepath.Base(args[0]) == "gunicorn" {
+		return p.gunicorn.detect(args[1:])
+	}
+
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool
@@ -46,11 +56,11 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || isEnvVariable
 
 		if moduleFlag {
-			return NewServiceMetadata(a), true
+			return NewServiceMetadata(a, CommandLine), true
 		}
 
 		if !shouldSkipArg {
-			wd, _ := workingDirFromEnvs(p.ctx.envs)
+			wd, _ := workingDirFromEnvs(p.ctx.Envs)
 			absPath := abs(a, wd)
 			fi, err := fs.Stat(p.ctx.fs, absPath)
 			if err != nil {
@@ -60,18 +70,31 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 			var filename string
 			if !fi.IsDir() {
 				stripped, filename = path.Split(stripped)
+				// If the path is a root level file, return the filename
+				if stripped == "" {
+					return NewServiceMetadata(p.findNearestTopLevel(filename), CommandLine), true
+				}
 			}
 			if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
-				return NewServiceMetadata(value), true
+				return NewServiceMetadata(value, Python), true
 			}
-			return NewServiceMetadata(p.findNearestTopLevel(stripped)), true
+
+			name := p.findNearestTopLevel(stripped)
+			// If we have generic/useless directory names, fallback to the filename.
+			if name == "." || name == "/" || name == "bin" || name == "sbin" {
+				name = p.findNearestTopLevel(filename)
+			}
+
+			return NewServiceMetadata(name, CommandLine), true
 		}
 
 		if hasFlagPrefix && a == "-m" {
 			moduleFlag = true
 		}
 
-		prevArgIsFlag = hasFlagPrefix
+		// The -u (unbuffered) option doesn't take an argument so we should
+		// consider the next arg even though this one is a flag.
+		prevArgIsFlag = hasFlagPrefix && a != "-u"
 	}
 
 	return ServiceMetadata{}, false
@@ -97,7 +120,8 @@ func (p pythonDetector) deducePackageName(fp string, fn string) (string, bool) {
 
 }
 
-// findNearestTopLevel returns the top level dir the contains a .py file starting walking up from fp
+// findNearestTopLevel returns the top level dir the contains a .py file starting walking up from fp.
+// If fp is a file, it returns the filename without the extension.
 func (p pythonDetector) findNearestTopLevel(fp string) string {
 	up := path.Dir(fp)
 	current := fp
@@ -110,27 +134,28 @@ func (p pythonDetector) findNearestTopLevel(fp string) string {
 		current = up
 		up = path.Dir(current)
 	}
-	return path.Base(last)
+	filename := path.Base(last)
+	return strings.TrimSuffix(filename, path.Ext(filename))
 }
 
 func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
-	if fromEnv, ok := extractEnvVar(g.ctx.envs, gunicornEnvCmdArgs); ok {
+	if fromEnv, ok := extractEnvVar(g.ctx.Envs, gunicornEnvCmdArgs); ok {
 		name, ok := extractGunicornNameFrom(strings.Split(fromEnv, " "))
 		if ok {
-			return NewServiceMetadata(name), true
+			return NewServiceMetadata(name, Gunicorn), true
 		}
 	}
-	if wsgiApp, ok := extractEnvVar(g.ctx.envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
-		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp)), true
+	if wsgiApp, ok := extractEnvVar(g.ctx.Envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
+		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp), Gunicorn), true
 	}
 
 	if name, ok := extractGunicornNameFrom(args); ok {
 		// gunicorn replaces the cmdline with something like "gunicorn: master
 		// [package]", so strip out the square brackets.
 		name = strings.Trim(name, "[]")
-		return NewServiceMetadata(name), true
+		return NewServiceMetadata(name, CommandLine), true
 	}
-	return NewServiceMetadata("gunicorn"), true
+	return NewServiceMetadata("gunicorn", CommandLine), true
 }
 
 func extractGunicornNameFrom(args []string) (string, bool) {

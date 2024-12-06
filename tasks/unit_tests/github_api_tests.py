@@ -56,3 +56,35 @@ class TestContainsReleaseNote(unittest.TestCase):
 
         github = GithubAPI(repository="org/test", public_repo=True)
         self.assertEqual(github._organization, "org")
+
+
+class TestUpdateReviewComplexityLabel(unittest.TestCase):
+    @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
+    def test_add_label(self, _):
+        github = GithubAPI(repository="test", public_repo=True)
+        with patch.object(github, '_repository') as mock_repo:
+            mock_pr = mock_repo.get_pull.return_value
+            mock_pr.get_labels.return_value = [Label("changelog/no-changelog")]
+            github.update_review_complexity_labels(1, "short review")
+            mock_pr.remove_from_labels.assert_not_called()
+            mock_pr.add_to_labels.assert_called_with("short review")
+
+    @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
+    def test_add_same_label(self, _):
+        github = GithubAPI(repository="test", public_repo=True)
+        with patch.object(github, '_repository') as mock_repo:
+            mock_pr = mock_repo.get_pull.return_value
+            mock_pr.get_labels.return_value = [Label("changelog/no-changelog"), Label("short review")]
+            github.update_review_complexity_labels(1, "short review")
+            mock_pr.remove_from_labels.assert_not_called()
+            mock_pr.add_to_labels.assert_not_called()
+
+    @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
+    def test_add_new_label(self, _):
+        github = GithubAPI(repository="test", public_repo=True)
+        with patch.object(github, '_repository') as mock_repo:
+            mock_pr = mock_repo.get_pull.return_value
+            mock_pr.get_labels.return_value = [Label("changelog/no-changelog"), Label("short review")]
+            github.update_review_complexity_labels(1, "medium review")
+            mock_pr.remove_from_labels.assert_called_with("short review")
+            mock_pr.add_to_labels.assert_called_with("medium review")

@@ -22,19 +22,19 @@ var containerIDCoreChars = "0123456789abcdefABCDEF"
 
 func init() {
 	var prefixes []string
-	for prefix := range RuntimePrefixes {
-		prefixes = append(prefixes, prefix)
+	for _, runtimePrefix := range RuntimePrefixes {
+		prefixes = append(prefixes, runtimePrefix.prefix)
 	}
 	ContainerIDPatternStr = "(?:" + strings.Join(prefixes[:], "|") + ")?([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 }
 
-func isSystemdCgroup(cgroup string) bool {
-	return strings.HasSuffix(cgroup, ".service") || strings.HasSuffix(cgroup, ".scope")
+func isSystemdCgroup(cgroup CGroupID) bool {
+	return strings.HasSuffix(string(cgroup), ".service") || strings.HasSuffix(string(cgroup), ".scope")
 }
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
-func FindContainerID(s string) (string, uint64) {
+func FindContainerID(s CGroupID) (ContainerID, uint64) {
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
 		if isSystemdCgroup(s) {
@@ -69,19 +69,10 @@ func FindContainerID(s string) (string, uint64) {
 	// it starts or/and ends the initial string
 
 	cgroupID := s[match[0]:match[1]]
-	containerID, flags := GetContainerFromCgroup(cgroupID)
+	containerID, flags := getContainerFromCgroup(CGroupID(cgroupID))
 	if containerID == "" {
-		return cgroupID, uint64(flags)
+		return ContainerID(cgroupID), uint64(flags)
 	}
 
 	return containerID, uint64(flags)
-}
-
-// GetCGroupContext returns the cgroup ID and the sanitized container ID from a container id/flags tuple
-func GetCGroupContext(containerID ContainerID, cgroupFlags CGroupFlags) (CGroupID, ContainerID) {
-	cgroupID := GetCgroupFromContainer(containerID, cgroupFlags)
-	if !cgroupFlags.IsContainer() {
-		containerID = ""
-	}
-	return CGroupID(cgroupID), ContainerID(containerID)
 }

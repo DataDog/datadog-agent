@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
-package util
+package util //nolint:revive // TODO
 
 import (
 	"os"
@@ -70,6 +70,6 @@ func (fw *FileWatcher) Watch() (<-chan []byte, error) {
 	return updateChan, nil
 }
 
-func (fw *FileWatcher) Stop() {
+func (fw *FileWatcher) Stop() { //nolint:revive // TODO
 	fw.stop <- true
 }

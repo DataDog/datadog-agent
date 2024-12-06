@@ -11,6 +11,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func BenchmarkAddPositive(b *testing.B) {
+	m := NewCounter("foo")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Add(1)
+	}
+}
+
+func BenchmarkAddZero(b *testing.B) {
+	m := NewCounter("foo")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Add(0)
+	}
+}
+
 func TestNewMetric(t *testing.T) {
 	assert := assert.New(t)
 

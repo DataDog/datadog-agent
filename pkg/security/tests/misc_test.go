@@ -51,7 +51,7 @@ func TestOsOrigin(t *testing.T) {
 			return err
 		}
 		return os.Remove(testFile)
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_origin")
 	})
 }
@@ -81,7 +81,7 @@ func TestHostname(t *testing.T) {
 			return err
 		}
 		return os.Remove(testFile)
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_hostname")
 	})
 }

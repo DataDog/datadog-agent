@@ -11,12 +11,18 @@ import (
 
 // creditCard maintains credit card obfuscation state and processing.
 type creditCard struct {
-	luhn bool
+	luhn       bool
+	keepValues map[string]struct{}
 }
 
 func newCCObfuscator(config *CreditCardsConfig) *creditCard {
+	keepValues := make(map[string]struct{}, len(config.KeepValues))
+	for _, sk := range config.KeepValues {
+		keepValues[sk] = struct{}{}
+	}
 	return &creditCard{
-		luhn: config.Luhn,
+		luhn:       config.Luhn,
+		keepValues: keepValues,
 	}
 }
 
@@ -55,6 +61,9 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 		return val
 	}
 	if strings.HasPrefix(key, "_") {
+		return val
+	}
+	if _, ok := o.ccObfuscator.keepValues[key]; ok {
 		return val
 	}
 	if o.ccObfuscator.IsCardNumber(val) {

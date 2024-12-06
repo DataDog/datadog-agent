@@ -30,7 +30,7 @@ type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
 func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, statusComponent status.Component) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder(local)
+	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
 	if err != nil {
 		return "", err
 	}
@@ -69,6 +69,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                  //nolint:errcheck
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment) //nolint:errcheck
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                          //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)           //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)                                  //nolint:errcheck
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                           //nolint:errcheck
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                       //nolint:errcheck

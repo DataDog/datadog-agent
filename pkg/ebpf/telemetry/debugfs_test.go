@@ -41,6 +41,6 @@ func TestGetProbeStats(t *testing.T) {
 	require.Equal(t, uint64(549926224), stats["r_tcp_sendmsg_hits"])
 	require.Equal(t, uint64(549925022), stats["p_tcp_sendmsg_hits"])
 
-	stats = getProbeStats(0, testProfile)
+	stats = getProbeStats(1, testProfile)
 	require.Empty(t, stats)
 }

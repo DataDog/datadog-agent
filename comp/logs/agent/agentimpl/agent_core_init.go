@@ -10,6 +10,8 @@ package agentimpl
 import (
 	"time"
 
+	"github.com/spf13/afero"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -62,10 +64,11 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		a.flarecontroller,
 		a.tagger))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
-	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
+	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
+		afero.NewOsFs(),
 		a.sources, integrationsLogs))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -86,7 +86,7 @@ func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.L
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
 		Source:             source,
-		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID).String(), tagger),
+		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
 		dockerutil:         cli,
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 // Package ebpf provides utility for setting up and instrumenting the bpf code
 // used by dynamic instrumentation
@@ -127,7 +127,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 }
 
 // CompileBPFProgram compiles the code for a single probe associated with the process given by procInfo
-func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
+func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error { //nolint:revive // TODO
 	f := func(in io.Reader, out io.Writer) error {
 		fileContents, err := io.ReadAll(in)
 		if err != nil {
@@ -155,6 +155,7 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		return err
 	}
 	probe.InstrumentationInfo.BPFObjectFileReader = compiledOutput
+
 	return nil
 }
 
@@ -170,5 +171,5 @@ func getCFlags(config *ddebpf.Config) []string {
 }
 
 const (
-	compilationStepTimeout = 60 * time.Second
+	compilationStepTimeout = 60 * time.Second //nolint:unused // TODO
 )

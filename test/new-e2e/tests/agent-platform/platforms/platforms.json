@@ -3,12 +3,12 @@
         "x86_64": {
             "debian-9": "ami-0182559468c1975fe",
             "debian-10": "ami-067a196d70cb53732",
-            "debian-11": "ami-0607e701db389efe7",
-            "debian-12": "ami-07edaec601cf2b6d3"
+            "debian-11": "ami-0698acab5370075a9",
+            "debian-12": "ami-0eef9d92ec044bc94"
         },
         "arm64": {
             "debian-10": "ami-0b6ee4b8f4aa91fb4",
-            "debian-11": "ami-00988b9ead6afb0b1",
+            "debian-11": "ami-0eec63b0513577808",
             "debian-12": "ami-02aab8d5301cb8d68"
         }
     },
@@ -63,8 +63,8 @@
     },
     "suse": {
         "x86_64": {
-            "sles-12": "ami-08d21b039336d9351",
-            "sles-15": "ami-08f3662e2d5b3989a"
+            "sles-12": "ami-058c3f61e5f37c43f",
+            "sles-15": "ami-067dfda331f8296b0"
         },
         "arm64": {
             "sles-15": "ami-0d446ba26bbe19573"

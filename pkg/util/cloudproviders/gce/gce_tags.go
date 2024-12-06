@@ -101,6 +101,10 @@ func GetTags(ctx context.Context) ([]string, error) {
 		}
 	}
 
+	if providerKind := pkgconfigsetup.Datadog().GetString("provider_kind"); providerKind != "" {
+		tags = append(tags, fmt.Sprintf("provider_kind:%s", providerKind))
+	}
+
 	// save tags to the cache in case we exceed quotas later
 	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 

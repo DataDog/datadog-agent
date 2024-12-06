@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package kprobe
+package kprobe //nolint:revive // TODO
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"

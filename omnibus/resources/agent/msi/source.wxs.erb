@@ -205,8 +205,8 @@
                       Name="ConfigRoot" />
     </Property>
 
-  
-    
+
+
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
         <RegistryValue Root="HKLM"
@@ -247,51 +247,12 @@
 
         </Component>
         <Component Id="RTLOADERDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
-          <?if $(var.IncludePython2) = true ?>
-          <File Id="twodll"
-                Name="libdatadog-agent-two.dll"
-                Vital="yes"
-                KeyPath="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/libdatadog-agent-two.dll"/>
-          <?endif ?>
-          <?if $(var.IncludePython3) = true ?>
           <File Id="threedll"
                 Name="libdatadog-agent-three.dll"
                 Vital="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/libdatadog-agent-three.dll"/>
-            <?endif ?>
         </Component>
-
-        <?if $(var.IncludePython2) = true ?>
-        <Component Id="MSVCRUNTIME" Guid="30ce4f57-47ce-47c0-8564-e510d69787a9">
-
-            <Condition> <![CDATA[VersionNT <= 601]]> </Condition>
-            <File Id="msvcm90.dll"
-                Name="msvcm90.dll"
-                Vital="yes"
-                KeyPath="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/msvcm90.dll"/>
-            <File Id="msvcp90.dll"
-                Name="msvcp90.dll"
-                Vital="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/msvcp90.dll"/>
-            <File Id="msvcr90.dll"
-                Name="msvcr90.dll"
-                Vital="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/msvcr90.dll"/>
-            <File Id="Microsoft.VC90.CRT.manifest"
-                Name="Microsoft.VC90.CRT.manifest"
-                Vital="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/Microsoft.VC90.CRT.manifest"/>
-
-        </Component>
-        <?endif ?>
 
         <Directory Id="AGENT" Name="agent">
           <?if $(var.Platform) = x64 ?>
@@ -466,7 +427,7 @@
         </Component>
       </Directory>
     </DirectoryRef>
-    
+
     <InstallExecuteSequence>
       <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
 
@@ -516,23 +477,20 @@
         <?endif ?>
         <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
         <ComponentRef Id="CleanupMainApplicationFolder" />
-        <?if $(var.IncludePython2) = true ?>
-          <ComponentRef Id="MSVCRUNTIME" />
-        <?endif ?>
         <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-        <ComponentRef Id="system_probe.yaml.example" />        
+        <ComponentRef Id="system_probe.yaml.example" />
         <MergeRef Id="ddnpminstall"/>
         <?if $(var.IncludeAPMInject) = true ?>
           <ComponentRef Id="apm_inject.yaml.example" />
-      
+
           <MergeRef Id="ddapminstall"/>
         <?endif ?>
-        
+
         <?if $(var.IncludeProcmon) = true ?>
           <ComponentRef Id="security_agent.yaml.example" />
           <MergeRef Id="ddprocmoninstall" />
         <?endif ?>
-        
+
 
       <!-- don't install by default (indicated by level 100)  Only things with level
         <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
@@ -546,12 +504,12 @@
       >
         <!--  This space intentionally left blank.
               Starting with 7.45, There is no restriction on closed source
-              so everything is included.  However, docs & released management tools 
+              so everything is included.  However, docs & released management tools
               use the ADDLOCAL=NPM; if there's no such feature it errors out
               Provide an empty feature; the parsing will do the right thing
               in the custom action
               -->
-        
+
       </Feature>
     </Feature>
 
@@ -559,8 +517,8 @@
     <Icon Id="project.ico" SourceFile="Resources\assets\project.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
     <Property Id="ARPHELPLINK" Value="https://datadoghq.com/" />
-    
-    <Property Id="WIXUI_INSTALLDIR" Value="PROJECTLOCATION" /> 
+
+    <Property Id="WIXUI_INSTALLDIR" Value="PROJECTLOCATION" />
 
     <UIRef Id="ProjectUI_InstallDir"/>
     <UI Id="ProjectUI_InstallDir">
@@ -616,7 +574,7 @@
            WelcomeDlg
            License Agreement IF NOT UPGRADE
            Customize
-           Apikey   
+           Apikey
            Site
            DDAgentUser
            VerifyReady
@@ -632,7 +590,7 @@
 
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode OR PREVIOUSFOUND OR DATADOGYAMLEXISTS</Publish>
-      
+
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="ddLicenseAgreementDlg">(NOT WixUI_InstallMode) AND (NOT PREVIOUSFOUND)</Publish>
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">(NOT WixUI_InstallMode) AND PREVIOUSFOUND</Publish>
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg"> WixUI_InstallMode </Publish>

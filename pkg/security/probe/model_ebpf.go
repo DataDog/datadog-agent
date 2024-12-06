@@ -11,6 +11,7 @@ package probe
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -19,7 +20,7 @@ import (
 // NewEBPFModel returns a new model with some extra field validation
 func NewEBPFModel(probe *EBPFProbe) *model.Model {
 	return &model.Model{
-		ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
+		ExtraValidateFieldFnc: func(field eval.Field, value eval.FieldValue) error {
 			switch field {
 			case "bpf.map.name":
 				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
@@ -30,6 +31,13 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
+			case "packet.filter":
+				if probe.isRawPacketNotSupported() {
+					return fmt.Errorf("%s is not available on this kernel version", field)
+				}
+				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts); err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -37,8 +45,7 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 	}
 }
 
-// NewEBPFEvent returns a new event
-func NewEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
+func newEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
 	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event

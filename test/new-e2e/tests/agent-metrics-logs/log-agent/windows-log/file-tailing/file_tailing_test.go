@@ -37,8 +37,8 @@ const (
 	logFilePath = utils.WindowsLogsFolderPath + "\\" + logFileName
 )
 
-// TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
-func TestE2EVMFakeintakeSuite(t *testing.T) {
+// TestWindowsVMFileTailingSuite runs the E2E test suite for the log agent with a VM and fake intake.
+func TestWindowsVMFileTailingSuite(t *testing.T) {
 	s := &WindowsFakeintakeSuite{}
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(

@@ -11,7 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -31,6 +33,10 @@ func (m *mockDestination) Target() string {
 	return "mock-dest"
 }
 
+func (m *mockDestination) Metadata() *client.DestinationMetadata {
+	return client.NewNoopDestinationMetadata()
+}
+
 func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
 	m.input = input
 	m.output = output
@@ -39,10 +45,10 @@ func (m *mockDestination) Start(input chan *message.Payload, output chan *messag
 	return m.stopChan
 }
 
-func newDestinationSenderWithBufferSize(bufferSize int) (*mockDestination, *DestinationSender) {
+func newDestinationSenderWithBufferSize(t *testing.T, bufferSize int) (*mockDestination, *DestinationSender) {
 	output := make(chan *message.Payload)
 	dest := &mockDestination{}
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	d := NewDestinationSender(cfg, dest, output, bufferSize)
 	return dest, d
 }
@@ -55,8 +61,8 @@ func newDestinationSenderWithConfigAndBufferSize(cfg pkgconfigmodel.Reader, buff
 	return dest, d
 }
 
-func TestDestinationSender(_ *testing.T) {
-	dest, destSender := newDestinationSenderWithBufferSize(1)
+func TestDestinationSender(t *testing.T) {
+	dest, destSender := newDestinationSenderWithBufferSize(t, 1)
 
 	destSender.Send(&message.Payload{})
 
@@ -70,7 +76,7 @@ func TestDestinationSender(_ *testing.T) {
 }
 
 func TestDestinationSenderCanBeCanceled(t *testing.T) {
-	dest, destSender := newDestinationSenderWithBufferSize(0)
+	dest, destSender := newDestinationSenderWithBufferSize(t, 0)
 
 	sendSucceeded := make(chan bool)
 
@@ -85,14 +91,14 @@ func TestDestinationSenderCanBeCanceled(t *testing.T) {
 }
 
 func TestDestinationSenderAlreadyRetrying(t *testing.T) {
-	dest, destSender := newDestinationSenderWithBufferSize(0)
+	dest, destSender := newDestinationSenderWithBufferSize(t, 0)
 	dest.isRetrying <- true
 
 	assert.False(t, destSender.Send(&message.Payload{}))
 }
 
 func TestDestinationSenderStopsRetrying(t *testing.T) {
-	dest, destSender := newDestinationSenderWithBufferSize(0)
+	dest, destSender := newDestinationSenderWithBufferSize(t, 0)
 	dest.isRetrying <- true
 
 	assert.False(t, destSender.Send(&message.Payload{}))
@@ -113,8 +119,8 @@ func TestDestinationSenderStopsRetrying(t *testing.T) {
 	<-gotPayload
 }
 
-func TestDestinationSenderDeadlock(_ *testing.T) {
-	dest, destSender := newDestinationSenderWithBufferSize(100)
+func TestDestinationSenderDeadlock(t *testing.T) {
+	dest, destSender := newDestinationSenderWithBufferSize(t, 100)
 
 	go func() {
 		for range dest.input { //revive:disable-line:empty-block
@@ -147,7 +153,7 @@ func TestDestinationSenderDeadlock(_ *testing.T) {
 }
 
 func TestDestinationSenderDisabled(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("multi_region_failover.enabled", true)
 	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
 
@@ -158,7 +164,7 @@ func TestDestinationSenderDisabled(t *testing.T) {
 }
 
 func TestDestinationSenderDisabledToEnabled(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("multi_region_failover.enabled", true)
 	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
 
@@ -174,7 +180,7 @@ func TestDestinationSenderDisabledToEnabled(t *testing.T) {
 }
 
 func TestDestinationSenderEnabledToDisabled(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("multi_region_failover.enabled", true)
 	cfg.SetWithoutSource("multi_region_failover.failover_logs", true)
 

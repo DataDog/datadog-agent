@@ -6,5 +6,5 @@ replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../
 
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.0-rc.3
-	github.com/DataDog/zstd v1.5.5
+	github.com/DataDog/zstd v1.5.6
 )

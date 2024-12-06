@@ -38,7 +38,7 @@ func TestGetEnvoyPath(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.EnvoyPath = "/test/envoy"
 	monitor := newIstioTestMonitorWithCFG(t, cfg)
@@ -100,7 +100,7 @@ func createFakeProcess(t *testing.T, processName string) (procRoot string, pid i
 }
 
 func newIstioTestMonitor(t *testing.T) *istioMonitor {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 
 	return newIstioTestMonitorWithCFG(t, cfg)

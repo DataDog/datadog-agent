@@ -12,3 +12,4 @@ shared-libraries.go
 tcp-queue-length.go
 tracer.go
 usm.go
+gpu.go

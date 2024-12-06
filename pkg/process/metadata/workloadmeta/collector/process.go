@@ -70,7 +70,13 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) err
 	)
 
 	if c.containerProvider == nil {
-		c.containerProvider = proccontainers.GetSharedContainerProvider(store)
+		sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+
+		if err != nil {
+			return err
+		}
+
+		c.containerProvider = sharedContainerProvider
 	}
 
 	go c.run(ctx, c.containerProvider, collectionTicker)

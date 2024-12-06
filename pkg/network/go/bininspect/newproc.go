@@ -8,23 +8,23 @@
 package bininspect
 
 import (
-	"debug/elf"
 	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
 	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 type newProcessBinaryInspector struct {
 	elf       elfMetadata
-	symbols   map[string]elf.Symbol
+	symbols   map[string]safeelf.Symbol
 	goVersion goversion.GoVersion
 }
 
 // InspectNewProcessBinary process the given elf File, and returns the offsets of the given functions and structs.
-func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
+func InspectNewProcessBinary(elfFile *safeelf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")
 	}
@@ -152,9 +152,9 @@ func (i *newProcessBinaryInspector) getRuntimeGAddrTLSOffset() (uint64, error) {
 	// - On ARM64 (but really, any architecture other than i386 and 86x64) the
 	//   offset is calculated using runtime.tls_g and the formula is different.
 
-	var tls *elf.Prog
+	var tls *safeelf.Prog
 	for _, prog := range i.elf.file.Progs {
-		if prog.Type == elf.PT_TLS {
+		if prog.Type == safeelf.PT_TLS {
 			tls = prog
 			break
 		}

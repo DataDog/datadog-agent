@@ -302,6 +302,19 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		}
 	})
 
+	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
+		paths := []string{
+			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
+			filepath.Join(t.expectedInstallPath, "bin", "7zr.exe"),
+		}
+		for _, path := range paths {
+			exists, err := t.host.FileExists(path)
+			if assert.NoError(tt, err) {
+				assert.False(tt, exists, "install should remove %s", path)
+			}
+		}
+	})
+
 	serviceTester, err := servicetest.NewTester(t.host,
 		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
 		servicetest.WithExpectedInstallPath(t.expectedInstallPath),

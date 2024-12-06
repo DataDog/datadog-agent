@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
+	"golang.org/x/sys/windows"
 	"os"
 	"testing"
 
@@ -38,6 +39,8 @@ func (s *daemonTestSuite) TestRunCommand() {
 // Note: this actually instantiates the components, so it will actually start
 // the remote config service etc...
 func (s *daemonTestSuite) TestAppStartsAndStops() {
+	// TODO: This test currently tries to start the daemon using the system paths
+	createConfigDir(s.T())
 	tempfile, err := os.CreateTemp("", "test-*.yaml")
 	require.NoError(s.T(), err, "failed to create temporary file")
 	defer os.Remove(tempfile.Name())
@@ -48,4 +51,22 @@ func (s *daemonTestSuite) TestAppStartsAndStops() {
 	}
 	s.Require().NoError(testApp.Start())
 	s.Require().NoError(testApp.Stop())
+}
+
+// createConfigDir creates the C:\ProgramData\Datadog Installer directory with the correct permissions.
+func createConfigDir(t *testing.T) {
+	t.Cleanup(func() {
+		// only cleanup the dir in the CI, to protect local testers while
+		// this test still uses the real filesystem
+		if os.Getenv("CI") != "" || os.Getenv("CI_JOB_ID") != "" {
+			_ = os.RemoveAll("C:\\ProgramData\\Datadog Installer")
+		}
+	})
+	err := os.MkdirAll("C:\\ProgramData\\Datadog Installer", 0)
+	require.NoError(t, err)
+	owner, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
+	require.NoError(t, err)
+	err = windows.SetNamedSecurityInfo("C:\\ProgramData\\Datadog Installer", windows.SE_FILE_OBJECT,
+		windows.OWNER_SECURITY_INFORMATION, owner, nil, nil, nil)
+	require.NoError(t, err)
 }

@@ -128,7 +128,7 @@ func (i *injector) requirements() libRequirement {
 		envVars: []envVar{
 			{
 				key:     "LD_PRELOAD",
-				valFunc: identityValFunc(asAbs(injectorFilePath("launcher.preload.so"))),
+				valFunc: joinValFunc(asAbs(injectorFilePath("launcher.preload.so")), ":"),
 			},
 			{
 				key:     "DD_INJECT_SENDER_TYPE",

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -126,12 +126,6 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 			t.Errorf("%s: %s", string(out), err)
 			return
 		}
-	})
-}
-
-func (d *dockerCmdWrapper) RunTest(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
-	t.Run(name, func(t *testing.T) {
-		fnc(t, d.Type(), d.Command)
 	})
 }
 

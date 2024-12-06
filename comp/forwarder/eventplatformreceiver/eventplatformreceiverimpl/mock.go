@@ -8,14 +8,12 @@
 package eventplatformreceiverimpl
 
 import (
-	"net/http"
+	"go.uber.org/fx"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	eprinterface "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mocked component
@@ -28,8 +26,7 @@ func MockModule() fxutil.Module {
 type MockProvides struct {
 	fx.Out
 
-	Comp     eprinterface.Component
-	Endpoint api.AgentEndpointProvider
+	Comp eprinterface.Component
 }
 
 // MockEventPlatformReceiver is the mocked struct that implements the eventplatformreceiver interface
@@ -55,16 +52,10 @@ func (epr *MockEventPlatformReceiver) Filter(_ *diagnostic.Filters, _ <-chan str
 	return c
 }
 
-// handlerFunc is a simple mocked http.Handler function
-func (epr *MockEventPlatformReceiver) handlerFunc(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 // newMock returns the mocked eventplatformreceiver struct
 func newMock() MockProvides {
 	epr := &MockEventPlatformReceiver{}
 	return MockProvides{
-		Comp:     epr,
-		Endpoint: api.NewAgentEndpointProvider(epr.handlerFunc, "/stream-event-platform", "POST"),
+		Comp: epr,
 	}
 }

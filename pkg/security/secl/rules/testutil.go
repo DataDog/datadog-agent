@@ -30,7 +30,7 @@ func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
 		rules = append(rules, rule)
 	}
 
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 
 	if err := rs.AddRules(pc, rules); err != nil {
 		t.Fatal(err)

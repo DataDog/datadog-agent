@@ -40,7 +40,6 @@ package verifier
 
 import (
 	"debug/dwarf"
-	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
@@ -48,6 +47,8 @@ import (
 	"runtime"
 
 	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // getLineReader gets the line reader for a DWARF data object, searching in the compilation unit entry
@@ -133,7 +134,7 @@ func buildProgStartMap(dwarfData *dwarf.Data, symToSeq map[string]int) (map[prog
 // buildSymbolToSequenceMap builds a map that links each symbol to the sequence index it belongs to.
 // The address in the DWARF debug_line section is relative to the start of each sequence, but the symbol information
 // doesn't explicitly say which sequence it belongs to. This function builds that map.
-func buildSymbolToSequenceMap(elfFile *elf.File) (map[string]int, error) {
+func buildSymbolToSequenceMap(elfFile *safeelf.File) (map[string]int, error) {
 	symbols, err := elfFile.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read symbols from ELF file: %w", err)
@@ -143,7 +144,7 @@ func buildSymbolToSequenceMap(elfFile *elf.File) (map[string]int, error) {
 	sectIndexToSeqIndex := make(map[int]int)
 	idx := 0
 	for i, sect := range elfFile.Sections {
-		if sect.Flags&elf.SHF_EXECINSTR != 0 && sect.Size > 0 {
+		if sect.Flags&safeelf.SHF_EXECINSTR != 0 && sect.Size > 0 {
 			sectIndexToSeqIndex[i] = idx
 			idx++
 		}
@@ -160,32 +161,12 @@ func buildSymbolToSequenceMap(elfFile *elf.File) (map[string]int, error) {
 	return symToSeq, nil
 }
 
-// openSafeELFFile opens an ELF file and recovers from panics that might happen when reading it.
-func openSafeELFFile(path string) (safe *elf.File, err error) {
-	defer func() {
-		r := recover()
-		if r == nil {
-			return
-		}
-
-		safe = nil
-		err = fmt.Errorf("reading ELF file panicked: %s", r)
-	}()
-
-	file, err := elf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
-}
-
 // getSourceMap builds the source map for an eBPF program. It returns two maps, one that
 // for each program function maps the instruction offset to the source line information, and
 // another that for each section maps the functions that belong to it.
 func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*SourceLine, map[string][]string, error) {
 	// Open the ELF file
-	elfFile, err := openSafeELFFile(file)
+	elfFile, err := safeelf.Open(file)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open ELF file %s: %w", file, err)
 	}
@@ -195,7 +176,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	// files because of missing support for relocations. However, we don't need them here as we're
 	// not necessary for line info, so we can skip them. The DWARF library will skip that processing
 	// if we set manually the type of the file to ET_EXEC.
-	elfFile.Type = elf.ET_EXEC
+	elfFile.Type = safeelf.ET_EXEC
 	dwarfData, err := elfFile.DWARF()
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read DWARF data for %s: %w", file, err)

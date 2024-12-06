@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -20,7 +21,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultLoader = "core"
+const (
+	defaultLoader       = "core"
+	defaultQueryTimeout = 20000
+)
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
@@ -137,6 +141,14 @@ type ConnectionConfig struct {
 	Wallet             string `yaml:"wallet"`
 	OracleClient       bool   `yaml:"oracle_client"`
 	OracleClientLibDir string `yaml:"oracle_client_lib_dir"`
+	QueryTimeout       int    `yaml:"query_timeout"`
+}
+
+func (c ConnectionConfig) QueryTimeoutString() string {
+	if c.QueryTimeout <= 0 {
+		return strconv.Itoa(defaultQueryTimeout)
+	}
+	return strconv.Itoa(c.QueryTimeout)
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -169,6 +181,21 @@ type InstanceConfig struct {
 	OnlyCustomQueries                  bool                   `yaml:"only_custom_queries"`
 	Service                            string                 `yaml:"service"`
 	Loader                             string                 `yaml:"loader"`
+}
+
+// QueryTimeoutDuration returns query_timeout as time.Duration.
+// If it is less than or equal to 0, it returns the default query timeout.
+func (c *InstanceConfig) QueryTimeoutDuration() time.Duration {
+	if c.QueryTimeout <= 0 {
+		return defaultQueryTimeout * time.Second
+	}
+	return time.Duration(c.QueryTimeout) * time.Second
+}
+
+// QueryTimeoutDuration returns query_timeout as string.
+// If it is less than or equal to 0, it returns the default query timeout.
+func (c *InstanceConfig) QueryTimeoutString() string {
+	return c.ConnectionConfig.QueryTimeoutString()
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -217,6 +244,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
 	instance.QueryMetrics.MaxRunTime = 20
+	instance.QueryTimeout = defaultQueryTimeout
 
 	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15

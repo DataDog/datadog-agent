@@ -31,8 +31,9 @@ import (
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -49,16 +50,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -131,14 +136,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 
+		// Provides the rdnssquerier module
+		rdnsquerierfx.Module(),
+
 		// Provide network path bundle
 		networkpath.Bundle(),
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
-
-		// Provide tagger module
-		taggerimpl.Module(),
 
 		// Provide status modules
 		statusimpl.Module(),
@@ -172,19 +177,28 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return workloadmeta.Params{AgentType: catalog}
 		}),
 
-		// Provide the corresponding tagger Params to configure the tagger
-		fx.Provide(func(c config.Component) tagger.Params {
-			if c.GetBool("process_config.remote_tagger") ||
-				// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
-				// as remote tagger can return more tags than the local tagger.
-				((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled")) {
-				return tagger.NewNodeRemoteTaggerParams()
-			}
-			return tagger.NewTaggerParams()
+		dualTaggerfx.Module(tagger.DualParams{
+			UseRemote: func(c config.Component) bool {
+				return c.GetBool("process_config.remote_tagger") ||
+					// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
+					// as remote tagger can return more tags than the local tagger.
+					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
+			},
+		}, tagger.Params{}, tagger.RemoteParams{
+			RemoteTarget: func(c config.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
-		fxutil.FxAgentBase(true),
+		fxutil.FxAgentBase(),
+		logging.EnableFxLoggingOnDebug[logcomp.Component](),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -275,6 +289,7 @@ type miscDeps struct {
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
 	Logger       logcomp.Component
+	Tagger       tagger.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -284,6 +299,12 @@ func initMisc(deps miscDeps) error {
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
+
+	// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+	// we can include the tagger as part of the workloadmeta component.
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 

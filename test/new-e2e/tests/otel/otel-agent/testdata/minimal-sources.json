@@ -1,0 +1,23 @@
+{
+    "health_check/dd-autoconfigured": {
+      "url": [
+        "localhost:13133"
+      ]
+    },
+    "pprof/dd-autoconfigured": {
+      "url": [
+        "localhost:1777/debug/pprof/heap",
+        "localhost:1777/debug/pprof/allocs",
+        "localhost:1777/debug/pprof/profile"
+      ]
+    },
+    "zpages/dd-autoconfigured": {
+      "url": [
+        "localhost:55679/debug/servicez",
+        "localhost:55679/debug/pipelinez",
+        "localhost:55679/debug/extensionz",
+        "localhost:55679/debug/featurez",
+        "localhost:55679/debug/tracez"
+      ]
+    }
+}

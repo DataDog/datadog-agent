@@ -24,11 +24,11 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,22 +47,24 @@ type Webhook struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       []string
+	resources       map[string][]string
 	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
 	ownerCacheTTL   time.Duration
 	wmeta           workloadmeta.Component
 	injectionFilter mutatecommon.InjectionFilter
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_tags.endpoint"),
-		resources:       []string{"pods"},
+		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
+		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-		ownerCacheTTL:   ownerCacheTTL(),
+		matchConditions: []admissionregistrationv1.MatchCondition{},
+		ownerCacheTTL:   ownerCacheTTL(datadogConfig),
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
 	}
@@ -90,7 +92,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() []string {
+func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
@@ -104,6 +106,12 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
 	return common.DefaultLabelSelectors(useNamespaceSelector)
+}
+
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
 }
 
 type owner struct {
@@ -128,7 +136,7 @@ func (o *ownerInfo) buildID(ns string) string {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 			// Adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to the pod template from pod and higher-level resource labels.
 			return w.injectTags(pod, ns, dc)
 		}, request.DynamicClient))
@@ -273,10 +281,10 @@ func (w *Webhook) getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interf
 	return owner, nil
 }
 
-func ownerCacheTTL() time.Duration {
-	if pkgconfigsetup.Datadog().IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
-		return pkgconfigsetup.Datadog().GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
+func ownerCacheTTL(datadogConfig config.Component) time.Duration {
+	if datadogConfig.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
+		return datadogConfig.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
 	}
 
-	return pkgconfigsetup.Datadog().GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
+	return datadogConfig.GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
 }

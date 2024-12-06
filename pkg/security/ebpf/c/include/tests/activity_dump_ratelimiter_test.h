@@ -39,7 +39,7 @@ int test_ad_ratelimiter_basic() {
         assert_zero(activity_dump_rate_limiter_allow(&config, cookie, now, 0),
             "event allowed which should not be");
     }
-    return 0;
+    return 1;
 }
 
 SEC("test/ad_ratelimiter_basic_half")
@@ -73,7 +73,7 @@ int test_ad_ratelimiter_basic_half() {
         assert_zero(activity_dump_rate_limiter_allow(&config, cookie, now, 0),
             "event allowed which should not be");
     }
-    return 0;
+    return 1;
 }
 
 __attribute__((always_inline)) int test_ad_ratelimiter_variable_droprate(int algo) {
@@ -106,7 +106,7 @@ __attribute__((always_inline)) int test_ad_ratelimiter_variable_droprate(int alg
         assert_greater_than(total_allowed, AD_RL_TEST_RATE * 3 / 4, "nope");
         assert_lesser_than(total_allowed, AD_RL_TEST_RATE / 10, "nope");
     }
-    return 0;
+    return 1;
 }
 
 SEC("test/ad_ratelimiter_decreasing_droprate")

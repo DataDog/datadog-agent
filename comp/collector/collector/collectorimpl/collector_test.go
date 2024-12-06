@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -97,6 +98,7 @@ func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
+		haagentmock.Module(),
 		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 			return optional.NewNoneOption[serializer.MetricSerializer]()
 		}),

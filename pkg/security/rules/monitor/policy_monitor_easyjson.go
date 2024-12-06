@@ -4,6 +4,8 @@ package monitor
 
 import (
 	json "encoding/json"
+	events "github.com/DataDog/datadog-agent/pkg/security/events"
+	containerutils "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -73,6 +75,16 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(i
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -117,6 +129,15 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(o
 		out.RawString(prefix)
 		out.String(string(in.Service))
 	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
+	}
 	out.RawByte('}')
 }
 
@@ -128,6 +149,61 @@ func (v RulesetLoadedEvent) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *RulesetLoadedEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(l, v)
+}
+func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jlexer.Lexer, out *events.AgentContainerContext) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "id":
+			out.ContainerID = containerutils.ContainerID(in.String())
+		case "created_at":
+			out.CreatedAt = uint64(in.Uint64())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jwriter.Writer, in events.AgentContainerContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.ContainerID != "" {
+		const prefix string = ",\"id\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.ContainerID))
+	}
+	{
+		const prefix string = ",\"created_at\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint64(uint64(in.CreatedAt))
+	}
+	out.RawByte('}')
 }
 func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(in *jlexer.Lexer, out *RuleState) {
 	isTopLevel := in.IsStart()
@@ -805,6 +881,16 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -837,6 +923,15 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 		const prefix string = ",\"service\":"
 		out.RawString(prefix)
 		out.String(string(in.Service))
+	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
 	}
 	out.RawByte('}')
 }

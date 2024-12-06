@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +41,10 @@ func Adjust(cfg model.Config) {
 		cfg.Set(netNS("enabled"), true, model.SourceAgentRuntime)
 	}
 
-	validateString(cfg, spNS("sysprobe_socket"), defaultSystemProbeAddress, ValidateSocketAddress)
+	validateString(cfg, spNS("sysprobe_socket"), setup.DefaultSystemProbeAddress, ValidateSocketAddress)
+
+	deprecateBool(cfg, spNS("allow_precompiled_fallback"), spNS("allow_prebuilt_fallback"))
+	allowPrebuiltEbpfFallback(cfg)
 
 	adjustNetwork(cfg)
 	adjustUSM(cfg)

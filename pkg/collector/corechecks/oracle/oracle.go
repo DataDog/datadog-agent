@@ -43,9 +43,6 @@ var MAX_OPEN_CONNECTIONS = 10
 //nolint:revive // TODO(DBM) Fix revive linter
 var DEFAULT_SQL_TRACED_RUNS = 10
 
-//nolint:revive // TODO(DBM) Fix revive linter
-var DB_TIMEOUT = "20000"
-
 const (
 	// MaxSQLFullTextVSQL is SQL_FULLTEXT size in V$SQL
 	MaxSQLFullTextVSQL = 4000
@@ -116,7 +113,7 @@ type Check struct {
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
-	lastSampleId                            uint64
+	lastSampleID                            uint64
 }
 
 type vDatabase struct {

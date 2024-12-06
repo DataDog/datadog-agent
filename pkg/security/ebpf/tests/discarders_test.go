@@ -17,7 +17,7 @@ import (
 func TestDiscarderEventMask(t *testing.T) {
 	var ctx baloum.StdContext
 	code, err := newVM(t).RunProgram(&ctx, "test/discarders_event_mask")
-	if err != nil || code != 0 {
+	if err != nil || code != 1 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }
@@ -25,7 +25,7 @@ func TestDiscarderEventMask(t *testing.T) {
 func TestDiscarderRetention(t *testing.T) {
 	var ctx baloum.StdContext
 	code, err := newVM(t).RunProgram(&ctx, "test/discarders_retention")
-	if err != nil || code != 0 {
+	if err != nil || code != 1 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }
@@ -33,7 +33,7 @@ func TestDiscarderRetention(t *testing.T) {
 func TestDiscarderRevision(t *testing.T) {
 	var ctx baloum.StdContext
 	code, err := newVM(t).RunProgram(&ctx, "test/discarders_revision")
-	if err != nil || code != 0 {
+	if err != nil || code != 1 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }
@@ -41,7 +41,7 @@ func TestDiscarderRevision(t *testing.T) {
 func TestDiscarderMountRevision(t *testing.T) {
 	var ctx baloum.StdContext
 	code, err := newVM(t).RunProgram(&ctx, "test/discarders_mount_revision")
-	if err != nil || code != 0 {
+	if err != nil || code != 1 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }

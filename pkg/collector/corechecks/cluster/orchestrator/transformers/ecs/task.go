@@ -19,7 +19,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -35,7 +35,7 @@ type TaskWithContainers struct {
 }
 
 // ExtractECSTask returns the protobuf model corresponding to an ECS Task resource.
-func ExtractECSTask(task TaskWithContainers) *model.ECSTask {
+func ExtractECSTask(task TaskWithContainers, tagger tagger.Component) *model.ECSTask {
 	if task.Task == nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func ExtractECSTask(task TaskWithContainers) *model.ECSTask {
 	}
 
 	entityID := types.NewEntityID(types.ECSTask, task.Task.EntityID.ID)
-	tags, err := tagger.Tag(entityID.String(), types.HighCardinality)
+	tags, err := tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for task: %s", err.Error())
 	}

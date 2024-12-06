@@ -1,1 +1,0 @@
-../../common/rspec_datadog/spec_helper.rb

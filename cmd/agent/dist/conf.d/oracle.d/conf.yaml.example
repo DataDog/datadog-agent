@@ -315,3 +315,8 @@ instances:
       ## Limit the number of traced check executions to avoid filling the file system.
       #
       # traced_runs: 10
+
+    ## @param query_timeout - int - optional - default: 20000
+    ## Aborts any queries that takes more than the specified number of seconds,
+    #
+    # query_timeout: 20000

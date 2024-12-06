@@ -86,7 +86,7 @@ func (l *UDSStreamListener) listen() {
 		}
 		go func() {
 			l.connTracker.Track(conn)
-			_ = l.handleConnection(conn, func(c *net.UnixConn) error {
+			_ = l.handleConnection(conn, func(c netUnixConn) error {
 				l.connTracker.Close(c)
 				return nil
 			})

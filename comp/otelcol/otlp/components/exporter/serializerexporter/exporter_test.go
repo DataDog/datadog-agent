@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build test
+
 package serializerexporter
 
 import (
@@ -179,7 +181,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			}, nil, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
-			exp, err := f.CreateMetricsExporter(
+			exp, err := f.CreateMetrics(
 				ctx,
 				exportertest.NewNopSettings(),
 				cfg,

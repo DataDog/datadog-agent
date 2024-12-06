@@ -22,6 +22,8 @@ type collectorConfigs struct {
 	pathtestTTL                  time.Duration
 	pathtestInterval             time.Duration
 	flushInterval                time.Duration
+	reverseDNSEnabled            bool
+	reverseDNSTimeout            time.Duration
 	networkDevicesNamespace      string
 }
 
@@ -38,6 +40,8 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		pathtestTTL:                  agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
 		pathtestInterval:             agentConfig.GetDuration("network_path.collector.pathtest_interval"),
 		flushInterval:                agentConfig.GetDuration("network_path.collector.flush_interval"),
+		reverseDNSEnabled:            agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
+		reverseDNSTimeout:            agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
 		networkDevicesNamespace:      agentConfig.GetString("network_devices.namespace"),
 	}
 }

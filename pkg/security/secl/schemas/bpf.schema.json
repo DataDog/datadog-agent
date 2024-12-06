@@ -1,0 +1,77 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "bpf.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "bpf": {
+                    "type": "object",
+                    "required": [
+                        "cmd"
+                    ],
+                    "properties": {
+                        "cmd": {
+                            "type": "string"
+                        },
+                        "map": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "map_type"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "map_type": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "prog": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "tag",
+                                "program_type",
+                                "attach_type"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "tag": {
+                                    "type": "string"
+                                },
+                                "program_type": {
+                                    "type": "string"
+                                },
+                                "attach_type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "bpf"
+            ]
+        }
+    ]
+}

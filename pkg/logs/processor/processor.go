@@ -26,7 +26,6 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	pipelineID int
 	inputChan  chan *message.Message
 	outputChan chan *message.Message // strategy input
 	// ReconfigChan transports rules to use in order to reconfigure
@@ -40,6 +39,10 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 
 	sds sdsProcessor
+
+	// Telemetry
+	pipelineMonitor metrics.PipelineMonitor
+	utilization     metrics.UtilizationMonitor
 }
 
 type sdsProcessor struct {
@@ -58,13 +61,12 @@ type sdsProcessor struct {
 // New returns an initialized Processor.
 func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineID int) *Processor {
+	pipelineMonitor metrics.PipelineMonitor) *Processor {
 
 	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
 	maxBufferSize := sds.WaitForConfigurationBufferMaxSize(cfg)
 
 	return &Processor{
-		pipelineID:                pipelineID,
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		ReconfigChan:              make(chan sds.ReconfigureOrder),
@@ -73,12 +75,14 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
+		pipelineMonitor:           pipelineMonitor,
+		utilization:               pipelineMonitor.MakeUtilizationMonitor("processor"),
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
 			buffering:     waitForSDSConfig,
 			maxBufferSize: maxBufferSize,
-			scanner:       sds.CreateScanner(pipelineID),
+			scanner:       sds.CreateScanner(pipelineMonitor.ID()),
 		},
 	}
 }
@@ -217,6 +221,9 @@ func (s *sdsProcessor) resetBuffer() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	p.utilization.Start()
+	defer p.utilization.Stop()
+	defer p.pipelineMonitor.ReportComponentEgress(msg, "processor")
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 
@@ -241,8 +248,11 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
+		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
+		p.pipelineMonitor.ReportComponentIngress(msg, "strategy")
 	}
+
 }
 
 // applyRedactingRules returns given a message if we should process it or not,

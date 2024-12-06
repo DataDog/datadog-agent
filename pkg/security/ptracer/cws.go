@@ -25,6 +25,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 const (
@@ -66,7 +67,7 @@ type CWSPtracerCtx struct {
 	wg           sync.WaitGroup
 	cancel       context.Context
 	cancelFnc    context.CancelFunc
-	containerID  string
+	containerID  containerutils.ContainerID
 	probeAddr    string
 	client       net.Conn
 	clientReady  chan bool
@@ -417,30 +418,31 @@ func Attach(pids []int, probeAddr string, opts Opts) error {
 		opts.AttachedCb()
 	}
 
-	return ctx.StartCWSPtracer()
+	_, err = ctx.StartCWSPtracer()
+	return err
 }
 
 // Wrap the executable
-func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
+func Wrap(args []string, envs []string, probeAddr string, opts Opts) (int, error) {
 	ctx, err := initCWSPtracerWrapp(args, envs, probeAddr, opts)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := ctx.NewTracer(); err != nil {
-		return err
+		return 0, err
 	}
 
 	return ctx.StartCWSPtracer()
 }
 
 // StartCWSPtracer start the ptracer
-func (ctx *CWSPtracerCtx) StartCWSPtracer() error {
+func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 	defer ctx.CWSCleanup()
 
 	if ctx.probeAddr != "" {
 		if err := ctx.initClientConnection(); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
@@ -454,12 +456,13 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() error {
 		ctx.startScanProcfs()
 	}
 
-	if err := ctx.Trace(); err != nil {
-		return err
+	exitCode, err := ctx.Trace()
+	if err != nil {
+		return 0, err
 	}
 
 	// let a few queued message being send
 	time.Sleep(time.Second)
 
-	return nil
+	return exitCode, nil
 }

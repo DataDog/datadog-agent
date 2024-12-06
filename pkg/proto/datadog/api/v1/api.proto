@@ -3,6 +3,7 @@ syntax = "proto3";
 package datadog.api.v1;
 
 import "datadog/model/v1/model.proto";
+import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "google/api/annotations.proto";
@@ -144,4 +145,21 @@ service AgentSecure {
             body: "*"
         };
     };
+
+    // Registers a remote agent.
+    rpc RegisterRemoteAgent(datadog.remoteagent.RegisterRemoteAgentRequest) returns (datadog.remoteagent.RegisterRemoteAgentResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteagent/register_remote_agent"
+            body: "*"
+        };
+    };
+}
+
+// Service exposed by remote agents to allow querying by the Core Agent.
+service RemoteAgent {
+  // Gets the status details of a remote agent.
+  rpc GetStatusDetails(datadog.remoteagent.GetStatusDetailsRequest) returns (datadog.remoteagent.GetStatusDetailsResponse);
+
+  // Gets all relevant flare files of a remote agent.
+  rpc GetFlareFiles(datadog.remoteagent.GetFlareFilesRequest) returns (datadog.remoteagent.GetFlareFilesResponse);
 }

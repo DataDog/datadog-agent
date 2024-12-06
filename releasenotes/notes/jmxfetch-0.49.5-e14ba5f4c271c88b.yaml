@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Upgraded JMXFetch to `0.49.5 <https://github.com/DataDog/jmxfetch/releases/0.49.5>`_ which adds support for ``UnloadedClassCount`` metric
+    and IBM J9 gc metrics. See `0.49.5  <https://github.com/DataDog/jmxfetch/releases/tag/0.49.5>`_ for more details.

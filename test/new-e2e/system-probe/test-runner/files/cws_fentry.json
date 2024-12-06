@@ -1,0 +1,10 @@
+{
+	"filters": {
+		"*": {
+			"exclude": false
+		}
+	},
+	"additional_env_vars": [
+		"DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true"
+	]
+}

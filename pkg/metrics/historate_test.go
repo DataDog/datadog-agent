@@ -7,23 +7,23 @@ package metrics
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupConfig() pkgconfigmodel.Config {
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+func setupConfig(t testing.TB) pkgconfigmodel.Config {
+	c := configmock.New(t)
 	c.SetWithoutSource("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	c.SetWithoutSource("histogram_percentiles", []string{"0.95"})
 	return c
 }
 
 func TestHistorateEmptyFlush(t *testing.T) {
-	c := setupConfig()
+	c := setupConfig(t)
 	h := NewHistorate(1, c)
 
 	// Flush w/o samples: error
@@ -32,7 +32,7 @@ func TestHistorateEmptyFlush(t *testing.T) {
 }
 
 func TestHistorateAddSampleOnce(t *testing.T) {
-	c := setupConfig()
+	c := setupConfig(t)
 	h := NewHistorate(1, c)
 	h.addSample(&MetricSample{Value: 1}, 50)
 
@@ -44,7 +44,7 @@ func TestHistorateAddSampleOnce(t *testing.T) {
 func TestHistorateAddSample(t *testing.T) {
 	fmt.Printf("### starting testin of TestHistorateAddSample\n")
 
-	c := setupConfig()
+	c := setupConfig(t)
 	h := NewHistorate(1, c)
 
 	h.addSample(&MetricSample{Value: 1}, 50)

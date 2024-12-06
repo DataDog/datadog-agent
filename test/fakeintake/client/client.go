@@ -776,7 +776,7 @@ func (c *Client) get(route string) ([]byte, error) {
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err, ok := err.(net.Error); ok && err.Timeout() {
-			panic("fakeintake call timed out")
+			panic(fmt.Sprintf("fakeintake call timed out: %v", err))
 		}
 		if err != nil {
 			return err

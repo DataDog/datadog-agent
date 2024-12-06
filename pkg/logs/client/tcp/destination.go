@@ -58,6 +58,11 @@ func (d *Destination) Target() string {
 	return d.connManager.address()
 }
 
+// Metadata is not supported for TCP destinations
+func (d *Destination) Metadata() *client.DestinationMetadata {
+	return client.NewNoopDestinationMetadata()
+}
+
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
 func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
 	stop := make(chan struct{})

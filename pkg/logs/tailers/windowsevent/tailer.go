@@ -257,7 +257,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	err = t.enrichEvent(m, eventRecordHandle)
 	if err != nil {
 		log.Warnf("%v", err)
-		return
+		// continue to submit the event even if we failed to enrich it
 	}
 
 	err = t.bookmark.Update(eventRecordHandle)

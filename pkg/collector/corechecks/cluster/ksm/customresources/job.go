@@ -24,7 +24,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
@@ -37,7 +36,7 @@ func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryF
 }
 
 type extendedJobFactory struct {
-	client interface{}
+	client kubernetes.Interface
 }
 
 // Name is the name of the factory
@@ -45,17 +44,12 @@ func (f *extendedJobFactory) Name() string {
 	return "jobs_extended"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *extendedJobFactory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedJobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_job_duration",
@@ -89,11 +83,7 @@ func (f *extendedJobFactory) MetricFamilyGenerators(allowAnnotationsList, allowL
 
 func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		job, ok := obj.(*batchv1.Job)
-		if !ok {
-			log.Warnf("cannot cast object %T into *batchv1.Job, skipping", obj)
-			return nil
-		}
+		job := obj.(*batchv1.Job)
 
 		metricFamily := f(job)
 
@@ -107,20 +97,26 @@ func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.
 
 // ExpectedType returns the type expected by the factory
 func (f *extendedJobFactory) ExpectedType() interface{} {
-	return &batchv1.Job{}
+	return &batchv1.Job{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Job",
+			APIVersion: batchv1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 // ListWatch returns a ListerWatcher for batchv1.Job
 func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).List(context.TODO(), opts)
+			return client.BatchV1().Jobs(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).Watch(context.TODO(), opts)
+			return client.BatchV1().Jobs(ns).Watch(ctx, opts)
 		},
 	}
 }
