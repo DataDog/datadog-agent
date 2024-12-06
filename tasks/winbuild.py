@@ -5,8 +5,8 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import get_version
-from tasks.msi import build as agent_msi_build
-from tasks.msi import build_installer
+from tasks.msi import build as build_agent_msi
+from tasks.msi import build_installer as build_installer_msi
 from tasks.omnibus import build as omnibus_build
 
 # Output directory for package files
@@ -31,7 +31,7 @@ def agent_package(
     )
 
     # Package Agent into MSI
-    agent_msi_build(ctx, release_version=release_version)
+    build_agent_msi(ctx, release_version=release_version)
 
     # Package MSI into OCI
     ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent"')
@@ -52,7 +52,7 @@ def installer_package(
     )
 
     # Package Insaller into MSI
-    build_installer(ctx)
+    build_installer_msi(ctx)
 
     # Package MSI into OCI
     ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-installer"')
