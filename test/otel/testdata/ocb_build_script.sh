@@ -9,7 +9,7 @@ cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
 cp ./tools/ci/retry.sh /tmp/otel-ci/
 
 OCB_VERSION="0.114.0"
-timeout 10m CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
+CGO_ENABLED=0 timeout 10m go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv "$(go env GOPATH)/bin/builder" /tmp/otel-ci/ocb
 
 chmod +x /tmp/otel-ci/ocb
@@ -18,7 +18,7 @@ timeout 10m /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-out
 grep -q 'Compiled' ocb-output.log || (echo "OCB failed to build custom collector" && exit 1)
 grep -q '{"binary": "/tmp/otel-ci/otelcol-custom/otelcol-custom"}' ocb-output.log || (echo "OCB failed to build custom collector" && exit 1)
 
-/tmp/otel-ci/otelcol-custom/otelcol-custom --config /tmp/otel-ci/collector-config.yaml > otelcol-custom.log 2>&1 &
+timeout 10m /tmp/otel-ci/otelcol-custom/otelcol-custom --config /tmp/otel-ci/collector-config.yaml > otelcol-custom.log 2>&1 &
 OTELCOL_PID=$!
 /tmp/otel-ci/retry.sh grep -q 'Everything is ready. Begin running and processing data.' otelcol-custom.log || (echo "Failed to start otelcol-custom" && exit 1)
 
