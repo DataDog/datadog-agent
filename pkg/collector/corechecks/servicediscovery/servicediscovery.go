@@ -35,7 +35,6 @@ const (
 )
 
 type serviceInfo struct {
-	meta          ServiceMetadata
 	service       model.Service
 	LastHeartbeat time.Time
 }
@@ -161,7 +160,7 @@ func (c *Check) Run() error {
 
 	runningServicesByName := map[string][]*serviceInfo{}
 	for _, svc := range disc.runningServices {
-		runningServicesByName[svc.meta.Name] = append(runningServicesByName[svc.meta.Name], svc)
+		runningServicesByName[svc.service.Name] = append(runningServicesByName[svc.service.Name], svc)
 	}
 	for _, svcs := range runningServicesByName {
 		if len(svcs) <= 1 {
@@ -171,11 +170,11 @@ func (c *Check) Run() error {
 			if c.sentRepeatedEventPIDs[svc.service.PID] {
 				continue
 			}
-			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
+			err := fmt.Errorf("found repeated service name: %s", svc.service.Name)
 			telemetryFromError(errWithCode{
 				err:  err,
 				code: errorCodeRepeatedServiceName,
-				svc:  &svc.meta,
+				svc:  &svc.service,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
 			c.sentRepeatedEventPIDs[svc.service.PID] = true
@@ -184,7 +183,7 @@ func (c *Check) Run() error {
 
 	potentialNames := map[string]bool{}
 	for _, p := range disc.potentials {
-		potentialNames[p.meta.Name] = true
+		potentialNames[p.service.Name] = true
 	}
 
 	// group events by name in order to find repeated events for the same service name.
@@ -196,9 +195,9 @@ func (c *Check) Run() error {
 		eventsByName.addHeartbeat(p)
 	}
 	for _, p := range disc.events.stop {
-		if potentialNames[p.meta.Name] {
+		if potentialNames[p.service.Name] {
 			// we consider this situation a restart, so we skip the stop event.
-			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.meta.Name)
+			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.service.Name)
 			continue
 		}
 		eventsByName.addStop(p)
@@ -232,30 +231,30 @@ func (c *Check) Run() error {
 type eventsByNameMap map[string]*serviceEvents
 
 func (m eventsByNameMap) addStart(svc serviceInfo) {
-	events, ok := m[svc.meta.Name]
+	events, ok := m[svc.service.Name]
 	if !ok {
 		events = &serviceEvents{}
 	}
 	events.start = append(events.start, svc)
-	m[svc.meta.Name] = events
+	m[svc.service.Name] = events
 }
 
 func (m eventsByNameMap) addHeartbeat(svc serviceInfo) {
-	events, ok := m[svc.meta.Name]
+	events, ok := m[svc.service.Name]
 	if !ok {
 		events = &serviceEvents{}
 	}
 	events.heartbeat = append(events.heartbeat, svc)
-	m[svc.meta.Name] = events
+	m[svc.service.Name] = events
 }
 
 func (m eventsByNameMap) addStop(svc serviceInfo) {
-	events, ok := m[svc.meta.Name]
+	events, ok := m[svc.service.Name]
 	if !ok {
 		events = &serviceEvents{}
 	}
 	events.stop = append(events.stop, svc)
-	m[svc.meta.Name] = events
+	m[svc.service.Name] = events
 }
 
 // Interval returns how often the check should run.

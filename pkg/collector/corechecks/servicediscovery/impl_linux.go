@@ -16,7 +16,6 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -106,13 +105,13 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			log.Debugf("[pid: %d] found new process with open ports", pid)
 
 			svc := li.getServiceInfo(service)
-			if li.ignoreCfg[svc.meta.Name] {
-				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.meta.Name)
+			if li.ignoreCfg[svc.service.Name] {
+				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.service.Name)
 				li.ignoreProcs[pid] = true
 				continue
 			}
 
-			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
+			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.service.Name)
 			li.potentialServices[pid] = &svc
 		}
 	}
@@ -131,7 +130,6 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc.service.ContainerServiceName = service.ContainerServiceName
 			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
 			svc.service.Name = service.Name
-			svc.meta.Name = service.Name
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -172,7 +170,6 @@ func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Tim
 			svc.service.ContainerServiceName = service.ContainerServiceName
 			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
 			svc.service.Name = service.Name
-			svc.meta.Name = service.Name
 
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)
@@ -187,17 +184,7 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 
 	// for now, docker-proxy is going on the ignore list
 
-	serviceType := servicetype.Detect(service.Ports)
-
-	meta := ServiceMetadata{
-		Name:               service.Name,
-		Language:           service.Language,
-		Type:               string(serviceType),
-		APMInstrumentation: service.APMInstrumentation,
-	}
-
 	return serviceInfo{
-		meta:          meta,
 		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
