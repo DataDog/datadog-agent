@@ -91,24 +91,18 @@ type ValueWithSource struct {
 	Value  interface{}
 }
 
-// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterOrEqualThan(x Source) bool {
-	return sourcesPriority[s] >= sourcesPriority[x]
+// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterThan(x Source) bool {
+	return sourcesPriority[s] > sourcesPriority[x]
 }
 
 // PreviousSource returns the source before the current one, or Unknown if there isn't one
 func (s Source) PreviousSource() Source {
-	if s == SourceDefault || s == SourceUnknown {
-		return SourceUnknown
-	} else if s == SourceFile {
-		return SourceDefault
+	previous := sourcesPriority[s]
+	if previous == 0 {
+		return sources[previous]
 	}
-	for i, src := range sources {
-		if src == s {
-			return sources[i-1]
-		}
-	}
-	return SourceUnknown
+	return sources[previous-1]
 }
 
 // String casts Source into a string

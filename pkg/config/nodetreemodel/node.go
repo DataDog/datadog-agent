@@ -106,5 +106,5 @@ type LeafNode interface {
 	Node
 	Get() interface{}
 	Source() model.Source
-	SourceGreaterOrEqual(model.Source) bool
+	SourceGreaterThan(model.Source) bool
 }

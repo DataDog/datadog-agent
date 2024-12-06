@@ -226,21 +226,19 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Node, error) {
-	previous := source.PreviousSource()
-	for {
-		if previous == model.SourceUnknown {
-			return nil, ErrNotFound
-		}
-		tree, err := c.getTreeBySource(previous)
+	iter := source
+	for iter != model.SourceDefault {
+		iter = iter.PreviousSource()
+		tree, err := c.getTreeBySource(iter)
 		if err != nil {
-			return nil, ErrNotFound
+			return nil, err
 		}
 		node := c.leafAtPathFromNode(key, tree)
 		if _, isMissing := node.(*missingLeafImpl); !isMissing {
 			return node, nil
 		}
-		previous = previous.PreviousSource()
 	}
+	return nil, ErrNotFound
 }
 
 // UnsetForSource unsets a config entry for a given source
@@ -251,6 +249,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	// Remove it from the original source tree
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
+		log.Errorf("%s", err)
 		return
 	}
 	parentNode, childName, err := c.parentOfNode(tree, key)
@@ -649,7 +648,7 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	defer c.RUnlock()
 
 	// We only want to include leaf with a source higher than SourceDefault
-	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterOrEqualThan(model.SourceUnknown) })
+	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
