@@ -33,7 +33,7 @@ func NewPermission() (*Permission, error) {
 		return nil, err
 	}
 
-	ddUserSid, err := getDataDogUserSid()
+	ddUserSid, err := getDatadogUserSid()
 	if err != nil {
 		return nil, fmt.Errorf("Unable to get datadog user sid %v", err)
 	}
@@ -44,10 +44,10 @@ func NewPermission() (*Permission, error) {
 	}, nil
 }
 
-func getDataDogUserSid() (*windows.SID, error) {
+func getDatadogUserSid() (*windows.SID, error) {
 	ddUserSid, err := winutil.GetDDAgentUserSID()
 	if err != nil {
-		// falls back to current user on falure
+		// falls back to current user on failure
 		return winutil.GetSidFromUser()
 	}
 	return ddUserSid, nil

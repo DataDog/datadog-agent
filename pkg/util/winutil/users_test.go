@@ -38,7 +38,7 @@ func TestGetServiceUserSID(t *testing.T) {
 	systemSid, err := windows.StringToSid("S-1-5-18")
 	require.NoError(t, err)
 
-	// get the SID for the Dnscache service (has LocalSystem as its user)
+	// get the SID for the BITS service (has LocalSystem as its user)
 	sid, err = GetServiceUserSID("BITS")
 	require.NoError(t, err)
 	assert.NotNil(t, sid)
