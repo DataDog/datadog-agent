@@ -9,15 +9,16 @@
 package nodejs
 
 import (
-	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
-	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"path"
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 

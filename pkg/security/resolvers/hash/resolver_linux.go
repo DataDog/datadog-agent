@@ -126,6 +126,12 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		}
 	}
 
+	burst := 1
+	// if the rate limiter is disabled, set the burst to 0
+	if c.HashResolverMaxHashRate == 0 {
+		burst = 0
+	}
+
 	r := &Resolver{
 		opts: ResolverOpts{
 			Enabled:        true,
@@ -135,7 +141,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		},
 		cgroupResolver: cgroupResolver,
 		statsdClient:   statsdClient,
-		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), c.HashResolverMaxHashBurst),
+		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), burst),
 		cache:          cache,
 		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
 		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),

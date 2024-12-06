@@ -94,5 +94,5 @@ func getContainerInfoFromPod(cid string, pod *workloadmeta.KubernetesPod) (strin
 }
 
 func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
-	return pod.Owners != nil && len(pod.Owners) > 0
+	return len(pod.Owners) > 0
 }

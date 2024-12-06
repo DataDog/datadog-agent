@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/multierr"
@@ -281,7 +281,10 @@ func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath stri
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	echoPath, err := exec.LookPath("echo")
 	if err != nil {
-		return fmt.Errorf("failed to find echo: %w", err)
+		// If echo is not found, to not block install,
+		// we skip the test and add it to the span.
+		span.SetTag("skipped", true)
+		return nil
 	}
 	cmd := exec.Command(echoPath, "1")
 	cmd.Env = append(os.Environ(), "LD_PRELOAD="+libPath)

@@ -7,7 +7,6 @@ package mysql
 
 import (
 	"fmt"
-	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
