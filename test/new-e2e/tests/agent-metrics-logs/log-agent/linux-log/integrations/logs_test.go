@@ -25,11 +25,8 @@ type IntegrationsLogsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed fixtures/tenLogs.py
-var writeTenLogsCheck string
-
-//go:embed fixtures/rotation.py
-var rotationCheck string
+//go:embed fixtures/customIntegration.py
+var customIntegration string
 
 type Config struct {
 	InitConfig interface{}  `yaml:"init_config"`
@@ -39,6 +36,7 @@ type Config struct {
 
 type Instance struct {
 	LogMessage      string `yaml:"log_message"`
+	UniqueMessage   bool   `yaml:"unique_message"`
 	LogSize         int    `yaml:"log_size"`
 	LogCount        int    `yaml:"log_count"`
 	IntegrationTags string `yaml:"integration_tags"`
@@ -66,13 +64,13 @@ func TestIntegrationsLogsSuite(t *testing.T) {
 // logs at a time
 func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
 	tags := []string{"foo:bar", "env:dev"}
-	yamlData, err := generateYaml("Custom log message", 1, 10, tags, "logs_from_integrations_source", "logs_from_integrations_service")
+	yamlData, err := generateYaml("Custom log message", false, 1, 10, tags, "logs_from_integrations_source", "logs_from_integrations_service")
 	assert.NoError(v.T(), err)
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithLogs(),
 		agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", string(yamlData), true),
-		agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", writeTenLogsCheck, true))))
+		agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", customIntegration, true))))
 
 	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "logs_from_integrations_service", "", tags)
 }
@@ -90,13 +88,13 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// a 1:1 correlation between a log and metric)
 
 	tags := []string{"test:rotate"}
-	yamlData, err := generateYaml("a", 1024*245, 1, tags, "rotation_source", "rotation_service")
+	yamlData, err := generateYaml("a", true, 1024*245, 1, tags, "rotation_source", "rotation_service")
 	assert.NoError(v.T(), err)
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithLogs(),
 		agentparams.WithFile("/etc/datadog-agent/conf.d/rotation.yaml", string(yamlData), true),
-		agentparams.WithFile("/etc/datadog-agent/checks.d/rotation.py", rotationCheck, true))))
+		agentparams.WithFile("/etc/datadog-agent/checks.d/rotation.py", customIntegration, true))))
 
 	seen := make(map[string]bool)
 
@@ -106,7 +104,7 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*message.*")
 			assert.NoError(c, err)
 
-			if assert.NotEmpty(c, logs) {
+			if assert.NotEmpty(c, logs) && len(logs) >= i {
 				log := logs[i]
 				// Take the first 48 characters of the log, this part contains the UUID
 				logID := log.Message[:48]
@@ -114,18 +112,18 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 				seen[logID] = true
 			}
 		}, 2*time.Minute, 5*time.Second)
-
 	}
 }
 
 // generateYaml Generates a YAML config for checks to use
-func generateYaml(logMessage string, logSize int, logCount int, integrationTags []string, logSource string, logService string) ([]byte, error) {
+func generateYaml(logMessage string, uniqueMessage bool, logSize int, logCount int, integrationTags []string, logSource string, logService string) ([]byte, error) {
 	// Define the YAML structure
 	config := Config{
 		InitConfig: nil,
 		Instances: []Instance{
 			{
 				LogMessage:      logMessage,
+				UniqueMessage:   uniqueMessage,
 				LogSize:         logSize,
 				LogCount:        logCount,
 				IntegrationTags: strings.Join(integrationTags, ","),
