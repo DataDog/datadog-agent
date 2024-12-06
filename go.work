@@ -65,6 +65,7 @@ use (
 	pkg/config/utils
 	pkg/errors
 	pkg/gohai
+	pkg/linters/components/compimpl
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
 	pkg/logs/client

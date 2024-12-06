@@ -142,6 +142,9 @@ modules:
   pkg/errors: default
   pkg/gohai:
     importable: false
+  pkg/linters/components/compimpl:
+    independent: false
+    should_tag: false
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
