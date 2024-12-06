@@ -9,7 +9,7 @@ package snmplog
 import (
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 // SNMPLogger is a GoSNMP logger interface implementation.

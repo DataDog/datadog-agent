@@ -28,14 +28,12 @@ func NewCounter(name string, tagsAndOptions ...string) *Counter {
 
 // Add value atomically
 func (c *Counter) Add(v int64) {
-	if v < 0 {
-		// Counters are always monotonic so we don't allow negative numbers. We
+	if v > 0 {
+		// Counters are always monotonic so we don't allow non-positive numbers. We
 		// could enforce this by using an unsigned type, but that would make the
 		// API a little bit more cumbersome to use.
-		return
+		c.value.Add(v)
 	}
-
-	c.value.Add(v)
 }
 
 func (c *Counter) base() *metricBase {
@@ -103,4 +101,36 @@ func (m *metricBase) Get() int64 {
 // which is all we need in the internal code that has to deal with both types
 type metric interface {
 	base() *metricBase
+}
+
+// TLSAwareCounter is a TLS aware counter, it has a plain counter and a counter for TLS.
+// It enables the use of a single metric that increments based on the encryption, avoiding the need for separate metrics for eash use-case.
+type TLSAwareCounter struct {
+	counterPlain *Counter
+	counterTLS   *Counter
+}
+
+// NewTLSAwareCounter creates and returns a new instance of TLSCounter
+func NewTLSAwareCounter(metricGroup *MetricGroup, metricName string, tags ...string) *TLSAwareCounter {
+	return &TLSAwareCounter{
+		counterPlain: metricGroup.NewCounter(metricName, append(tags, "encrypted:false")...),
+		counterTLS:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true")...),
+	}
+}
+
+// Add adds the given delta to the counter based on the encryption.
+func (c *TLSAwareCounter) Add(delta int64, isTLS bool) {
+	if isTLS {
+		c.counterTLS.Add(delta)
+		return
+	}
+	c.counterPlain.Add(delta)
+}
+
+// Get returns the counter value based on the encryption.
+func (c *TLSAwareCounter) Get(isTLS bool) int64 {
+	if isTLS {
+		return c.counterTLS.Get()
+	}
+	return c.counterPlain.Get()
 }

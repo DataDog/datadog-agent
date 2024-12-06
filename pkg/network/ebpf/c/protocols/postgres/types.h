@@ -3,14 +3,14 @@
 
 #include "conn_tuple.h"
 
-// Controls the number of Postgres transactions read from userspace at a time.
-#define POSTGRES_BATCH_SIZE 25
+// Maximum length of Postgres query to send to userspace.
+#define POSTGRES_BUFFER_SIZE 160
 
-// Maximum length of postgres query to send to userspace.
-#define POSTGRES_BUFFER_SIZE 64
+// Represents the maximum number of tail calls we can use to process a single message.
+#define POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES 1
 
-// Maximum number of Postgres messages we can parse for a single packet.
-#define POSTGRES_MAX_MESSAGES 80
+// Represents the maximum number of messages we process in a single tail call.
+#define POSTGRES_MAX_MESSAGES_PER_TAIL_CALL 80
 
 // Postgres transaction information we store in the kernel.
 typedef struct {
@@ -20,6 +20,7 @@ typedef struct {
     __u64 response_last_seen;
     // The actual size of the query stored in request_fragment.
     __u32 original_query_size;
+    __u8 tags;
 } postgres_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.
@@ -27,5 +28,12 @@ typedef struct {
     conn_tuple_t tuple;
     postgres_transaction_t tx;
 } postgres_event_t;
+
+typedef struct {
+    __u8 iteration;
+    // Saving the packet data offset is crucial for maintaining the current read position and ensuring proper utilization
+    // of tail calls.
+    __u32 data_off;
+} postgres_tail_call_state_t;
 
 #endif

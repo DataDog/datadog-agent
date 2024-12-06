@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 )
 
@@ -89,9 +89,12 @@ func updateWithRepoFiles(cacheKeys map[string]signingKey, pkgManager string, cli
 
 func updateWithRPMDB(cacheKeys map[string]signingKey) error {
 	// It seems not possible to get the expiration date from rpmdb, so we extract the list of keys and call gpg
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "/usr/bin/rpm", "-qa", "gpg-pubkey*")
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(os.Interrupt)
+	}
 	output, err := cmd.CombinedOutput()
 	if err != nil || ctx.Err() != nil {
 		if ctx.Err() != nil {
@@ -103,6 +106,9 @@ func updateWithRPMDB(cacheKeys map[string]signingKey) error {
 	for scanner.Scan() {
 		publicKey := scanner.Text()
 		rpmCmd := exec.CommandContext(ctx, "/usr/bin/rpm", "-qi", publicKey, "--qf", "'%{PUBKEYS}\n'")
+		rpmCmd.Cancel = func() error {
+			return cmd.Process.Signal(os.Interrupt)
+		}
 		rpmKey, err := rpmCmd.CombinedOutput()
 		if err != nil || ctx.Err() != nil {
 			if ctx.Err() != nil {

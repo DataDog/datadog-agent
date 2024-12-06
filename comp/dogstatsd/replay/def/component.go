@@ -28,11 +28,11 @@ type Component interface {
 
 	// TODO: (components) pool manager should be injected as a component in the future.
 	// RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
-	RegisterSharedPoolManager(p *packets.PoolManager) error
+	RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error
 
 	// TODO: (components) pool manager should be injected as a component in the future.
 	// RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.f
-	RegisterOOBPoolManager(p *packets.PoolManager) error
+	RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error
 
 	// Enqueue enqueues a capture buffer so it's written to file.
 	Enqueue(msg *CaptureBuffer) bool

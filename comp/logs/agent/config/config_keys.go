@@ -11,6 +11,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -152,7 +153,7 @@ func (l *LogsConfigKeys) getAdditionalEndpoints() []unmarshalEndpoint {
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &endpoints)
 	} else {
-		err = l.getConfig().UnmarshalKey(configKey, &endpoints)
+		err = structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
 	}
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)

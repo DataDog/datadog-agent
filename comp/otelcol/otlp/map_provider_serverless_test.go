@@ -31,7 +31,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -77,15 +77,14 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+							"instrumentation_scope_metadata_as_tags":   true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -113,8 +112,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+											"instrumentation_scope_metadata_as_tags":   true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -138,7 +136,7 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP, metrics and traces, invalid loglevel(ignored)",
+			name: "only HTTP, metrics and traces, invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -147,15 +145,14 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+							"instrumentation_scope_metadata_as_tags":   true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "foo",
+					"verbosity": "foo",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -183,8 +180,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+											"instrumentation_scope_metadata_as_tags":   true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -214,7 +210,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -262,7 +258,6 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                1500,
 					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
 					"instrumentation_scope_metadata_as_tags":   false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
@@ -270,7 +265,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -288,8 +283,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                1500,
 							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"instrumentation_scope_metadata_as_tags":   false,
+									"instrumentation_scope_metadata_as_tags":   false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -309,13 +303,13 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only gRPC, only Traces, logging info",
+			name: "only gRPC, only Traces, logging with normal verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "info",
+					"verbosity": "normal",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -339,8 +333,8 @@ func TestNewMap(t *testing.T) {
 							"enabled": false,
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "info",
+					"debug": map[string]interface{}{
+						"verbosity": "normal",
 					},
 				},
 				"service": map[string]interface{}{
@@ -348,14 +342,14 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "logging"},
+							"exporters": []interface{}{"otlp", "debug"},
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "only HTTP, only metrics, logging debug",
+			name: "only HTTP, only metrics, logging with detailed verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -363,14 +357,13 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                1500,
 					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "debug",
+					"verbosity": "detailed",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -388,15 +381,14 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                1500,
 							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"histograms": map[string]interface{}{
+									"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "debug",
+					"debug": map[string]interface{}{
+						"verbosity": "detailed",
 					},
 				},
 				"service": map[string]interface{}{
@@ -404,14 +396,14 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"serializer", "logging"},
+							"exporters": []interface{}{"serializer", "debug"},
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "only HTTP, metrics and traces, logging warn",
+			name: "only HTTP, metrics and traces, logging with basic verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -420,14 +412,13 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"histograms": map[string]interface{}{
+							"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "warn",
+					"verbosity": "basic",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -455,15 +446,14 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"histograms": map[string]interface{}{
+											"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "warn",
+					"debug": map[string]interface{}{
+						"verbosity": "basic",
 					},
 				},
 				"service": map[string]interface{}{
@@ -471,11 +461,11 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "logging"},
+							"exporters": []interface{}{"otlp", "debug"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"serializer", "logging"},
+							"exporters": []interface{}{"serializer", "debug"},
 						},
 					},
 				},

@@ -9,7 +9,7 @@ package clientimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
@@ -94,5 +94,5 @@ func getContainerInfoFromPod(cid string, pod *workloadmeta.KubernetesPod) (strin
 }
 
 func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
-	return pod.Owners != nil && len(pod.Owners) > 0
+	return len(pod.Owners) > 0
 }

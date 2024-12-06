@@ -11,7 +11,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/port"
 )
@@ -39,14 +39,14 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 	}
 
 	var diagnoses []diagnosis.Diagnosis
-	for _, key := range config.Datadog().AllKeysLowercased() {
+	for _, key := range pkgconfigsetup.Datadog().AllKeysLowercased() {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
 		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
 			continue
 		}
 
-		value := config.Datadog().GetInt(key)
+		value := pkgconfigsetup.Datadog().GetInt(key)
 		if value <= 0 {
 			continue
 		}
@@ -68,6 +68,16 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 				Name:      key,
 				Result:    diagnosis.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, port.Pid, port.Proto),
+			})
+			continue
+		}
+
+		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
+		if port.Pid == 0 {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Name:      key,
+				Result:    diagnosis.DiagnosisFail,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process.", value),
 			})
 			continue
 		}

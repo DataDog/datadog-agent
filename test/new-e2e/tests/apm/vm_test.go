@@ -6,20 +6,29 @@
 package apm
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
 type VMFakeintakeSuite struct {
@@ -67,7 +76,7 @@ func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 	opts = vmProvisionerOpts(opts...)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
-		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
+		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s", tr)),
 	}
 	return options
 }
@@ -118,7 +127,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
@@ -136,7 +145,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetricTags() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testTraceAgentMetricTags(s.T(), c, service, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics with tags")
 }
 
@@ -159,7 +168,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
@@ -168,6 +177,8 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	addSpanTags := "peer.hostname:foo,span.kind:producer"
+	expectPeerTag := "peer.hostname:foo"
 
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
@@ -176,13 +187,13 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
-		s.logJournal()
+		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -205,7 +216,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces")
 }
 
@@ -228,7 +239,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionStats() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -251,7 +262,7 @@ func (s *VMFakeintakeSuite) TestIsTraceRootTag() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -275,7 +286,7 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
@@ -305,6 +316,35 @@ apm_config.probabilistic_sampler.hash_seed: 22
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
+}
+
+func (s *VMFakeintakeSuite) TestSIGTERM() {
+	output := s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/trace-agent.pid")
+	pid, err := strconv.ParseInt(strings.TrimSpace(output), 10, 64)
+	s.Require().NoError(err, "failed to parse trace-agent pid")
+
+	start := time.Now()
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("sudo kill -SIGTERM %d", pid))
+	s.Require().NoError(err, "failed to send SIGTERM to trace-agent")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		_, err := s.Env().RemoteHost.Execute("pgrep -x trace-agent")
+		if err == nil {
+			c.Errorf("trace-agent should not be running")
+			return
+		}
+
+		// pgrep exits with 1 if no process is found
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitStatus() == 1 {
+			end := time.Now()
+			s.T().Logf("trace-agent exited after %s", end.Sub(start).String())
+			return
+		}
+		assert.NoError(c, err, "failed to check the trace-agent process state")
+	}, 30*time.Second, 1*time.Second, "failed to stop trace-agent service in 30 seconds")
+
+	// make sure the trace-agent is running after this test
+	s.Env().RemoteHost.MustExecute("sudo systemctl start datadog-agent-trace.service")
 }
 
 type statusReporter struct {
@@ -356,8 +396,8 @@ func (s *VMFakeintakeSuite) logStatus() {
 	s.T().Log(status)
 }
 
-func (s *VMFakeintakeSuite) logJournal() {
-	if !s.extraLogging {
+func (s *VMFakeintakeSuite) logJournal(force bool) {
+	if !s.extraLogging && !force {
 		return
 	}
 	journal, err := s.Env().RemoteHost.Execute("sudo journalctl -n1000 -xu datadog-agent-trace")
@@ -366,4 +406,83 @@ func (s *VMFakeintakeSuite) logJournal() {
 		return
 	}
 	s.T().Log(journal)
+}
+
+func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
+	apiKey1 := strings.Repeat("1", 32)
+	apiKey2 := strings.Repeat("2", 32)
+
+	rootDir := "/tmp/" + s.T().Name()
+	s.Env().RemoteHost.MkdirAll(rootDir)
+
+	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
+
+	s.T().Log("Setting up the secret resolver and the initial api key file")
+
+	secretClient := secretsutils.NewSecretClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient.SetSecret("api_key", apiKey1)
+
+	extraconfig := fmt.Sprintf(`
+api_key: ENC[api_key]
+log_level: debug
+
+secret_backend_command: %s
+secret_backend_arguments:
+  - %s
+secret_backend_remove_trailing_line_break: true
+secret_backend_command_allow_group_exec_perm: true
+
+agent_ipc:
+  port: 5004
+  config_refresh_interval: 5
+`, secretResolverPath, rootDir)
+
+	s.UpdateEnv(awshost.Provisioner(
+		vmProvisionerOpts(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
+				secretsutils.WithUnixSecretSetupScript(secretResolverPath, true),
+				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+			),
+		)...),
+	)
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-apikey-refresh-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces (apiKey1)")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+
+	// update api_key
+	s.T().Log("Updating the api key")
+	secretClient.SetSecret("api_key", apiKey2)
+
+	// trigger a refresh of the core-agent secrets
+	s.T().Log("Refreshing core-agent secrets")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	// ensure the api_key was refreshed, fail directly otherwise
+	require.Contains(s.T(), secretRefreshOutput, "api_key")
+
+	// wait enough time for API Key refresh on trace-agent
+	time.Sleep(15 * time.Second)
+
+	err = s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	s.T().Log("Waiting for traces (apiKey2)")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+
+	s.logJournal(true)
 }

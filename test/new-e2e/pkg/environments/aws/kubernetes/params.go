@@ -15,7 +15,9 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -27,6 +29,7 @@ type ProvisionerParams struct {
 	vmOptions         []ec2.VMOption
 	agentOptions      []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
+	eksOptions        []eks.Option
 	extraConfigParams runner.ConfigMap
 	workloadAppFuncs  []WorkloadAppFunc
 
@@ -34,7 +37,9 @@ type ProvisionerParams struct {
 	eksLinuxARMNodeGroup     bool
 	eksBottlerocketNodeGroup bool
 	eksWindowsNodeGroup      bool
+	awsEnv                   *aws.Environment
 	deployDogstatsd          bool
+	deployTestWorkload       bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -43,6 +48,7 @@ func newProvisionerParams() *ProvisionerParams {
 		vmOptions:         []ec2.VMOption{},
 		agentOptions:      []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
+		eksOptions:        []eks.Option{},
 		extraConfigParams: runner.ConfigMap{},
 		workloadAppFuncs:  []WorkloadAppFunc{},
 
@@ -99,34 +105,10 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	}
 }
 
-// WithEKSLinuxNodeGroup enable Linux node group
-func WithEKSLinuxNodeGroup() ProvisionerOption {
+// WithEKSOptions adds options to the EKS cluster
+func WithEKSOptions(opts ...eks.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.eksLinuxNodeGroup = true
-		return nil
-	}
-}
-
-// WithEKSLinuxARMNodeGroup enable ARM node group
-func WithEKSLinuxARMNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksLinuxARMNodeGroup = true
-		return nil
-	}
-}
-
-// WithEKSBottlerocketNodeGroup enable AWS Bottle rocket node group
-func WithEKSBottlerocketNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksBottlerocketNodeGroup = true
-		return nil
-	}
-}
-
-// WithEKSWindowsNodeGroup enable Windows node group
-func WithEKSWindowsNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksWindowsNodeGroup = true
+		params.eksOptions = opts
 		return nil
 	}
 }
@@ -135,6 +117,14 @@ func WithEKSWindowsNodeGroup() ProvisionerOption {
 func WithDeployDogstatsd() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.deployDogstatsd = true
+		return nil
+	}
+}
+
+// WithDeployTestWorkload deploy a test workload
+func WithDeployTestWorkload() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployTestWorkload = true
 		return nil
 	}
 }
@@ -170,6 +160,14 @@ type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kub
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithAwsEnv asks the provisioner to use the given environment, it is created otherwise
+func WithAwsEnv(env *aws.Environment) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.awsEnv = env
 		return nil
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"testing"
 
-	waf "github.com/DataDog/go-libddwaf/v2"
+	waf "github.com/DataDog/go-libddwaf/v3"
 
 	"github.com/stretchr/testify/require"
 )

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -35,6 +34,26 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
 	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfig()
+}
+
+// SecurityAgentConfigBySource fetch all configuration layers from the security-agent process by querying its HTTPS API
+func SecurityAgentConfigBySource(config config.Reader) (string, error) {
+	err := util.SetAuthToken(config)
+	if err != nil {
+		return "", err
+	}
+
+	port := config.GetInt("security_agent.cmd_port")
+	if port <= 0 {
+		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
+	}
+
+	c := util.GetClient(false)
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
+
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
+	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	return client.FullConfigBySource()
 }
 
 // TraceAgentConfig fetch the configuration from the trace-agent process by querying its HTTPS API
@@ -86,20 +105,4 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 
 	return client.FullConfig()
-}
-
-// SystemProbeConfig fetch the configuration from the system-probe process by querying its API
-func SystemProbeConfig(config config.Reader) (string, error) {
-	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
-
-	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-	return c.FullConfig()
-}
-
-// SystemProbeConfigBySource fetch the all configuration layers from the system-probe process by querying its API
-func SystemProbeConfigBySource(config config.Reader) (string, error) {
-	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
-
-	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-	return c.FullConfigBySource()
 }

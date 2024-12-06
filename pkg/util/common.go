@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -176,13 +176,13 @@ func GetJSONSerializableMap(m interface{}) interface{} {
 
 // GetGoRoutinesDump returns the stack trace of every Go routine of a running Agent.
 func GetGoRoutinesDump() (string, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
 	pprofURL := fmt.Sprintf("http://%v:%s/debug/pprof/goroutine?debug=2",
-		ipcAddress, config.Datadog().GetString("expvar_port"))
+		ipcAddress, pkgconfigsetup.Datadog().GetString("expvar_port"))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := http.Client{}

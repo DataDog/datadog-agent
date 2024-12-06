@@ -17,7 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -29,7 +30,7 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
@@ -53,7 +54,7 @@ func TestNewHostProviderCustomInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
@@ -78,7 +79,7 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
@@ -94,7 +95,7 @@ func TestFlareProvider(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
@@ -113,7 +114,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),

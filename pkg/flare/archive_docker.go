@@ -16,8 +16,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,7 +28,7 @@ import (
 const dockerCommandMaxLength = 29
 
 func getDockerSelfInspect(wmeta optional.Option[workloadmeta.Component]) ([]byte, error) {
-	if !config.IsContainerized() {
+	if !env.IsContainerized() {
 		return nil, fmt.Errorf("The Agent is not containerized")
 	}
 

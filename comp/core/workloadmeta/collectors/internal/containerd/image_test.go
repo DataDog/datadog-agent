@@ -10,10 +10,11 @@ package containerd
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestKnownImages(t *testing.T) {
@@ -146,7 +147,20 @@ func TestGetLayersWithHistory(t *testing.T) {
 			Digest:    digest.FromString("foo").String(),
 			SizeBytes: 1,
 			History: &ocispec.History{
-				Comment: "not-empty1",
+				Comment:    "not-empty1",
+				EmptyLayer: false,
+			},
+		},
+		{
+			History: &ocispec.History{
+				Comment:    "empty1",
+				EmptyLayer: true,
+			},
+		},
+		{
+			History: &ocispec.History{
+				Comment:    "empty2",
+				EmptyLayer: true,
 			},
 		},
 		{
@@ -154,7 +168,14 @@ func TestGetLayersWithHistory(t *testing.T) {
 			Digest:    digest.FromString("bar").String(),
 			SizeBytes: 2,
 			History: &ocispec.History{
-				Comment: "not-empty2",
+				Comment:    "not-empty2",
+				EmptyLayer: false,
+			},
+		},
+		{
+			History: &ocispec.History{
+				Comment:    "empty3",
+				EmptyLayer: true,
 			},
 		},
 		{
@@ -162,7 +183,20 @@ func TestGetLayersWithHistory(t *testing.T) {
 			Digest:    digest.FromString("baz").String(),
 			SizeBytes: 3,
 			History: &ocispec.History{
-				Comment: "not-empty3",
+				Comment:    "not-empty3",
+				EmptyLayer: false,
+			},
+		},
+		{
+			History: &ocispec.History{
+				Comment:    "empty4",
+				EmptyLayer: true,
+			},
+		},
+		{
+			History: &ocispec.History{
+				Comment:    "empty5",
+				EmptyLayer: true,
 			},
 		},
 		{

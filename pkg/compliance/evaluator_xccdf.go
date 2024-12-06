@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -93,7 +93,7 @@ func newOSCAPIO(file string) *oscapIO {
 func (p *oscapIO) Run(ctx context.Context) error {
 	defer p.Stop()
 
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		hostRoot := os.Getenv("HOST_ROOT")
 		if hostRoot == "" {
 			hostRoot = "/host"
@@ -379,7 +379,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd
 }
 
 // FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
-func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) { //nolint:revive // TODO fix revive unused-parameter
+func FinishXCCDFBenchmark(_ context.Context, benchmark *Benchmark) {
 	oscapIOsMu.Lock()
 	if len(oscapIOs) == 0 {
 		// No oscap-io process is running.

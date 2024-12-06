@@ -15,9 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestRebalance(t *testing.T) {
@@ -1377,7 +1378,8 @@ func TestRebalance(t *testing.T) {
 				checkMetricSamplesWeight = originalMetricSamplesWeight
 			}()
 
-			dispatcher := newDispatcher()
+			fakeTagger := mock.SetupFakeTagger(t)
+			dispatcher := newDispatcher(fakeTagger)
 
 			// prepare store
 			dispatcher.store.active = true
@@ -1433,7 +1435,8 @@ func TestMoveCheck(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			dispatcher := newDispatcher()
+			fakeTagger := mock.SetupFakeTagger(t)
+			dispatcher := newDispatcher(fakeTagger)
 
 			// setup check id
 			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
@@ -1477,7 +1480,8 @@ func TestCalculateAvg(t *testing.T) {
 		checkMetricSamplesWeight = originalMetricSamplesWeight
 	}()
 
-	testDispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
 
 	// The busyness of this node is 3 (1 + 2)
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
@@ -1518,13 +1522,14 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   other tests specific for the checksDistribution struct that test more
 	//   complex scenarios.
 
-	testDispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
-	testDispatcher.store.nodes["node1"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
-	testDispatcher.store.nodes["node2"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		// This is the check with the highest utilization. The code will try to

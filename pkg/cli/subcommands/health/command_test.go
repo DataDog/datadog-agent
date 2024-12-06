@@ -27,7 +27,7 @@ func TestCommand(t *testing.T) {
 		commands,
 		[]string{"health"},
 		requestHealth,
-		func(coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }

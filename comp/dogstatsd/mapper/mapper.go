@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -24,6 +22,29 @@ const (
 	matchTypeWildcard = "wildcard"
 	matchTypeRegex    = "regex"
 )
+
+//
+// Those two structs are used to pull data from the configuration into typed struct. We currently load the data from the
+// configuration into MappingProfileConfig and then convert it to MappingProfile.
+//
+// Both MappingProfileConfig and MetricMappingConfig will no longer use `mapstructure` once we remove `UnmarshalKey`
+// method from the config interface.
+//
+
+// MappingProfileConfig represent a group of mappings
+type MappingProfileConfig struct {
+	Name     string                `mapstructure:"name" json:"name" yaml:"name"`
+	Prefix   string                `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
+	Mappings []MetricMappingConfig `mapstructure:"mappings" json:"mappings" yaml:"mappings"`
+}
+
+// MetricMapping represent one mapping rule
+type MetricMappingConfig struct {
+	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
+	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
+	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
+	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
+}
 
 // MetricMapper contains mappings and cache instance
 type MetricMapper struct {
@@ -53,7 +74,7 @@ type MapResult struct {
 }
 
 // NewMetricMapper creates, validates, prepares a new MetricMapper
-func NewMetricMapper(configProfiles []config.MappingProfile, cacheSize int) (*MetricMapper, error) {
+func NewMetricMapper(configProfiles []MappingProfileConfig, cacheSize int) (*MetricMapper, error) {
 	profiles := make([]MappingProfile, 0, len(configProfiles))
 	for profileIndex, configProfile := range configProfiles {
 		if configProfile.Name == "" {

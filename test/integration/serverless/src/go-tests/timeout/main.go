@@ -19,7 +19,7 @@ type testResponse struct {
 	Body       string `json:"body"`
 }
 
-func testHandler(ctx context.Context, ev events.APIGatewayProxyRequest) (testResponse, error) {
+func testHandler(_ context.Context, _ events.APIGatewayProxyRequest) (testResponse, error) {
 	ddlambda.Metric("serverless.lambda-extension.integration-test.count", 1.0)
 	time.Sleep(10 * time.Second)
 	return testResponse{

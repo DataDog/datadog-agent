@@ -22,7 +22,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,7 +38,7 @@ func TestNetDevice(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
 		}
@@ -181,8 +181,11 @@ func TestTCFilters(t *testing.T) {
 
 	var newNetNSSleep *exec.Cmd
 	defer func() {
-		if newNetNSSleep != nil && newNetNSSleep.Process != nil {
-			_ = newNetNSSleep.Process.Kill()
+		if newNetNSSleep != nil {
+			if newNetNSSleep.Process != nil {
+				_ = newNetNSSleep.Process.Kill()
+			}
+			_ = newNetNSSleep.Wait()
 		}
 	}()
 

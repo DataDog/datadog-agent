@@ -15,5 +15,6 @@ import (
 // MockBundle defines the mock fx options for this bundle.
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		agentimpl.MockModule())
+		agentimpl.MockModule(),
+	)
 }

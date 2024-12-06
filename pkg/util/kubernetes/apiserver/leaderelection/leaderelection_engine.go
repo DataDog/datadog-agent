@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -151,7 +151,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 			le.reportLeaderMetric(identity == le.HolderIdentity)
 			log.Infof("New leader %q", identity)
 		},
-		OnStartedLeading: func(ctx context.Context) {
+		OnStartedLeading: func(context.Context) {
 			le.updateLeaderIdentity(le.HolderIdentity)
 			le.reportLeaderMetric(true)
 			le.notify()
@@ -192,7 +192,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	electionConfig := ld.LeaderElectionConfig{
 		// ReleaseOnCancel updates the leader election lock when the main context is canceled by setting the Lease Duration to 1s.
 		// It allows the next DCA to initialize faster. However, it performs a network call on shutdown.
-		ReleaseOnCancel: config.Datadog().GetBool("leader_election_release_on_shutdown"),
+		ReleaseOnCancel: pkgconfigsetup.Datadog().GetBool("leader_election_release_on_shutdown"),
 		Lock:            leaderElectorInterface,
 		LeaseDuration:   le.LeaseDuration,
 		RenewDeadline:   le.LeaseDuration / 2,

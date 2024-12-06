@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitydescriptors"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
@@ -19,20 +20,21 @@ import (
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	ProcessResolver   *process.Resolver
-	TagsResolver      tags.Resolver
-	UserSessions      *usersessions.Resolver
-	UserGroupResolver *usergroup.Resolver
+	ProcessResolver            *process.Resolver
+	TagsResolver               tags.Resolver
+	UserSessions               *usersessions.Resolver
+	UserGroupResolver          *usergroup.Resolver
+	SecurityDescriptorResolver *securitydescriptors.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber) (*Resolvers, error) {
+func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts) (*Resolvers, error) {
 	processResolver, err := process.NewResolver(config, statsdClient, scrubber, process.NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe)
+	tagsResolver := tags.NewResolver(opts.Tagger)
 
 	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity)
 	if err != nil {
@@ -44,11 +46,17 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, sc
 		return nil, err
 	}
 
+	securityDescriptorResolver, err := securitydescriptors.NewResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
-		ProcessResolver:   processResolver,
-		TagsResolver:      tagsResolver,
-		UserSessions:      userSessionsResolver,
-		UserGroupResolver: userGroupResolver,
+		ProcessResolver:            processResolver,
+		TagsResolver:               tagsResolver,
+		UserSessions:               userSessionsResolver,
+		UserGroupResolver:          userGroupResolver,
+		SecurityDescriptorResolver: securityDescriptorResolver,
 	}
 	return resolvers, nil
 }

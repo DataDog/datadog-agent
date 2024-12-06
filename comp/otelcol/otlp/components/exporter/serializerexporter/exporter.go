@@ -16,52 +16,38 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
-var _ component.Config = (*ExporterConfig)(nil)
-
 func newDefaultConfig() component.Config {
+	mcfg := MetricsConfig{
+		TagCardinality:       "low",
+		APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
+		Tags:                 "",
+	}
+	pkgmcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config).Metrics
+	mcfg.Metrics = pkgmcfg
+
 	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
-		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
+		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
-		Metrics: MetricsConfig{
-			DeltaTTL: 3600,
-			ExporterConfig: MetricsExporterConfig{
-				ResourceAttributesAsTags:             false,
-				InstrumentationLibraryMetadataAsTags: false,
-				InstrumentationScopeMetadataAsTags:   false,
-			},
-			TagCardinality: "low",
-			HistConfig: HistogramConfig{
-				Mode:             "distributions",
-				SendAggregations: false,
-			},
-			SumConfig: SumConfig{
-				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
-				InitialCumulativeMonotonicMode: InitialValueModeAuto,
-			},
-			SummaryConfig: SummaryConfig{
-				Mode: SummaryModeGauges,
-			},
-			APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
-			Tags:                 "",
-		},
+		Metrics: mcfg,
 	}
 }
 
-var _ source.Provider = (*sourceProviderFunc)(nil)
+var _ source.Provider = (*SourceProviderFunc)(nil)
 
-// sourceProviderFunc is an adapter to allow the use of a function as a metrics.HostnameProvider.
-type sourceProviderFunc func(context.Context) (string, error)
+// SourceProviderFunc is an adapter to allow the use of a function as a metrics.HostnameProvider.
+type SourceProviderFunc func(context.Context) (string, error)
 
 // Source calls f and wraps in a source struct.
-func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
+func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 	hostnameIdentifier, err := f(ctx)
 	if err != nil {
 		return source.Source{}, err
@@ -75,70 +61,77 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 type Exporter struct {
 	tr              *metrics.Translator
 	s               serializer.MetricSerializer
-	hostGetter      sourceProviderFunc
+	hostGetter      SourceProviderFunc
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *ExporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
-	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
+// TODO: expose the same function in OSS exporter and remove this
+func translatorFromConfig(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+) (*metrics.Translator, error) {
+	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
 		// Do nothing
 	default:
-		return nil, fmt.Errorf("invalid `mode` %q", cfg.Metrics.HistConfig.Mode)
+		return nil, fmt.Errorf("invalid `mode` %q", cfg.HistConfig.Mode)
 	}
 
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
-		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
+		metrics.WithDeltaTTL(cfg.DeltaTTL),
+		metrics.WithOTelPrefix(),
 	}
 
-	if cfg.Metrics.HistConfig.SendAggregations {
+	if statsIn != nil {
+		options = append(options, metrics.WithStatsOut(statsIn))
+	}
+
+	if cfg.HistConfig.SendAggregations {
 		options = append(options, metrics.WithHistogramAggregations())
 	}
 
-	switch cfg.Metrics.SummaryConfig.Mode {
-	case SummaryModeGauges:
+	switch cfg.SummaryConfig.Mode {
+	case datadogconfig.SummaryModeGauges:
 		options = append(options, metrics.WithQuantiles())
 	}
 
-	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
-		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
-	}
-
-	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
-		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
-	}
-
-	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
+	if cfg.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
 	}
 
 	var numberMode metrics.NumberMode
-	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
-	case CumulativeMonotonicSumModeRawValue:
+	switch cfg.SumConfig.CumulativeMonotonicMode {
+	case datadogconfig.CumulativeMonotonicSumModeRawValue:
 		numberMode = metrics.NumberModeRawValue
-	case CumulativeMonotonicSumModeToDelta:
+	case datadogconfig.CumulativeMonotonicSumModeToDelta:
 		numberMode = metrics.NumberModeCumulativeToDelta
 	}
 	options = append(options, metrics.WithNumberMode(numberMode))
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
-		metrics.InitialCumulMonoValueMode(cfg.Metrics.SumConfig.InitialCumulativeMonotonicMode)))
+		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
-func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*Exporter, error) {
-	// Log any warnings from unmarshaling.
-	for _, warning := range cfg.warnings {
-		set.Logger.Warn(warning)
-	}
-
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter)
+func NewExporter(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	s serializer.MetricSerializer,
+	cfg *ExporterConfig,
+	enricher tagenricher,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+) (*Exporter, error) {
+	tr, err := translatorFromConfig(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}

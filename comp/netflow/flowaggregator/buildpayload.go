@@ -33,16 +33,18 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		EtherType:  format.EtherType(aggFlow.EtherType),
 		IPProtocol: format.IPProtocol(aggFlow.IPProtocol),
 		Source: payload.Endpoint{
-			IP:   format.IPAddr(aggFlow.SrcAddr),
-			Port: format.Port(aggFlow.SrcPort),
-			Mac:  format.MacAddress(aggFlow.SrcMac),
-			Mask: format.CIDR(aggFlow.SrcAddr, aggFlow.SrcMask),
+			IP:                 format.IPAddr(aggFlow.SrcAddr),
+			Port:               format.Port(aggFlow.SrcPort),
+			Mac:                format.MacAddress(aggFlow.SrcMac),
+			Mask:               format.CIDR(aggFlow.SrcAddr, aggFlow.SrcMask),
+			ReverseDNSHostname: aggFlow.SrcReverseDNSHostname,
 		},
 		Destination: payload.Endpoint{
-			IP:   format.IPAddr(aggFlow.DstAddr),
-			Port: format.Port(aggFlow.DstPort),
-			Mac:  format.MacAddress(aggFlow.DstMac),
-			Mask: format.CIDR(aggFlow.DstAddr, aggFlow.DstMask),
+			IP:                 format.IPAddr(aggFlow.DstAddr),
+			Port:               format.Port(aggFlow.DstPort),
+			Mac:                format.MacAddress(aggFlow.DstMac),
+			Mask:               format.CIDR(aggFlow.DstAddr, aggFlow.DstMask),
+			ReverseDNSHostname: aggFlow.DstReverseDNSHostname,
 		},
 		Ingress: payload.ObservationPoint{
 			Interface: payload.Interface{

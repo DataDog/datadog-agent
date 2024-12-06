@@ -5,11 +5,29 @@
 
 package npcollectorimpl
 
-import model "github.com/DataDog/agent-payload/v5/process"
+import (
+	"net"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+)
 
 func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
-	if conn.Direction != model.ConnectionDirection_outgoing {
+	if conn == nil || conn.Direction != model.ConnectionDirection_outgoing {
+		return false
+	}
+	remoteIP := net.ParseIP(conn.Raddr.Ip)
+	if remoteIP.IsLoopback() || conn.IntraHost {
 		return false
 	}
 	return conn.Family == model.ConnectionFamily_v4
+}
+
+func convertProtocol(connType model.ConnectionType) payload.Protocol {
+	if connType == model.ConnectionType_tcp {
+		return payload.ProtocolTCP
+	} else if connType == model.ConnectionType_udp {
+		return payload.ProtocolUDP
+	}
+	return ""
 }

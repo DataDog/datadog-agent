@@ -13,7 +13,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	model "github.com/DataDog/agent-payload/v5/process"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -69,6 +70,8 @@ type ECSCollectorRunConfig struct {
 	AWSAccountID      int
 	Region            string
 	ClusterName       string
+	SystemInfo        *model.SystemInfo
+	HostName          string
 }
 
 // CollectorRunConfig is the configuration used to initialize or run the

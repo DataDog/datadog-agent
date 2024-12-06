@@ -36,9 +36,8 @@ func TestRuleIDFilter(t *testing.T) {
 		},
 	}
 
-	es, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, policyOpts)
-	rs := es.RuleSets[DefaultRuleSetTagValue]
-	assert.Nil(t, err)
+	rs, err := loadPolicy(t, testPolicy, policyOpts)
+	assert.Nil(t, err.ErrorOrNil())
 
 	assert.NotContains(t, rs.rules, "test1")
 	assert.Contains(t, rs.rules, "test2")

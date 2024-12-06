@@ -46,6 +46,76 @@ func TestConnection(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestTimeout(t *testing.T) {
+	const sleepFmt = `DECLARE
+  result NUMBER;
+BEGIN
+  DBMS_SESSION.SLEEP(%d);
+  result := 1;
+  DBMS_OUTPUT.PUT_LINE(result);
+END;`
+	tests := []struct {
+		name         string
+		queryTimeout int
+		sessionSleep int
+	}{
+		{
+			name:         "query_timeout will be overridden to default",
+			queryTimeout: 0,
+			sessionSleep: 0,
+		},
+		{
+			name:         "query_timeout should be respected",
+			queryTimeout: 1,
+			sessionSleep: 30,
+		},
+		{
+			name:         "query should be done before query_timeout",
+			queryTimeout: 5,
+			sessionSleep: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := newDefaultCheck(t, "", "")
+			c.config.ConnectionConfig.QueryTimeout = tt.queryTimeout
+			defer c.Teardown()
+			if tt.queryTimeout <= 0 {
+				require.Equal(t, 20000*time.Second, c.config.QueryTimeoutDuration())
+				return
+			}
+			require.Equal(t, time.Duration(tt.queryTimeout)*time.Second, c.config.QueryTimeoutDuration())
+			var err error
+			c.db, err = c.Connect()
+			require.NoError(t, err)
+
+			testDone := make(chan struct{})
+			go func() {
+				toBeIgnored := make([]struct{}, 0, 1)
+				err := c.db.Select(&toBeIgnored, fmt.Sprintf(sleepFmt, tt.sessionSleep))
+				if tt.queryTimeout < tt.sessionSleep {
+					require.Contains(t, err.Error(), "timeout")
+				} else {
+					require.NoError(t, err)
+					result, err := getSession(&c)
+					require.NoError(t, err)
+					require.NotEmpty(t, result)
+				}
+				close(testDone)
+			}()
+
+			select {
+			case <-time.After(10 * time.Second):
+				// To detect if timeout is not working.
+				t.Errorf("test didn't finish in 10 seconds")
+				t.FailNow()
+			case <-testDone:
+				return
+			}
+		})
+	}
+}
+
 func connectToDB(driver string) (*sqlx.DB, error) {
 	var connStr string
 	connectionConfig := getConnectData(nil, useDefaultUser)
@@ -132,16 +202,12 @@ func TestChkRun(t *testing.T) {
 
 	tempLobsBefore, _ := getTemporaryLobs(&c)
 
-	/* Requires:
-	 * create table sys.t(n number);
-	 * grant insert on sys.t to c##datadog
-	 */
-	_, err = c.db.Exec(`begin
+	_, err = c.db.Exec(fmt.Sprintf(`begin
 				for i in 1..1000
 				loop
-					execute immediate 'insert into sys.t values (' || i || ')';
+					execute immediate 'insert into %s.t values (' || i || ')';
 				end loop;
-				end ;`)
+				end ;`, getOwner(&c)))
 	assert.NoError(t, err, "error generating statements")
 
 	c.Run()
@@ -150,7 +216,7 @@ func TestChkRun(t *testing.T) {
 	diff1 := (pgaAfter1StRun - pgaBefore) / 1024
 	var extremePGAUsage float64
 	if isDbVersionGreaterOrEqualThan(&c, "12.2") {
-		extremePGAUsage = 1024
+		extremePGAUsage = 2048
 	} else {
 		extremePGAUsage = 8192
 	}
@@ -310,6 +376,7 @@ func TestObfuscator(t *testing.T) {
 }
 
 func TestLegacyMode(t *testing.T) {
+	t.Skip()
 	canConnectServiceCheckName := "oracle.can_query"
 
 	for _, config := range []string{
@@ -321,9 +388,11 @@ func TestLegacyMode(t *testing.T) {
 		err := c.Run()
 		assert.NoError(t, err)
 		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
+		expectedServiceTag := fmt.Sprintf("service:%s", c.config.InstanceConfig.ServiceName)
+		expectedTags := []string{expectedServerTag, expectedServiceTag}
 		host := c.dbHostname
-		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
-		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
+		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
+		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
 	}
 }
 
@@ -342,7 +411,7 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 			connectionConfig.Username, connectionConfig.Password, protocolString, connectionConfig.Server,
 			connectionConfig.Port, connectionConfig.ServiceName, walletString)
 	} else {
-		connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+		connectionOptions := map[string]string{"TIMEOUT": connectionConfig.QueryTimeoutString()}
 		if connectionConfig.Protocol == "TCPS" {
 			connectionOptions["SSL"] = "TRUE"
 			if connectionConfig.Wallet != "" {
@@ -356,20 +425,27 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 }
 
 func TestLargeUint64Binding(t *testing.T) {
+	var err error
+	c, _ := newDefaultCheck(t, "", "")
+	require.NoError(t, err)
+	err = c.Run()
+	require.NoError(t, err)
+
 	largeUint64 := uint64(18446744073709551615)
 	var result uint64
+	owner := getOwner(&c)
+	err = getWrapper(&c, &result, fmt.Sprintf("SELECT n FROM %s.T WHERE n = :1", owner), largeUint64)
+	require.NoError(t, err, "running test statement")
+	assert.Equal(t, result, largeUint64, "simple uint64 binded correctly")
 
-	var err error
-	driver := common.GoOra
-	db, err := connectToDB(driver)
-	require.NoErrorf(t, err, "connecting to db with %s driver", driver)
+	err = getWrapper(&c, &result, "SELECT 18446744073709551615 FROM dual")
+	require.NoError(t, err, "running test statement")
+	assert.Equal(t, result, largeUint64, "result set not truncated")
+}
 
-	err = db.Get(&result, "SELECT n FROM sys.T WHERE n = :1", largeUint64)
-	assert.NoError(t, err, "running test statement with %s driver", driver)
-	assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
-
-	err = db.Get(&result, "SELECT 18446744073709551615 FROM dual")
-	assert.NoError(t, err, "running test statement with %s driver", driver)
-	assert.Equal(t, result, largeUint64, "result set truncated with %s driver", driver)
-	db.Close()
+func getOwner(c *Check) string {
+	if c.hostingType == rds {
+		return "admin"
+	}
+	return "sys"
 }

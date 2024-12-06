@@ -7,7 +7,7 @@
 
 package winregistryimpl
 
-import "github.com/DataDog/datadog-agent/comp/core/log"
+import log "github.com/DataDog/datadog-agent/comp/core/log/def"
 
 type loggingRegistryDelegate struct {
 	baseRegistryDelegate

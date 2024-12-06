@@ -6,7 +6,9 @@
 package setup
 
 import (
+	"encoding/json"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,7 +90,7 @@ var processesAddOverrideOnce sync.Once
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
+func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
@@ -100,26 +102,17 @@ func procBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val inte
 
 // procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
 // We need this helper function because the standard BindEnv can only generate one prefix from a key.
-func procBindEnv(config pkgconfigmodel.Config, key string) {
+func procBindEnv(config pkgconfigmodel.Setup, key string) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	config.BindEnv(key, processConfigKey, processAgentKey)
 }
 
-func setupProcesses(config pkgconfigmodel.Config) {
+func setupProcesses(config pkgconfigmodel.Setup) {
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")
-	config.SetEnvKeyTransformer("process_config.enabled", func(val string) interface{} {
-		// DD_PROCESS_AGENT_ENABLED: true - Process + Container checks enabled
-		//                           false - No checks enabled
-		//                           (unset) - Defaults are used, only container check is enabled
-		if enabled, _ := strconv.ParseBool(val); enabled {
-			return "true"
-		}
-		return "disabled"
-	})
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
@@ -150,10 +143,15 @@ func setupProcesses(config pkgconfigmodel.Config) {
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
-	config.SetEnvKeyTransformer("process_config.custom_sensitive_words", func(val string) interface{} {
+	config.ParseEnvAsStringSlice("process_config.custom_sensitive_words", func(val string) []string {
 		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2,..." but Viper expects the user to set a list as ["w1","w2",...]
 		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
-			return val
+			res := []string{}
+			if err := json.Unmarshal([]byte(val), &res); err != nil {
+				log.Errorf("Error parsing JSON value for 'process_config.custom_sensitive_words' from env vars: %s", err)
+				return nil
+			}
+			return res
 		}
 
 		return strings.Split(val, ",")
@@ -211,7 +209,16 @@ func setupProcesses(config pkgconfigmodel.Config) {
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+		pkgconfigmodel.AddOverrideFunc(overrideRunInCoreAgentConfig)
 	})
+}
+
+// overrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in non-Linux environments.
+// Otherwise, it is a no-op.
+func overrideRunInCoreAgentConfig(config pkgconfigmodel.Config) {
+	if runtime.GOOS != "linux" {
+		config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.
@@ -227,9 +234,11 @@ func loadProcessTransforms(config pkgconfigmodel.Config) {
 		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
 			config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			config.Set("process_config.enabled", "true", pkgconfigmodel.SourceAgentRuntime)
 		} else { // "false"
 			config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 			config.Set("process_config.container_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			config.Set("process_config.enabled", "disabled", pkgconfigmodel.SourceAgentRuntime)
 		}
 	}
 }

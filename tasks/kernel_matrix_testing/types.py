@@ -8,8 +8,9 @@ from __future__ import annotations
 import os
 from typing import Literal, Protocol, TypedDict, TypeVar
 
-Arch = Literal['x86_64', 'arm64']
-ArchOrLocal = Arch | Literal['local']
+from tasks.libs.types.arch import KMTArchName
+
+KMTArchNameOrLocal = KMTArchName | Literal['local']
 PathOrStr = os.PathLike | str
 Component = Literal['system-probe', 'security-agent']
 
@@ -61,7 +62,7 @@ Kernel = DistroKernel | CustomKernel
 class VMSetDict(TypedDict, total=False):
     tags: list[str]
     recipe: str
-    arch: ArchOrLocal
+    arch: KMTArchNameOrLocal
     console_type: str  # noqa: F841
     kernels: list[Kernel]
     disks: list[Disk]  # noqa: F841
@@ -76,7 +77,7 @@ class VMConfig(TypedDict):  # noqa: F841
 
 
 Recipe = Literal["distro", "custom"]
-VMDef = tuple[Recipe, str, ArchOrLocal]
+VMDef = tuple[Recipe, str, KMTArchNameOrLocal]
 
 
 class HasName(Protocol):
@@ -109,4 +110,4 @@ class StackOutputArchData(TypedDict):
     microvms: list[StackOutputMicroVM]
 
 
-StackOutput = dict[Arch, StackOutputArchData]
+StackOutput = dict[KMTArchName, StackOutputArchData]

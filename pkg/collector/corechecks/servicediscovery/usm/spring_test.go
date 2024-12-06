@@ -3,19 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
 	"archive/zip"
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 func TestIsSpringBootArchive(t *testing.T) {
@@ -117,7 +120,7 @@ func TestParseUri(t *testing.T) {
 			expectedClassPathLocations: map[string][]string{},
 		},
 	}
-	parser := newSpringBootParser(NewDetectionContext(zap.NewNop(), nil, nil, fstest.MapFS(nil)))
+	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewVariables(nil), fstest.MapFS(nil)))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fsLocs, cpLocs := parser.parseURI(strings.Split(tt.locations, ";"), tt.configName, tt.profiles, tt.cwd)
@@ -208,14 +211,15 @@ func TestArgumentPropertySource(t *testing.T) {
 	}
 }
 func TestScanSourcesFromFileSystem(t *testing.T) {
-	cwd, err := os.Getwd()
+	full, err := filepath.Abs("testdata/root")
 	require.NoError(t, err)
-	parser := newSpringBootParser(NewDetectionContext(zap.NewNop(), nil, nil, &RealFs{}))
+	sub := NewSubDirFS(full)
+	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewVariables(nil), sub))
 
 	fileSources := parser.scanSourcesFromFileSystem(map[string][]string{
 		"fs": {
-			abs("./application-fs.properties", cwd),
-			abs("./*/application-fs.properties", cwd),
+			"application-fs.properties",
+			"testdata/*/application-fs.properties",
 		},
 	})
 	require.Len(t, fileSources, 1)
@@ -299,7 +303,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 		name     string
 		jarname  string
 		cmdline  []string
-		envs     []string
+		envs     map[string]string
 		expected string
 	}{
 		{
@@ -342,8 +346,8 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 				"-jar",
 				spFullPath,
 			},
-			envs: []string{
-				"SPRING_APPLICATION_NAME=found",
+			envs: map[string]string{
+				"SPRING_APPLICATION_NAME": "found",
 			},
 			expected: "found",
 		},
@@ -395,7 +399,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app, ok := newSpringBootParser(NewDetectionContext(zap.NewNop(), tt.cmdline, tt.envs, RealFs{})).GetSpringBootAppName(tt.jarname)
+			app, ok := newSpringBootParser(NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), RealFs{})).GetSpringBootAppName(tt.jarname)
 			require.Equal(t, tt.expected, app)
 			require.Equal(t, len(app) > 0, ok)
 		})

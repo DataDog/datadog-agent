@@ -560,6 +560,13 @@ ____##name(struct pt_regs *ctx, ##args)
 
 #define BPF_KPROBE_SYSCALL BPF_KSYSCALL
 
+/* BPF_UPROBE and BPF_URETPROBE are identical to BPF_KPROBE and BPF_KRETPROBE,
+ * but are named way less confusingly for SEC("uprobe") and SEC("uretprobe")
+ * use cases.
+ */
+#define BPF_UPROBE(name, args...)  BPF_KPROBE(name, ##args)
+#define BPF_URETPROBE(name, args...)  BPF_KRETPROBE(name, ##args)
+
 #include "bpf_tracing_custom.h"
 
 #endif

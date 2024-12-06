@@ -17,7 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,13 +28,15 @@ func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
+		taggerfx.Module(tagger.Params{
+			UseFakeTagger: true,
+		}),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 	))

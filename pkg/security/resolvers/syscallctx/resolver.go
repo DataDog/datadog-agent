@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	maxEntries = 1024 // see kernel definition
+	maxEntries = 8192 // see kernel definition
 	argMaxSize = 128  // see kernel definition
 
 	// types // see kernel definition

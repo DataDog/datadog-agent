@@ -17,6 +17,7 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -110,6 +111,20 @@ func AssertUserRights(t *testing.T, host *components.RemoteHost, username string
 	return assert.ElementsMatch(t, expectedRights, actualRights, "user %s should have user rights", username)
 }
 
+// RequireAgentVersionRunningWithNoErrors checks the agent is running the expected version with no errors
+func RequireAgentVersionRunningWithNoErrors(t *testing.T, client *common.TestClient, version string) {
+	// check version
+	if !t.Run("running expected agent version", func(t *testing.T) {
+		installedVersion, err := client.GetAgentVersion()
+		require.NoError(t, err, "should get agent version")
+		windowsAgent.TestAgentVersion(t, version, installedVersion)
+	}) {
+		t.FailNow()
+	}
+	// check no errors
+	RequireAgentRunningWithNoErrors(t, client)
+}
+
 // RequireAgentRunningWithNoErrors checks the agent is running with no errors
 func RequireAgentRunningWithNoErrors(t *testing.T, client *common.TestClient) {
 	common.CheckAgentBehaviour(t, client)
@@ -195,4 +210,82 @@ func shortPythonVersion(version string) string {
 // to contain an embedded Python2.
 func ExpectPython2Installed(majorVersion string) bool {
 	return majorVersion == "6"
+}
+
+// getBaseConfigRootSecurity returns the base security settings for the config root
+//   - SYSTEM full control, owner and group
+//   - Administrators full control
+//   - protected (inheritance disabled)
+func getBaseConfigRootSecurity() (windows.ObjectSecurity, error) {
+	// SYSTEM and Administrators have full control
+	return windows.NewProtectedSecurityInfo(
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		[]windows.AccessRule{
+			windows.NewExplicitAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.LocalSystemSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+			windows.NewExplicitAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.AdministratorsSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+		},
+	), nil
+}
+
+// getBaseInheritedConfigFileSecurity returns the base security settings for a config file that inherits permissions from the config root
+//   - (inherited) SYSTEM full control, owner and group
+//   - (inherited) Administrators full control
+func getBaseInheritedConfigFileSecurity() (windows.ObjectSecurity, error) {
+	// SYSTEM and Administrators have full control
+	return windows.NewInheritSecurityInfo(
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		[]windows.AccessRule{
+			windows.NewInheritedAccessRule(
+				windows.GetIdentityForSID(windows.LocalSystemSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+			),
+			windows.NewInheritedAccessRule(
+				windows.GetIdentityForSID(windows.AdministratorsSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+			),
+		},
+	), nil
+}
+
+// getBaseInheritedConfigDirSecurity returns the base security settings for a config dir that inherits permissions from the config root
+//   - (inherited) SYSTEM full control, owner and group
+//   - (inherited) Administrators full control
+func getBaseInheritedConfigDirSecurity() (windows.ObjectSecurity, error) {
+	// SYSTEM and Administrators have full control
+	return windows.NewInheritSecurityInfo(
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		[]windows.AccessRule{
+			windows.NewInheritedAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.LocalSystemSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+			windows.NewInheritedAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.AdministratorsSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+		},
+	), nil
 }

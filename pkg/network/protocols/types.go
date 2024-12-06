@@ -6,7 +6,7 @@
 package protocols
 
 // ProtocolType is an enum of supported protocols
-type ProtocolType uint16
+type ProtocolType uint8
 
 const (
 	// Unknown is the default value, protocol was not detected
@@ -51,7 +51,7 @@ func (p ProtocolType) String() string {
 	case Postgres:
 		return "Postgres"
 	case AMQP:
-		return "AMPQ"
+		return "AMQP"
 	case Redis:
 		return "Redis"
 	case MySQL:

@@ -7,11 +7,15 @@ package mysql
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -22,14 +26,33 @@ const (
 )
 
 // RunServer runs a MySQL server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, withTLS bool) error {
+	t.Helper()
+
+	dir, _ := testutil.CurDir()
+	cert, _, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+	certsDir := filepath.Dir(cert)
+
 	env := []string{
 		"MYSQL_ADDR=" + serverAddr,
 		"MYSQL_PORT=" + serverPort,
 		"MYSQL_ROOT_PASS=" + Pass,
+		"CERTS_PATH=" + certsDir,
+		"TESTDIR=" + dir,
 	}
 
-	t.Helper()
-	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "MYSQL", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)), protocolsUtils.DefaultTimeout, 3)
+	if withTLS {
+		env = append(env, "MYSQL_TLS_ARGS=--require-secure-transport --ssl-cert=/mysql-test/cert.pem.0 --ssl-key=/mysql-test/server.key")
+	}
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	dockerCfg := dockerutils.NewComposeConfig("MYSQL",
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		scanner,
+		env,
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }

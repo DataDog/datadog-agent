@@ -19,7 +19,7 @@ func TestAuth(t *testing.T) {
 
 	mux := http.NewServeMux()
 
-	loginHandler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	loginHandler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		r.ParseForm()
 
 		username := r.Form.Get("j_username")
@@ -30,12 +30,12 @@ func TestAuth(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	tokenHandler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	tokenHandler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("testtoken"))
 	})
 
-	endpointHandler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	endpointHandler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		token := r.Header.Get("X-XSRF-TOKEN")
 
 		// Ensure token is correctly passed as header

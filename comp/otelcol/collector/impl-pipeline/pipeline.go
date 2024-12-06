@@ -5,22 +5,28 @@
 
 //go:build otlp
 
-// Package collector implements the collector component
-package collector
+// Package collectorimpl implements the collector component
+package collectorimpl
 
 import (
 	"context"
+	"net/http"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -41,7 +47,10 @@ type Requires struct {
 	Config config.Component
 
 	// Log specifies the logging component.
-	Log corelog.Component
+	Log log.Component
+
+	// Authtoken specifies the authentication token component.
+	Authtoken authtoken.Component
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -61,21 +70,25 @@ type Provides struct {
 	compdef.Out
 
 	Comp           collector.Component
+	FlareProvider  flaretypes.Provider
 	StatusProvider status.InformationProvider
 }
 
 type collectorImpl struct {
+	authToken      authtoken.Component
 	col            *otlp.Pipeline
 	config         config.Component
-	log            corelog.Component
+	log            log.Component
 	serializer     serializer.MetricSerializer
 	logsAgent      optional.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
+	client         *http.Client
+	ctx            context.Context
 }
 
 func (c *collectorImpl) start(context.Context) error {
-	on := otlp.IsEnabled(c.config)
+	on := configcheck.IsEnabled(c.config)
 	c.inventoryAgent.Set(otlpEnabled, on)
 	if !on {
 		return nil
@@ -94,11 +107,8 @@ func (c *collectorImpl) start(context.Context) error {
 		return nil
 	}
 	c.col = col
-	// the context passed to this function has a startup deadline which
-	// will shutdown the collector prematurely
-	ctx := context.Background()
 	go func() {
-		if err := col.Run(ctx); err != nil {
+		if err := col.Run(c.ctx); err != nil {
 			c.log.Errorf("Error running the OTLP ingest pipeline: %v", err)
 		}
 	}()
@@ -119,22 +129,35 @@ func (c *collectorImpl) Status() datatype.CollectorStatus {
 
 // NewComponent creates a new Component for this module and returns any errors on failure.
 func NewComponent(reqs Requires) (Provides, error) {
+
+	timeoutSeconds := reqs.Config.GetInt("otelcollector.extension_timeout")
+	if timeoutSeconds == 0 {
+		timeoutSeconds = defaultExtensionTimeout
+	}
+	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds)*time.Second, false)
+
 	collector := &collectorImpl{
+		authToken:      reqs.Authtoken,
 		config:         reqs.Config,
 		log:            reqs.Log,
 		serializer:     reqs.Serializer,
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
 		tagger:         reqs.Tagger,
+		client:         client,
+		ctx:            context.Background(),
 	}
 
 	reqs.Lc.Append(compdef.Hook{
 		OnStart: collector.start,
 		OnStop:  collector.stop,
 	})
-
+	timeoutCallback := func(flaretypes.FlareBuilder) time.Duration {
+		return time.Second * time.Duration(reqs.Config.GetInt("otelcollector.flare.timeout"))
+	}
 	return Provides{
 		Comp:           collector,
+		FlareProvider:  flaretypes.NewProviderWithTimeout(collector.fillFlare, timeoutCallback),
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
 }

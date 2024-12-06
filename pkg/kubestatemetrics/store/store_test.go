@@ -391,7 +391,7 @@ func TestPush(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ms := NewMetricsStore(func(i interface{}) []metric.FamilyInterface { return nil }, storeName)
+			ms := NewMetricsStore(func(interface{}) []metric.FamilyInterface { return nil }, storeName)
 			ms.addMetrics(test.toAdd)
 			res := ms.Push(test.familyAllow, test.metricAllow)
 			assert.Equal(t, res, test.res)

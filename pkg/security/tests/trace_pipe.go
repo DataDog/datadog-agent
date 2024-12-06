@@ -94,6 +94,9 @@ func (t *TracePipe) ReadLine() (*TraceEvent, error) {
 	if err != nil {
 		return nil, err
 	}
+	if line == "\n" {
+		return nil, io.EOF
+	}
 	traceEvent, err := parseTraceLine(line)
 	if err != nil {
 		return nil, err
@@ -117,9 +120,19 @@ func (t *TracePipe) Channel() (<-chan *TraceEvent, <-chan error) {
 				if err == io.EOF {
 					continue
 				}
-				channelErrors <- err
+				select {
+				case <-t.stop:
+					return
+				case channelErrors <- err:
+					// do nothing
+				}
 			} else {
-				channelEvents <- traceEvent
+				select {
+				case <-t.stop:
+					return
+				case channelEvents <- traceEvent:
+					// do nothing
+				}
 			}
 		}
 	}()

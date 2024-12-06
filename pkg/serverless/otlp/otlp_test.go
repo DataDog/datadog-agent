@@ -40,6 +40,14 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+type mockSpanModifier struct {
+	traceChan chan struct{}
+}
+
+func (m mockSpanModifier) ModifySpan(tc *pb.TraceChunk, s *pb.Span) {
+	m.traceChan <- struct{}{}
+}
+
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
 
@@ -57,15 +65,14 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", grpcEndpoint)
 
 	// setup trace agent
-	traceAgent := &trace.ServerlessTraceAgent{}
-	traceAgent.Start(true, &trace.LoadConfig{Path: "./testdata/valid.yml"}, nil, 0)
-	defer traceAgent.Stop()
-	assert.NotNil(traceAgent.Get())
-	traceChan := make(chan struct{})
-	traceAgent.SetSpanModifier(func(*pb.TraceChunk, *pb.Span) {
-		// indicates when trace is received
-		traceChan <- struct{}{}
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:    true,
+		LoadConfig: &trace.LoadConfig{Path: "./testdata/valid.yml"},
 	})
+	defer traceAgent.Stop()
+	assert.NotNil(traceAgent)
+	traceChan := make(chan struct{})
+	traceAgent.SetSpanModifier(mockSpanModifier{traceChan: traceChan})
 
 	// setup metric agent
 	metricAgent := &metrics.ServerlessMetricAgent{

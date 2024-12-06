@@ -10,6 +10,8 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -18,6 +20,10 @@ import (
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -39,7 +45,6 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		env.ECS.AwsEnvironment = &awsEnv
 
 		vmName := "httpbinvm"
 		nginxHost, err := ec2.NewVM(awsEnv, vmName)
@@ -64,17 +69,15 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		params := envecs.GetProvisionerParams(
-			envecs.WithECSLinuxECSOptimizedNodeGroup(),
+			envecs.WithAwsEnv(&awsEnv),
+			envecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
 			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+			envecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				testURL := "http://" + env.HTTPBinHost.Address + "/"
+				return npmtools.EcsAppDefinition(e, clusterArn, testURL)
+			}),
 		)
 		envecs.Run(ctx, &env.ECS, params)
-
-		// Workload
-		testURL := "http://" + env.HTTPBinHost.Address + "/"
-		if _, err := npmtools.EcsAppDefinition(awsEnv, env.ClusterArn, testURL); err != nil {
-			return err
-		}
-
 		return nil
 	}
 }
@@ -113,12 +116,16 @@ func (v *ecsVMSuite) AfterTest(suiteName, testName string) {
 // The test start by 00 to validate the agent/system-probe is up and running
 // On ECS the agent is slow to start and this avoid flaky tests
 func (v *ecsVMSuite) Test00FakeIntakeNPM() {
+	flake.Mark(v.T())
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ecsVMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
+	// mark the test flaky as somethimes 4/206 runs, it failed to retrieve DNS information
+	flake.Mark(v.T())
+
 	// deployed workload generate these connections every 20 seconds
 	//v.Env().RemoteHost.MustExecute("curl " + testURL)
 	//v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")

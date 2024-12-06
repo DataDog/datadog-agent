@@ -16,6 +16,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var (
@@ -27,7 +31,8 @@ instances:
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	_, err := resolver.getExecutablePermissions()
@@ -54,7 +59,8 @@ func setupSecretCommand(t *testing.T, resolver *secretResolver) (string, string)
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	res, err := resolver.getExecutablePermissions()
@@ -67,7 +73,8 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 }
 
 func TestDebugInfo(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -111,7 +118,8 @@ Secrets handle resolved:
 }
 
 func TestDebugInfoError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {

@@ -40,6 +40,7 @@ const (
 	GuessDPort     GuessWhat = C.GUESS_DPORT
 	GuessNetNS     GuessWhat = C.GUESS_NETNS
 	GuessRTT       GuessWhat = C.GUESS_RTT
+	GuessRTTVar    GuessWhat = C.GUESS_RTT_VAR
 	GuessDAddrIPv6 GuessWhat = C.GUESS_DADDR_IPV6
 	// Following values are associated with an UDP connection, used for guessing offsets
 	// in the flowi4 data structure

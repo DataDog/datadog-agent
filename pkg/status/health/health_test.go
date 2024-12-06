@@ -125,8 +125,7 @@ func TestGetHealthy(t *testing.T) {
 }
 
 func TestStartupCatalog(t *testing.T) {
-	cat := newCatalog()
-	cat.startup = true
+	cat := newStartupCatalog()
 	token := cat.register("test1")
 
 	// Start unhealthy

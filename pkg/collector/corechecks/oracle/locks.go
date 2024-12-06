@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -132,11 +131,17 @@ func (c *Check) locks() error {
 		}
 		oracleRows = append(oracleRows, p)
 	}
+
+	if len(oracleRows) == 0 {
+		return nil
+	}
+
 	hname, _ := hostname.Get(context.TODO())
+	ts := float64(c.clock.Now().UnixMilli())
 	m := metricsPayload{
 		Host:                  c.dbHostname,
 		Kind:                  "lock_metrics",
-		Timestamp:             float64(time.Now().UnixMilli()),
+		Timestamp:             ts,
 		MinCollectionInterval: float64(c.config.MinCollectionInterval),
 		Tags:                  c.tags,
 		AgentVersion:          c.agentVersion,

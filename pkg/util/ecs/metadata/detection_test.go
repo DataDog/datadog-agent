@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
@@ -35,7 +36,7 @@ func TestLocateECSHTTP(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	config.Datadog().SetDefault("ecs_agent_url", ts.URL)
+	pkgconfigsetup.Datadog().SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.NoError(t, err)
@@ -58,7 +59,7 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	config.Datadog().SetDefault("ecs_agent_url", ts.URL)
+	pkgconfigsetup.Datadog().SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.Error(t, err)
@@ -73,11 +74,11 @@ func TestLocateECSHTTPFail(t *testing.T) {
 }
 
 func TestGetAgentV1ContainerURLs(t *testing.T) {
-	config.SetFeatures(t, config.Docker)
+	env.SetFeatures(t, env.Docker)
 
 	ctx := context.Background()
-	config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
-	defer config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent")
+	pkgconfigsetup.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
+	defer pkgconfigsetup.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent")
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)
@@ -103,4 +104,18 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	assert.Contains(t, agentURLS, "http://172.17.0.2:51678/")
 	assert.Contains(t, agentURLS, "http://172.17.0.3:51678/")
 	assert.Equal(t, "http://ip-172-29-167-5:51678/", agentURLS[2])
+}
+
+func TestIsMetadataV4Available(t *testing.T) {
+	ok, err := IsMetadataV4Available("")
+	assert.NotNil(t, err)
+	assert.False(t, ok)
+
+	ok, err = IsMetadataV4Available("1.0.0")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	ok, err = IsMetadataV4Available("1.80.0")
+	assert.NoError(t, err)
+	assert.True(t, ok)
 }

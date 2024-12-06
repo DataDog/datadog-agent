@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -66,7 +67,7 @@ type DBMAuroraService struct {
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
-func NewDBMAuroraListener(Config) (ServiceListener, error) {
+func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
@@ -191,6 +192,21 @@ func findDeletedServices(currServices map[string]Service, discoveredServices map
 	return deletedServices
 }
 
+// Equal returns whether the two DBMAuroraService are equal
+func (d *DBMAuroraService) Equal(o Service) bool {
+	d2, ok := o.(*DBMAuroraService)
+	if !ok {
+		return false
+	}
+
+	return d.adIdentifier == d2.adIdentifier &&
+		d.entityID == d2.entityID &&
+		d.checkName == d2.checkName &&
+		d.clusterID == d2.clusterID &&
+		d.region == d2.region &&
+		reflect.DeepEqual(d.instance, d2.instance)
+}
+
 // GetServiceID returns the unique entity name linked to that service
 func (d *DBMAuroraService) GetServiceID() string {
 	return d.entityID
@@ -220,6 +236,11 @@ func (d *DBMAuroraService) GetPorts(context.Context) ([]ContainerPort, error) {
 // GetTags returns the list of container tags - currently always empty
 func (d *DBMAuroraService) GetTags() ([]string, error) {
 	return []string{}, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in DBMAuroraService
+func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return d.GetTags()
 }
 
 // GetPid returns nil and an error because pids are currently not supported

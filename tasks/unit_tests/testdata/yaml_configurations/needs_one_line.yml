@@ -1,0 +1,20 @@
+---
+nerd_tests:
+  stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  variables:
+    FLAVORS: '--flavor base'
+  script:
+    - inv -e need.do-i-really-need-to-test || true
+  artifacts:
+    expire_in: 2 years
+    when: always
+    paths:
+      - none-shall-pass.txt
+    reports:
+      junit: "*.xml"
+      annotations:
+        - $EXTERNAL_LINKS_PATH

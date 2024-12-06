@@ -9,24 +9,40 @@ package traceroute
 
 import (
 	"context"
+	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	tcpNotSupportedMsg = "TCP traceroute is not currently supported on macOS"
 )
 
 // MacTraceroute defines a structure for
 // running traceroute from an agent running
 // on macOS
 type MacTraceroute struct {
-	cfg    Config
-	runner *Runner
+	cfg    config.Config
+	runner *runner.Runner
 }
 
 // New creates a new instance of MacTraceroute
 // based on an input configuration
-func New(cfg Config) (*MacTraceroute, error) {
-	runner, err := NewRunner()
+func New(cfg config.Config, telemetry telemetry.Component) (*MacTraceroute, error) {
+	log.Debugf("Creating new traceroute with config: %+v", cfg)
+	runner, err := runner.New(telemetry)
 	if err != nil {
 		return nil, err
+	}
+
+	// TCP is not supported at the moment due to the
+	// way go listens for TCP in our implementation on BSD systems
+	if cfg.Protocol == payload.ProtocolTCP {
+		return nil, errors.New(tcpNotSupportedMsg)
 	}
 
 	return &MacTraceroute{
@@ -40,5 +56,12 @@ func (m *MacTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
 	// TODO: mac implementation, can we get this no system-probe or root access?
 	// To test: we probably can, but maybe not without modifying
 	// the library we currently use
+
+	// TCP is not supported at the moment due to the
+	// way go listens for TCP in our implementation on BSD systems
+	if m.cfg.Protocol == payload.ProtocolTCP {
+		return payload.NetworkPath{}, errors.New(tcpNotSupportedMsg)
+	}
+
 	return m.runner.RunTraceroute(ctx, m.cfg)
 }

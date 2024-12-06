@@ -27,7 +27,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val1 := http.NewRequestStats(false)
+	val1 := http.NewRequestStats()
 	val1.AddRequest(100, 10.0, 0, nil)
 
 	key2 := http.NewKey(
@@ -39,7 +39,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val2 := http.NewRequestStats(false)
+	val2 := http.NewRequestStats()
 	val2.AddRequest(200, 10.0, 0, nil)
 
 	// Connection 2
@@ -52,7 +52,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val3 := http.NewRequestStats(false)
+	val3 := http.NewRequestStats()
 	val3.AddRequest(300, 10.0, 0, nil)
 
 	key4 := http.NewKey(
@@ -64,7 +64,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val4 := http.NewRequestStats(false)
+	val4 := http.NewRequestStats()
 	val4.AddRequest(400, 10.0, 0, nil)
 
 	data := map[http.Key]*http.RequestStats{
@@ -80,12 +80,12 @@ func TestGroupByConnection(t *testing.T) {
 
 	// Connection 1
 	// Assert that (key1, val1) and (key2, val2) were grouped together
-	connection1 := network.ConnectionStats{
+	connection1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("2.2.2.2"),
 		SPort:  60000,
 		DPort:  80,
-	}
+	}}
 	connectionData1 := byConnection.Find(connection1)
 	assert.NotNil(t, connectionData1)
 	assert.Len(t, connectionData1.Data, 2)
@@ -94,12 +94,12 @@ func TestGroupByConnection(t *testing.T) {
 
 	// Connection 2
 	// Assert that (key3, val3) and (key4, val4) were grouped together
-	connection2 := network.ConnectionStats{
+	connection2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("3.3.3.3"),
 		Dest:   util.AddressFromString("4.4.4.4"),
 		SPort:  60000,
 		DPort:  80,
-	}
+	}}
 	connectionData2 := byConnection.Find(connection2)
 	assert.NotNil(t, connectionData2)
 	assert.Len(t, connectionData1.Data, 2)

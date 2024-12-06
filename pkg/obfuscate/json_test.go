@@ -147,7 +147,7 @@ func FuzzObfuscateJSON(f *testing.F) {
 		f.Add([]byte(s.In))
 	}
 	o := newJSONObfuscator(&JSONConfig{}, NewObfuscator(Config{}))
-	f.Fuzz(func(t *testing.T, b []byte) {
+	f.Fuzz(func(_ *testing.T, b []byte) {
 		o.obfuscate(b)
 	})
 }

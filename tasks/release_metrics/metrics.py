@@ -5,9 +5,7 @@ Agent release metrics collection scripts
 from datetime import datetime
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.utils import (
-    GITHUB_REPO_NAME,
-)
+from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 
 def get_release_lead_time(freeze_date, release_date):

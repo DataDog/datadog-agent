@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy || windows
 
 package sbom
 
@@ -25,11 +25,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -592,11 +596,10 @@ func TestProcessEvents(t *testing.T) {
 
 	cacheDir := t.TempDir()
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Replace(configcomp.MockParams{
 			Overrides: map[string]interface{}{
 				"sbom.cache_directory":         cacheDir,
@@ -611,12 +614,11 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			SBOMsSent := atomic.NewInt32(0)
 
-			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				logimpl.MockModule(),
+			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				configcomp.MockModule(),
 				fx.Supply(context.Background()),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			sender := mocksender.NewMockSender("")
@@ -624,9 +626,11 @@ func TestProcessEvents(t *testing.T) {
 				SBOMsSent.Inc()
 			})
 
+			fakeTagger := taggerMock.SetupFakeTagger(t)
+
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, sender, 1, 50*time.Millisecond, false, time.Second)
+			p, err := newProcessor(workloadmetaStore, sender, fakeTagger, 1, 50*time.Millisecond, false, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}

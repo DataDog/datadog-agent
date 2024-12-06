@@ -10,17 +10,23 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -33,14 +39,12 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
 		core.Bundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		secretsimpl.MockModule(),
-		fx.Supply(tagger.NewFakeTaggerParams()),
-		taggerimpl.Module(),
-		fx.Supply(&agent.Params{}),
+		zstdfx.Module(),
+		taggerfx.Module(tagger.Params{}),
+		fx.Supply(&traceagentimpl.Params{}),
 	)
 }
 
@@ -58,25 +62,20 @@ func TestMockBundleDependencies(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		traceMockBundle,
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		coreconfig.MockModule(),
+		fxutil.ProvideNoneOptional[secrets.Component](),
+		telemetryimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		statsd.MockModule(),
-		fx.Supply(&agent.Params{}),
-		fx.Invoke(func(_ agent.Component) {}),
+		zstdfx.Module(),
+		fx.Supply(&traceagentimpl.Params{}),
+		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
-		taggerimpl.Module(),
-		fx.Supply(tagger.NewTaggerParams()),
+		taggerfx.Module(tagger.Params{}),
 	))
 
 	require.NotNil(t, cfg.Object())
 }
-
-var traceMockBundle = core.MakeMockBundle(
-	fx.Provide(func() logimpl.Params {
-		return logimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
-	}),
-	logimpl.TraceMockModule(),
-)

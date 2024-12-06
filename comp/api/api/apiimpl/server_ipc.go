@@ -7,21 +7,19 @@ package apiimpl
 
 import (
 	"crypto/tls"
-	"net"
 	"net/http"
 	"time"
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const ipcServerName string = "IPC API Server"
+const ipcServerShortName string = "IPC"
 
-var ipcListener net.Listener
-
-func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
-	ipcListener, err = getListener(ipcServerAddr)
+func (server *apiServer) startIPCServer(ipcServerAddr string, tlsConfig *tls.Config, tmf observability.TelemetryMiddlewareFactory) (err error) {
+	server.ipcListener, err = getListener(ipcServerAddr)
 	if err != nil {
 		return err
 	}
@@ -33,19 +31,18 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 	ipcMux.Handle(
 		"/config/v1/",
 		http.StripPrefix("/config/v1", configEndpointMux))
-	ipcMuxHandler := apiutils.LogResponseHandler(ipcServerName)(ipcMux)
+
+	// add some observability
+	ipcMuxHandler := tmf.Middleware(ipcServerShortName)(ipcMux)
+	ipcMuxHandler = observability.LogResponseHandler(ipcServerName)(ipcMuxHandler)
 
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
-		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(config.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
+		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
 		TLSConfig: tlsConfig,
 	}
 
-	startServer(ipcListener, ipcServer, ipcServerName)
+	startServer(server.ipcListener, ipcServer, ipcServerName)
 
 	return nil
-}
-
-func stopIPCServer() {
-	stopServer(ipcListener, ipcServerName)
 }

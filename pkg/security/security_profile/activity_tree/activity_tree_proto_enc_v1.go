@@ -71,7 +71,7 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 	}
 
 	for _, sysc := range pan.Syscalls {
-		ppan.Syscalls = append(ppan.Syscalls, uint32(sysc))
+		ppan.Syscalls = append(ppan.Syscalls, uint32(sysc.Syscall))
 	}
 
 	return ppan
@@ -91,9 +91,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		IsThread:    p.IsThread,
 		IsExecChild: p.IsExecExec,
 		File:        fileEventToProto(&p.FileEvent),
-		ContainerId: p.ContainerID,
-		SpanId:      p.SpanID,
-		TraceId:     p.TraceID,
+		ContainerId: string(p.ContainerID),
 		Tty:         escape(p.TTYName),
 		Comm:        escape(p.Comm),
 
@@ -305,6 +303,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
 			Port:         uint32(bn.Port),
 			Ip:           bn.IP,
+			Protocol:     uint32(bn.Protocol),
 			ImageTags:    bn.ImageTags,
 		}
 

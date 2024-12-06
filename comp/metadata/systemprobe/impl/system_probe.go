@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the systemprobe metadata providers interface
-package impl
+// Package systemprobeimpl implements the systemprobe metadata providers interface
+package systemprobeimpl
 
 import (
 	"context"
@@ -13,24 +13,25 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	"gopkg.in/yaml.v2"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
-	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -56,7 +57,7 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 //
 // In this case, the payload can't be split any further.
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split system-probe process payload any more, payload is too big for intake")
 }
 
 type systemprobe struct {
@@ -109,7 +110,7 @@ func (sb *systemprobe) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request
 	// GetAsJSON calls getPayload which already scrub the data
 	scrubbed, err := sb.GetAsJSON()
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -148,6 +149,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		model.SourceAgentRuntime:       "agent_runtime_configuration",
 		model.SourceLocalConfigProcess: "source_local_configuration",
 		model.SourceRC:                 "remote_configuration",
+		model.SourceFleetPolicies:      "fleet_policies_configuration",
 		model.SourceCLI:                "cli_configuration",
 		model.SourceProvided:           "provided_configuration",
 	}

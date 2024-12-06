@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -20,8 +20,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
@@ -29,19 +30,25 @@ import (
 )
 
 // newAutoscalersController returns a new autoscalersController
-func newAutoscalersController(client kubernetes.Interface, eventRecorder record.EventRecorder, isLeaderFunc func() bool, dogCl autoscalers.DatadogClient) (*autoscalersController, error) {
+func newAutoscalersController(client kubernetes.Interface,
+	eventRecorder record.EventRecorder,
+	isLeaderFunc func() bool,
+	dogCl datadogclient.Component) (*autoscalersController, error) {
 	var err error
 	h := &autoscalersController{
-		clientSet:     client,
-		isLeaderFunc:  isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
-		hpaQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		clientSet:    client,
+		isLeaderFunc: isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
+		hpaQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedItemBasedRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "autoscalers"},
+		),
 		eventRecorder: eventRecorder,
 	}
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
 
-	gcPeriodSeconds := config.Datadog().GetInt("hpa_watcher_gc_period")
-	refreshPeriod := config.Datadog().GetInt("external_metrics_provider.refresh_period")
+	gcPeriodSeconds := pkgconfigsetup.Datadog().GetInt("hpa_watcher_gc_period")
+	refreshPeriod := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.refresh_period")
 
 	if gcPeriodSeconds <= 0 || refreshPeriod <= 0 {
 		return nil, fmt.Errorf("tickers must be strictly positive in the autoscalersController"+
@@ -158,7 +165,7 @@ func (h *autoscalersController) deleteFromLocalStore(toDelete []custommetrics.Ex
 	}
 }
 
-func (h *autoscalersController) handleErr(err error, key interface{}) {
+func (h *autoscalersController) handleErr(err error, key string) {
 	if err == nil {
 		log.Tracef("Faithfully dropping key %v", key)
 		h.hpaQueue.Forget(key)
@@ -224,9 +231,11 @@ func (h *autoscalersController) updateExternalMetrics() {
 // processingLoop is a go routine that schedules the garbage collection and the refreshing of external metrics
 // in the GlobalStore.
 func (h *autoscalersController) processingLoop(stopCh <-chan struct{}) {
-	tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
-	gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
 	go func() {
+		tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
+		defer tickerAutoscalerRefreshProcess.Stop()
+		gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
+		defer gcPeriodSeconds.Stop()
 		for {
 			select {
 			case <-stopCh:

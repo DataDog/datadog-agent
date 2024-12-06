@@ -8,10 +8,25 @@
 package secretsimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type testDeps struct {
+	fx.In
+
+	Telemetry telemetry.Component
+}
+
+// MockProvides is a mocked struct wrapping all the provided components
+type MockProvides struct {
+	fx.Out
+
+	Comp secrets.Component
+}
 
 // MockSecretResolver is a mock of the secret Component useful for testing
 type MockSecretResolver struct {
@@ -30,15 +45,18 @@ func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]strin
 	m.fetchHookFunc = f
 }
 
-// NewMock returns a MockSecretResolver
-func NewMock() secrets.Mock {
-	return &MockSecretResolver{
-		secretResolver: newEnabledSecretResolver(),
+// newMock returns a MockSecretResolver
+func newMock(testDeps testDeps) MockProvides {
+	r := &MockSecretResolver{
+		secretResolver: newEnabledSecretResolver(testDeps.Telemetry),
+	}
+	return MockProvides{
+		Comp: r,
 	}
 }
 
 // MockModule is a module containing the mock, useful for testing
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMock))
+		fx.Provide(newMock))
 }

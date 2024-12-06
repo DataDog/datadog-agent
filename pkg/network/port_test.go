@@ -89,16 +89,16 @@ func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle
 	return port, proc
 }
 
-func TestReadInitialState(t *testing.T) {
+func TestReadListeningPorts(t *testing.T) {
 	t.Run("TCP", func(t *testing.T) {
-		testReadInitialState(t, "tcp")
+		testReadListeningPorts(t, "tcp")
 	})
 	t.Run("UDP", func(t *testing.T) {
-		testReadInitialState(t, "udp")
+		testReadListeningPorts(t, "udp")
 	})
 }
 
-func testReadInitialState(t *testing.T, proto string) {
+func testReadListeningPorts(t *testing.T, proto string) {
 	var ns, rootNs netns.NsHandle
 	var err error
 	nsName := netlinktestutil.AddNS(t)
@@ -159,7 +159,7 @@ func testReadInitialState(t *testing.T, proto string) {
 		connType, otherConnType = otherConnType, connType
 	}
 
-	initialPorts, err := ReadInitialState("/proc", connType, true)
+	initialPorts, err := ReadListeningPorts("/proc", connType, true)
 	if !assert.NoError(t, err) {
 		return
 	}

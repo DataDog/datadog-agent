@@ -56,7 +56,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -70,6 +70,8 @@ func TestLink(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateLinkSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.link.path")
+			validateSyscallContext(t, event, "$.syscall.link.destination_path")
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -84,7 +86,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -98,6 +100,8 @@ func TestLink(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateLinkSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.link.path")
+			validateSyscallContext(t, event, "$.syscall.link.destination_path")
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -141,7 +145,7 @@ func TestLink(t *testing.T) {
 				return fmt.Errorf("failed to create a link with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))

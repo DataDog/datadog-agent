@@ -9,9 +9,9 @@ import (
 	"expvar"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -49,6 +49,9 @@ type noAggregationStreamWorker struct {
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
+	hostTagProvider *HostTagProvider
+	tagger          tagger.Component
+
 	logThrottling util.SimpleThrottler
 }
 
@@ -78,8 +81,9 @@ func init() {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
+func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
+	tagger tagger.Component,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
@@ -93,11 +97,14 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
 		stopChan:    make(chan trigger),
-		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog().GetInt("dogstatsd_queue_size")),
+		samplesChan: make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size")),
 
+		hostTagProvider: NewHostTagProvider(),
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
+
+		tagger: tagger,
 	}
 }
 
@@ -144,8 +151,8 @@ func (w *noAggregationStreamWorker) run() {
 
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
-	logPayloads := config.Datadog().GetBool("log_payloads")
-	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false, w.hostTagProvider)
 
 	stopped := false
 	var stopBlockChan chan struct{}
@@ -158,7 +165,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			func(_ metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -196,7 +203,7 @@ func (w *noAggregationStreamWorker) run() {
 							}
 
 							// enrich metric sample tags
-							sample.GetTags(w.taggerBuffer, w.metricBuffer, tagger.EnrichTags)
+							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger.EnrichTags)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
 							// if the value is a rate, we have to account for the 10s interval
@@ -238,7 +245,7 @@ func (w *noAggregationStreamWorker) run() {
 				}
 			}, func(serieSource metrics.SerieSource) {
 				sendIterableSeries(w.serializer, start, serieSource)
-			}, func(sketches metrics.SketchesSource) {
+			}, func(_ metrics.SketchesSource) {
 				// noop: we do not support sketches in the no-agg pipeline.
 			})
 
@@ -246,7 +253,7 @@ func (w *noAggregationStreamWorker) run() {
 			break
 		}
 
-		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false, w.hostTagProvider)
 	}
 
 	if stopBlockChan != nil {

@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 
@@ -44,6 +45,7 @@ type KubeServiceListener struct {
 	targetAllServices bool
 	m                 sync.RWMutex
 	containerFilters  *containerFilters
+	telemetryStore    *telemetry.Store
 }
 
 // KubeServiceService represents a Kubernetes Service
@@ -79,7 +81,7 @@ func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
 }
 
 // NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
-func NewKubeServiceListener(conf Config) (ServiceListener, error) {
+func NewKubeServiceListener(options ServiceListernerDeps) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -100,8 +102,9 @@ func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 		services:          make(map[k8stypes.UID]Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
-		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
+		targetAllServices: options.Config.IsProviderEnabled(names.KubeServicesFileRegisterName),
 		containerFilters:  containerFilters,
+		telemetryStore:    options.Telemetry,
 	}, nil
 }
 
@@ -260,7 +263,9 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	l.m.Unlock()
 
 	l.newService <- svc
-	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
+	if l.telemetryStore != nil {
+		l.telemetryStore.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
+	}
 }
 
 func processService(ksvc *v1.Service) *KubeServiceService {
@@ -311,19 +316,29 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 		l.m.Unlock()
 
 		l.delService <- svc
-		telemetry.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
+		if l.telemetryStore != nil {
+			l.telemetryStore.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
+		}
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
 }
 
-// GetServiceID returns the unique entity name linked to that service
-func (s *KubeServiceService) GetServiceID() string {
-	return s.entity
+// Equal returns whether the two KubeServiceService are equal
+func (s *KubeServiceService) Equal(o Service) bool {
+	s2, ok := o.(*KubeServiceService)
+	if !ok {
+		return false
+	}
+
+	return s.entity == s2.entity &&
+		reflect.DeepEqual(s.tags, s2.tags) &&
+		reflect.DeepEqual(s.hosts, s2.hosts) &&
+		reflect.DeepEqual(s.ports, s2.ports)
 }
 
-// GetTaggerEntity returns the unique entity name linked to that service
-func (s *KubeServiceService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeServiceService) GetServiceID() string {
 	return s.entity
 }
 
@@ -353,6 +368,11 @@ func (s *KubeServiceService) GetTags() ([]string, error) {
 	return s.tags, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *KubeServiceService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetHostname returns nil and an error because port is not supported in Kubelet
 func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
@@ -361,12 +381,6 @@ func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 // IsReady returns if the service is ready
 func (s *KubeServiceService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
-// KubeServiceService doesn't implement this method
-func (s *KubeServiceService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter returns whether the kube service should not collect certain metrics

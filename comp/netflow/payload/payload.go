@@ -20,10 +20,11 @@ type Exporter struct {
 
 // Endpoint contains source or destination endpoint details
 type Endpoint struct {
-	IP   string `json:"ip"`
-	Port string `json:"port"` // Port number can be zero/positive or `*` (ephemeral port)
-	Mac  string `json:"mac"`
-	Mask string `json:"mask"`
+	IP                 string `json:"ip"`
+	Port               string `json:"port"` // Port number can be zero/positive or `*` (ephemeral port)
+	Mac                string `json:"mac"`
+	Mask               string `json:"mask"`
+	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
 
 // NextHop contains next hop details

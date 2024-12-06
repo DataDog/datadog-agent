@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
-	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -93,7 +93,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,10 +107,10 @@ func TestActivityDumps(t *testing.T) {
 			var requestFound, responseFound bool
 			for _, node := range nodes {
 				for evt := range node.IMDSEvents {
-					if evt.Type == "request" && evt.URL == imdsutils.IMDSSecurityCredentialsURL {
+					if evt.Type == "request" && evt.URL == testutils.IMDSSecurityCredentialsURL {
 						requestFound = true
 					}
-					if evt.Type == "response" && evt.AWS.SecurityCredentials.AccessKeyID == imdsutils.AWSSecurityCredentialsAccessKeyIDTestValue {
+					if evt.Type == "response" && evt.AWS.SecurityCredentials.AccessKeyID == testutils.AWSSecurityCredentialsAccessKeyIDTestValue {
 						responseFound = true
 					}
 				}
@@ -134,7 +134,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -165,8 +165,6 @@ func TestActivityDumps(t *testing.T) {
 			if node.Process.Pid < node.Process.PPid {
 				t.Errorf("PID < PPID")
 			}
-			assert.Equal(t, uint64(0), node.Process.SpanID)
-			assert.Equal(t, uint64(0), node.Process.TraceID)
 			assert.Equal(t, "", node.Process.TTYName)
 			assert.Equal(t, "syscall_tester", node.Process.Comm)
 			assert.Equal(t, false, node.Process.ArgsTruncated)
@@ -213,7 +211,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -258,7 +256,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,7 +295,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -340,7 +338,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -353,10 +351,10 @@ func TestActivityDumps(t *testing.T) {
 			var exitOK, bindOK bool
 			for _, node := range nodes {
 				for _, s := range node.Syscalls {
-					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+					if s.Syscall == int(model.SysExit) || s.Syscall == int(model.SysExitGroup) {
 						exitOK = true
 					}
-					if s == int(model.SysBind) {
+					if s.Syscall == int(model.SysBind) {
 						bindOK = true
 					}
 				}
@@ -396,7 +394,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -570,8 +568,8 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -589,8 +587,8 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -679,8 +677,8 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
 			_, err := cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dockerInstance2.containerID {
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -698,8 +696,8 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dockerInstance2.containerID {
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false

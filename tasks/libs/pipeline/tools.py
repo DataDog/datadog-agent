@@ -8,12 +8,13 @@ from time import sleep, time
 from typing import cast
 
 from gitlab import GitlabError
+from gitlab.exceptions import GitlabJobPlayError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
 from tasks.libs.ciproviders.gitlab_api import refresh_pipeline
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import DEFAULT_BRANCH
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -22,7 +23,7 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> list[ProjectPipeline]:
+def get_running_pipelines_on_same_ref(repo: Project, ref: str, sha=None) -> list[ProjectPipeline]:
     pipelines = repo.pipelines.list(ref=ref, sha=sha, per_page=100, all=True)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
@@ -92,8 +93,8 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
             if job.name.startswith("kmt_setup_env") or job.name.startswith("kmt_run"):
                 component = "sysprobe" if "sysprobe" in job.name else "secagent"
                 arch = "x64" if "x64" in job.name else "arm64"
-                cleanup_job = f"kmt_{component}_cleanup_{arch}_manual"
-                kmt_cleanup_jobs_to_run.add(cleanup_job)
+                cleanup_job_name = f"kmt_{component}_cleanup_{arch}_manual"
+                kmt_cleanup_jobs_to_run.add(cleanup_job_name)
 
     # Run manual cleanup jobs for KMT. If we canceled the setup env or the tests job,
     # the cleanup job will not run automatically. We need to trigger the manual variants
@@ -102,20 +103,27 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         cleanup_job = jobs_by_name.get(cleanup_job_name, None)
         if cleanup_job is not None:
             print(f"Triggering KMT {cleanup_job_name} job")
-            repo.jobs.get(job.id, lazy=True).play()
+            try:
+                repo.jobs.get(cleanup_job.id, lazy=True).play()
+            except GitlabJobPlayError:
+                # It can happen if you push two commits in a very short period of time (a few seconds).
+                # Both pipelines will try to play the job and one will fail.
+                print(color_message("The job is unplayable. Was it already replayed by another pipeline?", Color.RED))
         else:
             print(f"Cleanup job {cleanup_job_name} not found, skipping.")
 
 
 def trigger_agent_pipeline(
     repo: Project,
-    ref=DEFAULT_BRANCH,
+    ref=None,
     release_version_6="nightly",
     release_version_7="nightly-a7",
     branch="nightly",
     deploy=False,
+    deploy_installer=False,
     all_builds=False,
     e2e_tests=False,
+    kmt_tests=False,
     rc_build=False,
     rc_k8s_deployments=False,
 ) -> ProjectPipeline:
@@ -126,10 +134,14 @@ def trigger_agent_pipeline(
     - run a pipeline with all end-to-end tests,
     - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
     """
+
+    ref = ref or get_default_branch()
     args = {}
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
+    if deploy_installer:
+        args["DEPLOY_INSTALLER"] = "true"
 
     # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
     # disabled on pipelines where they're activated by default (default branch & deploy pipelines)
@@ -144,6 +156,8 @@ def trigger_agent_pipeline(
         args["RUN_E2E_TESTS"] = "on"
     else:
         args["RUN_E2E_TESTS"] = "off"
+
+    args["RUN_KMT_TESTS"] = "on" if kmt_tests else "off"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
@@ -171,9 +185,9 @@ def trigger_agent_pipeline(
         return repo.pipelines.create({'ref': ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
-            raise FilteredOutException
+            raise FilteredOutException from e
 
-        raise RuntimeError(f"Invalid response from Gitlab API: {e}")
+        raise RuntimeError(f"Invalid response from Gitlab API: {e}") from e
 
 
 def wait_for_pipeline(
@@ -216,7 +230,7 @@ def loop_status(callable, timeout_sec):
     Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
-    status = dict()
+    status = {}
     while True:
         done, status = callable(status)
         if done:

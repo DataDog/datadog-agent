@@ -1,7 +1,7 @@
-using System;
-using System.Windows.Forms;
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.Windows.Forms;
 
 namespace Datadog.CustomActions
 {
@@ -67,7 +67,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult OpenMsiLog(Session session)
         {
             return OpenMsiLog(new SessionWrapper(session));

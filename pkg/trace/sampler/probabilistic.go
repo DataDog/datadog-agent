@@ -29,6 +29,9 @@ const (
 	numProbabilisticBuckets = 0x4000
 	bitMaskHashBuckets      = numProbabilisticBuckets - 1
 	percentageScaleFactor   = numProbabilisticBuckets / 100.0
+
+	// probRateKey indicates the percentage sampling rate configured for the probabilistic sampler
+	probRateKey = "_dd.prob_sr"
 )
 
 // ProbabilisticSampler is a sampler that overrides all other samplers,
@@ -37,6 +40,13 @@ type ProbabilisticSampler struct {
 	enabled                  bool
 	hashSeed                 []byte
 	scaledSamplingPercentage uint32
+	samplingPercentage       float64
+	// fullTraceIDMode looks at the full 128-bit trace ID to make the sampling decision
+	// This can be useful when trying to run this probabilistic sampler alongside the
+	// OTEL probabilistic sampler processor which always looks at the full 128-bit trace id.
+	// This is disabled by default to ensure compatibility in distributed systems where legacy applications may
+	// drop the top 64 bits of the trace ID.
+	fullTraceIDMode bool
 
 	statsd     statsd.ClientInterface
 	tracesSeen *atomic.Int64
@@ -54,16 +64,19 @@ type ProbabilisticSampler struct {
 func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ProbabilisticSampler {
 	hashSeedBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(hashSeedBytes, conf.ProbabilisticSamplerHashSeed)
+	_, fullTraceIDMode := conf.Features["probabilistic_sampler_full_trace_id"]
 	return &ProbabilisticSampler{
 		enabled:                  conf.ProbabilisticSamplerEnabled,
 		hashSeed:                 hashSeedBytes,
 		scaledSamplingPercentage: uint32(conf.ProbabilisticSamplerSamplingPercentage * percentageScaleFactor),
+		samplingPercentage:       float64(conf.ProbabilisticSamplerSamplingPercentage) / 100.,
 		statsd:                   statsd,
 		tracesSeen:               atomic.NewInt64(0),
 		tracesKept:               atomic.NewInt64(0),
 		tags:                     []string{"sampler:probabilistic"},
 		stop:                     make(chan struct{}),
 		stopped:                  make(chan struct{}),
+		fullTraceIDMode:          fullTraceIDMode,
 	}
 }
 
@@ -109,7 +122,13 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	}
 	ps.tracesSeen.Add(1)
 
-	tid, err := get128BitTraceID(root)
+	tid := make([]byte, 16)
+	var err error
+	if !ps.fullTraceIDMode {
+		binary.BigEndian.PutUint64(tid, root.TraceID)
+	} else {
+		tid, err = get128BitTraceID(root)
+	}
 	if err != nil {
 		log.Errorf("Unable to probabilistically sample, failed to determine 128-bit trace ID from incoming span: %v", err)
 		return false
@@ -122,6 +141,7 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	keep := hash&bitMaskHashBuckets < ps.scaledSamplingPercentage
 	if keep {
 		ps.tracesKept.Add(1)
+		setMetric(root, probRateKey, ps.samplingPercentage)
 	}
 	return keep
 }

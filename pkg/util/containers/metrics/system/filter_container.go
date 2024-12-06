@@ -10,7 +10,7 @@ package system
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trie"
@@ -40,13 +40,9 @@ func (cf *containerFilter) start() {
 	if cf.wlm == nil {
 		return
 	}
-	evBundle := cf.wlm.Subscribe("cid-mapper", workloadmeta.NormalPriority, workloadmeta.NewFilter(
-		&workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-			Source:    workloadmeta.SourceAll,
-			EventType: workloadmeta.EventTypeAll,
-		},
-	))
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
+
+	evBundle := cf.wlm.Subscribe("cid-mapper", workloadmeta.NormalPriority, filter)
 	for evs := range evBundle {
 		evs.Acknowledge()
 		cf.mutex.Lock()
@@ -65,11 +61,14 @@ func (cf *containerFilter) handleEvent(ev workloadmeta.Event) {
 	}
 	switch ev.Type {
 	case workloadmeta.EventTypeSet:
-		// As a memory optimization, we only store the container id in the trie
-		// if the cgroup path is not already matched by the cgroup filter.
-		if res, _ := cgroups.ContainerFilter("", cont.CgroupPath); res == "" {
-			cid := cont.ID
-			cf.trie.Insert(cont.CgroupPath, &cid)
+		// As a performance optimization, only try to match the cgroup path if it is set
+		if cont.CgroupPath != "" {
+			// As a memory optimization, we only store the container id in the trie
+			// if the cgroup path is not already matched by the cgroup filter.
+			if res, _ := cgroups.ContainerFilter("", cont.CgroupPath); res == "" {
+				cid := cont.ID
+				cf.trie.Insert(cont.CgroupPath, &cid)
+			}
 		}
 	case workloadmeta.EventTypeUnset:
 		cf.trie.Delete(cont.CgroupPath)

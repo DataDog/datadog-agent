@@ -18,9 +18,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
 const (
@@ -43,18 +46,18 @@ type dnsDriver struct {
 	iocp        windows.Handle
 }
 
-func newDriver() (*dnsDriver, error) {
+func newDriver(telemetrycomp telemetry.Component) (*dnsDriver, error) {
 	d := &dnsDriver{}
-	err := d.setupDNSHandle()
+	err := d.setupDNSHandle(telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
 	return d, nil
 }
 
-func (d *dnsDriver) setupDNSHandle() error {
+func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component) error {
 	var err error
-	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle)
+	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle, telemetrycomp)
 	if err != nil {
 		return err
 	}
@@ -97,7 +100,7 @@ func (d *dnsDriver) SetDataFilters(filters []driver.FilterDefinition) error {
 }
 
 // ReadDNSPacket visits a raw DNS packet if one is available.
-func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
+func (d *dnsDriver) ReadDNSPacket(visit func(data []byte, info filter.PacketInfo, t time.Time) error) (didRead bool, err error) {
 	var bytesRead uint32
 	var key uintptr // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
@@ -123,7 +126,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead 
 
 	start := driver.FilterPacketHeaderSize
 
-	if err := visit(buf.data[start:], captureTime); err != nil {
+	if err := visit(buf.data[start:], nil, captureTime); err != nil {
 		return false, err
 	}
 

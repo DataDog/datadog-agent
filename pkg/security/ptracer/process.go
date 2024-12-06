@@ -9,9 +9,15 @@
 package ptracer
 
 import (
+	"errors"
+	"fmt"
+	"maps"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"golang.org/x/sys/unix"
 )
 
 type fileHandleKey struct {
@@ -23,19 +29,37 @@ type fileHandleVal struct {
 	pathName string
 }
 
-// Resources defines shared process resources
-type Resources struct {
+// FdResources defines shared process resources
+type FdResources struct {
 	Fd              map[int32]string
-	Cwd             string
 	FileHandleCache map[fileHandleKey]*fileHandleVal
+}
+
+func (f *FdResources) clone() *FdResources {
+	return &FdResources{
+		Fd:              maps.Clone(f.Fd),
+		FileHandleCache: maps.Clone(f.FileHandleCache),
+	}
+}
+
+// FSResources defines shared process resources
+type FSResources struct {
+	Cwd string
+}
+
+func (f *FSResources) clone() *FSResources {
+	return &FSResources{
+		Cwd: f.Cwd,
+	}
 }
 
 // Process represents a process context
 type Process struct {
-	Pid  int
-	Tgid int
-	Nr   map[int]*ebpfless.SyscallMsg
-	Res  *Resources
+	Pid   int
+	Tgid  int
+	Nr    map[int]*ebpfless.SyscallMsg
+	FdRes *FdResources
+	FsRes *FSResources
 }
 
 // NewProcess returns a new process
@@ -44,11 +68,51 @@ func NewProcess(pid int) *Process {
 		Pid:  pid,
 		Tgid: pid,
 		Nr:   make(map[int]*ebpfless.SyscallMsg),
-		Res: &Resources{
+		FdRes: &FdResources{
 			Fd:              make(map[int32]string),
 			FileHandleCache: make(map[fileHandleKey]*fileHandleVal),
 		},
+		FsRes: &FSResources{},
 	}
+}
+
+var errPipeFd = errors.New("pipe fd")
+var errNegativeFd = errors.New("negative fd")
+
+// GetFilenameFromFd returns the filename for the given fd
+func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	if fd < 0 {
+		return "", errNegativeFd
+	}
+
+	raw, err := p.getFilenameFromFdRaw(fd)
+	if err != nil {
+		return "", err
+	}
+
+	if strings.HasPrefix(raw, "pipe:") {
+		return "", errPipeFd
+	}
+
+	return raw, nil
+}
+
+func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
+	filename, ok := p.FdRes.Fd[fd]
+	if ok {
+		return filename, nil
+	}
+
+	procPath := fmt.Sprintf("/proc/%d/fd/%d", p.Pid, fd)
+	filename, err := os.Readlink(procPath)
+	if err != nil {
+		return "", err
+	}
+
+	// fill the cache for next time
+	p.FdRes.Fd[fd] = filename
+
+	return filename, nil
 }
 
 // ProcessCache defines a thread cache
@@ -76,8 +140,7 @@ func (tc *ProcessCache) Add(pid int, process *Process) {
 	}
 }
 
-// SetAsThreadOf set the process as thread of the given tgid
-func (tc *ProcessCache) SetAsThreadOf(process *Process, ppid int) {
+func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags uint64) {
 	parent := tc.pid2Process[ppid]
 	if parent == nil {
 		// this shouldn't happen
@@ -85,8 +148,20 @@ func (tc *ProcessCache) SetAsThreadOf(process *Process, ppid int) {
 	}
 
 	// share resources, parent should never be nil
-	process.Tgid = parent.Tgid
-	process.Res = parent.Res
+	if cloneFlags&unix.CLONE_THREAD != 0 {
+		process.Tgid = parent.Tgid
+	}
+
+	if cloneFlags&unix.CLONE_FILES != 0 {
+		process.FdRes = parent.FdRes
+	} else {
+		process.FdRes = parent.FdRes.clone()
+	}
+	if cloneFlags&unix.CLONE_FS != 0 {
+		process.FsRes = parent.FsRes
+	} else {
+		process.FsRes = parent.FsRes.clone()
+	}
 
 	// re-add to update the caches
 	tc.Add(process.Pid, process)

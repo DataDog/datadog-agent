@@ -17,6 +17,8 @@
 #include "protocols/kafka/usm-events.h"
 #include "protocols/postgres/helpers.h"
 #include "protocols/postgres/usm-events.h"
+#include "protocols/redis/helpers.h"
+#include "protocols/redis/usm-events.h"
 
 __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
     switch(proto) {
@@ -28,6 +30,8 @@ __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protoc
         return PROG_KAFKA;
     case PROTOCOL_POSTGRES:
         return PROG_POSTGRES;
+    case PROTOCOL_REDIS:
+        return PROG_REDIS;
     default:
         if (proto != PROTOCOL_UNKNOWN) {
             log_debug("protocol doesn't have a matching program: %d", proto);
@@ -77,6 +81,8 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_HTTP2;
     } else if (is_postgres_monitoring_enabled() && is_postgres(buf, size)) {
         *protocol = PROTOCOL_POSTGRES;
+    } else if (is_redis_monitoring_enabled() && is_redis(buf, size)) {
+        *protocol = PROTOCOL_REDIS;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
@@ -118,16 +124,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         bpf_map_delete_elem(&connection_states, &skb_tup);
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&skb_tup);
-    if (!stack) {
-        // should never happen, but it is required by the eBPF verifier
-        return;
-    }
-
-    // This is used to signal the tracer program that this protocol stack
-    // is also shared with our USM program for the purposes of deletion.
-    // For more context refer to the comments in `delete_protocol_stack`
-    stack->flags |= FLAG_USM_ENABLED;
+    protocol_stack_t *stack = get_protocol_stack_if_exists(&skb_tup);
 
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
@@ -151,6 +148,16 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+            stack = get_or_create_protocol_stack(&skb_tup);
+            if (!stack) {
+                // should never happen, but it is required by the eBPF verifier
+                return;
+            }
+
+            // This is used to signal the tracer program that this protocol stack
+            // is also shared with our USM program for the purposes of deletion.
+            // For more context refer to the comments in `delete_protocol_stack`
+            set_protocol_flag(stack, FLAG_USM_ENABLED);
             set_protocol(stack, cur_fragment_protocol);
         }
     }

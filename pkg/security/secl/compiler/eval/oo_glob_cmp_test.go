@@ -21,7 +21,7 @@ func TestOPOverrideGlobEquals(t *testing.T) {
 
 		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "/2/abc/3"
 			},
 		}
@@ -46,7 +46,7 @@ func TestOPOverrideGlobEquals(t *testing.T) {
 
 		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "/2/abc/3"
 			},
 		}
@@ -68,7 +68,7 @@ func TestOPOverrideGlobContains(t *testing.T) {
 	t.Run("no-match", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "/2/abc/3"
 			},
 		}
@@ -93,7 +93,7 @@ func TestOPOverrideGlobContains(t *testing.T) {
 	t.Run("match", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "/2/abc/3"
 			},
 		}

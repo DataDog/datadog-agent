@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -36,7 +37,7 @@ type Controller struct {
 	configStateStore *ConfigStateStore
 
 	// a workqueue to process the config events
-	queue workqueue.DelayingInterface
+	queue workqueue.TypedDelayingInterface[Digest]
 
 	started     bool
 	stopChannel chan struct{}
@@ -49,7 +50,7 @@ func NewController() *Controller {
 		activeSchedulers: make(map[string]Scheduler),
 		// No delay for adding items to the queue first time
 		// Add a delay for subsequent retries if check fails
-		queue: workqueue.NewDelayingQueueWithConfig(workqueue.DelayingQueueConfig{
+		queue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[Digest]{
 			Name: "ADSchedulerController",
 		}),
 		stopChannel:      make(chan struct{}),
@@ -75,25 +76,36 @@ func (ms *Controller) start() {
 // immediately, before the Register call returns.
 func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
+	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
 	ms.activeSchedulers[name] = s
-	ms.m.Unlock()
 
 	// if replaying configs, replay the currently-scheduled configs; note that
 	// this occurs under the protection of `ms.m`, so no config may be double-
 	// scheduled or missed in this process.
 	if replayConfigs {
-		configStates := ms.configStateStore.List()
-
-		configs := make([]integration.Config, 0, len(configStates))
-		for _, config := range configStates {
-			if config.desiredState == Scheduled {
-				configs = append(configs, *config.config)
+		if name == types.CheckCmdName {
+			// if the scheduler is the check-cmd, we need to catch up all the
+			// configs in configStateStore even if they are not scheduled yet
+			// because the caller waitForConfigsFromAD is waiting for the return
+			// instead of processing them asynchronously
+			configStates := ms.configStateStore.List()
+			configs := make([]integration.Config, 0, len(configStates))
+			for _, config := range configStates {
+				if config.desiredState == Scheduled {
+					configs = append(configs, *config.config)
+				}
 			}
+			s.Schedule(configs)
+		} else {
+			configs := make([]integration.Config, 0, len(ms.scheduledConfigs))
+			for _, config := range ms.scheduledConfigs {
+				configs = append(configs, *config)
+			}
+			s.Schedule(configs)
 		}
-		s.Schedule(configs)
 	}
 }
 
@@ -131,15 +143,14 @@ func (ms *Controller) worker() {
 // Scheduled,       Schedule,         None
 // Scheduled,       Unschedule,       Unschedule
 func (ms *Controller) processNextWorkItem() bool {
-	item, quit := ms.queue.Get()
+	configDigest, quit := ms.queue.Get()
 	if quit {
 		return false
 	}
-	configDigest := item.(Digest)
 	desiredConfigState, found := ms.configStateStore.GetConfigState(configDigest)
 	if !found {
 		log.Warnf("config %d not found in configStateStore", configDigest)
-		ms.queue.Done(item)
+		ms.queue.Done(configDigest)
 		return true
 	}
 
@@ -150,7 +161,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		currentState = Scheduled
 	}
 	if desiredState == currentState {
-		ms.queue.Done(item)                       // no action needed
+		ms.queue.Done(configDigest)               // no action needed
 		ms.configStateStore.Cleanup(configDigest) // cleanup the config state if it is unscheduled already
 		return true
 	}
@@ -160,16 +171,20 @@ func (ms *Controller) processNextWorkItem() bool {
 		if desiredState == Scheduled {
 			//to be scheduled
 			scheduler.Schedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
-			ms.scheduledConfigs[configDigest] = desiredConfigState.config
 		} else {
 			//to be unscheduled
 			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
-			delete(ms.scheduledConfigs, configDigest)
-			ms.configStateStore.Cleanup(configDigest)
 		}
 	}
+	if desiredState == Scheduled {
+		// add the config to scheduled
+		ms.scheduledConfigs[configDigest] = desiredConfigState.config
+	} else {
+		delete(ms.scheduledConfigs, configDigest)
+		ms.configStateStore.Cleanup(configDigest)
+	}
 	ms.m.Unlock()
-	ms.queue.Done(item)
+	ms.queue.Done(configDigest)
 	return true
 }
 

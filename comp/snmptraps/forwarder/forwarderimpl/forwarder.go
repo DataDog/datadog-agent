@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
@@ -68,11 +68,11 @@ func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, e
 	conf := dep.Config.Get()
 	if conf.Enabled {
 		lc.Append(fx.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 				tf.Start()
 				return nil
 			},
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				tf.Stop()
 				return nil
 			},
@@ -98,7 +98,8 @@ func (tf *trapForwarder) Stop() {
 }
 
 func (tf *trapForwarder) run() {
-	flushTicker := time.NewTicker(10 * time.Second).C
+	flushTicker := time.NewTicker(10 * time.Second)
+	defer flushTicker.Stop()
 	for {
 		select {
 		case <-tf.stopChan:
@@ -106,7 +107,7 @@ func (tf *trapForwarder) run() {
 			return
 		case packet := <-tf.trapsIn:
 			tf.sendTrap(packet)
-		case <-flushTicker:
+		case <-flushTicker.C:
 			tf.sender.Commit() // Commit metrics
 		}
 	}

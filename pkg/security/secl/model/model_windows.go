@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -field-accessors-output field_accessors_windows.go
+//go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -doc ../../../../docs/cloud-workload-security/secl_windows.json -field-accessors-output field_accessors_windows.go
 
 // Package model holds model related files
 package model
@@ -43,6 +43,8 @@ type Event struct {
 	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_key;open" event:"open_key"`          // [7.52] [Registry] A registry key was opened
 	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_key_value;set" event:"set_key_value"` // [7.52] [Registry] A registry key value was set
 	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_key;delete" event:"delete_key"`    // [7.52] [Registry] A registry key was deleted
+
+	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
 }
 
 // FileEvent is the common file event type
@@ -154,11 +156,20 @@ type OpenRegistryKeyEvent struct {
 // SetRegistryKeyValueEvent defines the event of setting up a value of a registry key
 type SetRegistryKeyValueEvent struct {
 	Registry  RegistryEvent `field:"registry"`                                   // SECLDoc[registry] Definition:`Registry Event`
-	ValueName string        `field:"value_name;registry.value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
-
+	ValueName string        `field:"value_name;registry.value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name` SECLDoc[registry.value_name] Definition:`Registry's value name`
 }
 
 // DeleteRegistryKeyEvent defines registry key deletion
 type DeleteRegistryKeyEvent struct {
 	Registry RegistryEvent `field:"registry"` // SECLDoc[registry] Definition:`Registry Event`
+}
+
+// ChangePermissionEvent defines object permission change
+type ChangePermissionEvent struct {
+	UserName   string `field:"username"`                                    // SECLDoc[username] Definition:`Username of the permission change author`
+	UserDomain string `field:"user_domain"`                                 // SECLDoc[user_domain] Definition:`Domain name of the permission change author`
+	ObjectName string `field:"path"`                                        // SECLDoc[path] Definition:`Name of the object of which permission was changed`
+	ObjectType string `field:"type"`                                        // SECLDoc[type] Definition:`Type of the object of which permission was changed`
+	OldSd      string `field:"old_sd,handler:ResolveOldSecurityDescriptor"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
+	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[new_sd] Definition:`New Security Descriptor of the object of which permission was changed`
 }

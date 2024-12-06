@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the healthprobe component interface
-package impl
+// Package healthprobeimpl implements the healthprobe component interface
+package healthprobeimpl
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"time"
 
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/gorilla/mux"
@@ -81,10 +81,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	reqs.Lc.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			return probe.start()
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			return probe.stop()
 		},
 	})

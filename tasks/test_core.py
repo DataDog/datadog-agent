@@ -4,10 +4,14 @@ import abc
 import json
 import os
 from collections import defaultdict
+from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
-from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.libs.common.gomodules import get_default_modules
+from tasks.libs.common.utils import running_in_ci
+from tasks.modules import GoModule
 
 
 class ModuleResult(abc.ABC):
@@ -113,6 +117,9 @@ class ModuleTestResult(ModuleResult):
                     else:
                         for name in sorted(tests):
                             failure_string += f"- {package} {name}\n"
+
+                            if running_in_ci():
+                                failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
             else:
                 failure_string += "The test command failed, but no test failures detected in the result json."
 
@@ -120,7 +127,7 @@ class ModuleTestResult(ModuleResult):
 
 
 def test_core(
-    modules: list[GoModule],
+    modules: Iterable[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     operation_name: str,
@@ -139,9 +146,9 @@ def test_core(
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
         if not headless_mode:
-            skipped_header = "[Skipped]" if not module.condition() else ""
+            skipped_header = "[Skipped]" if not module.should_test() else ""
             print(f"----- {skipped_header} Module '{module.full_path()}'")
-        if not module.condition():
+        if not module.should_test():
             continue
 
         command(modules_results, module, module_result)
@@ -160,7 +167,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from inv test and inv codecov,
+    Takes the input module, targets and flavor arguments from inv test and inv coverage.upload-to-codecov,
     sets default values for them & casts them to the expected types.
     """
     if only_modified_packages:
@@ -174,15 +181,15 @@ def process_input_args(
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         if isinstance(input_targets, str):
-            modules = [GoModule(input_module, targets=input_targets.split(','))]
+            modules = [GoModule(input_module, test_targets=input_targets.split(','))]
         else:
-            modules = [m for m in DEFAULT_MODULES.values() if m.path == input_module]
+            modules = [m for m in get_default_modules().values() if m.path == input_module]
     elif isinstance(input_targets, str):
-        modules = [GoModule(".", targets=input_targets.split(','))]
+        modules = [GoModule(".", test_targets=input_targets.split(','))]
     else:
         if not headless_mode:
             print("Using default modules and targets")
-        modules = DEFAULT_MODULES.values()
+        modules = get_default_modules().values()
 
     flavor = AgentFlavor.base
     if input_flavor:
@@ -191,7 +198,7 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results: dict[str, dict[str, list[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """

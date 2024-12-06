@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -42,7 +42,8 @@ var results transaction.BytesPayloads
 func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfEvents int) {
 	events := buildEvents(numberOfEvents)
 	marshaler := events.CreateSingleMarshaler()
-	payloadBuilder := stream.NewJSONPayloadBuilder(sharedBuffers, pkgconfigsetup.Conf(), compressionimpl.NewCompressor(pkgconfigsetup.Conf()))
+	mockConfig := mock.New(b)
+	payloadBuilder := stream.NewJSONPayloadBuilder(sharedBuffers, mockConfig, selector.NewCompressor(mockConfig))
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
@@ -56,8 +57,8 @@ func benchmarkSplit(b *testing.B, numberOfEvents int) {
 	events := buildEvents(numberOfEvents)
 	b.ResetTimer()
 
-	mockConfig := pkgconfigsetup.Conf()
-	strategy := compressionimpl.NewCompressor(mockConfig)
+	mockConfig := mock.New(b)
+	strategy := selector.NewCompressor(mockConfig)
 	for n := 0; n < b.N; n++ {
 		results, _ = split.Payloads(events, true, split.JSONMarshalFct, strategy)
 	}

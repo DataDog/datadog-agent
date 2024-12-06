@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -51,6 +51,8 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
 	r.HandleFunc("/config", a.settings.GetFullConfig("")).Methods("GET")
+	// FIXME: this returns the entire datadog.yaml and not just security-agent.yaml config
+	r.HandleFunc("/config/by-source", a.settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", a.settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", a.settings.SetValue).Methods("POST")
@@ -138,7 +140,7 @@ func (a *Agent) getHealth(w http.ResponseWriter, _ *http.Request) {
 func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog().GetString("security_agent.log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("security_agent.log_file")
 
 	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
 	if err != nil || filePath == "" {

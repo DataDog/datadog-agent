@@ -43,9 +43,6 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessag
 	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
 	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
 	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
-	if len(msg.GetMetadata().GetComm()) > 0 {
-		fmt.Printf("%s  comm: %s\n", prefix, msg.GetMetadata().GetComm())
-	}
 	if len(msg.GetMetadata().GetContainerID()) > 0 {
 		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
 	}

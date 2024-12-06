@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the systemprobe metadata providers interface
-package impl
+// Package systemprobeimpl implements the systemprobe metadata providers interface
+package systemprobeimpl
 
 import (
 	"encoding/json"
@@ -20,19 +20,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func setupFecther(t *testing.T) {
+func setupFetcher(t *testing.T) {
 	t.Cleanup(func() {
 		fetchSystemProbeConfig = configFetcher.SystemProbeConfig
 		fetchSystemProbeConfigBySource = configFetcher.SystemProbeConfigBySource
@@ -54,15 +54,15 @@ func setupFecther(t *testing.T) {
 }
 
 func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
-	l := fxutil.Test[log.Component](t, logimpl.MockModule())
+	l := logmock.New(t)
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	cfg.Set("inventories_configuration_enabled", enableConfig, model.SourceUnknown)
 
 	r := Requires{
 		Log:        l,
 		Config:     cfg,
-		Serializer: &serializer.MockSerializer{},
+		Serializer: serializermock.NewMetricSerializer(t),
 		AuthToken: fxutil.Test[authtoken.Component](t,
 			authtokenimpl.Module(),
 			fx.Provide(func() log.Component { return l }),
@@ -77,7 +77,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 
 func assertPayload(t *testing.T, p *Payload) {
 	assert.Equal(t, "test hostname", p.Hostname)
-	assert.True(t, p.Timestamp < time.Now().UnixNano())
+	assert.True(t, p.Timestamp <= time.Now().UnixNano())
 	assert.Equal(t,
 		map[string]interface{}{
 			"agent_runtime_configuration":        "runtime: true\n",
@@ -94,7 +94,7 @@ func assertPayload(t *testing.T, p *Payload) {
 }
 
 func TestGetPayload(t *testing.T) {
-	setupFecther(t)
+	setupFetcher(t)
 	sb := getSystemProbeComp(t, true)
 
 	sb.hostname = "test hostname"
@@ -104,7 +104,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetPayloadNoConfig(t *testing.T) {
-	setupFecther(t)
+	setupFetcher(t)
 	sb := getSystemProbeComp(t, false)
 
 	sb.hostname = "test hostname"
@@ -120,7 +120,7 @@ func TestGetPayloadNoConfig(t *testing.T) {
 }
 
 func TestWritePayload(t *testing.T) {
-	setupFecther(t)
+	setupFetcher(t)
 	sb := getSystemProbeComp(t, true)
 
 	sb.hostname = "test hostname"

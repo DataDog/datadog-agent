@@ -6,10 +6,10 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.agent import build as agent_build
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.system_probe import copy_ebpf_and_related_files
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -24,39 +24,29 @@ def build(
     build_exclude=None,
     install_path=None,
     flavor=AgentFlavor.base.name,
-    incremental_build=False,
+    rebuild=False,
     major_version='7',
-    python_runtimes='3',
-    go_mod="mod",
-    bundle=True,
+    go_mod="readonly",
 ):
     """
     Build the process agent
     """
-    if bundle and sys.platform != "win32":
-        return agent_build(
-            ctx,
-            race=race,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            flavor=flavor,
-            major_version=major_version,
-            python_runtimes=python_runtimes,
-            go_mod=go_mod,
-        )
 
     flavor = AgentFlavor[flavor]
+    if flavor.is_ot():
+        flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
@@ -78,6 +68,7 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
+    build_tags = add_fips_tags(build_tags, fips_mode)
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -89,7 +80,7 @@ def build(
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "" if incremental_build else "-a",
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
@@ -138,14 +129,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"mkdir {docker_context}/co-re")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
-        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image

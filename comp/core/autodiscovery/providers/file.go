@@ -15,13 +15,15 @@ import (
 
 // FileConfigProvider collect configuration files from disk
 type FileConfigProvider struct {
-	Errors map[string]string
+	Errors         map[string]string
+	telemetryStore *telemetry.Store
 }
 
 // NewFileConfigProvider creates a new FileConfigProvider.
-func NewFileConfigProvider() *FileConfigProvider {
+func NewFileConfigProvider(telemetryStore *telemetry.Store) *FileConfigProvider {
 	return &FileConfigProvider{
-		Errors: make(map[string]string),
+		Errors:         make(map[string]string),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -29,14 +31,16 @@ func NewFileConfigProvider() *FileConfigProvider {
 // Configs with advanced AD identifiers are filtered-out. They're handled by other file-based config providers.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (c *FileConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	configs, errors, err := ReadConfigFiles(WithoutAdvancedAD)
 	if err != nil {
 		return nil, err
 	}
 
 	c.Errors = errors
-	telemetry.Errors.Set(float64(len(errors)), names.File)
+	if c.telemetryStore != nil {
+		c.telemetryStore.Errors.Set(float64(len(errors)), names.File)
+	}
 
 	return configs, nil
 }
@@ -44,7 +48,7 @@ func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config,
 // IsUpToDate is not implemented for the file Providers as the files are not meant to change very often.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (c *FileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (c *FileConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return false, nil
 }
 

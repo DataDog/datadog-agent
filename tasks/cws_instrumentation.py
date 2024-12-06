@@ -8,12 +8,11 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
-from tasks.libs.common.git import get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_git_commit,
     get_go_version,
     get_version,
 )
@@ -29,9 +28,9 @@ def build(
     ctx,
     build_tags=None,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     static=False,
     no_strip_binary=False,
 ):
@@ -40,7 +39,7 @@ def build(
     """
     if build_tags is None:
         build_tags = []
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     # TODO use pkg/version for this
     main = "main."
@@ -48,7 +47,7 @@ def build(
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
         "GitBranch": get_current_branch(ctx),
-        "GitCommit": get_git_commit(),
+        "GitCommit": get_commit_sha(ctx, short=True),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
@@ -60,7 +59,7 @@ def build(
     build_tags.append("osusergo")
 
     race_opt = "-race" if race else ""
-    build_type = "" if incremental_build else "-a"
+    build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
 

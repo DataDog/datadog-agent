@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,14 +42,17 @@ type metadataController struct {
 	store *metaBundleStore
 
 	// Endpoints that need to be added to services mapping.
-	queue workqueue.RateLimitingInterface
+	queue workqueue.TypedRateLimitingInterface[string]
 }
 
 // newMetadataController returns a new metadata controller
 func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wmeta workloadmeta.Component) *metadataController {
 	m := &metadataController{
 		wmeta: wmeta,
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "endpoints"},
+		),
 	}
 
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -78,20 +81,22 @@ func (m *metadataController) run(stopCh <-chan struct{}) {
 		return
 	}
 
-	wmetaFilterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
+		workloadmeta.KindKubernetesMetadata,
+		func(entity workloadmeta.Entity) bool {
+			metadata := entity.(*workloadmeta.KubernetesMetadata)
+			return workloadmeta.IsNodeMetadata(metadata)
+		},
+	).Build()
 
 	wmetaEventsCh := m.wmeta.Subscribe(
 		"metadata-controller",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&wmetaFilterParams),
+		filter,
 	)
 	defer m.wmeta.Unsubscribe(wmetaEventsCh)
 
-	go m.processWorkloadmetaNodeEvents(wmetaEventsCh)
+	go m.processWorkloadmetaNodeMetadataEvents(wmetaEventsCh)
 	go wait.Until(m.worker, time.Second, stopCh)
 	<-stopCh
 }
@@ -108,7 +113,7 @@ func (m *metadataController) processNextWorkItem() bool {
 	}
 	defer m.queue.Done(key)
 
-	err := m.syncEndpoints(key.(string))
+	err := m.syncEndpoints(key)
 	if err != nil {
 		log.Debugf("Error syncing endpoints %v: %v", key, err)
 	}
@@ -116,12 +121,12 @@ func (m *metadataController) processNextWorkItem() bool {
 	return true
 }
 
-func (m *metadataController) processWorkloadmetaNodeEvents(wmetaEventsCh chan workloadmeta.EventBundle) {
+func (m *metadataController) processWorkloadmetaNodeMetadataEvents(wmetaEventsCh chan workloadmeta.EventBundle) {
 	for eventBundle := range wmetaEventsCh {
 		eventBundle.Acknowledge()
 
 		for _, event := range eventBundle.Events {
-			node := event.Entity.(*workloadmeta.KubernetesNode)
+			node := event.Entity.(*workloadmeta.KubernetesMetadata)
 
 			switch event.Type {
 			case workloadmeta.EventTypeSet:
@@ -270,7 +275,7 @@ func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 }
 
 func (m *metadataController) deleteMappedEndpoints(namespace, svc string) error {
-	nodes := m.wmeta.ListKubernetesNodes()
+	nodes := m.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {

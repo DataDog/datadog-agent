@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -26,6 +27,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
@@ -42,17 +44,15 @@ func (s *windowsTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 }
 
-func (s *windowsTestSuite) TestProcessCheck() {
-	t := s.T()
+func assertProcessCheck(t *testing.T, env *environments.Host) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, false, command)
+		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err = env.FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
@@ -60,6 +60,23 @@ func (s *windowsTestSuite) TestProcessCheck() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "MsMpEng.exe")
+}
+
+func (s *windowsTestSuite) TestProcessCheck() {
+	assertProcessCheck(s.T(), s.Env())
+}
+
+func (s *windowsTestSuite) TestProcessChecksInCoreAgent() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
+	assertProcessCheck(t, s.Env())
+
+	// Verify the process component is not running in the core agent
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		status := getAgentStatus(collect, s.Env().Agent.Client)
+		assert.Empty(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{})
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
@@ -70,8 +87,7 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process_discovery"}, false, command)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process_discovery"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
@@ -96,8 +112,7 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, true, command)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
 	// s.Env().VM.Execute("Start-MpScan -ScanType FullScan")
@@ -116,6 +131,10 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
+	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
+	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
+	flake.Mark(s.T())
+
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
@@ -123,8 +142,9 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
-	// Skipping due to flakiness
 	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
+	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
+	flake.Mark(s.T())
 
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")

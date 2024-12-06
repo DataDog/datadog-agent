@@ -74,7 +74,7 @@ type Config struct {
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
 	// Provider is the name of the config provider that issued the config.  If
-	// this is "", then the config is a service config, representing a serivce
+	// this is "", then the config is a service config, representing a service
 	// discovered by a listener.
 	Provider string `json:"provider"` // (include in digest: false)
 
@@ -96,6 +96,9 @@ type Config struct {
 
 	// IgnoreAutodiscoveryTags is used to ignore tags coming from autodiscovery
 	IgnoreAutodiscoveryTags bool `json:"ignore_autodiscovery_tags"` // (include in digest: true)
+
+	// CheckTagCardinality is used to override the default tag cardinality in the agent configuration
+	CheckTagCardinality string `json:"check_tag_cardinality"` // (include in digest: false)
 
 	// MetricsExcluded is whether metrics collection is disabled (set by
 	// container listeners only)

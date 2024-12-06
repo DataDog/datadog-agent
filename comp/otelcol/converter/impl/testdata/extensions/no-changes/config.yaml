@@ -1,0 +1,32 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  ddflare/user-defined:
+
+service:
+  extensions:
+    [
+      pprof/user-defined,
+      zpages/user-defined,
+      health_check/user-defined,
+      ddflare/user-defined,
+    ]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]
+

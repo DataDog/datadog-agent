@@ -11,6 +11,13 @@ type Params struct {
 	// given by the --cfgpath command-line flag.
 	ConfFilePath string
 
+	// ExtraConfFilePath represents the paths to additional configuration files to be merged over the main datadog.yaml.
+	// Usually given by the --extracfgpath command-line flag.
+	ExtraConfFilePath []string
+
+	// FleetPoliciesDirPath is the path at which to look for remote configuration files
+	FleetPoliciesDirPath string
+
 	// configName is the root of the name of the configuration file.  The
 	// comp/core/config component will search for a file with this name
 	// in ConfFilePath, using a variety of extensions.  The default is
@@ -36,12 +43,17 @@ type Params struct {
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
 	defaultConfPath string
+
+	// cliOverride is a list of setting overrides from the CLI given to the configuration. The map associate
+	// settings name like "logs_config.enabled" to its value.
+	cliOverride map[string]interface{}
 }
 
 // NewParams creates a new instance of Params
 func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 	params := Params{
 		defaultConfPath: defaultConfPath,
+		cliOverride:     map[string]interface{}{},
 	}
 	for _, o := range options {
 		o(&params)
@@ -117,6 +129,28 @@ func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
 func WithConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.ConfFilePath = confFilePath
+	}
+}
+
+// WithExtraConfFiles returns an option which sets ConfFilePath
+func WithExtraConfFiles(extraConfFilePath []string) func(*Params) {
+	return func(b *Params) {
+		b.ExtraConfFilePath = extraConfFilePath
+	}
+}
+
+// WithFleetPoliciesDirPath returns an option which sets FleetPoliciesDirPath
+func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
+	return func(b *Params) {
+		b.FleetPoliciesDirPath = fleetPoliciesDirPath
+	}
+}
+
+// WithCLIOverride registers a list of settings overrides from the CLI for the configuration. The map associate settings
+// name like "logs_config.enabled" to its value.
+func WithCLIOverride(setting string, value interface{}) func(*Params) {
+	return func(b *Params) {
+		b.cliOverride[setting] = value
 	}
 }
 

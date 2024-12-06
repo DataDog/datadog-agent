@@ -179,6 +179,19 @@ func TestLog(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestSendLog(t *testing.T) {
+	code := `
+	datadog_agent.send_log("log line", "postgres:test:12345")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "log line,postgres:test:12345" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
 func TestSetCheckMetadata(t *testing.T) {
 	code := `
 	datadog_agent.set_check_metadata("redis:test:12345", "version.raw", "5.0.6")
@@ -679,6 +692,25 @@ func TestObfuscateMongoDBString(t *testing.T) {
 		}
 		if out != testCase.expected {
 			t.Fatalf("args: (%s) expected: '%s', found: '%s'", testCase.args, testCase.expected, out)
+		}
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestEmitAgentTelemetry(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	cases := []string{"counter", "histogram", "gauge"}
+	for _, tc := range cases {
+		code := fmt.Sprintf(`
+	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "%s")
+			`, tc)
+		_, err := run(code)
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 

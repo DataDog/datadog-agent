@@ -58,7 +58,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 
 func (f *factory) createLogsExporter(
 	ctx context.Context,
-	set exp.CreateSettings,
+	set exp.Settings,
 	c component.Config,
 ) (exp.Logs, error) {
 	cfg := checkAndCastConfig(c)
@@ -72,14 +72,14 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := newExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
+	exporter, err := NewExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel() runs on shutdown
-	return exporterhelper.NewLogsExporter(
+	return exporterhelper.NewLogs(
 		ctx,
 		set,
 		c,

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -40,7 +40,7 @@ type configMapStore struct {
 
 // GetConfigmapName returns the name of the ConfigMap used to store the state of the Custom Metrics Provider
 func GetConfigmapName() string {
-	return config.Datadog().GetString("hpa_configmap_name")
+	return pkgconfigsetup.Datadog().GetString("hpa_configmap_name")
 }
 
 // NewConfigMapStore returns a new store backed by a configmap. The configmap will be created

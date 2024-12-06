@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
@@ -48,7 +48,7 @@ func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 
 	jsonStats, err := s.Debug.GetJSONDebugStats()
 	if err != nil {
-		utils.SetJSONError(w, s.log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
+		httputils.SetJSONError(w, s.log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
 	}
 

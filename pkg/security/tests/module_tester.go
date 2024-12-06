@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -26,6 +26,8 @@ import (
 	"time"
 	"unsafe"
 
+	"gopkg.in/yaml.v3"
+
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -34,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -54,13 +56,18 @@ const (
 	Skip
 )
 const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
+	getEventTimeout = 10 * time.Second
 )
 
 var (
 	errSkipEvent = errors.New("skip event")
 )
+
+const (
+	testActivityDumpDuration = time.Minute * 10
+)
+
+var testMod *testModule
 
 func (s *stringSlice) String() string {
 	return strings.Join(*s, " ")
@@ -110,7 +117,7 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
-	bundledPolicyProvider := rulesmodule.NewBundledPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
+	bundledPolicyProvider := bundled.NewPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
 	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err
@@ -313,7 +320,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType, ruleID string) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -321,7 +328,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message := make(chan ActionMessage, 1)
 
 	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if event.GetEventType() != eventType {
+		if event.GetEventType() != eventType || rule.ID != ruleID {
 			return
 		}
 
@@ -515,6 +522,29 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	return testFile, testPtr, err
 }
 
+// NewTimeoutError returns a new timeout error with the metrics collected during the test
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	tm.writePlatformSpecificTimeoutError(&msg)
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
+	}
+
+	return ErrTimeout{msg.String()}
+}
+
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
@@ -640,7 +670,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
 		return "", err
@@ -651,20 +681,19 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 		return err
 	}
 
-	tmpl, err := template.New("test-policy").Parse(testPolicy)
+	policyDef := &rules.PolicyDef{
+		Version:            "1.2.3",
+		Macros:             macroDefs,
+		Rules:              ruleDefs,
+		OnDemandHookPoints: onDemandProbes,
+	}
+
+	testPolicy, err := yaml.Marshal(policyDef)
 	if err != nil {
 		return "", fail(err)
 	}
 
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"Rules":  rules,
-		"Macros": macros,
-	}); err != nil {
-		return "", fail(err)
-	}
-
-	_, err = testPolicyFile.Write(buffer.Bytes())
+	_, err = testPolicyFile.Write(testPolicy)
 	if err != nil {
 		return "", fail(err)
 	}
@@ -725,6 +754,10 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		runtimeSecurityEnabled = false
 	}
 
+	if opts.activityDumpSyscallMonitorPeriod == time.Duration(0) {
+		opts.activityDumpSyscallMonitorPeriod = 60 * time.Second
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                            cfgDir,
@@ -744,6 +777,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
+		"ActivityDumpSyscallMonitorPeriod":           opts.activityDumpSyscallMonitorPeriod,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
@@ -763,9 +797,20 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnvsWithValue":                              opts.envsWithValue,
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
+		"HostSBOMEnabled":                            opts.enableHostSBOM,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
+		"NetworkRawPacketEnabled":                    opts.networkRawPacketEnabled,
+		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
+		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
+		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,
+		"EnforcementDisarmerContainerMaxAllowed":     opts.enforcementDisarmerContainerMaxAllowed,
+		"EnforcementDisarmerContainerPeriod":         opts.enforcementDisarmerContainerPeriod,
+		"EnforcementDisarmerExecutableEnabled":       opts.enforcementDisarmerExecutableEnabled,
+		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
+		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
+		"EventServerRetention":                       opts.eventServerRetention,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -798,7 +843,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	_, err = spconfig.New(sysprobeConfigName)
+	_, err = spconfig.New(sysprobeConfigName, "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -823,7 +868,7 @@ type fakeMsgSender struct {
 	msgs    map[eval.RuleID]*api.SecurityEventMessage
 }
 
-func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	fs.Lock()
 	defer fs.Unlock()
 
@@ -868,4 +913,19 @@ func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *test
 	}
 
 	fnc(testMod, obj)
+}
+
+type onRuleHandler func(*model.Event, *rules.Rule)
+type onProbeEventHandler func(*model.Event)
+type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
+type onSendEventHandler func(*rules.Rule, *model.Event)
+type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
+
+type eventHandlers struct {
+	sync.RWMutex
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onSendEvent       onSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
 }

@@ -27,14 +27,6 @@ func BuildEntityName(runtime, id string) string {
 	return runtime + EntitySeparator + id
 }
 
-// BuildTaggerEntityName builds a valid tagger entity name for a given cid.
-func BuildTaggerEntityName(id string) string {
-	if id == "" {
-		return ""
-	}
-	return ContainerEntityPrefix + id
-}
-
 // SplitEntityName returns the prefix and container cid parts of a valid entity name
 func SplitEntityName(name string) (string, string) {
 	if !IsEntityName(name) {

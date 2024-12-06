@@ -6,6 +6,9 @@
 package agent
 
 import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -16,6 +19,7 @@ const (
 	tagMemcachedCommand = "memcached.command"
 	tagMongoDBQuery     = "mongodb.query"
 	tagElasticBody      = "elasticsearch.body"
+	tagOpenSearchBody   = "opensearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
 )
@@ -25,12 +29,13 @@ const (
 )
 
 func (a *Agent) obfuscateSpan(span *pb.Span) {
-	o := a.obfuscator
+	o := a.lazyInitObfuscator()
 
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		for k, v := range span.Meta {
 			newV := o.ObfuscateCreditCardNumber(k, v)
 			if v != newV {
+				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service)
 				span.Meta[k] = newV
 			}
 		}
@@ -88,19 +93,26 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 			return
 		}
 		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
-	case "elasticsearch":
-		if !a.conf.Obfuscation.ES.Enabled {
+	case "elasticsearch", "opensearch":
+		if span.Meta == nil {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagElasticBody] == "" {
-			return
+		if a.conf.Obfuscation.ES.Enabled {
+			if span.Meta[tagElasticBody] != "" {
+				span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+			}
 		}
-		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+		if a.conf.Obfuscation.OpenSearch.Enabled {
+			if span.Meta[tagOpenSearchBody] != "" {
+				span.Meta[tagOpenSearchBody] = o.ObfuscateOpenSearchString(span.Meta[tagOpenSearchBody])
+			}
+		}
 	}
 }
 
 func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
-	o := a.obfuscator
+	o := a.lazyInitObfuscator()
+
 	switch b.Type {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLString(b.Resource)
@@ -113,4 +125,24 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	case "redis":
 		b.Resource = o.QuantizeRedisString(b.Resource)
 	}
+}
+
+var (
+	obfuscatorLock sync.Mutex
+)
+
+func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
+	// Ensure thread safe initialization
+	obfuscatorLock.Lock()
+	defer obfuscatorLock.Unlock()
+
+	if a.obfuscator == nil {
+		if a.obfuscatorConf != nil {
+			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
+		} else {
+			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
+		}
+	}
+
+	return a.obfuscator
 }

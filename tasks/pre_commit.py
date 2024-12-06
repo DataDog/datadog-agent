@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 
@@ -22,6 +23,28 @@ def update_pyapp_file() -> str:
 
 
 @task
+def check_winclang_format(ctx):
+    if os.name != 'nt':  # Don't run on Linux
+        return
+
+    def find_clang_format(search_dirs):
+        for search_dir in search_dirs:
+            for root, _, files in os.walk(search_dir):
+                for basename in files:
+                    if basename == 'clang-format.exe':
+                        return os.path.join(root, basename)
+
+    clang_format_path = os.environ.get('CLANG_FORMAT_PATH')
+    if clang_format_path is None:
+        search_dirs = ['C:/Program Files/Microsoft Visual Studio', 'C:/Program Files (x86)/Microsoft Visual Studio']
+        clang_format_path = find_clang_format(search_dirs)
+
+    print(clang_format_path)
+
+    ctx.run(f'"{clang_format_path}" --dry-run --Werror {",".join(get_staged_files(ctx))}')
+
+
+@task
 def check_set_x(ctx):
     # Select only relevant files
     files = [
@@ -39,7 +62,7 @@ def check_set_x(ctx):
             for nb, line in enumerate(f):
                 if re.search(r"set( +-[^ ])* +-[^ ]*(x|( +xtrace))", line):
                     errors.append(
-                        f"{color_message(file, 'magenta')}:{color_message(nb + 1, 'green')}: {color_message(line.strip(), 'red')}"
+                        f"{color_message(file, 'magenta')}:{color_message(str(nb + 1), 'green')}: {color_message(line.strip(), 'red')}"
                     )
 
     if errors:

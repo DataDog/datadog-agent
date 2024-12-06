@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -72,7 +72,7 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 
 	if profile {
 		// populate site
-		s := pkgconfig.DefaultSite
+		s := pkgconfigsetup.DefaultSite
 		if config.IsSet(l.ConfigPrefix + "site") {
 			s = config.GetString(l.ConfigPrefix + "site")
 		}
@@ -85,10 +85,9 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
-		v, _ := version.Agent()
 
 		tags := config.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
-		tags = append(tags, fmt.Sprintf("version:%v", v))
+		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,

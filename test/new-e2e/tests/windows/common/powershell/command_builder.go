@@ -21,6 +21,8 @@ type powerShellCommandBuilder struct {
 //nolint:revive
 func PsHost() *powerShellCommandBuilder {
 	return &powerShellCommandBuilder{
+		// Although host.Execute() will also add `$ErrorActionPreference = "Stop"` to the command,
+		// we set it here, too, as PsHost is used in pulumi commands.
 		cmds: []string{
 			"$ErrorActionPreference = \"Stop\"",
 		},

@@ -7,6 +7,7 @@
 package fx
 
 import (
+	demultiplexerendpoint "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/def"
 	demultiplexerendpointimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,5 +18,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			demultiplexerendpointimpl.NewComponent,
 		),
+		fxutil.ProvideOptional[demultiplexerendpoint.Component](),
 	)
 }

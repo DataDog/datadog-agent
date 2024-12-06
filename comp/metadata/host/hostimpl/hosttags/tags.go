@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -43,7 +44,7 @@ type providerDef struct {
 	getTags func(context.Context) ([]string, error)
 }
 
-func getProvidersDefinitions(conf config.Reader) map[string]*providerDef {
+func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	providers := make(map[string]*providerDef)
 
 	if conf.GetBool("collect_gce_tags") {
@@ -56,11 +57,11 @@ func getProvidersDefinitions(conf config.Reader) map[string]*providerDef {
 		providers["ec2"] = &providerDef{10, ec2.GetTags}
 	}
 
-	if config.IsFeaturePresent(config.Kubernetes) {
-		providers["kubernetes"] = &providerDef{10, k8s.GetTags}
+	if env.IsFeaturePresent(env.Kubernetes) {
+		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 	}
 
-	if config.IsFeaturePresent(config.Docker) {
+	if env.IsFeaturePresent(env.Docker) {
 		providers["docker"] = &providerDef{1, docker.GetTags}
 	}
 	return providers
@@ -99,7 +100,7 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 // - First one controlled by `cached` boolean, used for performances (cache all tags)
 // - Second one per provider, to avoid missing host tags for 30 minutes when a component fails (for instance, Cluster Agent).
 // This second layer is always on.
-func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
+func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	if cached {
 		if x, found := cache.Cache.Get(tagsCacheKey); found {
 			tags := x.(*Tags)

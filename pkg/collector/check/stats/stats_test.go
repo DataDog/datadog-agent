@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // Mock Check implementation used for testing
@@ -77,27 +77,8 @@ func TestNewStats(t *testing.T) {
 	assert.Equal(t, stats.Interval, 15*time.Second)
 }
 
-func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
-	mockConfig := agentConfig.Mock(t)
-	mockConfig.SetWithoutSource("telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.checks", "*")
-
-	NewStats(newMockCheck())
-
-	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	// Assert that no telemetry is recorded
-	assert.NotContains(t, tlmData, "checkString")
-	assert.NotContains(t, tlmData, "state=\"fail\"")
-	assert.NotContains(t, tlmData, "state=\"ok\"")
-}
-
-func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
-	mockConfig := agentConfig.Mock(t)
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
+func TestNewStatsStateTelemetryInitialized(t *testing.T) {
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("telemetry.checks", "*")
 
 	NewStats(newMockCheck())

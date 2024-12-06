@@ -134,20 +134,24 @@ func (wp *WindowsProbe) parseCreateRegistryKey(e *etw.DDEventRecord) (*createKey
 	return crc, nil
 }
 
-func (cka *createKeyArgs) translateBasePaths() {
-
+func translateRegistryBasePath(s string) string {
 	table := map[string]string{
 		"\\\\REGISTRY\\MACHINE": "HKEY_LOCAL_MACHINE",
 		"\\REGISTRY\\MACHINE":   "HKEY_LOCAL_MACHINE",
 		"\\\\REGISTRY\\USER":    "HKEY_USERS",
 		"\\REGISTRY\\USER":      "HKEY_USERS",
 	}
-
 	for k, v := range table {
-		if strings.HasPrefix(strings.ToUpper(cka.relativeName), k) {
-			cka.relativeName = v + cka.relativeName[len(k):]
+		if strings.HasPrefix(strings.ToUpper(s), k) {
+			s = v + s[len(k):]
 		}
 	}
+	return s
+}
+func (cka *createKeyArgs) translateBasePaths() {
+
+	cka.relativeName = translateRegistryBasePath(cka.relativeName)
+
 }
 func (wp *WindowsProbe) parseOpenRegistryKey(e *etw.DDEventRecord) (*openKeyArgs, error) {
 	cka, err := wp.parseCreateRegistryKey(e)

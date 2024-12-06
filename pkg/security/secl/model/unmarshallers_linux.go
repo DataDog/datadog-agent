@@ -19,7 +19,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -35,12 +40,29 @@ type BinaryUnmarshaler interface {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8+16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
+
+	n, err := e.CGroupFile.UnmarshalBinary(data[8:])
+	if err != nil {
+		return 0, err
+	}
+
+	return 8 + n, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
-	e.ID = id
+
+	e.ContainerID = containerutils.ContainerID(id)
 
 	return ContainerIDLen, nil
 }
@@ -63,7 +85,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -126,7 +148,7 @@ func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -136,9 +158,23 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	e.EGID = binary.NativeEndian.Uint32(data[12:16])
 	e.FSUID = binary.NativeEndian.Uint32(data[16:20])
 	e.FSGID = binary.NativeEndian.Uint32(data[20:24])
-	e.CapEffective = binary.NativeEndian.Uint64(data[24:32])
-	e.CapPermitted = binary.NativeEndian.Uint64(data[32:40])
-	return 40, nil
+	e.AUID = binary.NativeEndian.Uint32(data[24:28])
+	if binary.NativeEndian.Uint32(data[28:32]) != 1 {
+		e.AUID = AuditUIDUnset
+	}
+	e.CapEffective = binary.NativeEndian.Uint64(data[32:40])
+	e.CapPermitted = binary.NativeEndian.Uint64(data[40:48])
+	return 48, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *LoginUIDWriteEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.AUID = binary.NativeEndian.Uint32(data[0:4])
+	return 4, nil
 }
 
 func unmarshalTime(data []byte) time.Time {
@@ -192,7 +228,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 80
+	const size = 88
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -224,7 +260,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 272 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -256,15 +292,15 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		e.LinuxBinprm.FileEvent.PathKey = pathKey
 	}
 
-	if len(data[read:]) < 16 {
+	if len(data[read:]) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ArgsID = binary.NativeEndian.Uint32(data[read : read+4])
-	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
-	read += 8
+	e.ArgsID = binary.NativeEndian.Uint64(data[read : read+8])
+	e.EnvsID = binary.NativeEndian.Uint64(data[read+8 : read+16])
+	read += 16
 
-	e.EnvsID = binary.NativeEndian.Uint32(data[read : read+4])
+	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read:read+4]) == 1
 	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
@@ -310,20 +346,20 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 12 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ID = binary.NativeEndian.Uint32(data[0:4])
-	e.Size = binary.NativeEndian.Uint32(data[4:8])
+	e.ID = binary.NativeEndian.Uint64(data[0:8])
+	e.Size = binary.NativeEndian.Uint32(data[8:12])
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
 
 	argsEnvSize := int(e.Size)
-	data = data[8:]
+	data = data[12:]
 	if len(data) < argsEnvSize {
-		return 8, ErrNotEnoughData
+		return 12, ErrNotEnoughData
 	}
 
 	for i := range e.ValuesRaw {
@@ -332,7 +368,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	SliceToArray(data[:argsEnvSize], e.ValuesRaw[:argsEnvSize])
 
-	return 8 + argsEnvSize, nil
+	return 12 + argsEnvSize, nil
 }
 
 // UnmarshalBinary unmarshals the given content
@@ -386,7 +422,7 @@ func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Source, &e.Target)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -438,7 +474,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Mount)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -459,7 +495,7 @@ func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -476,14 +512,14 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
-	s.TraceID = binary.NativeEndian.Uint64(data[8:16])
-
-	return 16, nil
+	s.TraceID.Lo = int64(binary.NativeEndian.Uint64(data[8:16]))
+	s.TraceID.Hi = int64(binary.NativeEndian.Uint64(data[16:24]))
+	return 24, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -545,7 +581,7 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Old, &e.New)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -610,7 +646,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -628,7 +664,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -797,14 +833,15 @@ func (e *PTraceEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 16 {
+	if len(data)-read < 20 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Request = binary.NativeEndian.Uint32(data[read : read+4])
 	e.PID = binary.NativeEndian.Uint32(data[read+4 : read+8])
 	e.Address = binary.NativeEndian.Uint64(data[read+8 : read+16])
-	return read + 16, nil
+	e.NSPID = binary.NativeEndian.Uint32(data[read+16 : read+20])
+	return read + 20, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -935,18 +972,44 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor := read
 
+	read, err = UnmarshalBinary(data, &e.CGroupContext)
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
 		return 0, err
 	}
 	cursor += read
 
-	if len(data)-cursor < 4 {
+	if len(data)-cursor < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ConfigCookie = binary.NativeEndian.Uint64(data[cursor : cursor+8])
 	return cursor + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
+	read += 4
+
+	e.CGroupFlags = binary.NativeEndian.Uint32(data[read : read+4])
+	read += 4
+
+	return read, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
@@ -1034,7 +1097,7 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
 	}
 	if err = validateDNSName(e.Name); err != nil {
 		return 0, err
@@ -1058,6 +1121,10 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
 		e.fillFromIMDSHeader(resp.Header, "")
+
+		if resp.StatusCode != http.StatusOK {
+			return len(data), ErrNoUsefulData
+		}
 
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
@@ -1193,7 +1260,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 20 {
+	if len(data)-read < 22 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1201,6 +1268,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	SliceToArray(data[read:read+16], ipRaw[:])
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1210,16 +1278,46 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
-	return read + 20, nil
+	return read + 22, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 22 {
+		return 0, ErrNotEnoughData
+	}
+
+	var ipRaw [16]byte
+	SliceToArray(data[read:read+16], ipRaw[:])
+	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
+	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
+
+	// readjust IP size depending on the protocol
+	switch e.AddrFamily {
+	case 0x2: // unix.AF_INET
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
+	case 0xa: // unix.AF_INET6
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
+	}
+
+	return read + 22, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
-	for i, b := range data[:64] {
+	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
+
+	for i, b := range data[8:72] {
 		// compute the ID of the syscall
 		for j := 0; j < 8; j++ {
 			if b&(1<<j) > 0 {
@@ -1227,15 +1325,71 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 64, nil
+	return 72, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 260 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.SyscallID = Syscall(binary.NativeEndian.Uint64(data[0:8]))
-	return 8, nil
+	e.ID = binary.NativeEndian.Uint32(data[0:4])
+	SliceToArray(data[4:260], e.Data[:])
+	return 260, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.NetworkContext.Device.UnmarshalBinary(data)
+	if err != nil {
+		return 0, ErrNotEnoughData
+	}
+	data = data[read:]
+
+	e.Size = binary.NativeEndian.Uint32(data)
+	data = data[4:]
+	e.Data = data
+	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
+	e.CaptureInfo.Length = int(e.NetworkContext.Size)
+	e.CaptureInfo.CaptureLength = len(data)
+
+	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
+	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
+		if rl, ok := layer.(*layers.IPv4); ok {
+			e.L3Protocol = unix.ETH_P_IP
+			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
+			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
+		}
+	} else if layer := packet.Layer(layers.LayerTypeIPv6); layer != nil {
+		if rl, ok := layer.(*layers.IPv4); ok {
+			e.L3Protocol = unix.ETH_P_IPV6
+			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
+			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
+		}
+	}
+
+	if layer := packet.Layer(layers.LayerTypeUDP); layer != nil {
+		if rl, ok := layer.(*layers.UDP); ok {
+			e.L4Protocol = unix.IPPROTO_UDP
+			e.Source.Port = uint16(rl.SrcPort)
+			e.Destination.Port = uint16(rl.DstPort)
+		}
+	} else if layer := packet.Layer(layers.LayerTypeTCP); layer != nil {
+		if rl, ok := layer.(*layers.TCP); ok {
+			e.L4Protocol = unix.IPPROTO_TCP
+			e.Source.Port = uint16(rl.SrcPort)
+			e.Destination.Port = uint16(rl.DstPort)
+		}
+	}
+
+	if layer := packet.Layer(layers.LayerTypeTLS); layer != nil {
+		if rl, ok := layer.(*layers.TLS); ok {
+			if len(rl.AppData) > 0 {
+				e.TLSContext.Version = uint16(rl.AppData[0].Version)
+			}
+		}
+	}
+
+	return len(data), nil
 }

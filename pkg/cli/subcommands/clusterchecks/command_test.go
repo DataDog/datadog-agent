@@ -10,10 +10,11 @@ package clusterchecks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
@@ -55,7 +56,7 @@ func TestIsolate(t *testing.T) {
 		commands,
 		[]string{"clusterchecks", "isolate", "--checkID", "checkID"},
 		isolate,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "checkID", cliParams.checkID)
 		})
 }

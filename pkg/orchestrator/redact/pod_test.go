@@ -13,31 +13,49 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRemoveLastAppliedConfigurationAnnotation(t *testing.T) {
-	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
-		v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
-	}}
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
-	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
-	assert.Equal(t, redactedAnnotationValue, actual)
+func TestRemoveSensitiveAnnotations(t *testing.T) {
+	objectMeta := metav1.ObjectMeta{
+		Annotations: map[string]string{
+			v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
+			consulOriginalPodAnnotation:    `{"content": "previous pod definition"}`,
+		},
+		Labels: map[string]string{
+			v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
+			consulOriginalPodAnnotation:    `{"content": "previous pod definition"}`,
+			"other-labels":                 "value",
+		},
+	}
+	RemoveSensitiveAnnotationsAndLabels(objectMeta.Annotations, objectMeta.Labels)
+	expected := metav1.ObjectMeta{
+		Annotations: map[string]string{
+			v1.LastAppliedConfigAnnotation: redactedAnnotationValue,
+			consulOriginalPodAnnotation:    redactedAnnotationValue,
+		},
+		Labels: map[string]string{
+			v1.LastAppliedConfigAnnotation: redactedAnnotationValue,
+			consulOriginalPodAnnotation:    redactedAnnotationValue,
+			"other-labels":                 "value",
+		},
+	}
+	assert.Equal(t, expected, objectMeta)
 }
 
-func TestRemoveLastAppliedConfigurationAnnotationNotPresent(t *testing.T) {
+func TestRemoveSensitiveAnnotationsNotPresent(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		"not.last.applied.annotation": "value",
 	}}
 
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	RemoveSensitiveAnnotationsAndLabels(objectMeta.Annotations, objectMeta.Labels)
 	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
 	assert.Equal(t, "", actual)
 }
 
-func TestRemoveLastAppliedConfigurationAnnotationEmpty(t *testing.T) {
+func TestRemoveSensitiveAnnotationsEmpty(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		v1.LastAppliedConfigAnnotation: "",
 	}}
 
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	RemoveSensitiveAnnotationsAndLabels(objectMeta.Annotations, objectMeta.Labels)
 	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
 	assert.Equal(t, redactedAnnotationValue, actual)
 }
@@ -81,6 +99,45 @@ func TestScrubPod(t *testing.T) {
 					Env: []v1.EnvVar{
 						{Name: "API_KEY", Value: "LkhqmrnfESPrvhyfpephDDokCKvVokxXg"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
+					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "fOPeWWuFKUxwGLRTNnoM٪YwCExdwUcQBDZMogm"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
 					},
 				},
 				{
@@ -136,6 +193,45 @@ func TestScrubPod(t *testing.T) {
 						{Name: "API_KEY", Value: "********"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
 					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "********"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Name:    "container-2",
@@ -152,7 +248,7 @@ func TestScrubPod(t *testing.T) {
 	}
 
 	scrubber := NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault"})
+	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault", "authorization"})
 	ScrubPod(pod, scrubber)
 
 	assert.EqualValues(t, expectedPod, pod)
@@ -197,6 +293,45 @@ func TestScrubPodTemplate(t *testing.T) {
 					Env: []v1.EnvVar{
 						{Name: "API_KEY", Value: "LkhqmrnfESPrvhyfpephDDokCKvVokxXg"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
+					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "fOPeWWuFKUxwGLRTNnoM٪YwCExdwUcQBDZMogm"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
 					},
 				},
 				{
@@ -249,6 +384,45 @@ func TestScrubPodTemplate(t *testing.T) {
 						{Name: "API_KEY", Value: "********"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
 					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "********"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Name:    "container-2",
@@ -262,7 +436,7 @@ func TestScrubPodTemplate(t *testing.T) {
 	}
 
 	scrubber := NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault"})
+	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault", "authorization"})
 	ScrubPodTemplateSpec(template, scrubber)
 
 	assert.EqualValues(t, expectedTemplate, template)

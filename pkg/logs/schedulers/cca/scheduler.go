@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +37,7 @@ func New(ac autodiscovery.Component) schedulers.Scheduler {
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
-	if !coreConfig.Datadog().GetBool("logs_config.container_collect_all") {
+	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 	// source to collect all logs from all containers
@@ -52,7 +52,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	// a hack!
 	go func() {
 		s.blockUntilAutoConfigRanOnce(
-			time.Millisecond * time.Duration(coreConfig.Datadog().GetInt("ac_load_timeout")))
+			time.Millisecond * time.Duration(pkgconfigsetup.Datadog().GetInt("ac_load_timeout")))
 		log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 		sourceMgr.AddSource(source)
 		close(s.added)

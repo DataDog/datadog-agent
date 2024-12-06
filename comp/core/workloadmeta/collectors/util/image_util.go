@@ -5,7 +5,6 @@
 
 //go:build trivy
 
-// Package util contains utility functions for image metadata collection
 package util
 
 import (
@@ -16,7 +15,7 @@ import (
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 const (

@@ -13,7 +13,7 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -42,14 +42,14 @@ type Dependencies struct {
 	fx.In
 
 	Lc       fx.Lifecycle
-	Log      logComponent.Component
+	Log      log.Component
 	Config   configComponent.Component
 	Hostname hostnameinterface.Component
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log      logComponent.Component
+	log      log.Component
 	config   pkgconfigmodel.Reader
 	hostname hostnameinterface.Component
 
@@ -100,7 +100,7 @@ func (a *Agent) Start(context.Context) error {
 	a.log.Debug("Starting logs-agent...")
 
 	// setup the server config
-	endpoints, err := buildEndpoints(a.config)
+	endpoints, err := buildEndpoints(a.config, a.log)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -219,10 +219,13 @@ func (a *Agent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgconfigmodel.Reader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig pkgconfigmodel.Reader, log log.Component) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
+		if !httpConnectivity {
+			log.Warn("Error while validating API key")
+		}
 	}
 	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

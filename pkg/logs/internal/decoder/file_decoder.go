@@ -9,11 +9,12 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/integrations"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -35,12 +36,14 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 	case sources.KubernetesSourceType:
 		lineParser = kubernetes.New()
 	case sources.DockerSourceType:
-		if coreConfig.Datadog().GetBool("logs_config.use_podman_logs") {
+		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
 			// podman's on-disk logs are in kubernetes format
 			lineParser = kubernetes.New()
 		} else {
 			lineParser = dockerfile.New()
 		}
+	case sources.IntegrationSourceType:
+		lineParser = integrations.New()
 	default:
 		encodingInfo := status.NewMappedInfo("Encoding")
 		switch source.Config().Encoding {

@@ -33,7 +33,10 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.duration = bpf_ktime_get_ns();
     empty.cookie = get_sk_cookie(sk);
-    bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
+
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+    // and do not provide any useful signal since the key is expected to be present sometimes.
+    bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST, -EEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
 
@@ -102,7 +105,8 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy.pid = 0;
     normalize_tuple(&conn_tuple_copy);
 
-    protocol_stack_t *protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
@@ -113,7 +117,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     }
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
-    protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+    normalize_tuple(&conn_tuple_copy);
+    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
@@ -145,7 +151,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    update_protocol_classification_information(t, val);
+    if (is_protocol_classification_supported()) {
+        update_protocol_classification_information(t, val);
+    }
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);
@@ -182,7 +190,10 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
-    bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST);
+
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+    // and do not provide any useful signal since the key is expected to be present sometimes.
+    bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
 
     tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     if (val == NULL) {
@@ -198,6 +209,10 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 
     if (stats.state_transitions > 0) {
         val->state_transitions |= stats.state_transitions;
+    }
+
+    if (stats.failure_reason != 0) {
+        val->failure_reason = stats.failure_reason;
     }
 }
 
@@ -217,7 +232,10 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
 
     // initialize-if-no-exist the connection state, and load it
     u32 u32_zero = 0;
-    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST);
+
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+    // and do not provide any useful signal since the key is expected to be present sometimes.
+    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
     u32 *val = bpf_map_lookup_elem(&tcp_retransmits, &t);
     if (val == NULL) {
         return 0;

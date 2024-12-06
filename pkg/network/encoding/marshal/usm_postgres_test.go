@@ -27,12 +27,12 @@ const (
 )
 
 var (
-	postgresDefaultConnection = network.ConnectionStats{
+	postgresDefaultConnection = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: localhost,
 		Dest:   localhost,
 		SPort:  postgresClientPort,
 		DPort:  postgresServerPort,
-	}
+	}}
 )
 
 type PostgresSuite struct {
@@ -103,6 +103,14 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		postgres.AlterTableOP,
 		tableName,
 	)
+	truncateKey := postgres.NewKey(
+		localhost,
+		localhost,
+		postgresClientPort,
+		postgresServerPort,
+		postgres.TruncateTableOP,
+		tableName,
+	)
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -120,6 +128,10 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				FirstLatencySample: 5,
 			},
 			deleteKey: {
+				Count:              10,
+				FirstLatencySample: 5,
+			},
+			truncateKey: {
 				Count:              10,
 				FirstLatencySample: 5,
 			},
@@ -213,6 +225,16 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 					},
 				},
 			},
+			{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
+						TableName:          tableName,
+						Operation:          model.PostgresOperation_PostgresTruncateOp,
+						FirstLatencySample: 5,
+						Count:              10,
+					},
+				},
+			},
 		},
 	}
 
@@ -229,20 +251,20 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresClientPort,
 			Dest:   localhost,
 			DPort:  postgresServerPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresClientPort,
 			Dest:   localhost,
 			DPort:  postgresServerPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	postgresKey := postgres.NewKey(
@@ -289,20 +311,20 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresClientPort,
 			Dest:   localhost,
 			DPort:  postgresServerPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresServerPort,
 			Dest:   localhost,
 			DPort:  postgresClientPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	postgresKey := postgres.NewKey(

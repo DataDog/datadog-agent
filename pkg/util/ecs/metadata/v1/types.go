@@ -14,6 +14,7 @@ type Commands struct {
 // See http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-agent-introspection.html
 type Instance struct {
 	Cluster string `json:"Cluster"`
+	Version string `json:"Version"`
 }
 
 // Tasks represents the list of task exposed by the ECS introspection endpoint.

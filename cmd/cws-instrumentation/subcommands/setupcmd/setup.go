@@ -30,7 +30,7 @@ func Command() []*cobra.Command {
 	setupCmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Copies the cws-instrumentation binary to the CWS volume mount",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return setupCWSInjector(&params)
 		},
 	}

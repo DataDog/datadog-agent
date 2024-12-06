@@ -29,11 +29,12 @@ package binversion
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"io"
-	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -60,12 +61,7 @@ const (
 )
 
 var (
-	dataRawBuildPool = sync.Pool{
-		New: func() any {
-			b := make([]byte, maxSizeToRead)
-			return &b
-		},
-	}
+	dataRawBuildPool = ddsync.NewSlicePool[byte](maxSizeToRead, maxSizeToRead)
 )
 
 type exe interface {
@@ -81,7 +77,7 @@ type exe interface {
 // ReadElfBuildInfo extracts the Go toolchain version and module information
 // strings from a Go binary. On success, vers should be non-empty. mod
 // is empty if the binary was not built with modules enabled.
-func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
+func ReadElfBuildInfo(elfFile *safeelf.File) (vers string, err error) {
 	x := &elfExe{f: elfFile}
 
 	// Read the first 64kB of dataAddr to find the build info blob.
@@ -90,7 +86,7 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
 	// data segment; the linker puts it near the beginning.
 	// See cmd/link/internal/ld.Link.buildinfo.
 	dataAddr := x.DataStart()
-	dataPtr := dataRawBuildPool.Get().(*[]byte)
+	dataPtr := dataRawBuildPool.Get()
 	data := *dataPtr
 	defer func() {
 		data := *dataPtr
@@ -180,7 +176,7 @@ func readString(x exe, ptrSize int, readPtr func([]byte) uint64, addr uint64) st
 
 // elfExe is the ELF implementation of the exe interface.
 type elfExe struct {
-	f *elf.File
+	f *safeelf.File
 }
 
 func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
@@ -229,7 +225,7 @@ func (x *elfExe) DataStart() uint64 {
 		}
 	}
 	for _, p := range x.f.Progs {
-		if p.Type == elf.PT_LOAD && p.Flags&(elf.PF_X|elf.PF_W) == elf.PF_W {
+		if p.Type == safeelf.PT_LOAD && p.Flags&(safeelf.PF_X|safeelf.PF_W) == safeelf.PF_W {
 			return p.Vaddr
 		}
 	}

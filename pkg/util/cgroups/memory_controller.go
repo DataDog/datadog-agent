@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	cgroupsv1 "github.com/containerd/cgroups/v3/cgroup1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxEpollEvents = 4
@@ -45,14 +46,14 @@ func MemoryPercentageThresholdMonitor(cb func(), percentage uint64, swap bool) M
 
 // MemoryThresholdMonitor monitors memory usage above a specified threshold
 func MemoryThresholdMonitor(cb func(), limit uint64, swap bool) MemoryMonitor {
-	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+	return func(_ cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
 		return cgroupsv1.MemoryThresholdEvent(limit, swap), cb, nil
 	}
 }
 
 // MemoryPressureMonitor monitors memory pressure levels
 func MemoryPressureMonitor(cb func(), level string) MemoryMonitor {
-	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+	return func(_ cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
 		return cgroupsv1.MemoryPressureEvent(cgroupsv1.MemoryPressureLevel(level), cgroupsv1.LocalMode), cb, nil
 	}
 }
@@ -96,7 +97,7 @@ func NewMemoryController(kind string, containerized bool, monitors ...MemoryMoni
 		cgroupHierarchy = hostHierarchy(cgroupHierarchy)
 	}
 
-	cgroup, err := cgroupsv1.Load(path, cgroupsv1.WithHiearchy(cgroupHierarchy))
+	cgroup, err := cgroupsv1.Load(path, cgroupsv1.WithHierarchy(cgroupHierarchy))
 	if err != nil {
 		return nil, fmt.Errorf("can't open memory cgroup: %w", err)
 	}

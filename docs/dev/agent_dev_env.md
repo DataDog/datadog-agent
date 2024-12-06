@@ -12,26 +12,26 @@ development files to be available in the dev env. The Agent can embed Python2
 and/or Python3, you will need development files for all versions you want to
 support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.11 with [Homebrew](https://brew.sh)
+If you're on OSX/macOS, installing Python 2.7 and/or 3.12 with [Homebrew](https://brew.sh)
 brings along all the development files needed:
 
 **Please note that not using Python versions explicitly supported, you may have
 problems running the built Agent's Python checks, especially if using a virtualenv.
-At this time, only Python 3.11 is confirmed to work as expected in the development
+At this time, only Python 3.12 is confirmed to work as expected in the development
 environment.**
 ```
 brew install python@2
-brew install python@3.11
+brew install python@3.12
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
-sudo apt-get install python3.11-dev
+sudo apt-get install python3.12-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.11 via the [official installer](https://www.python.org/downloads/).
+On Windows, install Python 2.7 and/or 3.12 via the [official installer](https://www.python.org/downloads/).
 
 #### Python Dependencies
 
@@ -52,15 +52,44 @@ To install `deva`, you'll need to:
 The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
 
 ```shell
-$ cd datadog-agent
-$ curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
-$ chmod +x deva
-$ ./deva linter.go
+cd datadog-agent
+curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
+chmod +x deva
+./deva linter.go
 ```
 
 Below a live demo of how the tool works:
 
 ![deva_install](../public/assets/images/deva.gif)
+
+Datadog also provides an invoke task to perform some sanity checks and enable some tools. To use it, run:
+
+```shell
+> deva setup
+Fetching git repository...
+Checking main branch...
+Checking Python version...
+Checking Go version...
+Updating Python dependencies...
+Updating Python dependencies from requirements.txt...
+Updating Python dependencies from tasks/requirements.txt...
+Downloading go tools...
+Installing go tools...
+Enabling pre-commit...
+
+Results:
+
+Check git repository     OK
+Check Python version     OK
+Check Go version         OK
+Update Python dependencies from requirements.txt         OK
+Update Python dependencies from tasks/requirements.txt   OK
+Download Go tools        OK
+Install Go tools         OK
+Enable pre-commit        OK
+
+Setup completed successfully.
+```
 
 If you want to uninstall `deva`, you can simply run the `./deva self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
 
@@ -89,7 +118,7 @@ sure to work is `virtualenv`.**
 If using virtual environments when running the built Agent, you may need to override the built Agent's search path for Python check packages using the `PYTHONPATH` variable (your target path must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/) though).
 
 ```sh
-PYTHONPATH="./venv/lib/python3.11/site-packages:$PYTHONPATH" ./agent run ...
+PYTHONPATH="./venv/lib/python3.12/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
 See also some notes in [./checks](https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks) about running custom python checks.
@@ -109,8 +138,8 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.21.10` or
-higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
+You must [install Golang](https://golang.org/doc/install) version `1.23.3` or
+later. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
@@ -204,12 +233,7 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 
 #### Installation
 
-To install it, run:
-
-```sh
-python3 -m pip install pre-commit
-pre-commit install
-```
+To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `deva setup` automatically enables the hooks, but you can do it manually running: `pre-commit install`.
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
 To install it, run:
@@ -230,10 +254,17 @@ If you want to run one of the checks manually, you can run `pre-commit run <chec
 
 You can run it on all files with the `--all-files` flag.
 ```sh
-pre-commit run flake8 --all-files  # run flake8 on all files
+pre-commit run ruff --all-files  # run ruff on all files
 ```
 
 See `pre-commit run --help` for further options.
+
+### Creating a Visual Studio Code settings file
+
+To configure your IDE to work with `datadog-agent` repository, specify build tags in `.vscode/settings`. Run the following command to create the file:
+```
+inv setup.vscode-settings
+```
 
 ### Setting up Visual Studio Code Dev Container
 

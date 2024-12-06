@@ -16,6 +16,7 @@ import (
 	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"golang.org/x/time/rate"
@@ -38,8 +39,8 @@ type EntryCache struct {
 // Resolver resolves user and group ids to names
 type Resolver struct {
 	cgroupResolver *cgroup.Resolver
-	nsUserCache    *lru.Cache[string, *EntryCache]
-	nsGroupCache   *lru.Cache[string, *EntryCache]
+	nsUserCache    *lru.Cache[containerutils.ContainerID, *EntryCache]
+	nsGroupCache   *lru.Cache[containerutils.ContainerID, *EntryCache]
 }
 
 type containerFS struct {
@@ -52,9 +53,9 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
 			if os.IsNotExist(err) {
-				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerID, err)
 			} else {
-				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerID, err)
 			}
 			continue
 		}
@@ -62,7 +63,7 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 		return file, nil
 	}
 
-	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroup.ID)
+	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroup.ContainerID)
 }
 
 type hostFS struct{}
@@ -75,7 +76,7 @@ func (fs *hostFS) Open(path string) (fs.File, error) {
 	return os.Open(path)
 }
 
-func (r *Resolver) getFilesystem(containerID string) (fs.FS, error) {
+func (r *Resolver) getFilesystem(containerID containerutils.ContainerID) (fs.FS, error) {
 	var fsys fs.FS
 
 	if containerID != "" {
@@ -92,7 +93,7 @@ func (r *Resolver) getFilesystem(containerID string) (fs.FS, error) {
 }
 
 // RefreshCache refresh the user and group caches with data from files
-func (r *Resolver) RefreshCache(containerID string) error {
+func (r *Resolver) RefreshCache(containerID containerutils.ContainerID) error {
 	fsys, err := r.getFilesystem(containerID)
 	if err != nil {
 		return err
@@ -109,7 +110,7 @@ func (r *Resolver) RefreshCache(containerID string) error {
 	return nil
 }
 
-func (r *Resolver) refreshUserCache(containerID string, fsys fs.FS) (map[int]string, error) {
+func (r *Resolver) refreshUserCache(containerID containerutils.ContainerID, fsys fs.FS) (map[int]string, error) {
 	entryCache, found := r.nsUserCache.Get(containerID)
 	if !found {
 		// add the entry cache before we parse the fill so that we also
@@ -131,7 +132,7 @@ func (r *Resolver) refreshUserCache(containerID string, fsys fs.FS) (map[int]str
 	return entries, nil
 }
 
-func (r *Resolver) refreshGroupCache(containerID string, fsys fs.FS) (map[int]string, error) {
+func (r *Resolver) refreshGroupCache(containerID containerutils.ContainerID, fsys fs.FS) (map[int]string, error) {
 	entryCache, found := r.nsGroupCache.Get(containerID)
 	if !found {
 		entryCache = &EntryCache{rateLimiter: rate.NewLimiter(rate.Limit(refreshCacheRateLimit), refreshCacheRateBurst)}
@@ -152,7 +153,7 @@ func (r *Resolver) refreshGroupCache(containerID string, fsys fs.FS) (map[int]st
 }
 
 // ResolveUser resolves a user id to a username
-func (r *Resolver) ResolveUser(uid int, containerID string) (string, error) {
+func (r *Resolver) ResolveUser(uid int, containerID containerutils.ContainerID) (string, error) {
 	userCache, found := r.nsUserCache.Get(containerID)
 	if found {
 		cachedEntry, found := userCache.entries[uid]
@@ -181,7 +182,7 @@ func (r *Resolver) ResolveUser(uid int, containerID string) (string, error) {
 }
 
 // ResolveGroup resolves a group id to a group name
-func (r *Resolver) ResolveGroup(gid int, containerID string) (string, error) {
+func (r *Resolver) ResolveGroup(gid int, containerID containerutils.ContainerID) (string, error) {
 	groupCache, found := r.nsGroupCache.Get(containerID)
 	if found {
 		cachedEntry, found := groupCache.entries[gid]
@@ -211,18 +212,18 @@ func (r *Resolver) ResolveGroup(gid int, containerID string) (string, error) {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
-	r.nsGroupCache.Remove(sbom.ID)
-	r.nsUserCache.Remove(sbom.ID)
+	r.nsGroupCache.Remove(sbom.ContainerID)
+	r.nsUserCache.Remove(sbom.ContainerID)
 }
 
 // NewResolver instantiates a new user and group resolver
 func NewResolver(cgroupResolver *cgroup.Resolver) (*Resolver, error) {
-	nsUserCache, err := lru.New[string, *EntryCache](64)
+	nsUserCache, err := lru.New[containerutils.ContainerID, *EntryCache](64)
 	if err != nil {
 		return nil, err
 	}
 
-	nsGroupCache, err := lru.New[string, *EntryCache](64)
+	nsGroupCache, err := lru.New[containerutils.ContainerID, *EntryCache](64)
 	if err != nil {
 		return nil, err
 	}

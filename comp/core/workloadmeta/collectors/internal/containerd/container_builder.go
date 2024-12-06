@@ -12,15 +12,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/runtime/restart"
+	"github.com/containerd/errdefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,6 +57,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		} else {
 			imageID = imgConfig.Digest.String()
 		}
+	}
+
+	// Get Container PID
+	var pid int
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		pid = int(task.Pid())
+	} else {
+		pid = 0
+		log.Debugf("cannot get container %s's process PID: %v", container.ID(), err)
 	}
 
 	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
@@ -95,6 +107,12 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		networkIPs[""] = ip
 	}
 
+	// See https://github.com/containerd/nerdctl/blob/v1.7.7/pkg/inspecttypes/dockercompat/dockercompat.go#L222-L224
+	var restartCount int
+	if info.Labels[restart.StatusLabel] == string(containerd.Running) {
+		restartCount, _ = strconv.Atoi(info.Labels[restart.CountLabel])
+	}
+
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
 	workloadContainer := workloadmeta.Container{
@@ -117,8 +135,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs: networkIPs,
-		PID:        0, // Not available
+		NetworkIPs:   networkIPs,
+		PID:          pid, // PID will be 0 for non-running containers
+		RestartCount: restartCount,
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing

@@ -6,13 +6,8 @@
 package stats
 
 import (
-	_ "embed"
-	"sort"
-	"strings"
 	"sync"
 	"time"
-
-	"gopkg.in/ini.v1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -27,100 +22,48 @@ import (
 // units used by the concentrator.
 const defaultBufferLen = 2
 
+// Writer is an interface for something that can Write Stats Payloads
+type Writer interface {
+	// Write this payload
+	Write(*pb.StatsPayload)
+}
+
 // Concentrator produces time bucketed statistics from a stream of raw traces.
 // https://en.wikipedia.org/wiki/Knelson_concentrator
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	In  chan Input
-	Out chan *pb.StatsPayload
+	Writer Writer
 
+	spanConcentrator *SpanConcentrator
 	// bucket duration in nanoseconds
-	bsize int64
-	// Timestamp of the oldest time bucket for which we allow data.
-	// Any ingested stats older than it get added to this bucket.
-	oldestTs int64
-	// bufferLen is the number of 10s stats bucket we keep in memory before flushing them.
-	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
-	// wait such time before flushing the stats.
-	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen              int
-	exit                   chan struct{}
-	exitWG                 sync.WaitGroup
-	buckets                map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu                     sync.Mutex
-	agentEnv               string
-	agentHostname          string
-	agentVersion           string
-	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
-	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
-	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
-	statsd                 statsd.ClientInterface
-}
-
-//go:embed peer_tags.ini
-var peerTagFile []byte
-
-var defaultPeerTags = func() []string {
-	var tags []string = []string{"_dd.base_service"}
-
-	cfg, err := ini.Load(peerTagFile)
-	if err != nil {
-		log.Error("Error loading file for peer tags: ", err)
-		return tags
-	}
-	keys := cfg.Section("dd.apm.peer.tags").Keys()
-
-	for _, key := range keys {
-		value := strings.Split(key.Value(), ",")
-		tags = append(tags, value...)
-	}
-
-	sort.Strings(tags)
-
-	return tags
-}()
-
-func preparePeerTags(tags ...string) []string {
-	if len(tags) == 0 {
-		return nil
-	}
-	var deduped []string
-	seen := make(map[string]struct{})
-	for _, t := range tags {
-		if _, ok := seen[t]; !ok {
-			seen[t] = struct{}{}
-			deduped = append(deduped, t)
-		}
-	}
-	sort.Strings(deduped)
-	return deduped
+	bsize         int64
+	exit          chan struct{}
+	exitWG        sync.WaitGroup
+	agentEnv      string
+	agentHostname string
+	agentVersion  string
+	statsd        statsd.ClientInterface
+	peerTagKeys   []string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time, statsd statsd.ClientInterface) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		ComputeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+		BucketInterval:         bsize,
+	}, now)
 	c := Concentrator{
-		bsize:   bsize,
-		buckets: make(map[int64]*RawBucket),
-		// At start, only allow stats for the current time bucket. Ensure we don't
-		// override buckets which could have been sent before an Agent restart.
-		oldestTs: alignTs(now.UnixNano(), bsize),
-		// TODO: Move to configuration.
-		bufferLen:              defaultBufferLen,
-		In:                     make(chan Input, 1),
-		Out:                    out,
-		exit:                   make(chan struct{}),
-		agentEnv:               conf.DefaultEnv,
-		agentHostname:          conf.Hostname,
-		agentVersion:           conf.AgentVersion,
-		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
-		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
-		statsd:                 statsd,
-	}
-	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
-		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
+		spanConcentrator: sc,
+		Writer:           writer,
+		exit:             make(chan struct{}),
+		agentEnv:         conf.DefaultEnv,
+		agentHostname:    conf.Hostname,
+		agentVersion:     conf.AgentVersion,
+		statsd:           statsd,
+		bsize:            bsize,
+		peerTagKeys:      conf.ConfiguredPeerTags(),
 	}
 	return &c
 }
@@ -144,18 +87,13 @@ func (c *Concentrator) Run() {
 
 	log.Debug("Starting concentrator")
 
-	go func() {
-		for inputs := range c.In {
-			c.Add(inputs)
-		}
-	}()
 	for {
 		select {
 		case <-flushTicker.C:
-			c.Out <- c.Flush(false)
+			c.Writer.Write(c.Flush(false))
 		case <-c.exit:
 			log.Info("Exiting concentrator, computing remaining stats")
-			c.Out <- c.Flush(true)
+			c.Writer.Write(c.Flush(true))
 			return
 		}
 	}
@@ -165,17 +103,6 @@ func (c *Concentrator) Run() {
 func (c *Concentrator) Stop() {
 	close(c.exit)
 	c.exitWG.Wait()
-}
-
-// computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
-func computeStatsForSpanKind(s *pb.Span) bool {
-	k := strings.ToLower(s.Meta["span.kind"])
-	switch k {
-	case "server", "consumer", "client", "producer":
-		return true
-	default:
-		return false
-	}
 }
 
 // Input specifies a set of traces originating from a certain payload.
@@ -204,11 +131,9 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 
 // Add applies the given input to the concentrator.
 func (c *Concentrator) Add(t Input) {
-	c.mu.Lock()
 	for _, trace := range t.Traces {
 		c.addNow(&trace, t.ContainerID, t.ContainerTags)
 	}
-	c.mu.Unlock()
 }
 
 // addNow adds the given input into the concentrator.
@@ -232,31 +157,10 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		isTop := traceutil.HasTopLevel(s)
-		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
-		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
-			continue
+		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys)
+		if ok {
+			c.spanConcentrator.addSpan(statSpan, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
 		}
-		if traceutil.IsPartialSnapshot(s) {
-			continue
-		}
-		end := s.Start + s.Duration
-		btime := end - end%c.bsize
-
-		// If too far in the past, count in the oldest-allowed time bucket instead.
-		if btime < c.oldestTs {
-			btime = c.oldestTs
-		}
-
-		b, ok := c.buckets[btime]
-		if !ok {
-			b = NewRawBucket(uint64(btime), uint64(c.bsize))
-			if containerID != "" && len(containerTags) > 0 {
-				b.containerTagsByID[containerID] = containerTags
-			}
-			c.buckets[btime] = b
-		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
 	}
 }
 
@@ -267,54 +171,7 @@ func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 }
 
 func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
-	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
-	containerTagsByID := make(map[string][]string)
-
-	c.mu.Lock()
-	for ts, srb := range c.buckets {
-		// Always keep `bufferLen` buckets (default is 2: current + previous one).
-		// This is a trade-off: we accept slightly late traces (clock skew and stuff)
-		// but we delay flushing by at most `bufferLen` buckets.
-		//
-		// This delay might result in not flushing stats payload (data loss)
-		// if the agent stops while the latest buckets aren't old enough to be flushed.
-		// The "force" boolean skips the delay and flushes all buckets, typically on agent shutdown.
-		if !force && ts > now-int64(c.bufferLen)*c.bsize {
-			log.Tracef("Bucket %d is not old enough to be flushed, keeping it", ts)
-			continue
-		}
-		log.Debugf("Flushing bucket %d", ts)
-		for k, b := range srb.Export() {
-			m[k] = append(m[k], b)
-			if ctags, ok := srb.containerTagsByID[k.ContainerID]; ok {
-				containerTagsByID[k.ContainerID] = ctags
-			}
-		}
-		delete(c.buckets, ts)
-	}
-	// After flushing, update the oldest timestamp allowed to prevent having stats for
-	// an already-flushed bucket.
-	newOldestTs := alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
-	if newOldestTs > c.oldestTs {
-		log.Debugf("Update oldestTs to %d", newOldestTs)
-		c.oldestTs = newOldestTs
-	}
-	c.mu.Unlock()
-	sb := make([]*pb.ClientStatsPayload, 0, len(m))
-	for k, s := range m {
-		p := &pb.ClientStatsPayload{
-			Env:          k.Env,
-			Hostname:     k.Hostname,
-			ContainerID:  k.ContainerID,
-			Version:      k.Version,
-			GitCommitSha: k.GitCommitSha,
-			ImageTag:     k.ImageTag,
-			Stats:        s,
-			Tags:         containerTagsByID[k.ContainerID],
-		}
-		sb = append(sb, p)
-	}
-
+	sb := c.spanConcentrator.Flush(now, force)
 	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 

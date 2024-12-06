@@ -7,13 +7,13 @@ package flare
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // SendFlare sends a flare and returns the message returned by the backend. This entry point is deprecated in favor of
 // the 'Send' method of the flare component.
 func SendFlare(cfg pkgconfigmodel.Reader, archivePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
-	return helpers.SendTo(cfg, archivePath, caseID, email, config.Datadog().GetString("api_key"), utils.GetInfraEndpoint(config.Datadog()), source)
+	return helpers.SendTo(cfg, archivePath, caseID, email, pkgconfigsetup.Datadog().GetString("api_key"), utils.GetInfraEndpoint(pkgconfigsetup.Datadog()), source)
 }

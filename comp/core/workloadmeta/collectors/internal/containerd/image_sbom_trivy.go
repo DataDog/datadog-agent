@@ -13,8 +13,8 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd"
@@ -23,7 +23,7 @@ import (
 )
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog().GetBool("sbom.container_image.enabled")
+	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
@@ -36,15 +36,15 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global SBOM scanner")
 	}
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetEventType(workloadmeta.EventTypeSet).
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
+
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	scanner := collectors.GetContainerdScanner()
 	if scanner == nil {
@@ -138,11 +138,11 @@ func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 	var report *cyclonedx.BOM
 
 	if result.Error != nil {
-		log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
+		log.Debugf("Failed to generate SBOM for containerd image: %s", result.Error)
 		status = workloadmeta.Failed
 		reportedError = result.Error.Error()
 	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
-		log.Errorf("Failed to extract SBOM from report")
+		log.Debugf("Failed to extract SBOM from report")
 		status = workloadmeta.Failed
 		reportedError = err.Error()
 	} else {

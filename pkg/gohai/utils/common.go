@@ -49,7 +49,7 @@ func canBeRendered(ty reflect.Kind) bool {
 func getValueMethod(fieldTy reflect.StructField) (reflect.Method, bool) {
 	// check that a pointer to the field type has a Value method
 	// (Value is a method on *Value[T])
-	valueMethod, ok := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
+	valueMethod, ok := reflect.PointerTo(fieldTy.Type).MethodByName("Value")
 	if !ok || valueMethod.Type.NumIn() != 1 || valueMethod.Type.NumOut() != 2 {
 		return reflect.Method{}, false
 	}
@@ -93,6 +93,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 
 	values := make(map[string]interface{})
 	warns := []string{}
+	var lastErr error // store an error to return, so that errors.Is can be used
 
 	for i := 0; i < reflVal.NumField(); i++ {
 		fieldTy := reflType.Field(i)
@@ -126,6 +127,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 			// ignore these errors
 			if !errors.Is(err, ErrNotCollectable) {
 				warns = append(warns, err.Error())
+				lastErr = err
 			}
 
 			// if the field is an error and we don't want to print the default value, continue
@@ -149,8 +151,28 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 
 	// return an error if no field was successfully collected
 	if len(values) == 0 {
+		// if all field errors are the same then use that as error message on top of the generic "no field was collected"
+		if len(warns) != 0 && allEqual(warns) {
+			return nil, nil, fmt.Errorf("%w: %w", ErrNoFieldCollected, lastErr)
+		}
+
 		return nil, warns, ErrNoFieldCollected
 	}
 
 	return values, warns, nil
+}
+
+func allEqual[T comparable](values []T) bool {
+	if len(values) == 0 {
+		return true
+	}
+
+	first := values[0]
+	for _, val := range values {
+		if val != first {
+			return false
+		}
+	}
+
+	return true
 }

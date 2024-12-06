@@ -13,13 +13,11 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	manager "github.com/DataDog/ebpf-manager"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var ringPool = sync.Pool{
-	New: func() interface{} {
-		return new(ringbuf.Record)
-	},
-}
+var ringPool = ddsync.NewDefaultTypedPool[ringbuf.Record]()
 
 // RingBufferHandler implements EventHandler
 // this line is just a static check of the interface
@@ -29,7 +27,7 @@ var _ EventHandler = new(RingBufferHandler)
 type RingBufferHandler struct {
 	RecordGetter func() *ringbuf.Record
 
-	dataChannel chan *DataEvent
+	dataChannel chan DataEvent
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
@@ -39,9 +37,9 @@ type RingBufferHandler struct {
 func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
 	return &RingBufferHandler{
 		RecordGetter: func() *ringbuf.Record {
-			return ringPool.Get().(*ringbuf.Record)
+			return ringPool.Get()
 		},
-		dataChannel: make(chan *DataEvent, dataChannelSize),
+		dataChannel: make(chan DataEvent, dataChannelSize),
 		// This channel is not really used in the context of ring buffers but
 		// it's here so `RingBufferHandler` and `PerfHandler` can be used
 		// interchangeably
@@ -55,11 +53,11 @@ func (c *RingBufferHandler) RecordHandler(record *ringbuf.Record, _ *manager.Rin
 		return
 	}
 
-	c.dataChannel <- &DataEvent{Data: record.RawSample, rr: record}
+	c.dataChannel <- DataEvent{Data: record.RawSample, rr: record}
 }
 
 // DataChannel returns the channel with event data
-func (c *RingBufferHandler) DataChannel() <-chan *DataEvent {
+func (c *RingBufferHandler) DataChannel() <-chan DataEvent {
 	return c.dataChannel
 }
 

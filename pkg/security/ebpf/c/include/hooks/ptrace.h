@@ -6,16 +6,12 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
-    struct policy_t policy = fetch_policy(EVENT_PTRACE);
-    if (is_discarded_by_process(policy.mode, EVENT_PTRACE)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_PTRACE,
         .ptrace = {
             .request = request,
             .pid = 0, // 0 in case the root ns pid resolution failed
+            .ns_pid = (u32)pid,
             .addr = (u64)addr,
         }
     };
@@ -64,6 +60,7 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
         .request = syscall->ptrace.request,
         .pid = syscall->ptrace.pid,
         .addr = syscall->ptrace.addr,
+        .ns_pid = syscall->ptrace.ns_pid,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

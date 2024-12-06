@@ -12,12 +12,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -35,12 +36,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
@@ -48,9 +50,9 @@ type EBPFResolvers struct {
 	manager              *manager.Manager
 	MountResolver        mount.ResolverInterface
 	ContainerResolver    *container.Resolver
-	TimeResolver         *time.Resolver
+	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         tags.Resolver
+	TagsResolver         *tags.LinuxResolver
 	DentryResolver       *dentry.Resolver
 	ProcessResolver      *process.EBPFResolver
 	NamespaceResolver    *netns.Resolver
@@ -64,13 +66,13 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
 	}
 
-	timeResolver, err := time.NewResolver()
+	timeResolver, err := ktime.NewResolver()
 	if err != nil {
 		return nil, err
 	}
@@ -85,22 +87,18 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var sbomResolver *sbom.Resolver
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, wmeta)
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	var tagsResolver tags.Resolver
-	if opts.TagsResolver != nil {
-		tagsResolver = opts.TagsResolver
-	} else {
-		tagsResolver = tags.NewResolver(config.Probe)
-	}
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+	cgroupsResolver, err := cgroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}
+
+	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -111,7 +109,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}
-		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+		if err := tagsResolver.RegisterListener(tags.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
 			return nil, err
 		}
 	}
@@ -142,9 +140,17 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.TTYFallbackEnabled {
 		processOpts.WithTTYFallbackEnabled()
 	}
+	if opts.EnvVarsResolutionEnabled {
+		processOpts.WithEnvsResolutionEnabled()
+	}
+
+	var envVarsResolver *envvars.Resolver
+	if opts.EnvVarsResolutionEnabled {
+		envVarsResolver = envvars.NewEnvVarsResolver(config.Probe)
+	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +206,46 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 
 	r.CGroupResolver.Start(ctx)
 	if r.SBOMResolver != nil {
-		r.SBOMResolver.Start(ctx)
+		if err := r.SBOMResolver.Start(ctx); err != nil {
+			return err
+		}
 	}
 
 	if err := r.UserSessionsResolver.Start(r.manager); err != nil {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
+}
+
+// ResolveCGroup resolves the path of cgroup for a process cache entry
+func (r *EBPFResolvers) ResolveCGroup(pce *model.ProcessCacheEntry, pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) error {
+	path, err := r.DentryResolver.Resolve(pathKey, true)
+	if err == nil && path != "" {
+		cgroup := filepath.Dir(string(path))
+		if cgroup == "/" {
+			cgroup = path
+		}
+
+		cgroupFlags := containerutils.CGroupFlags(cgroupFlags)
+		cgroupContext := model.CGroupContext{
+			CGroupID:    containerutils.CGroupID(cgroup),
+			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
+			CGroupFile:  pathKey,
+		}
+
+		pce.Process.CGroup = cgroupContext
+		pce.CGroup = cgroupContext
+
+		if cgroupFlags.IsContainer() {
+			containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+			pce.ContainerID = containerID
+			pce.Process.ContainerID = containerID
+		}
+	} else {
+		return fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+	}
+
+	return nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.

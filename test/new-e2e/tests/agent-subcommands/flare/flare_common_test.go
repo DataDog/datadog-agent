@@ -78,8 +78,10 @@ func (v *baseFlareSuite) TestFlareProfiling() {
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(v *baseFlareSuite, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {
+	v.T().Helper()
+
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 

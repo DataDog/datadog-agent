@@ -10,14 +10,12 @@ package selftests
 
 import (
 	"fmt"
-	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"golang.org/x/sys/windows/registry"
 )
 
 // WindowsOpenRegistryKeyTest defines a windows open registry key self test
@@ -33,7 +31,8 @@ func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`open.registry.key_name == "%s" && process.pid == %d`, filepath.Base(o.keyPath), os.Getpid()),
+		Expression: fmt.Sprintf(`open.registry.key_name == "%s"`, filepath.Base(o.keyPath)),
+		Silent:     true,
 	}
 }
 
@@ -41,12 +40,20 @@ func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 func (o *WindowsOpenRegistryKeyTest) GenerateEvent() error {
 	o.isSuccess = false
 
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, o.keyPath, registry.READ)
-	if err != nil {
+	path := fmt.Sprintf("Registry::HKEY_LOCAL_MACHINE:\\%s", o.keyPath)
+
+	cmd := exec.Command(
+		"powershell",
+		"-c",
+		"Get-ItemProperty",
+		"-Path",
+		path,
+	)
+	if err := cmd.Run(); err != nil {
 		log.Debugf("error opening registry key: %v", err)
 		return err
 	}
-	defer key.Close()
+
 	return nil
 }
 

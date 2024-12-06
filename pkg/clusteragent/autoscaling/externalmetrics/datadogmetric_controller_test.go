@@ -21,7 +21,7 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	core "k8s.io/client-go/testing"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
@@ -87,7 +87,7 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expecte
 	defer close(stopCh)
 	informer.Start(stopCh)
 
-	err := controller.processDatadogMetric(datadogMetricID)
+	_, err := controller.processDatadogMetric(0, datadogMetricID)
 	assert.Equal(f.t, expectedError, err)
 
 	actions := autoscaling.FilterInformerActions(f.client.Actions(), "datadogmetrics")

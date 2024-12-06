@@ -7,6 +7,7 @@
 package listeners
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -18,6 +19,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
@@ -27,120 +30,79 @@ import (
 type listenerDeps struct {
 	fx.In
 
-	Config config.Component
-	PidMap pidmap.Component
+	Config    config.Component
+	PidMap    pidmap.Component
+	Telemetry telemetry.Component
 }
 
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) listenerDeps {
 	return fxutil.Test[listenerDeps](t, fx.Options(
+		telemetryimpl.MockModule(),
 		config.MockModule(),
 		pidmapimpl.Module(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 }
 
-func newPacketPoolManagerUDP(cfg config.Component) *packets.PoolManager {
-	packetPoolUDP := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"))
-	return packets.NewPoolManager(packetPoolUDP)
+func newPacketPoolManagerUDP(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager[packets.Packet] {
+	packetPoolUDP := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
+	return packets.NewPoolManager[packets.Packet](packetPoolUDP)
 }
 
 func TestNewUDPListener(t *testing.T) {
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{"dogstatsd_port": "__random__"})
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
 	s.Stop()
 }
 
-func TestStartStopUDPListener(t *testing.T) {
+func TestUDPListenerTelemetry(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
 
+	packetChannel := make(chan packets.Packets)
 	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	require.NotNil(t, s)
-
 	assert.Nil(t, err)
 
+	mConn := defaultMConn(s.conn.LocalAddr(), []byte("hello world"))
+	s.conn.Close()
+	s.conn = mConn
 	s.Listen()
-	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
+	defer s.Stop()
 
-	s.Stop()
+	select {
+	case pkts := <-packetChannel:
+		packet := pkts[0]
+		assert.NotNil(t, packet)
 
-	// check that the port can be bound, try for 100 ms
-	for i := 0; i < 10; i++ {
-		var conn net.Conn
-		conn, err = net.ListenUDP("udp", address)
-		if err == nil {
-			conn.Close()
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		assert.True(t, ok)
+
+		packetsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets")
+		require.NoError(t, err)
+		require.Len(t, packetsMetrics, 1)
+		bytesCountMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets_bytes")
+		require.NoError(t, err)
+		require.Len(t, bytesCountMetrics, 1)
+
+		assert.Equal(t, float64(1), packetsMetrics[0].Value())
+		assert.Equal(t, float64(11), bytesCountMetrics[0].Value())
+
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
 	}
-	require.NoError(t, err, "port is not available, it should be")
-}
-
-func TestUDPNonLocal(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
-
-	cfg := map[string]interface{}{}
-	cfg["dogstatsd_port"] = port
-	cfg["dogstatsd_non_local_traffic"] = true
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
-	assert.Nil(t, err)
-	require.NotNil(t, s)
-
-	s.Listen()
-	defer s.Stop()
-
-	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
-
-	// External port should be unavailable
-	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
-	address, _ = net.ResolveUDPAddr("udp", externalPort)
-	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
-}
-
-func TestUDPLocalOnly(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
-
-	cfg := map[string]interface{}{}
-	cfg["dogstatsd_port"] = port
-	cfg["dogstatsd_non_local_traffic"] = false
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
-	assert.Nil(t, err)
-	require.NotNil(t, s)
-
-	s.Listen()
-	defer s.Stop()
-
-	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
-
-	// External port should be available
-	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
-	address, _ = net.ResolveUDPAddr("udp", externalPort)
-	conn, err := net.ListenUDP("udp", address)
-	require.NotNil(t, conn)
-	assert.Nil(t, err)
-	conn.Close()
 }
 
 func TestUDPReceive(t *testing.T) {
@@ -153,17 +115,16 @@ func TestUDPReceive(t *testing.T) {
 
 	packetChannel := make(chan packets.Packets)
 	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	require.Nil(t, err)
 	require.NotNil(t, s)
-	assert.Nil(t, err)
-
+	mockConn := defaultMConn(s.conn.LocalAddr(), contents)
+	s.conn.Close()
+	s.conn = mockConn
 	s.Listen()
 	defer s.Stop()
-	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	require.NotNil(t, conn)
-	assert.Nil(t, err)
-	defer conn.Close()
-	conn.Write(contents)
 
 	select {
 	case pkts := <-packetChannel:
@@ -173,6 +134,23 @@ func TestUDPReceive(t *testing.T) {
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)
 		assert.Equal(t, packet.Source, packets.UDP)
+
+		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		assert.True(t, ok)
+
+		packetsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets")
+		require.NoError(t, err)
+		require.Len(t, packetsMetrics, 1)
+		bytesCountMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets_bytes")
+		require.NoError(t, err)
+		require.Len(t, bytesCountMetrics, 1)
+		histogramMetrics, err := telemetryMock.GetHistogramMetric("dogstatsd", "listener_read_latency")
+		require.NoError(t, err)
+		require.Len(t, histogramMetrics, 1)
+
+		assert.Equal(t, float64(1), packetsMetrics[0].Value())
+		assert.Equal(t, float64(len(contents)), bytesCountMetrics[0].Value())
+		assert.NotEqual(t, 0, histogramMetrics[0].Value())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -194,7 +172,9 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	cfg["dogstatsd_non_local_traffic"] = false
 
 	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 }
@@ -233,4 +213,33 @@ func getLocalIP() string {
 		}
 	}
 	return ""
+}
+
+func defaultMConn(addr net.Addr, bs ...[]byte) *udpMock {
+	return &udpMock{bufferList: append([][]byte{}, bs...), address: addr}
+}
+
+type udpMock struct {
+	bufferList [][]byte
+	address    net.Addr
+	nextMsg    int
+}
+
+func (conn udpMock) LocalAddr() net.Addr {
+	return conn.address
+}
+
+func (conn *udpMock) ReadFrom(b []byte) (int, net.Addr, error) {
+	if conn.nextMsg == len(conn.bufferList) {
+		return 0, conn.address, errors.New("Attempted use of closed network connection")
+	}
+	buffer := conn.bufferList[conn.nextMsg]
+	conn.nextMsg++
+	n := copy(b, buffer)
+
+	return n, conn.address, nil
+}
+
+func (conn udpMock) Close() error {
+	return nil
 }

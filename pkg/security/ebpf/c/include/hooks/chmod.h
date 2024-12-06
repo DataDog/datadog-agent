@@ -7,11 +7,11 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mode) {
-    struct policy_t policy = fetch_policy(EVENT_CHMOD);
-    if (is_discarded_by_process(policy.mode, EVENT_CHMOD)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_CHMOD);
     struct syscall_cache_t syscall = {
         .type = EVENT_CHMOD,
         .policy = policy,
@@ -25,7 +25,7 @@ int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mo
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY2(chmod, const char*, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(chmod, const char *, filename, umode_t, mode) {
     return trace__sys_chmod(filename, mode);
 }
 
@@ -33,11 +33,11 @@ HOOK_SYSCALL_ENTRY2(fchmod, int, fd, umode_t, mode) {
     return trace__sys_chmod(NULL, mode);
 }
 
-HOOK_SYSCALL_ENTRY3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY3(fchmodat, int, dirfd, const char *, filename, umode_t, mode) {
     return trace__sys_chmod(filename, mode);
 }
 
-HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char*, filename, umode_t, mode, int, flag) {
+HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char *, filename, umode_t, mode, int, flag) {
     return trace__sys_chmod(filename, mode);
 }
 

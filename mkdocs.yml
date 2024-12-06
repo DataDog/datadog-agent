@@ -49,6 +49,9 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+- How-to:
+  - Go:
+    - Add module: how-to/go/add-module.md
 - Components:
   - Overview: components/overview.md
   - Components:
@@ -61,7 +64,7 @@ nav:
     # - Integrating with other components: components/migration.md
     - Features:
       - Flare: components/shared_features/flares.md
-  #     - TODO Status: components/shared_features/status.md
+      -  Status: components/shared_features/status.md
   #     - TODO Remote Config: components/shared_features/remote_config.md
   #     - TODO Metadata: components/shared_features/metadata.md
   #     - TODO workloadmeta: components/shared_features/workloadmeta.md

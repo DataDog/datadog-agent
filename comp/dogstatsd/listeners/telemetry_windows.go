@@ -10,20 +10,21 @@ import (
 	"expvar"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
+var expvarsMap = expvar.NewMap("dogstatsd-named_pipe")
+
 type listenerTelemetry struct {
-	packetReadingErrors expvar.Int
-	packets             expvar.Int
-	bytes               expvar.Int
+	packetReadingErrors *expvar.Int
+	packets             *expvar.Int
+	bytes               *expvar.Int
 	expvars             *expvar.Map
 	tlmPackets          telemetry.Counter
 	tlmPacketsBytes     telemetry.Counter
 }
 
-func newListenerTelemetry(metricName string, name string) *listenerTelemetry {
-	expvars := expvar.NewMap("dogstatsd-" + metricName)
+func newListenerTelemetry(metricName string, name string, telemetry telemetry.Component) *listenerTelemetry {
 	packetReadingErrors := expvar.Int{}
 	packets := expvar.Int{}
 	bytes := expvar.Int{}
@@ -32,16 +33,16 @@ func newListenerTelemetry(metricName string, name string) *listenerTelemetry {
 		[]string{"state"}, fmt.Sprintf("Dogstatsd %s packets count", name))
 	tlmPacketsBytes := telemetry.NewCounter("dogstatsd", metricName+"_packets_bytes",
 		nil, fmt.Sprintf("Dogstatsd %s packets bytes count", name))
-	expvars.Set("PacketReadingErrors", &packetReadingErrors)
-	expvars.Set("Packets", &packets)
-	expvars.Set("Bytes", &bytes)
+	expvarsMap.Set("PacketReadingErrors", &packetReadingErrors)
+	expvarsMap.Set("Packets", &packets)
+	expvarsMap.Set("Bytes", &bytes)
 
 	return &listenerTelemetry{
-		expvars:             expvars,
-		packetReadingErrors: packetReadingErrors,
+		expvars:             expvarsMap,
+		packetReadingErrors: &packetReadingErrors,
 		tlmPackets:          tlmPackets,
-		packets:             packets,
-		bytes:               bytes,
+		packets:             &packets,
+		bytes:               &bytes,
 		tlmPacketsBytes:     tlmPacketsBytes,
 	}
 }

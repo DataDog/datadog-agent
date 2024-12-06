@@ -17,9 +17,10 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := taggerlistcmd.MakeCommand(func() taggerlistcmd.GlobalParams {
 		return taggerlistcmd.GlobalParams{
-			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   command.ConfigName,
-			LoggerName:   command.LoggerName,
+			ConfFilePath:       globalParams.ConfFilePath,
+			ExtraConfFilePaths: globalParams.ExtraConfFilePath,
+			ConfigName:         command.ConfigName,
+			LoggerName:         command.LoggerName,
 		}
 	})
 

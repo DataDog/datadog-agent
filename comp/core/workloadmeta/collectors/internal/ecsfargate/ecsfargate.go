@@ -15,13 +15,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -66,7 +67,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !pkgConfig.IsFeaturePresent(pkgConfig.ECSFargate) {
+	if !env.IsFeaturePresent(env.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}
 
@@ -84,13 +85,22 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 }
 
 func (c *collector) setTaskCollectionParser() {
-	var err error
-	c.metaV4, err = ecsmeta.V4FromCurrentTask()
-	if c.taskCollectionEnabled && err == nil {
-		c.taskCollectionParser = c.parseTaskFromV4Endpoint
+	if !c.taskCollectionEnabled {
+		log.Infof("detailed task collection disabled, using metadata v2 endpoint")
+		c.taskCollectionParser = c.parseTaskFromV2Endpoint
 		return
 	}
-	c.taskCollectionParser = c.parseTaskFromV2Endpoint
+
+	var err error
+	c.metaV4, err = ecsmeta.V4FromCurrentTask()
+	if err != nil {
+		log.Warnf("failed to initialize metadata v4 client, using metdata v2: %v", err)
+		c.taskCollectionParser = c.parseTaskFromV2Endpoint
+		return
+	}
+
+	log.Infof("detailed task collection enabled, using metadata v4 endpoint")
+	c.taskCollectionParser = c.parseTaskFromV4Endpoint
 }
 
 func (c *collector) Pull(ctx context.Context) error {
@@ -121,26 +131,6 @@ func parseClusterName(value string) string {
 	}
 
 	return value
-}
-
-// parseRegion tries to parse the region out of a cluster ARN. returns empty if
-// it's a malformed ARN.
-func parseRegion(clusterARN string) string {
-	arnParts := strings.Split(clusterARN, ":")
-	if len(arnParts) < 4 {
-		return ""
-	}
-	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return ""
-	}
-	region := arnParts[3]
-
-	// Sanity check
-	if strings.Count(region, "-") < 2 {
-		return ""
-	}
-
-	return region
 }
 
 func parseStatus(status string) workloadmeta.ContainerStatus {

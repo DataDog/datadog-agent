@@ -164,6 +164,38 @@ func TestVEdgeInterface(t *testing.T) {
 			expectedIPV6Address: nil,
 			expectedIPV6Error:   "invalid CIDR address",
 		},
+		{
+			name:      "unspecified ip address",
+			namespace: "test-ns",
+			itf: client.InterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         10,
+				SpeedMbps:       "0.1",
+				IfOperStatus:    "Up",
+				IfAdminStatus:   "Down",
+				Desc:            "Description",
+				Hwaddr:          "00:01:02:03",
+				IPAddress:       "0.0.0.0/24",
+			},
+			expectedID:          "10.0.0.1:test-interface",
+			expectedIndex:       10,
+			expectedSpeed:       0.1,
+			expectedOperStatus:  devicemetadata.OperStatusUp,
+			expectedAdminStatus: devicemetadata.AdminStatusDown,
+			expectedMetadata: devicemetadata.InterfaceMetadata{
+				DeviceID:    "test-ns:10.0.0.1",
+				IDTags:      []string{"interface:test-interface"},
+				Index:       10,
+				Name:        "test-interface",
+				Description: "Description",
+				MacAddress:  "00:01:02:03",
+				OperStatus:  devicemetadata.OperStatusUp,
+				AdminStatus: devicemetadata.AdminStatusDown,
+			},
+			expectedIPV4Address: nil,
+			expectedIPV4Error:   "IP address is unspecified",
+		},
 	}
 
 	for _, tt := range tests {

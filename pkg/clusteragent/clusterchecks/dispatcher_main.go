@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -34,14 +36,23 @@ type dispatcher struct {
 	rebalancingPeriod             time.Duration
 }
 
-func newDispatcher() *dispatcher {
+func newDispatcher(tagger tagger.Component) *dispatcher {
 	d := &dispatcher{
 		store: newClusterStore(),
 	}
-	d.nodeExpirationSeconds = config.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
-	d.extraTags = config.Datadog().GetStringSlice("cluster_checks.extra_tags")
+	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 
-	excludedChecks := config.Datadog().GetStringSlice("cluster_checks.exclude_checks")
+	// Attach the cluster agent's global tags to all dispatched checks
+	// as defined in the tagger's workloadmeta collector
+	var err error
+	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
+	if err != nil {
+		log.Warnf("Cannot get global tags from the tagger: %v", err)
+	} else {
+		log.Debugf("Adding global tags to cluster check dispatcher: %v", d.extraTags)
+	}
+
+	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {
 		d.excludedChecks = make(map[string]struct{}, len(excludedChecks))
@@ -50,7 +61,7 @@ func newDispatcher() *dispatcher {
 		}
 	}
 
-	excludedChecksFromDispatching := config.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching")
+	excludedChecksFromDispatching := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching")
 	// This option will almost always be empty
 	if len(excludedChecksFromDispatching) > 0 {
 		d.excludedChecksFromDispatching = make(map[string]struct{}, len(excludedChecksFromDispatching))
@@ -59,25 +70,24 @@ func newDispatcher() *dispatcher {
 		}
 	}
 
-	d.rebalancingPeriod = config.Datadog().GetDuration("cluster_checks.rebalance_period")
+	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := config.Datadog().GetString("cluster_checks.cluster_tag_name")
+	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
-		if clusterTagName != "" && !config.Datadog().GetBool("disable_cluster_name_tag_key") {
+		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		d.extraTags = append(d.extraTags, fmt.Sprintf("kube_cluster_name:%s", clusterTagValue))
 	}
 
-	d.advancedDispatching = config.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
+	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !d.advancedDispatching {
 		return d
 	}
 
-	var err error
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)

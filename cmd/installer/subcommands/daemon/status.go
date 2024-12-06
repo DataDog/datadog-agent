@@ -8,13 +8,13 @@ package daemon
 import (
 	_ "embed"
 	"fmt"
+	"html/template"
 	"os"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
@@ -31,7 +31,7 @@ func statusCommand(global *command.GlobalParams) *cobra.Command {
 		Short:   "Print the installer status",
 		GroupID: "daemon",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return statusFxWrapper(global)
 		},
 	}
@@ -44,7 +44,7 @@ func statusFxWrapper(global *command.GlobalParams) error {
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            logimpl.ForOneShot("INSTALLER", "off", true),
+			LogParams:            log.ForOneShot("INSTALLER", "off", true),
 		}),
 		core.Bundle(),
 		localapiclientimpl.Module(),
@@ -59,6 +59,10 @@ var functions = template.FuncMap{
 	"yellowText": color.YellowString,
 	"redText":    color.RedString,
 	"boldText":   color.New(color.Bold).Sprint,
+	"italicText": color.New(color.Italic).Sprint,
+	"htmlSafe": func(html string) template.HTML {
+		return template.HTML(html)
+	},
 }
 
 func status(client localapiclient.Component) error {

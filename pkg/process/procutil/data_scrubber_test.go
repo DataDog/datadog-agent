@@ -62,6 +62,9 @@ type testProcess struct {
 
 func setupSensitiveCmdlines() []testCase {
 	return []testCase{
+		{[]string{"process --password=\"Data Source another_password=12345\""}, []string{"process", "--password=********"}},
+		{[]string{"process --password=\"Data Source\""}, []string{"process", "--password=********"}},
+		{[]string{"process --password:'Data Source another_pass=12345'"}, []string{"process", "--password:********"}},
 		{[]string{"agent", "password", "-token", "1234"}, []string{"agent", "password", "********", "1234"}},
 		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
 		{[]string{"agent --password > /password/secret; agent --password echo >> /etc"}, []string{"agent", "--password", "********", "/password/secret;", "agent", "--password", "********", ">>", "/etc"}},

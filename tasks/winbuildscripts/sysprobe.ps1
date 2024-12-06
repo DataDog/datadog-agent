@@ -26,8 +26,8 @@ if ($err -ne 0) {
 & inv -e system-probe.kitchen-prepare --ci
 
 $err = $LASTEXITCODE
-Write-Host Test result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "kitchen prepare failed $err"
     [Environment]::Exit($err)
 }
+Write-Host Test passed

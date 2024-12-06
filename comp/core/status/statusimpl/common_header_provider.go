@@ -9,6 +9,7 @@ import (
 	"fmt"
 	htmlTemplate "html/template"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"runtime"
@@ -28,10 +29,11 @@ var nowFunc = time.Now
 var startTimeProvider = pkgconfigsetup.StartTime
 
 type headerProvider struct {
-	data                   map[string]interface{}
+	constdata              map[string]interface{}
 	name                   string
 	textTemplatesFunctions textTemplate.FuncMap
 	htmlTemplatesFunctions htmlTemplate.FuncMap
+	config                 config.Component
 }
 
 func (h *headerProvider) Index() int {
@@ -43,7 +45,7 @@ func (h *headerProvider) Name() string {
 }
 
 func (h *headerProvider) JSON(_ bool, stats map[string]interface{}) error {
-	for k, v := range h.data {
+	for k, v := range h.data() {
 		stats[k] = v
 	}
 
@@ -56,7 +58,7 @@ func (h *headerProvider) Text(_ bool, buffer io.Writer) error {
 		return tmplErr
 	}
 	t := textTemplate.Must(textTemplate.New("header").Funcs(h.textTemplatesFunctions).Parse(string(tmpl)))
-	return t.Execute(buffer, h.data)
+	return t.Execute(buffer, h.data())
 }
 
 func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
@@ -65,7 +67,14 @@ func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
 		return tmplErr
 	}
 	t := htmlTemplate.Must(htmlTemplate.New("header").Funcs(h.htmlTemplatesFunctions).Parse(string(tmpl)))
-	return t.Execute(buffer, h.data)
+	return t.Execute(buffer, h.data())
+}
+
+func (h *headerProvider) data() map[string]interface{} {
+	data := maps.Clone(h.constdata)
+	data["time_nano"] = nowFunc().UnixNano()
+	data["config"] = populateConfig(h.config)
+	return data
 }
 
 func newCommonHeaderProvider(params status.Params, config config.Component) status.HeaderProvider {
@@ -74,20 +83,20 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["version"] = version.AgentVersion
 	data["flavor"] = flavor.GetFlavor()
 	data["conf_file"] = config.ConfigFileUsed()
+	data["extra_conf_file"] = config.ExtraConfigFilesUsed()
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()
 	data["agent_start_nano"] = startTimeProvider.UnixNano()
 	pythonVersion := params.PythonVersionGetFunc()
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	data["build_arch"] = runtime.GOARCH
-	data["time_nano"] = nowFunc().UnixNano()
-	data["config"] = populateConfig(config)
 
 	return &headerProvider{
-		data:                   data,
+		constdata:              data,
 		name:                   fmt.Sprintf("%s (v%s)", flavor.GetHumanReadableFlavor(), data["version"]),
 		textTemplatesFunctions: status.TextFmap(),
 		htmlTemplatesFunctions: status.HTMLFmap(),
+		config:                 config,
 	}
 }
 

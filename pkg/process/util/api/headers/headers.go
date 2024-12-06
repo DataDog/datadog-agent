@@ -33,4 +33,6 @@ const (
 	RequestIDHeader = "X-DD-Request-ID"
 	// AgentStartTime contains the timestamp that the agent was started
 	AgentStartTime = "X-DD-Agent-Start-Time"
+	// PayloadSource describes which agent process sent the payload (i.e. process or core agent)
+	PayloadSource = "X-DD-Payload-Source"
 )

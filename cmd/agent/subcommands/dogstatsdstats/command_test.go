@@ -21,7 +21,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"dogstatsd-stats", "--json"},
 		requestDogstatsdStats,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.True(t, cliParams.jsonStatus)
 			require.Equal(t, false, secretParams.Enabled)
 		})

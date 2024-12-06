@@ -12,13 +12,16 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFlushAndClearSingleContextMetrics(t *testing.T) {
+	c := setupConfig(t)
+
 	metrics1 := MakeContextMetrics()
-	addMetricSample(metrics1, 100, 1)
-	addMetricSample(metrics1, 200, 2)
+	addMetricSample(metrics1, 100, 1, c)
+	addMetricSample(metrics1, 200, 2, c)
 
 	flusher := NewContextMetricsFlusher()
 	flusher.Append(0, metrics1)
@@ -32,18 +35,20 @@ func TestFlushAndClearSingleContextMetrics(t *testing.T) {
 }
 
 func TestFlushAndClear(t *testing.T) {
+	c := setupConfig(t)
+
 	metrics1 := MakeContextMetrics()
-	addMetricSample(metrics1, 100, 1)
-	addMetricSample(metrics1, 200, 2)
+	addMetricSample(metrics1, 100, 1, c)
+	addMetricSample(metrics1, 200, 2, c)
 
 	metrics2 := MakeContextMetrics()
-	addMetricSample(metrics2, 300, 3)
-	addMetricSample(metrics2, 200, 4)
+	addMetricSample(metrics2, 300, 3, c)
+	addMetricSample(metrics2, 200, 4, c)
 
 	metrics3 := MakeContextMetrics()
-	addMetricSample(metrics3, 300, 5)
-	addMetricSample(metrics3, 200, 6)
-	addMetricSample(metrics3, 400, 7)
+	addMetricSample(metrics3, 300, 5, c)
+	addMetricSample(metrics3, 200, 6, c)
+	addMetricSample(metrics3, 400, 7, c)
 
 	flusher := NewContextMetricsFlusher()
 	flusher.Append(0, metrics1)
@@ -68,12 +73,11 @@ func requireSerie(require *require.Assertions, series []*Serie, contextKey ckey.
 	}
 }
 
-func addMetricSample(contextMetrics ContextMetrics, contextKey int, value float64) {
+func addMetricSample(contextMetrics ContextMetrics, contextKey int, value float64, c model.Config) {
 	mSample := MetricSample{
 		Value: value,
 		Mtype: GaugeType,
 	}
-	c := setupConfig()
 	contextMetrics.AddSample(ckey.ContextKey(contextKey), &mSample, 1, 10, nil, c)
 }
 

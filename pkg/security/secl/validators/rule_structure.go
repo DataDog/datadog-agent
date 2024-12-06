@@ -14,7 +14,7 @@ import (
 
 // HasBareWildcardInField checks whether a rule has a bare wildcard
 func HasBareWildcardInField(rule *eval.Rule) (bool, error) {
-	parsingContext := ast.NewParsingContext()
+	parsingContext := ast.NewParsingContext(false)
 	localModel := &model.Model{}
 	if err := rule.GenEvaluator(localModel, parsingContext); err != nil {
 		return false, err

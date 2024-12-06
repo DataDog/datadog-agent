@@ -8,7 +8,7 @@ package checks
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -22,7 +22,7 @@ type ProcessData struct {
 }
 
 // NewProcessData returns a new ProcessData from the given config
-func NewProcessData(cfg config.Reader) *ProcessData {
+func NewProcessData(cfg pkgconfigmodel.Reader) *ProcessData {
 	return &ProcessData{
 		probe: newProcessProbe(cfg),
 	}

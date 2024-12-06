@@ -51,6 +51,7 @@ type InstructionInfo struct {
 	Code             string                 `json:"code"`
 	RegisterState    map[int]*RegisterState `json:"register_state"` // Register state after execution of the instruction
 	RegisterStateRaw string                 `json:"register_state_raw"`
+	IsDoubleWidth    bool                   `json:"is_double_width"`
 }
 
 // SourceLineStats holds the aggregate verifier statistics for a given C source line

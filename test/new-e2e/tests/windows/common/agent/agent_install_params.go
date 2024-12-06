@@ -13,11 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
-	Package *Package
+	Package            *Package
+	DownloadMSIBackOff backoff.BackOff
+
 	// Path on local test runner to save the MSI install log
 	LocalInstallLogFile string
 
@@ -26,6 +30,7 @@ type InstallAgentParams struct {
 	WixFailWhenDeferred      string `installer_arg:"WIXFAILWHENDEFERRED"`
 	ProjectLocation          string `installer_arg:"PROJECTLOCATION"`
 	ApplicationDataDirectory string `installer_arg:"APPLICATIONDATADIRECTORY"`
+	AddLocal                 string `installer_arg:"ADDLOCAL"`
 	// Installer parameters for agent config
 	APIKey                  string `installer_arg:"APIKEY"`
 	Tags                    string `installer_arg:"TAGS"`
@@ -141,6 +146,14 @@ func WithLastStablePackage() InstallAgentOption {
 			return err
 		}
 		i.Package = lastStablePackage
+		return nil
+	}
+}
+
+// WithDownloadMSIBackoff specifies the backoff strategy for downloading the MSI.
+func WithDownloadMSIBackoff(backoff backoff.BackOff) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.DownloadMSIBackOff = backoff
 		return nil
 	}
 }
@@ -285,6 +298,14 @@ func WithApplicationDataDirectory(applicationDataDirectory string) InstallAgentO
 func WithProjectLocation(projectLocation string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.ProjectLocation = projectLocation
+		return nil
+	}
+}
+
+// WithAddLocal specifies the ADDLOCAL parameter.
+func WithAddLocal(addLocal string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.AddLocal = addLocal
 		return nil
 	}
 }

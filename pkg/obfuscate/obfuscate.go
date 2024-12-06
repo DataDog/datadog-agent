@@ -25,6 +25,7 @@ import (
 type Obfuscator struct {
 	opts                 *Config
 	es                   *jsonObfuscator // nil if disabled
+	openSearch           *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
 	sqlExecPlan          *jsonObfuscator // nil if disabled
 	sqlExecPlanNormalize *jsonObfuscator // nil if disabled
@@ -71,6 +72,9 @@ type Config struct {
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES JSONConfig
 
+	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
+	OpenSearch JSONConfig
+
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo JSONConfig
 
@@ -99,6 +103,9 @@ type Config struct {
 	// Logger specifies the logger to use when outputting messages.
 	// If unset, no logs will be outputted.
 	Logger Logger
+
+	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
+	Cache CacheConfig
 }
 
 // StatsClient implementations are able to emit stats.
@@ -181,8 +188,13 @@ type SQLConfig struct {
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepIdentifierQuotation bool `json:"keep_identifier_quotation" yaml:"keep_identifier_quotation"`
 
-	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
-	Cache bool
+	// KeepJSONPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
+	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
+
+	// Cache is deprecated. Please use `apm_config.obfuscation.cache` instead.
+	Cache bool `json:"cache" yaml:"cache"`
 }
 
 // SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only
@@ -255,6 +267,16 @@ type CreditCardsConfig struct {
 	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 	// It reduces false positives, but increases the CPU time X3.
 	Luhn bool `mapstructure:"luhn"`
+
+	// KeepValues specifies tag keys that are known to not ever contain credit cards
+	// and therefore their values can be kept.
+	KeepValues []string `mapstructure:"keep_values"`
+}
+
+// CacheConfig holds the configuration for caching obfuscated queries.
+type CacheConfig struct {
+	// Enabled specifies whether caching should be enabled.
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -264,12 +286,15 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)
+	}
+	if cfg.OpenSearch.Enabled {
+		o.openSearch = newJSONObfuscator(&cfg.OpenSearch, &o)
 	}
 	if cfg.Mongo.Enabled {
 		o.mongo = newJSONObfuscator(&cfg.Mongo, &o)
@@ -291,7 +316,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 
 // Stop cleans up after a finished Obfuscator.
 func (o *Obfuscator) Stop() {
-	o.queryCache.Close()
+	if o.queryCache != nil {
+		o.queryCache.Close()
+	}
 }
 
 // compactWhitespaces compacts all whitespaces in t.

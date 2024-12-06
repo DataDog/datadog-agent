@@ -63,6 +63,10 @@ type Flow struct {
 	SrcMask uint32
 	DstMask uint32
 
+	// Reverse DNS enrichment added during Flow aggregation processing
+	SrcReverseDNSHostname string
+	DstReverseDNSHostname string
+
 	// Ethernet information
 	Tos uint32 // FLOW KEY
 

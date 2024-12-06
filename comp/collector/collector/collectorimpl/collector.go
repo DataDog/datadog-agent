@@ -8,6 +8,7 @@ package collectorimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -16,11 +17,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -29,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -43,17 +49,19 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Config config.Component
-	Log    log.Component
+	Lc      fx.Lifecycle
+	Config  config.Component
+	Log     log.Component
+	HaAgent haagent.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer optional.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
-	log    log.Component
-	config config.Component
+	log     log.Component
+	config  config.Component
+	haAgent haagent.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer optional.Option[serializer.MetricSerializer]
@@ -79,6 +87,8 @@ type provides struct {
 	Comp             collector.Component
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
+	APIGetPyStatus   api.AgentEndpointProvider
+	FlareProvider    flaretypes.Provider
 }
 
 // Module defines the fx options for this component.
@@ -103,6 +113,8 @@ func newProvides(deps dependencies) provides {
 		Comp:             c,
 		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
 		MetadataProvider: agentCheckMetadata,
+		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
+		FlareProvider:    flaretypes.NewProvider(c.fillFlare),
 	}
 }
 
@@ -110,6 +122,7 @@ func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
 		log:                deps.Log,
 		config:             deps.Config,
+		haAgent:            deps.HaAgent,
 		senderManager:      deps.SenderManager,
 		metricSerializer:   deps.MetricSerializer,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
@@ -127,6 +140,35 @@ func newCollector(deps dependencies) *collectorImpl {
 	})
 
 	return c
+}
+
+// fillFlare collects all the information related to integrations that need to be added to each flare
+func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+	scanner := scanner.GetGlobalScanner()
+	if scanner == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	scanRequest := host.NewHostScanRequest()
+	scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
+	if scanResult.Error != nil {
+		return scanResult.Error
+	}
+
+	cycloneDX, err := scanResult.Report.ToCycloneDX()
+	if err != nil {
+		return err
+	}
+
+	jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return fb.AddFile("host-sbom.json", jsonContent)
 }
 
 // AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
@@ -148,7 +190,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager)
+	run := runner.NewRunner(c.senderManager, c.haAgent)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler

@@ -18,17 +18,17 @@ import (
 
 // Key is an identifier for a group of Postgres transactions
 type Key struct {
-	Operation Operation
-	TableName string
+	Operation  Operation
+	Parameters string
 	types.ConnectionKey
 }
 
 // NewKey creates a new postgres key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, operation Operation, tableName string) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, operation Operation, parameters string) Key {
 	return Key{
 		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
 		Operation:     operation,
-		TableName:     tableName,
+		Parameters:    parameters,
 	}
 }
 
@@ -38,12 +38,14 @@ type RequestStat struct {
 	Latencies          *ddsketch.DDSketch
 	FirstLatencySample float64
 	Count              int
+	StaticTags         uint64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStat) CombineWith(newStats *RequestStat) {
 	r.Count += newStats.Count
+	r.StaticTags |= newStats.StaticTags
 	// If the receiver has no latency sample, use the newStats sample
 	if r.FirstLatencySample == 0 {
 		r.FirstLatencySample = newStats.FirstLatencySample

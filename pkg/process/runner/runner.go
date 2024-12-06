@@ -20,7 +20,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
@@ -54,7 +54,7 @@ type Runner interface{}
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
-	config      ddconfig.Reader
+	config      pkgconfigmodel.Reader
 	sysProbeCfg *checks.SysProbeConfig
 	hostInfo    *checks.HostInfo
 
@@ -97,7 +97,7 @@ func (l *CheckRunner) RunRealTime() bool {
 
 // NewRunner creates a new CheckRunner
 func NewRunner(
-	config ddconfig.Reader,
+	config pkgconfigmodel.Reader,
 	sysCfg *sysconfigtypes.Config,
 	hostInfo *checks.HostInfo,
 	enabledChecks []checks.Check,
@@ -119,7 +119,7 @@ func NewRunner(
 
 // NewRunnerWithChecks creates a new CheckRunner
 func NewRunnerWithChecks(
-	config ddconfig.Reader,
+	config pkgconfigmodel.Reader,
 	sysProbeCfg *checks.SysProbeConfig,
 	hostInfo *checks.HostInfo,
 	checks []checks.Check,
@@ -378,6 +378,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 		}
 
 		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
@@ -497,7 +498,7 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 		}
 
 		if response.StatusCode >= 300 {
-			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
 			continue
 		}
 

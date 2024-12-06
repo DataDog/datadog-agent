@@ -16,19 +16,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -73,22 +74,18 @@ func TestNewCollector(t *testing.T) {
 		},
 		{
 			name: "filter with only supported kinds",
-			filter: workloadmeta.NewFilter(&workloadmeta.FilterParams{
-				Kinds: []workloadmeta.Kind{
-					workloadmeta.KindContainer,
-					workloadmeta.KindKubernetesPod,
-				},
-			}),
+			filter: workloadmeta.NewFilterBuilder().
+				AddKind(workloadmeta.KindContainer).
+				AddKind(workloadmeta.KindKubernetesPod).
+				Build(),
 			expectsError: false,
 		},
 		{
 			name: "filter with unsupported kinds",
-			filter: workloadmeta.NewFilter(&workloadmeta.FilterParams{
-				Kinds: []workloadmeta.Kind{
-					workloadmeta.KindContainer,
-					workloadmeta.KindContainerImageMetadata, // Not supported
-				},
-			}),
+			filter: workloadmeta.NewFilterBuilder().
+				AddKind(workloadmeta.KindContainer).
+				AddKind(workloadmeta.KindContainerImageMetadata /* No Supported */).
+				Build(),
 			expectsError: true,
 		},
 	}
@@ -168,12 +165,9 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 		},
 	}
 	// workloadmeta client store
-	mockClientStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
@@ -197,19 +191,18 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog())
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 		}()
 	}
 
 	// workloadmeta server
-	mockServerStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
@@ -242,18 +235,15 @@ func TestCollection(t *testing.T) {
 	}
 
 	// workloadmeta client store
-	mockClientStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
 		fx.Provide(
 			fx.Annotate(func() workloadmeta.Collector {
 				return collector
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	time.Sleep(3 * time.Second)

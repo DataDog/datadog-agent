@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // common constants for all the updater subcommands.
@@ -39,6 +40,9 @@ type GlobalParams struct {
 
 	// AllowNoRoot is a flag to allow running the installer as non-root.
 	AllowNoRoot bool
+
+	// NoColor is a flag to disable color output
+	NoColor bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -47,7 +51,7 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	globalParams := GlobalParams{
-		ConfFilePath: config.DefaultUpdaterLogFile,
+		ConfFilePath: pkgconfigsetup.DefaultUpdaterLogFile,
 	}
 
 	// AgentCmd is the root command
@@ -71,6 +75,10 @@ Datadog Installer installs datadog-packages based on your commands.`,
 			ID:    "bootstrap",
 			Title: "Bootstrap Commands",
 		},
+		&cobra.Group{
+			ID:    "apm",
+			Title: "APM Commands",
+		},
 	)
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing installer.yaml")
@@ -84,7 +92,7 @@ Datadog Installer installs datadog-packages based on your commands.`,
 	var noColorFlag bool
 	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		if noColorFlag {
+		if globalParams.NoColor {
 			color.NoColor = true
 		}
 	}

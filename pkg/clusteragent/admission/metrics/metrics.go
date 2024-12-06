@@ -44,12 +44,19 @@ var (
 	CertificateDuration = telemetry.NewGaugeWithOpts("admission_webhooks", "certificate_expiry",
 		[]string{}, "Time left before the certificate expires in hours.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	ValidationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "validation_attempts",
+		[]string{"webhook_name", "status", "validated", "error"}, "Number of pod validation attempts by validation type",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
 		[]string{"mutation_type", "status", "injected", "error"}, "Number of pod mutation attempts by mutation type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
-		[]string{"mutation_type"}, "Number of mutation webhook requests received.",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
+	WebhooksReceived = telemetry.NewCounterWithOpts(
+		"admission_webhooks",
+		"webhooks_received",
+		[]string{"mutation_type", "webhook_name", "webhook_type"},
+		"Number of webhook requests received.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 	GetOwnerCacheHit = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_hit",
 		[]string{"resource"}, "Number of cache hits while getting pod's owner object.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
@@ -59,7 +66,7 @@ var (
 	WebhooksResponseDuration = telemetry.NewHistogramWithOpts(
 		"admission_webhooks",
 		"response_duration",
-		[]string{"mutation_type"},
+		[]string{"mutation_type", "webhook_name", "webhook_type"},
 		"Webhook response duration distribution (in seconds).",
 		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
 		telemetry.Options{NoDoubleUnderscoreSep: true},

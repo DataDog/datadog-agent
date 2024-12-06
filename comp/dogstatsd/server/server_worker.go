@@ -6,7 +6,7 @@
 package server
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -32,21 +32,24 @@ type worker struct {
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
 	samples metrics.MetricSampleBatch
+
+	packetsTelemetry *packets.TelemetryStore
 }
 
-func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component]) *worker {
+func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
-		batcher = newServerlessBatcher(s.demultiplexer)
+		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
 	} else {
-		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator))
+		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator), s.tlmChannel)
 	}
 
 	return &worker{
-		server:  s,
-		batcher: batcher,
-		parser:  newParser(s.config, s.sharedFloat64List, workerNum, wmeta),
-		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		server:           s,
+		batcher:          batcher,
+		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry: packetsTelemetry,
 	}
 }
 
@@ -59,7 +62,7 @@ func (w *worker) run() {
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
 		case ps := <-w.server.packetsIn:
-			packets.TelemetryUntrackPackets(ps)
+			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets

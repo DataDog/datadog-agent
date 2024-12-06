@@ -9,7 +9,21 @@ package ebpfless
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"modernc.org/mathutil"
+)
+
+// Mode defines ptrace mode
+type Mode string
+
+const (
+	// UnknownMode unknown mode
+	UnknownMode Mode = "unknown"
+	// WrappedMode ptrace wrapping the binary
+	WrappedMode Mode = "wrapped"
+	// AttachedMode ptrace attached to a pid
+	AttachedMode = "attached"
 )
 
 // MessageType defines the type of a message
@@ -80,11 +94,8 @@ const (
 
 // ContainerContext defines a container context
 type ContainerContext struct {
-	ID             string
-	Name           string
-	ImageShortName string
-	ImageTag       string
-	CreatedAt      uint64
+	ID        containerutils.ContainerID
+	CreatedAt uint64
 }
 
 // FcntlSyscallMsg defines a fcntl message
@@ -148,6 +159,11 @@ type OpenSyscallMsg struct {
 // DupSyscallFakeMsg defines a dup message
 type DupSyscallFakeMsg struct {
 	OldFd int32
+}
+
+// PipeSyscallFakeMsg defines a pipe message
+type PipeSyscallFakeMsg struct {
+	FdsPtr uint64
 }
 
 // ChdirSyscallMsg defines a chdir message
@@ -266,7 +282,7 @@ type UnloadModuleSyscallMsg struct {
 // SpanContext stores a span context (if any)
 type SpanContext struct {
 	SpanID  uint64
-	TraceID uint64
+	TraceID mathutil.Int128
 }
 
 // MountSyscallMsg defines a mount message
@@ -288,7 +304,7 @@ type SyscallMsg struct {
 	SpanContext  *SpanContext `json:",omitempty"`
 	Timestamp    uint64
 	Retval       int64
-	ContainerID  string
+	ContainerID  containerutils.ContainerID
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`
@@ -314,7 +330,8 @@ type SyscallMsg struct {
 	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup *DupSyscallFakeMsg `json:",omitempty"`
+	Dup  *DupSyscallFakeMsg  `json:",omitempty"`
+	Pipe *PipeSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
@@ -328,6 +345,7 @@ type HelloMsg struct {
 	NSID             uint64
 	ContainerContext *ContainerContext
 	EntrypointArgs   []string
+	Mode             Mode
 }
 
 // Message defines a message

@@ -6,6 +6,8 @@
 package expvars
 
 import (
+	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"sort"
@@ -397,4 +399,42 @@ func TestExpvarsToplevelKeys(t *testing.T) {
 		changeAndAssertExpvarValue(t, keyName, setter, getters[keyName], -5, 1)
 		changeAndAssertExpvarValue(t, keyName, setter, getters[keyName], 3, 4)
 	}
+}
+
+func TestGetCheckStatsRace(t *testing.T) {
+	Reset()
+	t.Cleanup(Reset)
+
+	numCheckNames := 3
+	numCheckInstances := 5
+	numCheckRuns := 7
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for checkNameIdx := 0; checkNameIdx < numCheckNames; checkNameIdx++ {
+				for checkIDIdx := 0; checkIDIdx < numCheckInstances; checkIDIdx++ {
+					checkName := fmt.Sprintf("testcheck%d", checkNameIdx)
+					checkID := fmt.Sprintf("%s:%d", checkName, checkIDIdx)
+					testCheck := newTestCheck(checkID)
+
+					warnings := []error{errors.New("error1"), errors.New("error2"), errors.New("error3")}
+					for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
+						AddCheckStats(testCheck, 12345, nil, warnings, stats.SenderStats{})
+					}
+				}
+			}
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		stats := GetCheckStats()
+		_, _ = json.Marshal(stats)
+	}
+
+	wg.Wait()
 }

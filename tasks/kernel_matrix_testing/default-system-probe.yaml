@@ -3,8 +3,7 @@ system_probe_config:
   debug_port: 6666
   telemetry_enabled: true
   log_level: debug
-ebpf_instrumentation:
-  enabled: true
+  sysprobe_socket: /var/run/sysprobe.sock
 network_config:
   enabled: true
   collect_tcp_v6: true
@@ -13,3 +12,6 @@ service_monitoring_config:
   enable_http2_monitoring: true
 runtime_security_config:
   enabled: true
+ebpf_check:
+  enabled: true
+  kernel_bpf_stats: true

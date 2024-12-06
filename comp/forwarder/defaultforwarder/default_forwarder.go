@@ -17,11 +17,12 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -102,7 +103,7 @@ type Options struct {
 	DisableAPIKeyChecking          bool
 	EnabledFeatures                Features
 	APIKeyValidationInterval       time.Duration
-	DomainResolvers                map[string]resolver.DomainResolver
+	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              transaction.HTTPCompletionHandler
 }
@@ -121,14 +122,14 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]string) *Options {
-	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
-		resolvers[utils.GetInfraEndpoint(config)] = resolver.NewDomainResolverWithMetricToVector(
+		resolvers[utils.GetInfraEndpoint(config)] = pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
 			vectorMetricsURL,
@@ -138,7 +139,7 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 }
 
 // NewOptionsWithResolvers creates new Options with default values
-func NewOptionsWithResolvers(config config.Component, log log.Component, domainResolvers map[string]resolver.DomainResolver) *Options {
+func NewOptionsWithResolvers(config config.Component, log log.Component, domainResolvers map[string]pkgresolver.DomainResolver) *Options {
 	validationInterval := config.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(
@@ -181,6 +182,18 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		}
 	}
 
+	// domainforwarder to local DCA for autoscaling failover metrics
+	if config.GetBool("autoscaling.failover.enabled") && config.GetBool("cluster_agent.enabled") {
+		if domain, err := utils.GetClusterAgentEndpoint(); err != nil {
+			log.Errorf("Could not get cluster agent endpoint for autoscaling failover metrics: %s", err)
+		} else if authToken, err := security.GetClusterAgentAuthToken(config); err != nil {
+			log.Errorf("Failed to get cluster agent auth token: ", err)
+		} else {
+			log.Infof("Setting cluster agent domain resolver: %s", domain)
+			option.DomainResolvers[domain] = pkgresolver.NewLocalDomainResolver(domain, authToken)
+		}
+	}
+
 	return option
 }
 
@@ -189,6 +202,13 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
 	maxPayloadSize := 2 * 1024 * 1024
 	o.RetryQueuePayloadsTotalMaxSize = v * maxPayloadSize
+}
+
+// SetEnabledFeatures sets the features enabled
+func (o *Options) SetEnabledFeatures(features []Features) {
+	for _, feature := range features {
+		o.EnabledFeatures = SetFeature(o.EnabledFeatures, feature)
+	}
 }
 
 // DefaultForwarder is the default implementation of the Forwarder.
@@ -200,7 +220,8 @@ type DefaultForwarder struct {
 	NumberOfWorkers int
 
 	domainForwarders map[string]*domainForwarder
-	domainResolvers  map[string]resolver.DomainResolver
+	domainResolvers  map[string]pkgresolver.DomainResolver
+	localForwarder   *domainForwarder // domain forward used for communication with the local cluster-agent
 	healthChecker    *forwarderHealth
 	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
@@ -221,7 +242,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		log:              log,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
-		domainResolvers:  map[string]resolver.DomainResolver{},
+		domainResolvers:  map[string]pkgresolver.DomainResolver{},
 		internalState:    atomic.NewUint32(Stopped),
 		healthChecker: &forwarderHealth{
 			log:                   log,
@@ -232,6 +253,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		},
 		completionHandler: options.CompletionHandler,
 		agentName:         agentName,
+		localForwarder:    nil,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -273,9 +295,12 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 
 	for domain, resolver := range options.DomainResolvers {
 		isMRF := false
-		if config.GetBool("multi_region_failover.enabled") && config.GetString("multi_region_failover.site") != "" {
-			log.Infof("MRF is enabled, checking site: %v ", config.GetString("multi_region_failover.site"))
-			siteURL := utils.BuildURLWithPrefix(utils.InfraURLPrefix, config.GetString("multi_region_failover.site"))
+		if config.GetBool("multi_region_failover.enabled") {
+			log.Infof("MRF is enabled, checking site: %v ", domain)
+			siteURL, err := utils.GetMRFInfraEndpoint(config)
+			if err != nil {
+				log.Error("Error building MRF infra endpoint: ", err)
+			}
 			if domain == siteURL {
 				log.Infof("MRF domain '%s', configured ", domain)
 				isMRF = true
@@ -284,7 +309,9 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		}
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
-		if resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0 {
+
+		_, isLocal := resolver.(*pkgresolver.LocalDomainResolver)
+		if !isLocal && (resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0) {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			var domainFolderPath string
@@ -312,6 +339,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				log,
 				domain,
 				isMRF,
+				isLocal,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,
@@ -464,34 +492,59 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
-			for _, apiKey := range dr.GetAPIKeys() {
-				t := transaction.NewHTTPTransaction()
-				t.Domain, _ = dr.Resolve(endpoint)
-				t.Endpoint = endpoint
-				t.Payload = payload
-				t.Priority = priority
-				t.Kind = kind
-				t.StorableOnDisk = storableOnDisk
-				t.Headers.Set(apiHTTPHeaderKey, apiKey)
-				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
-				if allowArbitraryTags {
-					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+			if payload.Destination == transaction.LocalOnly {
+				// if it is local payload, we should not send it to the remote endpoint
+				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
+					t := transaction.NewHTTPTransaction()
+					t.Domain = drDomain
+					t.Endpoint = endpoint
+					t.Payload = payload
+					t.Priority = priority
+					t.Kind = kind
+					t.StorableOnDisk = storableOnDisk
+					t.Destination = payload.Destination
+					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
+					for key := range extra {
+						t.Headers.Set(key, extra.Get(key))
+					}
+					tlmTxInputCount.Inc(drDomain, endpoint.Name)
+					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+					transactions = append(transactions, t)
 				}
+			} else {
+				for _, apiKey := range dr.GetAPIKeys() {
+					t := transaction.NewHTTPTransaction()
+					t.Domain = drDomain
+					t.Endpoint = endpoint
+					t.Payload = payload
+					t.Priority = priority
+					t.Kind = kind
+					t.StorableOnDisk = storableOnDisk
+					t.Destination = payload.Destination
+					t.Headers.Set(apiHTTPHeaderKey, apiKey)
+					t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+					if allowArbitraryTags {
+						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+					}
 
-				if f.completionHandler != nil {
-					t.CompletionHandler = f.completionHandler
+					if f.completionHandler != nil {
+						t.CompletionHandler = f.completionHandler
+					}
+
+					tlmTxInputCount.Inc(domain, endpoint.Name)
+					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+
+					for key := range extra {
+						t.Headers.Set(key, extra.Get(key))
+					}
+					transactions = append(transactions, t)
 				}
-
-				tlmTxInputCount.Inc(domain, endpoint.Name)
-				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-				transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
-
-				for key := range extra {
-					t.Headers.Set(key, extra.Get(key))
-				}
-				transactions = append(transactions, t)
 			}
 		}
 	}
@@ -549,7 +602,7 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload transaction.BytesPayloads,
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, transaction.Metadata, extra,
-		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, _ transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
 			// Host metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityHigh, transaction.Metadata, storableOnDisk)
@@ -559,7 +612,7 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads,
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, transaction.Metadata, extra,
-		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, _ transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityNormal, transaction.Metadata, storableOnDisk)

@@ -14,10 +14,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -26,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -34,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -80,28 +83,31 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 
 	agentStartTime int64
+
+	stopHeartbeat chan struct{}
+	clock         clock.Clock
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
-		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
-		queueBytes = ddconfig.DefaultProcessQueueBytes
+		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
+		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
 	queueSize := config.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
-		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
-		queueSize = ddconfig.DefaultProcessQueueSize
+		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, pkgconfigsetup.DefaultProcessQueueSize)
+		queueSize = pkgconfigsetup.DefaultProcessQueueSize
 	}
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
 	rtQueueSize := config.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
-		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
-		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
+		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, pkgconfigsetup.DefaultProcessRTQueueSize)
+		rtQueueSize = pkgconfigsetup.DefaultProcessRTQueueSize
 	}
 	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
 	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(queueBytes))
@@ -157,6 +163,9 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		exit: make(chan struct{}),
 
 		agentStartTime: time.Now().Unix(),
+
+		stopHeartbeat: make(chan struct{}),
+		clock:         clock.New(),
 	}, nil
 }
 
@@ -207,28 +216,28 @@ func (s *CheckSubmitter) Start() error {
 		s.consumePayloads(s.eventResults, s.eventForwarder)
 	}()
 
+	if flavor.GetFlavor() == flavor.ProcessAgent {
+		heartbeatTicker := s.clock.Ticker(15 * time.Second)
+		s.wg.Add(1)
+		go func() {
+			defer heartbeatTicker.Stop()
+			defer s.wg.Done()
+			s.heartbeat(heartbeatTicker)
+		}()
+	}
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 
-		heartbeat := time.NewTicker(15 * time.Second)
-		defer heartbeat.Stop()
-
-		queueSizeTicker := time.NewTicker(10 * time.Second)
+		queueSizeTicker := s.clock.Ticker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
-		queueLogTicker := time.NewTicker(time.Minute)
+		queueLogTicker := s.clock.Ticker(time.Minute)
 		defer queueLogTicker.Stop()
 
-		agentVersion, _ := version.Agent()
-		tags := []string{
-			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
-			fmt.Sprintf("revision:%s", agentVersion.Commit),
-		}
 		for {
 			select {
-			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				status.UpdateQueueStats(&status.QueueStats{
 					ProcessQueueSize:      s.processResults.Len(),
@@ -259,6 +268,8 @@ func (s *CheckSubmitter) Stop() {
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.eventResults.Stop()
+
+	close(s.stopHeartbeat)
 
 	s.wg.Wait()
 
@@ -397,6 +408,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
+		extraHeaders.Set(headers.PayloadSource, flavor.GetFlavor())
 
 		switch name {
 		case checks.ProcessEventsCheckName:
@@ -458,6 +470,23 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	}
 
 	return false
+}
+
+func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
+	agentVersion, _ := version.Agent()
+	tags := []string{
+		fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
+		fmt.Sprintf("revision:%s", agentVersion.Commit),
+	}
+
+	for {
+		select {
+		case <-heartbeatTicker.C:
+			statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
+		case <-s.stopHeartbeat:
+			return
+		}
+	}
 }
 
 func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {

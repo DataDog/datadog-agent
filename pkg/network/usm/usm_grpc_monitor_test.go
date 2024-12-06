@@ -20,11 +20,13 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -56,7 +58,12 @@ func TestGRPCScenarios(t *testing.T) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
 			isTLS bool
@@ -71,7 +78,7 @@ func TestGRPCScenarios(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 					t.Skip("GoTLS not supported for this setup")
 				}
 				suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
@@ -98,7 +105,7 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 }
 
 func (s *usmGRPCSuite) getConfig() *config.Config {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -113,6 +120,10 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
 
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
@@ -421,7 +432,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 				if tt.expectedError {
 					t.Skip("Skipping test due to known issue")
 				}
-				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
+				s.testGRPCScenarios(t, usmMonitor, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
@@ -436,6 +447,11 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
+
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
 
 	// Random string generation is an heavy operation, and it's proportional for the length (15MB)
 	// Instead of generating the same long string (long name) for every test, we're generating it only once.
@@ -509,18 +525,14 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		for _, clientCount := range []int{1} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
+				s.testGRPCScenarios(t, usmMonitor, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
 }
 
-func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
-	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
-	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", srvPID)
-	}
-
+func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, usmMonitor *Monitor, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
+	t.Cleanup(func() { cleanProtocolMaps(t, "http2", usmMonitor.ebpfProgram.Manager.Manager) })
 	runClientCallback(t, clientCount)
 
 	res := make(map[http.Key]int)

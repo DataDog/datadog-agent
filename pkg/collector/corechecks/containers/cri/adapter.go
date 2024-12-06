@@ -7,7 +7,7 @@
 
 package cri
 
-import "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+import workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 var metricsNameMapping = map[string]string{
 	"container.uptime":       "cri.uptime",

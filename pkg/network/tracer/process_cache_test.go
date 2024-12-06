@@ -19,7 +19,7 @@ import (
 )
 
 func TestProcessCacheProcessEvent(t *testing.T) {
-	testFunc := func(t *testing.T, name string, entry *events.Process) {
+	testFunc := func(t *testing.T, _ string, entry *events.Process) {
 		pc, err := newProcessCache(10)
 		require.NoError(t, err)
 		t.Cleanup(pc.Stop)

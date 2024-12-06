@@ -15,17 +15,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func setupTest(t *testing.T) (*config.MockConfig, context.Context) {
+func setupTest(t *testing.T) (model.Config, context.Context) {
 	retrySleepTime = 0
 	t.Cleanup(func() {
 		retrySleepTime = 1 * time.Second
 		getProvidersDefinitionsFunc = getProvidersDefinitions
 	})
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("autoconfig_from_environment", false)
 	return mockConfig, context.Background()
 }
@@ -109,11 +110,11 @@ func TestHostTagsCache(t *testing.T) {
 	var fooErr error
 	nbCall := 0
 
-	getProvidersDefinitionsFunc = func(config.Reader) map[string]*providerDef {
+	getProvidersDefinitionsFunc = func(model.Reader) map[string]*providerDef {
 		return map[string]*providerDef{
 			"foo": {
 				retries: 2,
-				getTags: func(ctx context.Context) ([]string, error) {
+				getTags: func(_ context.Context) ([]string, error) {
 					nbCall++
 					return fooTags, fooErr
 				},

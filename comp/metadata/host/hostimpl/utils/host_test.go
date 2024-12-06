@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -28,15 +29,15 @@ func TestOTLPEnabled(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
 	ctx := context.Background()
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 
-	defer func(orig func(cfg config.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
+	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
-	otlpIsEnabled = func(config.Reader) bool { return false }
+	otlpIsEnabled = func(model.Reader) bool { return false }
 	p := GetPayload(ctx, conf)
 	assert.False(t, p.OtlpMeta.Enabled)
 
-	otlpIsEnabled = func(config.Reader) bool { return true }
+	otlpIsEnabled = func(model.Reader) bool { return true }
 	p = GetPayload(ctx, conf)
 	assert.True(t, p.OtlpMeta.Enabled)
 }
@@ -50,7 +51,7 @@ func TestGetNetworkMeta(t *testing.T) {
 }
 
 func TestGetLogsMeta(t *testing.T) {
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 	defer status.SetCurrentTransport("")
 
 	status.SetCurrentTransport("")
@@ -67,19 +68,19 @@ func TestGetLogsMeta(t *testing.T) {
 }
 
 func TestGetInstallMethod(t *testing.T) {
-	conf := config.Mock(t)
-	defer func(orig func(conf config.Reader) (*installinfo.InstallInfo, error)) {
+	conf := configmock.New(t)
+	defer func(orig func(conf model.Reader) (*installinfo.InstallInfo, error)) {
 		installinfoGet = orig
 	}(installinfoGet)
 
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) { return nil, fmt.Errorf("an error") }
+	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) { return nil, fmt.Errorf("an error") }
 
 	installMethod := getInstallMethod(conf)
 	assert.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
 	assert.Nil(t, installMethod.InstallerVersion)
 
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
+	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) {
 		return &installinfo.InstallInfo{
 			ToolVersion:      "chef-15",
 			Tool:             "chef",
@@ -94,7 +95,7 @@ func TestGetInstallMethod(t *testing.T) {
 }
 
 func TestGetProxyMeta(t *testing.T) {
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 	httputils.MockWarnings(t, nil, nil, nil)
 
 	conf.SetWithoutSource("no_proxy_nonexact_match", false)
@@ -120,7 +121,7 @@ func TestGetPayload(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
 	ctx := context.Background()
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)
@@ -151,7 +152,7 @@ func TestGetFromCache(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
 	ctx := context.Background()
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 
 	cache.Cache.Set(hostCacheKey, &Payload{Os: "testOS"}, cache.NoExpiration)
 	p := GetFromCache(ctx, conf)

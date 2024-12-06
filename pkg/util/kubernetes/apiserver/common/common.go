@@ -18,7 +18,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,7 +30,7 @@ const (
 
 // GetResourcesNamespace is used to fetch the namespace of the resources used by the Kubernetes check (e.g. Leader Election, Event collection).
 func GetResourcesNamespace() string {
-	namespace := config.Datadog().GetString("kube_resources_namespace")
+	namespace := pkgconfigsetup.Datadog().GetString("kube_resources_namespace")
 	if namespace != "" {
 		return namespace
 	}
@@ -63,7 +64,7 @@ func GetKubeSystemUID(coreClient corev1.CoreV1Interface) (string, error) {
 // It first checks if the CM exists, in which case it uses the ID it contains
 // It thus requires get, create, and update perms on configmaps in the cluster-agent's namespace
 func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	x, found := cache.Cache.Get(cacheClusterIDKey)
 	if found {
 		return x.(string), nil

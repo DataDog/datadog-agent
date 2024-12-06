@@ -81,7 +81,7 @@ func withTag(m *metricBase, fn func(k, v string)) {
 
 func tagKeys(m *metricBase) []string {
 	keys := make([]string, 0, len(m.tags))
-	withTag(m, func(k, v string) {
+	withTag(m, func(k, _ string) {
 		keys = append(keys, k)
 	})
 	return keys
@@ -89,7 +89,7 @@ func tagKeys(m *metricBase) []string {
 
 func tagVals(m *metricBase) []string {
 	vals := make([]string, 0, len(m.tags))
-	withTag(m, func(k, v string) {
+	withTag(m, func(_, v string) {
 		vals = append(vals, v)
 	})
 	return vals

@@ -41,13 +41,21 @@ type packageRunConfiguration struct {
 }
 
 type testConfig struct {
-	runCount          int
-	retryCount        int
-	verbose           bool
-	packagesRunConfig map[string]packageRunConfiguration
-	testDirRoot       string
-	testingTools      string
-	extraParams       string
+	userProvidedConfig
+	runCount     int
+	retryCount   int
+	verbose      bool
+	testDirRoot  string
+	testingTools string
+	extraParams  string
+	extraEnv     string
+}
+
+type userProvidedConfig struct {
+	PackagesRunConfig  map[string]packageRunConfiguration `json:"filters"`
+	InContainerImage   string                             `json:"testcontainer"`
+	AdditionalTestArgs []string                           `json:"additional_test_args"`
+	AdditionalEnvVars  []string                           `json:"additional_env_vars"`
 }
 
 const ciVisibility = "/ci-visibility"
@@ -57,11 +65,14 @@ var baseEnv = []string{
 	"GOVERSION=" + runtime.Version(),
 }
 
+// change `TEST_TIMEOUTS` in `tasks/system_probe.py` if you change them here
 var timeouts = map[*regexp.Regexp]time.Duration{
+	regexp.MustCompile("pkg/network/protocols$"):      5 * time.Minute,
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
-	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
+	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
+	regexp.MustCompile("pkg/security.*"):              45 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {
@@ -74,6 +85,18 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
+}
+
+func getEBPFBuildDir() (string, error) {
+	arch, _, err := getArchAndRelease()
+	if err != nil {
+		return "", fmt.Errorf("cannot get arch: %w", err)
+	}
+	if arch == "aarch64" {
+		arch = "arm64"
+	}
+
+	return fmt.Sprintf("pkg/ebpf/bytecode/build/%s", arch), nil
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -103,7 +126,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
@@ -116,14 +139,22 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg,
 	}
+	args = append(args, testArgs...)
+	args = append(
+		args,
+		"-test.v=test2json",
+		fmt.Sprintf("-test.count=%d", testConfig.runCount),
+		"-test.timeout="+getTimeout(pkg).String(),
+	)
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
 	}
+	args = append(args, testConfig.AdditionalTestArgs...)
 
-	packagesRunConfig := testConfig.packagesRunConfig
+	packagesRunConfig := testConfig.PackagesRunConfig
 	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
 		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
 	}
@@ -137,7 +168,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
 	testJSONFile := filepath.Join(outdir, "out.json")
-	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
+	matches, err := glob(indir, `.*\.json`, func(_ string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
@@ -170,15 +201,32 @@ func createDir(d string) error {
 	return nil
 }
 
+func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
+	var env []string
+	env = append(env, baseEnv...)
+	env = append(env,
+		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
+		"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
+	)
+
+	if testConfig.extraEnv != "" {
+		env = append(env, strings.Split(testConfig.extraEnv, " ")...)
+	}
+
+	env = append(env, testConfig.AdditionalEnvVars...)
+
+	return env
+}
+
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
 
-		if config, ok := testConfig.packagesRunConfig[dir]; ok {
+		if config, ok := testConfig.PackagesRunConfig[dir]; ok {
 			return !config.Exclude
 		}
 
-		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
+		if config, ok := testConfig.PackagesRunConfig[matchAllPackages]; ok {
 			return !config.Exclude
 		}
 
@@ -197,6 +245,22 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	buildDir, err := getEBPFBuildDir()
+	if err != nil {
+		return fmt.Errorf("getEBPFBuildDir: %w", err)
+	}
+	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
+
+	envVars := collectEnvVars(testConfig, bpfDir)
+
+	var testContainer *testContainer
+	if testConfig.InContainerImage != "" {
+		testContainer = newTestContainer(testConfig.InContainerImage, bpfDir)
+		if err := testContainer.start(); err != nil {
+			return fmt.Errorf("error creating test container: %w", err)
+		}
+	}
+
 	for _, testsuite := range testsuites {
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
@@ -205,15 +269,17 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
+		testsuiteArgs := []string{testsuite}
+		if testContainer != nil {
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
+		}
+
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
-		baseEnv = append(
-			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
-			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
-		)
-		cmd.Env = append(cmd.Environ(), baseEnv...)
+
+		cmd.Env = append(cmd.Environ(), envVars...)
+
 		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -255,10 +321,11 @@ func buildTestConfiguration() (*testConfig, error) {
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
+	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
 
 	flag.Parse()
 
-	breakdown := make(map[string]packageRunConfiguration)
+	var userConfig userProvidedConfig
 	if *packageRunConfigPtr != "" {
 		configData, err := os.ReadFile(*packageRunConfigPtr)
 		if err != nil {
@@ -268,7 +335,7 @@ func buildTestConfiguration() (*testConfig, error) {
 
 		dec := json.NewDecoder(bytes.NewReader(configData))
 		dec.DisallowUnknownFields()
-		if err := dec.Decode(&breakdown); err != nil {
+		if err := dec.Decode(&userConfig); err != nil {
 			return nil, err
 		}
 	}
@@ -285,13 +352,14 @@ func buildTestConfiguration() (*testConfig, error) {
 	}
 
 	return &testConfig{
-		runCount:          *runCount,
-		verbose:           *verbose,
-		retryCount:        *retryPtr,
-		packagesRunConfig: breakdown,
-		testDirRoot:       root,
-		testingTools:      tools,
-		extraParams:       *extraParams,
+		userProvidedConfig: userConfig,
+		runCount:           *runCount,
+		verbose:            *verbose,
+		retryCount:         *retryPtr,
+		testDirRoot:        root,
+		testingTools:       tools,
+		extraParams:        *extraParams,
+		extraEnv:           *extraEnv,
 	}, nil
 }
 
@@ -318,17 +386,25 @@ func readOSRelease() (map[string]string, error) {
 	return keyvals, nil
 }
 
+func getArchAndRelease() (string, string, error) {
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return "", "", fmt.Errorf("uname: %w", err)
+	}
+	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
+	return arch, release, nil
+}
+
 func getProps() (map[string]string, error) {
 	osrHash, err := readOSRelease()
 	if err != nil {
 		return nil, fmt.Errorf("os-release: %s", err)
 	}
 	osname := fmt.Sprintf("%s-%s", osrHash["ID"], osrHash["VERSION_ID"])
-	var u unix.Utsname
-	if err := unix.Uname(&u); err != nil {
-		return nil, fmt.Errorf("uname: %w", err)
+	arch, release, err := getArchAndRelease()
+	if err != nil {
+		return nil, fmt.Errorf("arch and release: %s", err)
 	}
-	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
 	fmt.Printf("arch: %s\nrelease: %s\n", arch, release)
 	return map[string]string{
 		"dd_tags[os.platform]":     "linux",
@@ -349,12 +425,12 @@ func fixAssetPermissions(testDirRoot string) error {
 		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
 	})
 	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
+		return fmt.Errorf("glob assets: %w", err)
 	}
 
 	for _, file := range matches {
 		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
+			return fmt.Errorf("chown %s: %w", file, err)
 		}
 	}
 	return nil

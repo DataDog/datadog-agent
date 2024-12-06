@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Add deprecation warnings when running process checks on the Process Agent in Linux.
+    This change prepares for the deprecation of processes and container collection in the Process Agent, occurring in a future release.

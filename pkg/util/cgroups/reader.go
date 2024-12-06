@@ -28,6 +28,7 @@ const (
 // Calling RefreshCgroups() with your cache toleration is mandatory to retrieve accurate data
 // All Reader methods support concurrent calls
 type Reader struct {
+	pidMapperID            string
 	hostPrefix             string
 	procPath               string
 	cgroupVersion          int
@@ -111,6 +112,13 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 	}
 }
 
+// WithPIDMapper allows to force the selection of a specific PID mapper
+func WithPIDMapper(pidMapperID string) ReaderOption {
+	return func(r *Reader) {
+		r.pidMapperID = pidMapperID
+	}
+}
+
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
 	r := &Reader{}
@@ -141,14 +149,14 @@ func (r *Reader) init() error {
 	if isCgroup1(cgroupMounts) {
 		r.cgroupVersion = 1
 
-		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter)
+		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter, r.pidMapperID)
 		if err != nil {
 			return err
 		}
 	} else if isCgroup2(cgroupMounts) {
 		r.cgroupVersion = 2
 
-		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter)
+		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter, r.pidMapperID)
 		if err != nil {
 			return err
 		}

@@ -32,18 +32,29 @@ import (
 func TestOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
+		},
+		{
+			ID:         "test_rule_truncate",
+			Expression: `open.file.path == "{{.Root}}/test-truncate" && open.flags & O_TRUNC != 0`,
+		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
 	testFile, testFilePtr, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFileTrunc, testFileTruncPtr, err := test.Path("test-truncate")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,13 +68,17 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0755)
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
+
+			validateSyscallContext(t, event, "$.syscall.open.path")
+			validateSyscallContext(t, event, "$.syscall.open.flags")
+			validateSyscallContext(t, event, "$.syscall.open.mode")
 		})
 	}))
 
@@ -76,7 +91,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
@@ -104,7 +119,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
@@ -124,7 +139,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
@@ -138,33 +153,72 @@ func TestOpen(t *testing.T) {
 	t.Run("truncate", func(t *testing.T) {
 		SkipIfNotAvailable(t)
 
+		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := f.Write([]byte("this data will soon be truncated\n")); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
-			if err != nil {
-				return err
-			}
-
-			_, err = syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
-			if err != nil {
-				return err
-			}
-
-			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {})
-
-		test.WaitSignal(t, func() error {
 			// truncate
-			_, _, errno := syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFilePtr), 4, 0)
+			_, _, errno := syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFileTruncPtr), 4, 0)
 			if errno != 0 {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+		})
+	})
+
+	t.Run("ftruncate", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
+		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := f.Write([]byte("this data will soon be truncated\n")); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Sync(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(testFile)
+		defer f.Close()
+
+		test.WaitSignal(t, func() error {
+			if f == nil {
+				return fmt.Errorf("failed to open test file")
+			}
+			// ftruncate
+			_, _, errno := syscall.Syscall(syscall.SYS_FTRUNCATE, f.Fd(), uintptr(4), 0)
+			if errno != 0 {
+				return error(errno)
+			}
+
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -181,7 +235,7 @@ func TestOpen(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 		})
 
@@ -207,7 +261,7 @@ func TestOpen(t *testing.T) {
 				return fmt.Errorf("OpenByHandleAt: %w", err)
 			}
 			return unix.Close(fdInt)
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
@@ -227,7 +281,7 @@ func TestOpen(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 		})
 		if err != nil {
@@ -270,7 +324,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			return unix.Close(fd)
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			// O_LARGEFILE is added by io_uring during __io_openat_prep
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
@@ -312,7 +366,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			return unix.Close(fd)
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			// O_LARGEFILE is added by io_uring during __io_openat_prep
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
@@ -365,7 +419,7 @@ func TestOpenMetadata(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertRights(t, event.Open.File.Mode, expectedMode)
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
@@ -412,7 +466,7 @@ func TestOpenDiscarded(t *testing.T) {
 				return err
 			}
 			return unix.Close(fd)
-		}, func(e *model.Event, r *rules.Rule) {
+		}, func(_ *model.Event, _ *rules.Rule) {
 			t.Error("shouldn't have received an event")
 		})
 		if err == nil {
@@ -429,7 +483,7 @@ func TestOpenApproverZero(t *testing.T) {
 		Expression: `open.flags == 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +515,7 @@ func TestOpenApproverZero(t *testing.T) {
 			return error(errno)
 		}
 		return syscall.Close(int(fd))
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 		assert.Equal(t, 0, int(event.Open.Flags), "wrong flags")
 		value, _ := event.GetFieldValue("event.async")

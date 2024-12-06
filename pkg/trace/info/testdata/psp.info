@@ -1,0 +1,23 @@
+======================
+Trace Agent (v 0.99.0)
+======================
+
+  Pid: 38149
+  Uptime: 15 seconds
+  Mem alloc: 773552 bytes
+
+  Hostname: localhost.localdomain
+  Receiver: localhost:8126
+  Endpoints:
+    https://trace1.agent.datadoghq.com
+    https://trace2.agent.datadoghq.com
+
+  --- Receiver stats (1 min) ---
+
+  Probabilistic sampling percentage: 40%
+  Probabilistic sampler hash seed: 22
+
+  --- Writer stats (1 min) ---
+
+  Traces: 4 payloads, 26 traces, 123 events, 3245 bytes
+  Stats: 6 payloads, 12 stats buckets, 8329 bytes

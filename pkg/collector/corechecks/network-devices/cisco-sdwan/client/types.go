@@ -59,7 +59,9 @@ type Content interface {
 		ControlConnections |
 		OMPPeer |
 		BFDSession |
-		HardwareEnvironment
+		HardwareEnvironment |
+		CloudXStatistics |
+		BGPNeighbor
 }
 
 // Response is a generic struct for API responses
@@ -405,4 +407,54 @@ type HardwareEnvironment struct {
 	HwClass         string `json:"hw-class"`
 	Lastupdated     int64  `json:"lastupdated"`
 	Status          string `json:"status"`
+}
+
+// CloudXStatistics /dataservice/data/device/statistics/cloudxstatistics
+type CloudXStatistics struct {
+	RemoteColor      string  `json:"remote_color"`
+	DeviceModel      string  `json:"device_model"`
+	Latency          float64 `json:"latency"`
+	Interface        string  `json:"interface"`
+	LocalColor       string  `json:"local_color"`
+	Loss             float64 `json:"loss"`
+	GatewaySystemIP  string  `json:"gateway_system_ip"`
+	SourcePublicIP   string  `json:"source_public_ip"`
+	Statcycletime    float64 `json:"statcycletime"`
+	LocalSystemIP    string  `json:"local_system_ip"`
+	Tenant           string  `json:"tenant"`
+	EntryTime        float64 `json:"entry_time"`
+	VqeStatus        string  `json:"vqe_status"`
+	ExitType         string  `json:"exit_type"`
+	VipTime          float64 `json:"vip_time"`
+	VmanageSystemIP  string  `json:"vmanage_system_ip"`
+	NbarAppGroupName string  `json:"nbar_app_group_name"`
+	Application      string  `json:"application"`
+	VdeviceName      string  `json:"vdevice_name"`
+	BestPath         string  `json:"best_path"`
+	VipIdx           float64 `json:"vip_idx"`
+	SiteID           float64 `json:"site_id"`
+	VqeScore         string  `json:"vqe_score"`
+	ServiceArea      string  `json:"service_area"`
+	HostName         string  `json:"host_name"`
+	VpnID            float64 `json:"vpn_id"`
+	AppURLHostIP     string  `json:"app_url_host_ip"`
+	ID               string  `json:"id"`
+}
+
+// BGPNeighbor /dataservice/data/device/state/BGPNeighbor
+type BGPNeighbor struct {
+	RecordID        string  `json:"recordId"`
+	VdeviceName     string  `json:"vdevice-name"`
+	Afi             string  `json:"afi"`
+	CreateTimeStamp float64 `json:"createTimeStamp"`
+	VpnID           float64 `json:"vpn-id"`
+	VdeviceHostName string  `json:"vdevice-host-name"`
+	PeerAddr        string  `json:"peer-addr"`
+	AS              float64 `json:"as"`
+	VdeviceDataKey  string  `json:"vdevice-dataKey"`
+	Rid             float64 `json:"@rid"`
+	VmanageSystemIP string  `json:"vmanage-system-ip"`
+	AfiID           float64 `json:"afi-id"`
+	Lastupdated     float64 `json:"lastupdated"`
+	State           string  `json:"state"`
 }

@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"math/rand"
+	"net/url"
 	"runtime"
 	"sort"
 	"strings"
@@ -63,7 +64,7 @@ func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, paylo
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, statsChannel, srv := testStatsWriter()
+		sw, srv := testStatsWriter()
 		go sw.Run()
 
 		testSets := []*pb.StatsPayload{
@@ -96,15 +97,16 @@ func TestStatsWriter(t *testing.T) {
 				}},
 			},
 		}
-		statsChannel <- testSets[0]
-		statsChannel <- testSets[1]
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 
 	t.Run("buildPayloads", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, _, _ := testStatsWriter()
+		sw, srv := testStatsWriter()
+		srv.Close()
 		// This gives us a total of 45 entries. 3 per span, 5
 		// spans per stat bucket. Each buckets have the same
 		// time window (start: 0, duration 1e9).
@@ -177,9 +179,10 @@ func TestStatsWriter(t *testing.T) {
 		rand.Seed(1)
 		assert := assert.New(t)
 
-		sw, _, _ := testStatsWriter()
-		// This gives us a tota of 45 entries. 3 per span, 5 spans per
-		// stat bucket. Each buckets have the same time window (start:
+		sw, srv := testStatsWriter()
+		srv.Close()
+		// This gives us a total of 45 entries. 3 per span, 5 spans per
+		// stat bucket. Each bucket has the same time window (start:
 		// 0, duration 1e9).
 		stats := &pb.ClientStatsPayload{
 			Hostname: testHostname,
@@ -203,7 +206,8 @@ func TestStatsWriter(t *testing.T) {
 
 	t.Run("container-tags", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, _, _ := testStatsWriter()
+		sw, srv := testStatsWriter()
+		srv.Close()
 		stats := &pb.StatsPayload{
 			AgentHostname: "agenthost",
 			AgentEnv:      "agentenv",
@@ -236,7 +240,7 @@ func TestStatsWriter(t *testing.T) {
 }
 
 func TestStatsResetBuffer(t *testing.T) {
-	w, _, _ := testStatsSyncWriter()
+	w, _ := testStatsSyncWriter()
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -262,7 +266,7 @@ func TestStatsResetBuffer(t *testing.T) {
 func TestStatsSyncWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, statsChannel, srv := testStatsSyncWriter()
+		sw, srv := testStatsSyncWriter()
 		go sw.Run()
 		testSets := []*pb.StatsPayload{
 			{
@@ -288,16 +292,18 @@ func TestStatsSyncWriter(t *testing.T) {
 				}},
 			},
 		}
-		statsChannel <- testSets[0]
-		statsChannel <- testSets[1]
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		err := sw.FlushSync()
 		assert.Nil(err)
+		sw.Stop()
+		srv.Close()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 
 	t.Run("stop", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, statsChannel, srv := testStatsSyncWriter()
+		sw, srv := testStatsSyncWriter()
 		go sw.Run()
 
 		testSets := []*pb.StatsPayload{
@@ -324,37 +330,55 @@ func TestStatsSyncWriter(t *testing.T) {
 				}},
 			},
 		}
-		statsChannel <- testSets[0]
-		statsChannel <- testSets[1]
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		sw.Stop()
+		srv.Close()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 }
 
-func testStatsWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
+func TestStatsWriterUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+	sw, srv := testStatsSyncWriter()
+	go sw.Run()
+	defer sw.Stop()
+
+	url, err := url.Parse(srv.URL + pathStats)
+	assert.NoError(err)
+
+	assert.Len(sw.senders, 1)
+	assert.Equal("123", sw.senders[0].cfg.apiKey)
+	assert.Equal(url, sw.senders[0].cfg.url)
+
+	sw.UpdateAPIKey("invalid", "foo")
+	assert.Equal("123", sw.senders[0].cfg.apiKey)
+	assert.Equal(url, sw.senders[0].cfg.url)
+
+	sw.UpdateAPIKey("123", "foo")
+	assert.Equal("foo", sw.senders[0].cfg.apiKey)
+	assert.Equal(url, sw.senders[0].cfg.url)
+	srv.Close()
+}
+
+func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
-	// We use a blocking channel to make sure that sends get received on the
-	// other end.
-	in := make(chan *pb.StatsPayload)
 	cfg := &config.AgentConfig{
 		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
-		ContainerTags: func(cid string) ([]string, error) { return nil, nil },
+		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), in, srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
 }
 
-func testStatsSyncWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
+func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
-	// We use a blocking channel to make sure that sends get received on the
-	// other end.
-	in := make(chan *pb.StatsPayload)
 	cfg := &config.AgentConfig{
 		Endpoints:           []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), in, srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
 }
 
 type key struct {

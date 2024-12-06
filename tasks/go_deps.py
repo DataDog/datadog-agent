@@ -1,7 +1,5 @@
 import datetime
-import io
 import os
-from collections import namedtuple
 from collections.abc import Iterable
 
 from invoke.context import Context
@@ -98,7 +96,7 @@ def compute_binary_dependencies_list(
     flavor: AgentFlavor,
     platform: str,
     arch: str,
-):
+) -> list[str]:
     """
     Compute binary import list for the given build/flavor/platform/arch.
     """
@@ -150,107 +148,40 @@ def send_count_metrics(
         print(color_message("Done", "green"))
 
 
-BINARY_TO_TEST = ["serverless"]
-MisMacthBinary = namedtuple('failedBinary', ['binary', 'os', 'arch', 'differences'])
+def key_for_value(map: dict[str, str], value: str) -> str:
+    """Return the key from a value in a dictionary."""
+    for k, v in map.items():
+        if v == value:
+            return k
+    raise ValueError(f"Unknown value {value}")
 
 
-@task
-def test_list(
-    ctx: Context,
-):
+@task(
+    help={
+        'build': f'The agent build to use, one of {", ".join(BINARIES.keys())}',
+        'flavor': f'The agent flavor to use, one of {", ".join(AgentFlavor.__members__.keys())}. Defaults to base',
+        'os': f'The OS to use, one of {", ".join(GOOS_MAPPING.keys())}. Defaults to host platform',
+        'arch': f'The architecture to use, one of {", ".join(GOARCH_MAPPING.keys())}. Defaults to host architecture',
+    }
+)
+def show(ctx: Context, build: str, flavor: str = AgentFlavor.base.name, os: str | None = None, arch: str | None = None):
     """
-    Compare the dependencies list for the binaries in BINARY_TO_TEST with the actual dependencies of the binaries.
-    If the lists do not match, the task will raise an error.
+    Print the Go dependency list for the given agent build/flavor/os/arch.
     """
-    mismatch_binaries = set()
 
-    for binary in BINARY_TO_TEST:
-        binary_info = BINARIES[binary]
-        entrypoint = binary_info["entrypoint"]
-        platforms = binary_info["platforms"]
-        flavor = binary_info.get("flavor", AgentFlavor.base)
-        build = binary_info.get("build", binary)
+    if os is None:
+        goos = ctx.run("go env GOOS", hide=True)
+        assert goos
+        os = key_for_value(GOOS_MAPPING, goos.stdout.strip())
 
-        with ctx.cd(entrypoint):
-            for platform in platforms:
-                platform, arch = platform.split("/")
+    if arch is None:
+        goarch = ctx.run("go env GOARCH", hide=True)
+        assert goarch
+        arch = key_for_value(GOARCH_MAPPING, goarch.stdout.strip())
 
-                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
+    entrypoint = BINARIES[build]["entrypoint"]
+    with ctx.cd(entrypoint):
+        deps = compute_binary_dependencies_list(ctx, build, AgentFlavor[flavor], os, arch)
 
-                filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
-                if not os.path.isfile(filename):
-                    print(
-                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate --binaries {binary}"
-                    )
-                    continue
-
-                deps_file = open(filename)
-                deps = deps_file.read().strip().splitlines()
-                deps_file.close()
-
-                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
-
-                if list != deps:
-                    new_dependencies_lines = len(list)
-                    recorded_dependencies_lines = len(deps)
-
-                    mismatch_binaries.add(
-                        MisMacthBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
-                    )
-
-    if len(mismatch_binaries) > 0:
-        message = io.StringIO()
-
-        for mismatch_binary in mismatch_binaries:
-            if mismatch_binary.differences > 0:
-                message.write(
-                    color_message(
-                        f"You added some dependencies to {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Adding new dependencies to the binary increases its size. Do we really need to add this dependency?\n",
-                        "red",
-                    )
-                )
-            else:
-                message.write(
-                    color_message(
-                        f"You removed some dependencies from {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Congratulations!\n",
-                        "green",
-                    )
-                )
-
-        message.write(
-            color_message(
-                "To fix this check, please run `inv -e go-deps.generate`",
-                "orange",
-            )
-        )
-
-        raise Exit(
-            code=1,
-            message=message.getvalue(),
-        )
-
-
-@task
-def generate(
-    ctx: Context,
-):
-    for binary in BINARY_TO_TEST:
-        binary_info = BINARIES[binary]
-        entrypoint = binary_info["entrypoint"]
-        platforms = binary_info["platforms"]
-        flavor = binary_info.get("flavor", AgentFlavor.base)
-        build = binary_info.get("build", binary)
-
-        with ctx.cd(entrypoint):
-            for platform in platforms:
-                platform, arch = platform.split("/")
-
-                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
-
-                filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
-
-                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
-
-                f = open(filename, "w")
-                f.write('\n'.join(list))
-                f.close()
+    for dep in deps:
+        print(dep)

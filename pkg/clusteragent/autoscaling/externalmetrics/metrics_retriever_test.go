@@ -62,8 +62,7 @@ type metricsFixture struct {
 	expected     []ddmWithQuery
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
+func (f *metricsFixture) run(t *testing.T) {
 	t.Helper()
 
 	// Create and fill store
@@ -174,7 +173,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }
@@ -243,7 +242,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
+						Error:    NewInvalidMetricOutdatedError("query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -309,7 +308,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
+						Error:    NewInvalidMetricOutdatedError("query-metric1"),
 						MaxAge:   5 * time.Second,
 					},
 					query: "query-metric1",
@@ -376,7 +375,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricErrorMessage, errors.New("some err"), "query-metric1"),
+						Error:    NewInvalidMetricError(errors.New("some err"), "query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -419,7 +418,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage),
+						Error:    NewInvalidMetricGlobalError(),
 					},
 					query: "query-metric0",
 				},
@@ -430,7 +429,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage),
+						Error:    NewInvalidMetricGlobalError(),
 					},
 					query: "query-metric1",
 				},
@@ -490,7 +489,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricNotFoundErrorMessage, "query-metric1"),
+						Error:    NewInvalidMetricNotFoundError("query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -500,7 +499,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }
@@ -639,7 +638,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }

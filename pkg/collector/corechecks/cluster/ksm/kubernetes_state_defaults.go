@@ -7,7 +7,10 @@
 
 package ksm
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+)
 
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
@@ -94,20 +97,20 @@ func defaultMetricNamesMapper() map[string]string {
 // defaultLabelsMapper returns a map that contains the default labels to tag names mapping
 func defaultLabelsMapper() map[string]string {
 	return map[string]string{
-		"namespace":                           "kube_namespace",
-		"job_name":                            "kube_job",
-		"cronjob":                             "kube_cronjob",
-		"pod":                                 "pod_name",
-		"priority_class":                      "kube_priority_class",
-		"daemonset":                           "kube_daemon_set",
-		"replicationcontroller":               "kube_replication_controller",
-		"replicaset":                          "kube_replica_set",
-		"statefulset":                         "kube_stateful_set",
-		"deployment":                          "kube_deployment",
+		"namespace":                           tags.KubeNamespace,
+		"job_name":                            tags.KubeJob,
+		"cronjob":                             tags.KubeCronjob,
+		"pod":                                 tags.KubePod,
+		"priority_class":                      tags.KubePriorityClass,
+		"daemonset":                           tags.KubeDaemonSet,
+		"replicationcontroller":               tags.KubeReplicationController,
+		"replicaset":                          tags.KubeReplicaSet,
+		"statefulset":                         tags.KubeStatefulSet,
+		"deployment":                          tags.KubeDeployment,
+		"container":                           tags.KubeContainerName,
+		"container_id":                        tags.ContainerID,
+		"image":                               tags.ImageName,
 		"endpoint":                            "kube_endpoint",
-		"container":                           "kube_container_name",
-		"container_id":                        "container_id",
-		"image":                               "image_name",
 		"label_topology_kubernetes_io_region": "kube_region",
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
@@ -115,17 +118,17 @@ func defaultLabelsMapper() map[string]string {
 		"ingress": "kube_ingress",
 
 		// Standard Datadog labels
-		"label_tags_datadoghq_com_env":     "env",
-		"label_tags_datadoghq_com_service": "service",
-		"label_tags_datadoghq_com_version": "version",
+		"label_tags_datadoghq_com_env":     tags.Env,
+		"label_tags_datadoghq_com_service": tags.Service,
+		"label_tags_datadoghq_com_version": tags.Version,
 
 		// Standard Kubernetes labels
-		"label_app_kubernetes_io_name":       "kube_app_name",
-		"label_app_kubernetes_io_instance":   "kube_app_instance",
-		"label_app_kubernetes_io_version":    "kube_app_version",
-		"label_app_kubernetes_io_component":  "kube_app_component",
-		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
-		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
+		"label_app_kubernetes_io_name":       tags.KubeAppName,
+		"label_app_kubernetes_io_instance":   tags.KubeAppInstance,
+		"label_app_kubernetes_io_version":    tags.KubeAppVersion,
+		"label_app_kubernetes_io_component":  tags.KubeAppComponent,
+		"label_app_kubernetes_io_part_of":    tags.KubeAppPartOf,
+		"label_app_kubernetes_io_managed_by": tags.KubeAppManagedBy,
 
 		// Standard Helm labels
 		"label_helm_sh_chart": "helm_chart",
@@ -241,7 +244,7 @@ func getLabelToMatchForKind(kind string) []string {
 
 func defaultAnnotationsAsTags() map[string]map[string]string {
 	return map[string]map[string]string{
-		"pod":        {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
-		"deployment": {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
+		"pod":        {kubernetes.RcIDAnnotKey: tags.RemoteConfigID, kubernetes.RcRevisionAnnotKey: tags.RemoteConfigRevision},
+		"deployment": {kubernetes.RcIDAnnotKey: tags.RemoteConfigID, kubernetes.RcRevisionAnnotKey: tags.RemoteConfigRevision},
 	}
 }

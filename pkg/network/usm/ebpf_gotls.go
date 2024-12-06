@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
@@ -26,18 +25,21 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 const (
@@ -55,6 +57,9 @@ const (
 	connWriteProbe    = "uprobe__crypto_tls_Conn_Write"
 	connWriteRetProbe = "uprobe__crypto_tls_Conn_Write__return"
 	connCloseProbe    = "uprobe__crypto_tls_Conn_Close"
+
+	// GoTLSAttacherName holds the name used for the uprobe attacher of go-tls programs. Used for tests.
+	GoTLSAttacherName = "go-tls"
 )
 
 type uprobesInfo struct {
@@ -119,6 +124,9 @@ type goTLSProgram struct {
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
 
+	// binNoSymbolsMetric counts Golang binaries without symbols.
+	binNoSymbolsMetric *libtelemetry.Counter
+
 	registry *utils.FileRegistry
 }
 
@@ -167,7 +175,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			return nil, nil
 		}
 
-		if !http.TLSSupported(c) {
+		if !usmconfig.TLSSupported(c) {
 			return nil, errors.New("goTLS not supported by this platform")
 		}
 
@@ -176,12 +184,13 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 		}
 
 		return &goTLSProgram{
-			done:              make(chan struct{}),
-			cfg:               c,
-			manager:           m,
-			procRoot:          c.ProcRoot,
-			binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			registry:          utils.NewFileRegistry("go-tls"),
+			done:               make(chan struct{}),
+			cfg:                c,
+			manager:            m,
+			procRoot:           c.ProcRoot,
+			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
+			registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
 		}, nil
 	}
 }
@@ -235,11 +244,8 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 			case <-p.done:
 				return
 			case <-processSync.C:
-				processSet := p.registry.GetRegisteredProcesses()
-				deletedPids := monitor.FindDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					_ = p.registry.Unregister(deletedPid)
-				}
+				p.sync()
+				p.registry.Log()
 			}
 		}
 	}()
@@ -247,9 +253,32 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	return nil
 }
 
+func (p *goTLSProgram) sync() {
+	deletionCandidates := p.registry.GetRegisteredProcesses()
+
+	_ = kernel.WithAllProcs(p.procRoot, func(pid int) error {
+		if _, ok := deletionCandidates[uint32(pid)]; ok {
+			// We have previously hooked into this process and it remains active,
+			// so we remove it from the deletionCandidates list, and move on to the next PID
+			delete(deletionCandidates, uint32(pid))
+			return nil
+		}
+
+		// This is a new PID so we attempt to attach SSL probes to it
+		_ = p.AttachPID(uint32(pid))
+		return nil
+	})
+
+	// At this point all entries from deletionCandidates are no longer alive, so
+	// we should detach our SSL probes from them
+	for pid := range deletionCandidates {
+		p.handleProcessExit(pid)
+	}
+}
+
 // PostStart registers the goTLS program to the attacher list.
 func (p *goTLSProgram) PostStart(*manager.Manager) error {
-	utils.AddAttacher(p.Name(), p)
+	utils.AddAttacher(consts.USMModuleName, p.Name(), p)
 	return nil
 }
 
@@ -291,7 +320,13 @@ func GoTLSAttachPID(pid pid) error {
 		return errors.New("GoTLS is not enabled")
 	}
 
-	return goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	err := goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	if errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
+		// The process monitor has attached the process before us.
+		return nil
+	}
+
+	return err
 }
 
 // GoTLSDetachPID detaches Go TLS hooks on the binary of process with
@@ -315,19 +350,6 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	binPath, err := os.Readlink(exePath)
 	if err != nil {
-		// We receive the Exec event, /proc could be slow to update
-		end := time.Now().Add(10 * time.Millisecond)
-		for end.After(time.Now()) {
-			binPath, err = os.Readlink(exePath)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}
-	if err != nil {
-		// we can't access to the binary path here (pid probably ended already)
-		// there are not much we can do, and we don't want to flood the logs
 		return err
 	}
 
@@ -341,10 +363,12 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check go process
 	probeList := make([]manager.ProbeIdentificationPair, 0)
-	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric),
+		unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap),
+		utils.IgnoreCB)
 }
 
-func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
+func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric, binNoSymbolsMetric *libtelemetry.Counter) func(path utils.FilePath) error {
 	return func(filePath utils.FilePath) error {
 		start := time.Now()
 
@@ -354,13 +378,16 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 		}
 		defer f.Close()
 
-		elfFile, err := elf.NewFile(f)
+		elfFile, err := safeelf.NewFile(f)
 		if err != nil {
 			return fmt.Errorf("file %s could not be parsed as an ELF file: %w", filePath.HostPath, err)
 		}
 
 		inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 		if err != nil {
+			if errors.Is(err, safeelf.ErrNoSymbols) {
+				binNoSymbolsMetric.Add(1)
+			}
 			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
 		}
 
@@ -447,7 +474,7 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 					return nil, fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 				}
 				probeIDs = append(probeIDs, returnProbeID)
-				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
+				ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 			}
 		}
 
@@ -466,7 +493,7 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 				return nil, fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
 			}
 			probeIDs = append(probeIDs, probeID)
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
+			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 

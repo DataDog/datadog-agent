@@ -182,6 +182,9 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
 		maxEntries := uint32(50)
 
+		mphCache := newMapProgHelperCache()
+		t.Cleanup(mphCache.Close)
+
 		testWithEntryCount := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32) {
 			var innerMapSpec *ebpf.MapSpec
 			buffers := entryCountBuffers{
@@ -207,6 +210,10 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = m.Close() })
 
+			mapInfo, err := m.Info()
+			require.NoError(t, err)
+			mapid, mapidOk := mapInfo.ID()
+
 			for i := uint32(0); i < filledEntries; i++ {
 				if mapType == ebpf.HashOfMaps {
 					innerMap, err := ebpf.NewMap(innerMapSpec)
@@ -216,6 +223,14 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 				} else {
 					require.NoError(t, m.Put(&i, &i))
 				}
+			}
+
+			if isForEachElemHelperAvailable() && mapType != ebpf.HashOfMaps && mapidOk {
+				t.Run("Helper", func(t *testing.T) {
+					num, err := hashMapNumberOfEntriesWithHelper(m, mapid, mphCache)
+					require.NoError(t, err)
+					require.Equal(t, int64(filledEntries), num)
+				})
 			}
 
 			if maps.BatchAPISupported() && mapType != ebpf.HashOfMaps {
@@ -233,7 +248,7 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 			})
 
 			// Test the complete function just in case
-			require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, &buffers, 1))
+			require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, mapid, mphCache, &buffers, 1))
 		}
 
 		mapTypes := []ebpf.MapType{ebpf.Hash, ebpf.LRUHash, ebpf.HashOfMaps}
@@ -306,13 +321,6 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 					require.LessOrEqual(t, allocs, 8.0) // Multiple batches mean we need to use a map to keep track of the keys, that causes allocations for the values
 				})
 			}
-
-			t.Run("MainFunction", func(t *testing.T) {
-				allocs := testing.AllocsPerRun(10, func() {
-					hashMapNumberOfEntries(m, &buffers, 1)
-				})
-				require.LessOrEqual(t, allocs, 0.0)
-			})
 		})
 	}
 }
@@ -321,6 +329,10 @@ func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
 		maxEntries := uint32(1000)
+
+		mphCache := newMapProgHelperCache()
+		t.Cleanup(mphCache.Close)
+
 		testMapType := func(t *testing.T, mapType ebpf.MapType, expectedReturn int64) {
 			buffers := entryCountBuffers{
 				keysBufferSizeLimit:   0, // No limit
@@ -345,8 +357,12 @@ func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = m.Close() })
+			mapInfo, err := m.Info()
+			require.NoError(t, err)
+			mapid, _ := mapInfo.ID()
+
 			buffers.tryEnsureSizeForFullBatch(m)
-			require.Equal(t, expectedReturn, hashMapNumberOfEntries(m, &buffers, 1))
+			require.Equal(t, expectedReturn, hashMapNumberOfEntries(m, mapid, mphCache, &buffers, 1))
 		}
 
 		// Test supported types first
@@ -402,6 +418,9 @@ func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	require.NoError(t, rlimit.RemoveMemlock())
 
+	mphCache := newMapProgHelperCache()
+	t.Cleanup(mphCache.Close)
+
 	testInner := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32, maxEntries uint32, keySize uint32, valueSize uint32, keysLimit uint32, valuesLimit uint32) {
 		var innerMapSpec *ebpf.MapSpec
 		buffers := entryCountBuffers{
@@ -418,6 +437,10 @@ func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Close() })
+
+		mapInfo, err := m.Info()
+		require.NoError(t, err)
+		mapid, mapidok := mapInfo.ID()
 
 		keys := make([]byte, keySize)
 		values := make([]byte, valueSize)
@@ -480,6 +503,15 @@ func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 		buffers.cursor = addMargin(buffers.cursor)
 		validateMargin(t)
 
+		if isForEachElemHelperAvailable() && mapType != ebpf.HashOfMaps && mapidok {
+			t.Run("Helper", func(t *testing.T) {
+				num, err := hashMapNumberOfEntriesWithHelper(m, mapid, mphCache)
+				require.NoError(t, err)
+				require.Equal(t, int64(filledEntries), num)
+				validateMargin(t)
+			})
+		}
+
 		if maps.BatchAPISupported() && mapType != ebpf.HashOfMaps {
 			t.Run("BatchAPI", func(t *testing.T) {
 				num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 3)
@@ -497,7 +529,7 @@ func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 		})
 
 		// Test the complete function just in case
-		require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, &buffers, 3))
+		require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, mapid, mphCache, &buffers, 3))
 		validateMargin(t)
 	}
 

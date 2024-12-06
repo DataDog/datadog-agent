@@ -241,7 +241,9 @@ typedef enum _ConnectionStatus {
     CONN_STAT_ATTEMPTED,
     CONN_STAT_ESTABLISHED,
     CONN_STAT_ACKRST,
-    CONN_STAT_TIMEOUT
+    CONN_STAT_TIMEOUT,
+    CONN_STAT_EST_SENT_RST,
+    CONN_STAT_EST_RECV_RST
 } CONNECTION_STATUS;
 
 typedef struct _tcpFlowData {

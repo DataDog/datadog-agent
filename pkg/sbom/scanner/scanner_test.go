@@ -11,14 +11,16 @@ package scanner
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -73,12 +75,11 @@ var _ sbom.Report = mockReport{}
 // Test retry handling in case of an error
 func TestRetryLogic_Error(t *testing.T) {
 	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	// Store the image
@@ -104,6 +105,8 @@ func TestRetryLogic_Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+
 			// Create a mock collector
 			collName := "mock"
 			mockCollector := collectors.NewMockCollector()
@@ -115,10 +118,10 @@ func TestRetryLogic_Error(t *testing.T) {
 			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
 			mockCollector.On("Channel").Return(resultCh)
 			shutdown := mockCollector.On("Shutdown")
+			shutdown.After(5 * time.Second)
 			mockCollector.On("Type").Return(tt.st)
 
 			// Set up the configuration as the default one is too slow
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
@@ -148,19 +151,19 @@ func TestRetryLogic_Error(t *testing.T) {
 			case <-time.After(time.Second):
 			}
 			cancel()
-			shutdown.WaitUntil(time.After(5 * time.Second))
 		})
 	}
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
+	cfg := configmock.New(t)
+
 	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	// Store the image
@@ -185,7 +188,6 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration as the default one is too slow
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
@@ -221,13 +223,13 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 
 // Test retry handling in case of an error when sending the result to a full channel
 func TestRetryChannelFull(t *testing.T) {
+	cfg := configmock.New(t)
 	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	// Store the image
@@ -251,7 +253,6 @@ func TestRetryChannelFull(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker

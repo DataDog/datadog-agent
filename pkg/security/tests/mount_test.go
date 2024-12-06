@@ -104,7 +104,7 @@ func TestMount(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0707)
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
@@ -239,7 +239,7 @@ func TestMountPropagated(t *testing.T) {
 	t.Run("bind-mounted-chmod", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
@@ -359,7 +359,7 @@ func TestMountSnapshot(t *testing.T) {
 
 		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
 		if err != nil {
-			t.Errorf(err.Error())
+			t.Error(err)
 			return
 		}
 		assert.Equal(t, model.MountSourceMountID, mountSource)
@@ -470,6 +470,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
@@ -493,11 +496,14 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
 	const dockerMountDest = "/host_root"
-	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine")
+	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
 	if err != nil {
 		t.Skip("Skipping mounts in containers tests: Docker not available")
 		return
@@ -521,6 +527,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
@@ -528,7 +537,7 @@ func TestMountEvent(t *testing.T) {
 	if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
 		t.Fatal(err)
 	}
-	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine")
+	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
 	if err != nil {
 		t.Fatal(err)
 	}
