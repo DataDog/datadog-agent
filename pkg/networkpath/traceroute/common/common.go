@@ -70,6 +70,8 @@ func (c CanceledError) Error() string {
 	return string(c)
 }
 
+// LocalAddrForHost takes in a destionation IP and port and returns the local
+// address that should be used to connect to the destination
 func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	// this is a quick way to get the local address for connecting to the host
 	// using UDP as the network type to avoid actually creating a connection to
@@ -147,6 +149,8 @@ func ParseICMP(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	return &icmpResponse, nil
 }
 
+// ICMPMatch checks if an ICMP response matches the expected response
+// based on the local and remote IP, port, and sequence number
 func ICMPMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *ICMPResponse) bool {
 	return localIP.Equal(response.InnerSrcIP) &&
 		remoteIP.Equal(response.InnerDstIP) &&

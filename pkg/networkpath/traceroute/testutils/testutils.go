@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+// CreateMockIPv4Header creates a mock IPv4 header for testing
 func CreateMockIPv4Header(srcIP, dstIP net.IP, protocol int) *ipv4.Header {
 	return &ipv4.Header{
 		Version:  4,
@@ -27,6 +28,7 @@ func CreateMockIPv4Header(srcIP, dstIP net.IP, protocol int) *ipv4.Header {
 	}
 }
 
+// CreateMockICMPPacket creates a mock ICMP packet for testing
 func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) []byte {
 	innerBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -38,11 +40,11 @@ func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	if innerTCP != nil {
 		innerLayers = append(innerLayers, innerTCP)
 		if innerIP != nil {
-			innerTCP.SetNetworkLayerForChecksum(innerIP)
+			innerTCP.SetNetworkLayerForChecksum(innerIP) // nolint: errcheck
 		}
 	}
 
-	gopacket.SerializeLayers(innerBuf, opts,
+	gopacket.SerializeLayers(innerBuf, opts, // nolint: errcheck
 		innerLayers...,
 	)
 	payload := innerBuf.Bytes()
@@ -55,7 +57,7 @@ func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	}
 
 	buf := gopacket.NewSerializeBuffer()
-	gopacket.SerializeLayers(buf, opts,
+	gopacket.SerializeLayers(buf, opts, // nolint: errcheck
 		icmpLayer,
 		gopacket.Payload(payload),
 	)
@@ -66,7 +68,7 @@ func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	}
 
 	buf = gopacket.NewSerializeBuffer()
-	gopacket.SerializeLayers(buf, opts,
+	gopacket.SerializeLayers(buf, opts, // nolint: errcheck
 		ipLayer,
 		gopacket.Payload(icmpBytes),
 	)
@@ -74,6 +76,7 @@ func CreateMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	return buf.Bytes()
 }
 
+// CreateMockTCPPacket creates a mock TCP packet for testing
 func CreateMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP, includeHeader bool) (*layers.TCP, []byte) {
 	ipLayer := &layers.IPv4{
 		Version:  4,
@@ -83,16 +86,16 @@ func CreateMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP, includeHea
 		TTL:      64,
 		Length:   8,
 	}
-	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+	tcpLayer.SetNetworkLayerForChecksum(ipLayer) // nolint: errcheck
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 	if includeHeader {
-		gopacket.SerializeLayers(buf, opts,
+		gopacket.SerializeLayers(buf, opts, // nolint: errcheck
 			ipLayer,
 			tcpLayer,
 		)
 	} else {
-		gopacket.SerializeLayers(buf, opts,
+		gopacket.SerializeLayers(buf, opts, // nolint: errcheck
 			tcpLayer,
 		)
 	}
@@ -103,6 +106,7 @@ func CreateMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP, includeHea
 	return pkt.Layer(layers.LayerTypeTCP).(*layers.TCP), buf.Bytes()
 }
 
+// CreateMockIPv4Layer creates a mock IPv4 layer for testing
 func CreateMockIPv4Layer(srcIP, dstIP net.IP, protocol layers.IPProtocol) *layers.IPv4 {
 	return &layers.IPv4{
 		SrcIP:    srcIP,
@@ -112,12 +116,14 @@ func CreateMockIPv4Layer(srcIP, dstIP net.IP, protocol layers.IPProtocol) *layer
 	}
 }
 
+// CreateMockICMPLayer creates a mock ICMP layer for testing
 func CreateMockICMPLayer(typeCode layers.ICMPv4TypeCode) *layers.ICMPv4 {
 	return &layers.ICMPv4{
 		TypeCode: typeCode,
 	}
 }
 
+// CreateMockTCPLayer creates a mock TCP layer for testing
 func CreateMockTCPLayer(srcPort uint16, dstPort uint16, seqNum uint32, ackNum uint32, syn bool, ack bool, rst bool) *layers.TCP {
 	return &layers.TCP{
 		SrcPort: layers.TCPPort(srcPort),
@@ -130,6 +136,7 @@ func CreateMockTCPLayer(srcPort uint16, dstPort uint16, seqNum uint32, ackNum ui
 	}
 }
 
+// StructFieldCount returns the number of fields in a struct
 func StructFieldCount(v interface{}) int {
 	val := reflect.ValueOf(v)
 	if val.Kind() == reflect.Ptr {
