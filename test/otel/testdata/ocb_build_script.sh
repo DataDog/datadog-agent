@@ -9,7 +9,7 @@ cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
 cp ./tools/ci/retry.sh /tmp/otel-ci/
 
 OCB_VERSION="0.114.0"
-CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
+timeout 10m CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv "$(go env GOPATH)/bin/builder" /tmp/otel-ci/ocb
 
 chmod +x /tmp/otel-ci/ocb
