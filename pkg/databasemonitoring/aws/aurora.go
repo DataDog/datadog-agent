@@ -47,7 +47,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 
-	for _, clusterId := range dbClusterIdentifiers {
+	for _, clusterID := range dbClusterIdentifiers {
 		// TODO: Seth Samuel: This method is not paginated, so if there are more than 100 instances in a cluster, we will only get the first 100
 		// We should add pagination support to this method at some point
 		clusterInstances, err := c.client.DescribeDBInstances(ctx,
@@ -55,7 +55,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				Filters: []types.Filter{
 					{
 						Name:   aws.String("db-cluster-id"),
-						Values: []string{clusterId},
+						Values: []string{clusterID},
 					},
 				},
 			})
