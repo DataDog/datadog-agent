@@ -162,6 +162,29 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		}
 	}
 
+	if len(lp.requestHandler.spanPointers) > 0 {
+		var spanLinks []map[string]interface{}
+		for _, sp := range lp.requestHandler.spanPointers {
+			spanLink := map[string]interface{}{
+				"attributes": map[string]string{
+					"link.kind": "span-pointer",
+					"ptr.dir":   "u",
+					"ptr.hash":  sp.Hash,
+					"ptr.kind":  sp.Kind,
+				},
+				"span_id":  "0",
+				"trace_id": "0",
+			}
+			spanLinks = append(spanLinks, spanLink)
+		}
+		spanLinksJSON, err := json.Marshal(spanLinks)
+		if err != nil {
+			log.Debugf("Failed to marshal span links: %v\n", err)
+		} else {
+			executionSpan.Meta["_dd.span_links"] = string(spanLinksJSON)
+		}
+	}
+
 	return executionSpan
 }
 
