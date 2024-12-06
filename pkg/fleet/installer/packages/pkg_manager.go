@@ -19,30 +19,26 @@ import (
 // removeDebRPMPackage removes a package installed via deb/rpm package manager
 // It doesn't remove dependencies or purge as we want to keep existing configuration files
 // and reinstall the package using the installer.
+// Note: we don't run the pre/post remove scripts as we want to avoid surprises for older agent versions (like removing config)
 func removeDebRPMPackage(ctx context.Context, pkg string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_deb_rpm_package")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	// Compute the right command depending on the package manager
 	var cmd *exec.Cmd
 	if _, pathErr := exec.LookPath("dpkg"); pathErr == nil {
-		cmd = exec.Command("dpkg", "-r", agentPackage)
+		// Doesn't fail if the package isn't installed
+		cmd = exec.Command("dpkg", "-r", "--no-triggers", agentPackage)
 	} else if _, pathErr := exec.LookPath("rpm"); pathErr == nil {
 		// Check if package exist, else the command will fail
 		pkgErr := exec.Command("rpm", "-q", agentPackage).Run()
 		if pkgErr == nil {
-			cmd = exec.Command("rpm", "-e", "--nodeps", agentPackage)
+			cmd = exec.Command("rpm", "-e", "--nodeps", "--noscripts", agentPackage)
 		}
 	}
 
 	if cmd == nil {
-		// If we can't find a package manager we'll simply remove the directory
-		// where the package is expected to be installed
-		switch pkg {
-		case agentPackage:
-			cmd = exec.Command("rm", "-rf", pathOldAgent)
-		default:
-			return nil
-		}
+		// If we can't find a package manager or the package is not installed, ignore this step
+		return nil
 	}
 
 	// Run the command
