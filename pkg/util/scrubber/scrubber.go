@@ -85,6 +85,8 @@ type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
 
+	// CondFunction is a function that can be used to conditionally apply a replacer.
+	// If the function returns false, the replacer will not be applied.
 	CondFunction func(repl Replacer) bool
 }
 
