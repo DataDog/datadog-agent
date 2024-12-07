@@ -108,13 +108,19 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	require.NoError(t, err)
 	defer c2.Close()
 
-	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), getConnections(t, tr))
-	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.Monotonic.SentBytes))
-	assert.Equal(t, 0, int(conn.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), getConnections(t, tr))
+		if !assert.True(ct, ok) {
+			return
+		}
+		assert.Equal(ct, clientMessageSize, int(conn.Monotonic.SentBytes))
+		assert.Equal(ct, 0, int(conn.Monotonic.RecvBytes))
+		assert.Equal(ct, 0, int(conn.Monotonic.Retransmits))
+		if !tr.config.EnableEbpfless {
+			assert.Equal(ct, os.Getpid(), int(conn.Pid))
+		}
+		assert.Equal(ct, addrPort(server.Address()), int(conn.DPort))
+	}, 3*time.Second, 100*time.Millisecond)
 
 	// Make sure the first connection got cleaned up
 	assert.Eventually(t, func() bool {
