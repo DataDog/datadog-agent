@@ -204,7 +204,7 @@ class TestCompare(unittest.TestCase):
         res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
         self.assertEqual(res, "|datadog-agent-aarch64-suse|1.00MB|⚠️|69.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: 1.00MB diff with 25 size 68.00MB (max: 70.00MB)"
+            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: 1.00MB diff with previous 68.00MB (max: 70.00MB)"
         )
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages'})
@@ -223,7 +223,7 @@ class TestCompare(unittest.TestCase):
         res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
         self.assertEqual(res, "|datadog-iot-agent-x86_64-rpm|-9.00MB|✅|69.00MB|78.00MB|70.00MB|")
         mock_print.assert_called_with(
-            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: -9.00MB diff with 25 size 78.00MB (max: 70.00MB)"
+            f"{flavor}-{arch}-{os_name} size 69.00MB is OK: -9.00MB diff with previous 78.00MB (max: 70.00MB)"
         )
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages'})
@@ -242,6 +242,6 @@ class TestCompare(unittest.TestCase):
         res = compare(c, self.package_sizes, arch, flavor, os_name, 70000000)
         self.assertEqual(res, "|datadog-agent-aarch64-suse|71.00MB|❌|139.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            "\x1b[91mdatadog-agent-aarch64-suse size 139.00MB is too large: 71.00MB diff with 25 size 68.00MB (max: 70.00MB)\x1b[0m",
+            "\x1b[91mdatadog-agent-aarch64-suse size 139.00MB is too large: 71.00MB diff with previous 68.00MB (max: 70.00MB)\x1b[0m",
             file=sys.stderr,
         )

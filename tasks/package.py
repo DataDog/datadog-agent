@@ -4,7 +4,7 @@ from datetime import datetime
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
@@ -35,20 +35,21 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
         package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
-    pr_message_lines = []
+    print(color_message(f"Checking package sizes against {ancestor}", Color.BLUE))
+    size_table = ""
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        pr_message_lines.append(compare(ctx, package_sizes, *package_info))
+        size_table += f"{compare(ctx, package_sizes, *package_info)}\n"
 
     if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
     else:
-        if any("❌" in line for line in pr_message_lines):
+        if "❌" in size_table:
             decision = "❌ Failed"
-        elif any("⚠️" in line for line in pr_message_lines):
+        elif "⚠️" in size_table:
             decision = "⚠️ Warning"
         else:
             decision = "✅ Passed"
-        display_message(ctx, ancestor, pr_message_lines, decision)
+        display_message(ctx, ancestor, size_table, decision)
         if "Failed" in decision:
             raise Exit(code=1)
 

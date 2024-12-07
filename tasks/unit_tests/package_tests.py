@@ -53,7 +53,7 @@ class TestCheckSize(unittest.TestCase):
         )
         check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)
         print_mock.assert_called()
-        self.assertEqual(print_mock.call_count, 15)
+        self.assertEqual(print_mock.call_count, 16)
         upload_mock.assert_not_called()
 
     @patch.dict(
