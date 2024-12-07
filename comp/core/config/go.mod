@@ -65,6 +65,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -111,3 +112,5 @@ require (
 )
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
