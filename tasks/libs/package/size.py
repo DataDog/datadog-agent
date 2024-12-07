@@ -177,7 +177,7 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
     previous_size = get_previous_size(package_sizes, ancestor, arch, flavor, os_name)
     diff = package_size - previous_size
 
-    message = f"{flavor}-{arch}-{os_name} size {mb(package_size)} is OK: {mb(diff)} diff with {ancestor} size {mb(previous_size)} (max: {mb(threshold)})"
+    message = f"{flavor}-{arch}-{os_name} size {mb(package_size)} is OK: {mb(diff)} diff with previous {mb(previous_size)} (max: {mb(threshold)})"
 
     if diff > threshold:
         emoji = "❌"
