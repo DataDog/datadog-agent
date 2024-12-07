@@ -729,6 +729,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
 
+	// Remote tagger
+	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 10)
+	config.BindEnvAndSetDefault("remote_tagger.sync_weight", 1) // this is just to simulate longer sync, the higher the weight, the longer the sync
+
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
