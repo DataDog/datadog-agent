@@ -359,9 +359,9 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			expectedMetricSource: metrics.MetricSourceCPU,
 		},
 		{
-			name:                 "checkid ntp:1 should have MetricSourceNtp",
+			name:                 "checkid ntp:1 should have MetricSourceNTP",
 			checkID:              "ntp:1",
-			expectedMetricSource: metrics.MetricSourceNtp,
+			expectedMetricSource: metrics.MetricSourceNTP,
 		},
 		{
 			name:                 "checkid memory:1 should have MetricSourceMemory",
