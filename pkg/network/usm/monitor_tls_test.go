@@ -45,6 +45,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
+	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
@@ -869,6 +870,7 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
 	if cfg.EnableUSMEventStream && usmconfig.NeedProcessMonitor(cfg) {
+		secutils.SetCachedHostname("test-hostname")
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
 	t.Cleanup(usmMonitor.Stop)

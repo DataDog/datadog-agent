@@ -21,9 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
-
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
+	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,6 +42,7 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	t.Cleanup(pm.Stop)
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
+		secutils.SetCachedHostname("test-hostname")
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
 }
