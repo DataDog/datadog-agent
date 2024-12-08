@@ -332,6 +332,16 @@ def get_build_flags(
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
+    yargs = [
+        "XXX_OneofFuncs",
+        "XXX_OneofWrappers",
+        "DeepCopyInto",
+        "Value",
+        "IsZero",
+    ]
+    yargs = " ".join([f"-Y {yarg}" for yarg in yargs])
+    ldflags += yargs
+
     return ldflags, gcflags, env
 
 
