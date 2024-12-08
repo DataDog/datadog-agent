@@ -223,10 +223,10 @@
     "suse_12.5": {
       "os_name": "SLES",
       "os_id": "sles",
-      "kernel": "4.12.14-122.228.1",
+      "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/fix-suse"
     },
     "debian_9": {
       "os_name": "Debian GNU/Linux",
@@ -463,10 +463,10 @@
     "suse_12.5": {
       "os_name": "SLES",
       "os_id": "sles",
-      "kernel": "4.12.14-122.228.1",
+      "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/fix-suse"
     },
     "fedora_40": {
       "os_name": "Fedora Linux",
