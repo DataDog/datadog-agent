@@ -243,7 +243,7 @@ func TestProxy(t *testing.T) {
 		{
 			name: "no values",
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
-				assert.Nil(t, config.Get("proxy"))
+				assert.Equal(t, map[string]interface{}{"http": "", "https": "", "no_proxy": []interface{}{}}, config.Get("proxy"))
 				assert.Nil(t, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -373,7 +373,7 @@ func TestProxy(t *testing.T) {
 			proxyForCloudMetadata: true,
 		},
 		{
-			name: "proxy withou no_proxy",
+			name: "proxy without no_proxy",
 			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
@@ -385,7 +385,8 @@ func TestProxy(t *testing.T) {
 						HTTPS: "https_url",
 					},
 					config.GetProxies())
-				assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+				fmt.Printf("%#v\n", config.Get("proxy.no_proxy"))
+				assert.Equal(t, []string(nil), config.Get("proxy.no_proxy"))
 			},
 			proxyForCloudMetadata: true,
 		},

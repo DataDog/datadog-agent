@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -17,11 +18,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func (c *ntmConfig) getConfigFile() string {
+func (c *ntmConfig) findConfigFile() {
 	if c.configFile == "" {
-		return "datadog.yaml"
+		for _, path := range c.configPaths {
+			configFilePath := filepath.Join(path, c.configName+".yaml")
+			if _, err := os.Stat(configFilePath); err == nil {
+				c.configFile = configFilePath
+				return
+			}
+		}
 	}
-	return c.configFile
 }
 
 // ReadInConfig wraps Viper for concurrent access
@@ -33,7 +39,8 @@ func (c *ntmConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
 
-	err := c.readInConfig(c.getConfigFile())
+	c.findConfigFile()
+	err := c.readInConfig(c.configFile)
 	if err != nil {
 		return err
 	}
@@ -76,10 +83,14 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 
 func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) error {
 	var obj map[string]interface{}
-	if err := yaml.Unmarshal(content, &obj); err != nil {
-		return err
+
+	if strictErr := yaml.UnmarshalStrict(content, &obj); strictErr != nil {
+		log.Errorf("warning reading config file: %v\n", strictErr)
+		if err := yaml.Unmarshal(content, &obj); err != nil {
+			return err
+		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(c.defaults, target, obj, "")...)
+	c.warnings = append(c.warnings, loadYamlInto(c.schema, target, obj, "")...)
 	return nil
 }
 
@@ -113,7 +124,7 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 //
 // The function traverses a object loaded from YAML, checking if each node is known within the configuration.
 // If known, the value from the YAML blob is imported into the 'dest' tree. If unknown, a warning will be created.
-func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{}, path string) []string {
+func loadYamlInto(schema InnerNode, dest InnerNode, data map[string]interface{}, path string) []string {
 	if path != "" {
 		path = path + "."
 	}
@@ -123,15 +134,15 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 		key = strings.ToLower(key)
 		curPath := path + key
 
-		// check if the key is know in the defaults
-		defaultNode, err := defaults.GetChild(key)
+		// check if the key is know in the schema
+		schemaNode, err := schema.GetChild(key)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("unknown key from YAML: %s", curPath))
 			continue
 		}
 
 		// if the default is a leaf we create a new leaf in dest
-		if _, isLeaf := defaultNode.(LeafNode); isLeaf {
+		if _, isLeaf := schemaNode.(LeafNode); isLeaf {
 			// check that dest don't have a inner leaf under that name
 			c, _ := dest.GetChild(key)
 			if _, ok := c.(InnerNode); ok {
@@ -148,8 +159,8 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 			warnings = append(warnings, err.Error())
 		}
 
-		// by now we know defaultNode is an InnerNode
-		defaultNext, _ := defaultNode.(InnerNode)
+		// by now we know schemaNode is an InnerNode
+		defaultNext, _ := schemaNode.(InnerNode)
 
 		if !dest.HasChild(key) {
 			destInner := newInnerNode(nil)
