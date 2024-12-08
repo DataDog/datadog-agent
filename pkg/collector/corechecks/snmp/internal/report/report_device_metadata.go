@@ -383,8 +383,9 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 		remEntryUniqueID := localPortNum + "." + lldpRemIndex
 
 		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:         deviceID + ":" + remEntryUniqueID,
-			SourceType: topologyLinkSourceTypeLLDP,
+			ID:          deviceID + ":" + remEntryUniqueID,
+			SourceType:  topologyLinkSourceTypeLLDP,
+			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
@@ -444,8 +445,9 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
 
 		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:         deviceID + ":" + remEntryUniqueID,
-			SourceType: topologyLinkSourceTypeCDP,
+			ID:          deviceID + ":" + remEntryUniqueID,
+			SourceType:  topologyLinkSourceTypeCDP,
+			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),
