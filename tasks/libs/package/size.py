@@ -1,10 +1,13 @@
 import os
+import sys
 import tempfile
 from datetime import datetime
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import get_metric_origin
+from tasks.libs.package.utils import get_package_path
 
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
@@ -29,6 +32,26 @@ SCANNED_BINARIES = {
         "process-agent": "opt/datadog-agent/embedded/bin/process-agent",
         "trace-agent": "opt/datadog-agent/embedded/bin/trace-agent",
     },
+}
+
+PACKAGE_SIZE_TEMPLATE = {
+    'amd64': {
+        'datadog-agent': {'deb': 140000000},
+        'datadog-iot-agent': {'deb': 10000000},
+        'datadog-dogstatsd': {'deb': 10000000},
+        'datadog-heroku-agent': {'deb': 70000000},
+    },
+    'x86_64': {
+        'datadog-agent': {'rpm': 140000000, 'suse': 140000000},
+        'datadog-iot-agent': {'rpm': 10000000, 'suse': 10000000},
+        'datadog-dogstatsd': {'rpm': 10000000, 'suse': 10000000},
+    },
+    'arm64': {
+        'datadog-agent': {'deb': 140000000},
+        'datadog-iot-agent': {'deb': 10000000},
+        'datadog-dogstatsd': {'deb': 10000000},
+    },
+    'aarch64': {'datadog-agent': {'rpm': 140000000}, 'datadog-iot-agent': {'rpm': 10000000}},
 }
 
 
@@ -132,3 +155,66 @@ def compute_package_size_metrics(
             )
 
     return series
+
+
+def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
+    """
+    Compare (or update) a package size with the ancestor package size.
+    """
+    if os_name == 'suse':
+        dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
+        path = f'{dir}/{flavor}-7*{arch}.rpm'
+    else:
+        dir = os.environ['OMNIBUS_PACKAGE_DIR']
+        separator = '_' if os_name == 'deb' else '-'
+        path = f'{dir}/{flavor}{separator}7*{arch}.{os_name}'
+    package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
+    branch = get_current_branch(ctx)
+    ancestor = get_common_ancestor(ctx, branch)
+    if branch == get_default_branch():
+        package_sizes[ancestor][arch][flavor][os_name] = package_size
+        return
+    previous_size = get_previous_size(package_sizes, ancestor, arch, flavor, os_name)
+    diff = package_size - previous_size
+
+    message = f"{flavor}-{arch}-{os_name} size {mb(package_size)} is OK: {mb(diff)} diff with previous {mb(previous_size)} (max: {mb(threshold)})"
+
+    if diff > threshold:
+        emoji = "❌"
+        print(color_message(message.replace('OK', 'too large'), Color.RED), file=sys.stderr)
+    else:
+        emoji = "✅" if diff <= 0 else "⚠️"
+        print(message)
+    return f"|{flavor}-{arch}-{os_name}|{mb(diff)}|{emoji}|{mb(package_size)}|{mb(previous_size)}|{mb(threshold)}|"
+
+
+def mb(value):
+    return f"{value / 1000000:.2f}MB"
+
+
+def get_previous_size(package_sizes, ancestor, arch, flavor, os_name):
+    """
+    Get the size of the package for the given ancestor, or the earliest ancestor if the given ancestor is not found.
+    """
+    if ancestor in package_sizes:
+        commit = ancestor
+    else:
+        commit = min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
+    return package_sizes[commit][arch][flavor][os_name]
+
+
+def _get_uncompressed_size(ctx, package, os_name):
+    if os_name == 'deb':
+        return _get_deb_uncompressed_size(ctx, package)
+    else:
+        return _get_rpm_uncompressed_size(ctx, package)
+
+
+def _get_deb_uncompressed_size(ctx, package):
+    # the size returned by dpkg is a number of bytes divided by 1024
+    # so we multiply it back to get the same unit as RPM or stat
+    return int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs').stdout) * 1024
+
+
+def _get_rpm_uncompressed_size(ctx, package):
+    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs').stdout)
