@@ -726,7 +726,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	var clientIP string
 	var clientPort int
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, dnsAddr, "udp")
+		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -783,7 +783,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	var clientIP string
 	var clientPort int
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
+		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -798,7 +798,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	require.Nil(t, c.Via)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
+		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -957,7 +957,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			kernel.WithNS(test2Ns, func() error {
-				clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, dnsAddr, "udp")
+				clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
 				return nil
 			})
 			assert.NoError(c, err)
