@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -227,7 +226,7 @@ func (c *CheckConfig) SetProfile(profile string) error {
 	c.ProfileDef = &definition
 	c.Profile = profile
 
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		profileDefJSON, _ := json.Marshal(definition)
 		log.Debugf("Profile content `%s`: %s", profile, string(profileDefJSON))
 	}

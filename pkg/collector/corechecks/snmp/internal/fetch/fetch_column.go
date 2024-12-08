@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -105,7 +104,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 		}
 		results = getNextResults
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
 		}
 	} else {
@@ -115,7 +114,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 		}
 		results = getBulkResults
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))
 		}
 	}

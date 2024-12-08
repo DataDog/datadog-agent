@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cihub/seelog"
 	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netns"
@@ -205,7 +204,7 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 		return false
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("netlink reply: %v", msgs)
 	}
 

@@ -17,7 +17,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
@@ -501,7 +500,7 @@ func (t *ebpfTracer) getEBPFTelemetry() *netebpf.Telemetry {
 	if err := mp.Lookup(&zero, tm); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		}
 		return nil

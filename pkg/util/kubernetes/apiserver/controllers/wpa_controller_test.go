@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	"github.com/cenkalti/backoff"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -654,11 +653,10 @@ func TestWPACRDCheck(t *testing.T) {
 }
 
 func configureLoggerForTest(t *testing.T) func() {
-	logger, err := seelog.LoggerFromWriterWithMinLevel(testWriter{t}, seelog.TraceLvl)
+	logger, err := log.LoggerFromWriterWithMinLevel(testWriter{t}, log.TraceLvl)
 	if err != nil {
 		t.Fatalf("unable to configure logger, err: %v", err)
 	}
-	seelog.ReplaceLogger(logger) //nolint:errcheck
 	log.SetupLogger(logger, "trace")
 	return log.Flush
 }

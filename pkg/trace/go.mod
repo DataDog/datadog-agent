@@ -24,7 +24,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
+	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4

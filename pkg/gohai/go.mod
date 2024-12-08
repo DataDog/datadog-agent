@@ -6,7 +6,6 @@ go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/stretchr/testify v1.10.0
@@ -15,6 +14,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
+	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
