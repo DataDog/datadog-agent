@@ -21,7 +21,7 @@ const (
 	networkIDURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/network_id"
 	registerURL    = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL       = "http://localhost:3333/debug/stats"
-	tracerouteURL  = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
+	tracerouteURL  = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute"
 
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
