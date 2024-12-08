@@ -22,6 +22,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -558,7 +559,7 @@ func (a *APIServer) getGlobalTags() []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Factory) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	as := &APIServer{
@@ -578,7 +579,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 	if as.msgSender == nil {
 		if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
-			msgSender, err := NewDirectMsgSender(stopper)
+			msgSender, err := NewDirectMsgSender(stopper, compression)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)
 			} else {

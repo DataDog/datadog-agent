@@ -58,7 +58,7 @@ func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplex
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compressionmock.NewMockCompressorFactory()))
 	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), compressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
 	return demux
 }

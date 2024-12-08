@@ -10,6 +10,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,8 +20,8 @@ import (
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, tagger tagger.Component) (logsAgent.ServerlessLogsAgent, error) {
-	agent := agentimpl.NewServerlessLogsAgent(tagger)
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, tagger tagger.Component, compressionFactory compression.Factory) (logsAgent.ServerlessLogsAgent, error) {
+	agent := agentimpl.NewServerlessLogsAgent(tagger, compressionFactory)
 	err := agent.Start()
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)

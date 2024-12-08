@@ -14,24 +14,30 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent(tagger tagger.Component) agent.ServerlessLogsAgent {
+func NewServerlessLogsAgent(tagger tagger.Component, compressionFactory compression.Factory) agent.ServerlessLogsAgent {
+
+	log.Debugf("ZORK Setting up agent")
+
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
 
-		sources:         sources.NewLogSources(),
-		services:        service.NewServices(),
-		tracker:         tailers.NewTailerTracker(),
-		flarecontroller: flareController.NewFlareController(),
-		tagger:          tagger,
+		sources:            sources.NewLogSources(),
+		services:           service.NewServices(),
+		tracker:            tailers.NewTailerTracker(),
+		flarecontroller:    flareController.NewFlareController(),
+		tagger:             tagger,
+		compressionFactory: compressionFactory,
 	}
 	return logsAgent
 }
