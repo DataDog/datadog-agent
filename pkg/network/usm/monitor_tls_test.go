@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -868,7 +869,7 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
 	if cfg.EnableUSMEventStream && usmconfig.NeedProcessMonitor(cfg) {
-		monitor.InitializeEventConsumer(t)
+		monitor.InitializeEventConsumer(consumerstestutil.NewTestProcessConsumer(t))
 	}
 	t.Cleanup(usmMonitor.Stop)
 	t.Cleanup(utils.ResetDebugger)

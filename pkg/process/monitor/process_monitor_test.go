@@ -19,6 +19,7 @@ import (
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,7 +53,7 @@ func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
-		InitializeEventConsumer(t)
+		InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	}
 	waitForProcessMonitor(t, pm)
 }

@@ -9,6 +9,7 @@ package uprobes
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -797,7 +798,7 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMon
 	t.Cleanup(pm.Stop)
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
-		monitor.InitializeEventConsumer(t)
+		monitor.InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	}
 
 	return pm
