@@ -1986,16 +1986,16 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	t := s.T()
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
-
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		for {
 			if _, err := r.ReadBytes(byte('\n')); err != nil {
 				assert.ErrorIs(t, err, io.EOF, "exited server loop with error that is not EOF")
-				return
+				break
 			}
 			_, _ = c.Write(genPayload(serverMessageSize))
 		}
+		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -2020,7 +2020,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	c.Close()
 
 	var incoming, outgoing *network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		connections := getConnections(t, tr)
 		if outgoing == nil {
 			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -2028,38 +2028,55 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		if incoming == nil {
 			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 		}
-		return incoming != nil && outgoing != nil
+		if !assert.True(ct, incoming != nil && outgoing != nil) {
+			return
+		}
+
+		m := outgoing.Monotonic
+		assert.Equal(ct, clientMessageSize, int(m.SentBytes))
+		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
+		// packet in a pre-existing connection
+		if !tr.config.EnableEbpfless {
+			assert.Equal(ct, serverMessageSize, int(m.RecvBytes))
+		}
+		if !tr.config.EnableEbpfless {
+			assert.Equal(ct, os.Getpid(), int(outgoing.Pid))
+		}
+		assert.Equal(ct, addrPort(server.Address()), int(outgoing.DPort))
+		assert.Equal(ct, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
+		assert.Equal(ct, network.OUTGOING, outgoing.Direction)
+
+		m = incoming.Monotonic
+		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
+		// packet in a pre-existing connection
+		if !tr.config.EnableEbpfless {
+			assert.Equal(ct, clientMessageSize, int(m.RecvBytes))
+		}
+		assert.Equal(ct, serverMessageSize, int(m.SentBytes))
+		if !tr.config.EnableEbpfless {
+			assert.Equal(ct, os.Getpid(), int(incoming.Pid))
+		}
+		assert.Equal(ct, addrPort(server.Address()), int(incoming.SPort))
+		assert.Equal(ct, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
+		assert.Equal(ct, network.INCOMING, incoming.Direction)
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection incoming and outgoing connections")
 
-	m := outgoing.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.SentBytes))
-	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	if !tr.config.EnableEbpfless {
-		assert.Equal(t, os.Getpid(), int(outgoing.Pid))
-	}
-	assert.Equal(t, addrPort(server.Address()), int(outgoing.DPort))
-	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
-	assert.Equal(t, network.OUTGOING, outgoing.Direction)
-
-	m = incoming.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(m.SentBytes))
-	if !tr.config.EnableEbpfless {
-		assert.Equal(t, os.Getpid(), int(incoming.Pid))
-	}
-	assert.Equal(t, addrPort(server.Address()), int(incoming.SPort))
-	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
-	assert.Equal(t, network.INCOMING, incoming.Direction)
 }
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
+
+	// The ebpf tracer uses this to ensure it drops pre-existing connections
+	// that close empty (with no data), because they are difficult to track.
+	// However, in ebpfless they are easy to track, so disable this test.
+	// For more context, see PR #31100
+	skipOnEbpflessNotSupported(t, testConfig())
+
 	t.Run("ringbuf_enabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
 			t.Skip("skipping test as ringbuffers are not supported on this kernel")
 		}
 		c := testConfig()
-		skipOnEbpflessNotSupported(t, c)
 		c.NPMRingbuffersEnabled = true
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
 	})
