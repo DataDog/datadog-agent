@@ -261,6 +261,33 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 	r.subscriptions = append(r.subscriptions, cb)
 }
 
+// ListSecrets lists all the secrets in the backend
+func (r *secretResolver) ListSecrets() []string {
+	if !r.enabled {
+		return nil
+	}
+
+	response, err := r.execCommand("", "--list")
+	if err != nil {
+		// Log an info as this is not a critical error and may not be supported by custom binaries
+		log.Infof("Secret backend couldn't list secrets: %s", err.Error())
+		return nil
+	}
+
+	// Unmarshal the response to get the list of secrets
+	var secretKeys secrets.SecretKeys
+	if err := json.Unmarshal(response, &secretKeys); err != nil {
+		log.Errorf("could not unmarshal secret keys: %s", err.Error())
+		return nil
+	}
+	if secretKeys.ErrorMsg != "" {
+		log.Errorf("error while listing secrets: %s", secretKeys.ErrorMsg)
+		return nil
+	}
+
+	return secretKeys.Keys
+}
+
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
 func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
