@@ -16,8 +16,9 @@ from tasks.libs.releasing.version import get_version
 DIR_BIN = os.path.join(".", "bin", "installer")
 INSTALLER_BIN = os.path.join(DIR_BIN, bin_name("installer"))
 DOWNLOADER_BIN = os.path.join(DIR_BIN, bin_name("downloader"))
-INSTALL_SCRIPT = os.path.join(DIR_BIN, "install.sh")
 INSTALL_SCRIPT_TEMPLATE = os.path.join("pkg", "fleet", "installer", "setup", "install.sh")
+DOWNLOADER_MAIN_PACKAGE = "cmd/installer-downloader"
+
 MAJOR_VERSION = '7'
 
 
@@ -76,14 +77,18 @@ def build(
 @task
 def build_downloader(
     ctx,
+    flavor,
+    version,
     os="linux",
     arch="amd64",
 ):
     '''
     Builds the installer downloader binary.
     '''
+    version_flag = f'-X main.Version={version}'
+    flavor_flag = f'-X main.Flavor={flavor}'
     ctx.run(
-        f'go build -ldflags="-s -w" -o {DOWNLOADER_BIN} {REPO_PATH}/cmd/installer-downloader',
+        f'go build -ldflags="-s -w {version_flag} {flavor_flag}" -o {DOWNLOADER_BIN} {REPO_PATH}/{DOWNLOADER_MAIN_PACKAGE}',
         env={'GOOS': os, 'GOARCH': arch, 'CGO_ENABLED': '0'},
     )
 
@@ -91,6 +96,8 @@ def build_downloader(
 @task
 def build_linux_script(
     ctx,
+    flavor,
+    version,
 ):
     '''
     Builds the linux script that is used to install the agent on linux.
@@ -101,7 +108,7 @@ def build_linux_script(
 
     archs = ['amd64', 'arm64']
     for arch in archs:
-        build_downloader(ctx, os='linux', arch=arch)
+        build_downloader(ctx, flavor=flavor, version=version, os='linux', arch=arch)
         with open(DOWNLOADER_BIN, 'rb') as f:
             encoded_bin = base64.encodebytes(f.read()).decode('utf-8')
         install_script = install_script.replace(f'DOWNLOADER_BIN_{arch.upper()}', encoded_bin)
@@ -109,7 +116,7 @@ def build_linux_script(
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
 
-    with open(INSTALL_SCRIPT, 'w') as f:
+    with open(os.path.join(DIR_BIN, f'install-{flavor}.sh'), 'w') as f:
         f.write(install_script)
 
 
