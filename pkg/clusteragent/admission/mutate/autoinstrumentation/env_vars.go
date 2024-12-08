@@ -17,7 +17,7 @@ import (
 const (
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
-	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log"
+	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:+IgnoreUnrecognizedVMOptions -XX:OnError=\"/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh %p\" -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log -XX:OnOutOfMemoryError=\"/datadog-lib/java/continuousprofiler/tmp/dd_oome_notifier.sh %p\""
 
 	// Node config
 	nodeOptionsKey   = "NODE_OPTIONS"
