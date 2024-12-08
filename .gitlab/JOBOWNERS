@@ -67,6 +67,7 @@ iot_agent_suse*                      @DataDog/agent-delivery
 dogstatsd_suse*                      @DataDog/agent-delivery
 agent_oci*                           @DataDog/agent-delivery
 installer_oci*                       @DataDog/agent-delivery
+new_check_pkg_size                   @DataDog/agent-delivery
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-delivery
