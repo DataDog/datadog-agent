@@ -142,7 +142,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) SetupSuite() {
 		Version: fmt.Sprintf("%s.51.0-1", majorVersion),
 		Arch:    "x86_64",
 	}
-	s.previousAgentPackage.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackage.Version, s.previousAgentPackage.Arch)
+	s.previousAgentPackage.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackage.Version, s.previousAgentPackage.Arch, "")
 	s.Require().NoError(err, "should get stable agent package URL")
 }
 
@@ -282,7 +282,7 @@ func TestUpgradeFromV5(t *testing.T) {
 	s.agent5Package = &windowsAgent.Package{
 		Version: "5.32.8-1",
 	}
-	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64")
+	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64", "")
 	require.NoError(t, err)
 	run(t, s)
 }
@@ -375,7 +375,7 @@ func TestUpgradeFromV6(t *testing.T) {
 		Version: "6.53.0-1",
 		Arch:    "x86_64",
 	}
-	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch)
+	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch, "")
 	require.NoError(t, err)
 	run(t, s)
 }

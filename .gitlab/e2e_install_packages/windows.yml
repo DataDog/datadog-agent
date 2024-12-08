@@ -1,10 +1,9 @@
 # NOTE: If a new job is added, be sure to upate .gitlab/e2e_test_junit_upload.yml
 
-.new-e2e_windows_msi:
+.new-e2e_with_version:
   variables:
-    TARGETS: ./tests/windows/install-test
+    WINDOWS_AGENT_ARCH: "x86_64"
     TEAM: windows-agent
-    EXTRA_PARAMS: --run "$E2E_MSI_TEST$"
   extends:
     - .new_e2e_template
   before_script:
@@ -17,19 +16,18 @@
     - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::7" --no-worktree)
     - !reference [.new_e2e_template, script]
 
+.new-e2e_windows_msi:
+  variables:
+    TARGETS: ./tests/windows/install-test
+    EXTRA_PARAMS: --run "$E2E_MSI_TEST$"
+  extends:
+    - .new-e2e_with_version
+
 .new-e2e_windows_domain_test:
   variables:
     TARGETS: ./tests/windows/domain-test
-    TEAM: windows-agent
-  before_script:
-    # WINDOWS_AGENT_VERSION is used to verify the installed agent version
-    # Must run before new_e2e_template changes the aws profile
-    - WINDOWS_AGENT_VERSION=$(invoke agent.version) || exit $?; export WINDOWS_AGENT_VERSION
-    - !reference [.new_e2e_template, before_script]
-  script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::7" --no-worktree)
-    - !reference [.new_e2e_template, script]
+  extends:
+    - .new-e2e_with_version
 
 .new-e2e_windows_installer_v7_tests:
   parallel:
@@ -72,8 +70,6 @@ new-e2e_windows_powershell_module_test:
 
 # Agent 7
 .new-e2e_windows_a7_x86_64:
-  variables:
-    WINDOWS_AGENT_ARCH: "x86_64"
   extends:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a7
@@ -95,15 +91,29 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
   stage: e2e_install_packages
-  variables:
-    WINDOWS_AGENT_ARCH: "x86_64"
   extends:
-    - .new_e2e_template
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a7
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
+  timeout: 1h15m
+
+new-e2e-windows-agent-a7-x86_64-fips:
+  stage: e2e_install_packages
+  variables:
+    WINDOWS_AGENT_FLAVOR: "fips"
+    TARGETS: ./tests/windows/fips-test
+  extends:
+    - .new-e2e_with_version
+    - .new-e2e_agent_a7
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7-fips
   rules:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]

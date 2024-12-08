@@ -56,6 +56,11 @@ func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 	b.BaseSuite.SetupSuite()
 
 	var err error
+	b.OutputDir, err = b.CreateTestOutputDir()
+	if err != nil {
+		b.T().Fatalf("should get output dir")
+	}
+
 	b.AgentPackage, err = windowsAgent.GetPackageFromEnv()
 	if err != nil {
 		b.T().Fatalf("failed to get MSI URL from env: %v", err)
