@@ -36,7 +36,7 @@ type ProcessNodeIface interface {
 // Owner defines the interface to implement prior to use ProcessList
 type Owner interface {
 	// is valid root node
-	IsAValidRootNode(event *model.Process) bool
+	IsAValidRootNode(event *model.ProcessContext) bool
 
 	// matches
 	ExecMatches(e1, e2 *ExecNode) bool
@@ -52,7 +52,7 @@ type Owner interface {
 	GetProcessCacheKey(process *model.Process) interface{}
 
 	// returns the keys related to a process parent, given an event
-	GetParentProcessCacheKey(event *model.Event) interface{}
+	GetParentProcessCacheKey(process *model.Process) interface{}
 }
 
 // ProcessStats stores stats
@@ -153,6 +153,15 @@ func (pl *ProcessList) isEventValid(event *model.Event) (bool, error) {
 		return false, errors.New("event without process context")
 	}
 
+	// check selector
+	if event.ContainerContext == nil {
+		return false, errors.New("event without container context")
+	}
+	eventSelector := cgroupModel.NewWorkloadSelectorFromContainerContext(event.ContainerContext)
+	if !pl.selector.Match(eventSelector) {
+		return false, nil
+	}
+
 	// check event type
 	if !slices.Contains(pl.validEventTypes, event.GetEventType()) {
 		return false, errors.New("event type unvalid")
@@ -239,39 +248,93 @@ func (pl *ProcessList) findOrInsertExec(event *model.Event, insertMissingProcess
 	if processKey != nil {
 		process, ok := pl.processCache[processKey]
 		if ok {
-			exec := NewExecNodeFromEvent(event, processKey)
+			exec := NewExecNodeFromProcess(&event.ProcessContext.Process, processKey)
 			process.AppendExec(exec, true)
 			pl.addExecToCache(exec)
 			return exec, true, nil
 		}
 	}
 
-	// then, check if can be added as root node
-	if pl.owner.IsAValidRootNode(&event.ProcessContext.Process) {
-		process := NewProcessExecNodeFromEvent(event, processKey, execKey)
-		pl.appendChild(process, true)
-		pl.addProcessToCache(process)
-		return process.CurrentExec, true, nil
+	// recursively unroll ancestors until finding any already present ones,
+	// or until finding the oldest ancestor we can add as a root one
+	lineageToAdd := []*model.ProcessContext{event.ProcessContext}
+	current := event.ProcessContext
+	var insertFrom *ProcessNode
+	for {
+		if current.Ancestor == nil {
+			parentKey := pl.owner.GetParentProcessCacheKey(&current.Process)
+			if parentKey != nil {
+				ok := false
+				parent, ok := pl.processCache[parentKey]
+				if ok {
+					insertFrom = parent
+					break
+				}
+			}
+
+			// TODO: add procfs fallback to retrieve ancestors until oldest valid root node one
+			break
+		}
+
+		parent := &current.Ancestor.ProcessContext
+		if current.PPid != parent.Pid {
+			return nil, false, errors.New("broken lineage")
+		}
+
+		// check if we already have its parent
+		parentKey := pl.owner.GetProcessCacheKey(&parent.Process)
+		if parentKey != nil {
+			parentNode, ok := pl.processCache[parentKey]
+			if ok {
+				insertFrom = parentNode
+				break
+			}
+		}
+
+		lineageToAdd = append(lineageToAdd, parent)
+		current = parent
 	}
 
-	// check if we already have its parent
-	parentKey := pl.owner.GetParentProcessCacheKey(event)
-	if parentKey != nil {
-		parent, ok := pl.processCache[parentKey]
-		if ok {
-			process := NewProcessExecNodeFromEvent(event, processKey, execKey)
-			parent.AppendChild(process, true)
-			pl.addProcessToCache(process)
-			return process.CurrentExec, true, nil
+	lineageToAddIndex := len(lineageToAdd) - 1
+
+	if insertFrom == nil {
+		// add first valid root elem as root node
+		for lineageToAddIndex >= 0 {
+			if pl.owner.IsAValidRootNode(lineageToAdd[lineageToAddIndex]) {
+				insertFrom = pl.insertChildFromProcess(pl, &lineageToAdd[lineageToAddIndex].Process)
+				lineageToAddIndex--
+				break
+			}
+			lineageToAddIndex--
 		}
 	}
 
-	// err, valid := pl.hasValidLineage(event)
-	// if !valid || err != nil {
-	// 	return nil, false, err
-	// }
+	if insertFrom == nil {
+		// didn't find any existing parents or suitable root node in ancestors
+		return nil, false, errors.New("didn't find any existing parents or suitable root node")
+	}
 
-	return nil, false, nil
+	// and loop til lineage is empty
+	for lineageToAddIndex >= 0 {
+		insertFrom = pl.insertChildFromProcess(insertFrom, &lineageToAdd[lineageToAddIndex].Process)
+		lineageToAddIndex--
+	}
+	return insertFrom.CurrentExec, true, nil
+}
+
+func (pl *ProcessList) insertChildFromProcess(parent ProcessNodeIface, process *model.Process) *ProcessNode {
+	processKey := pl.owner.GetProcessCacheKey(process)
+	execKey := pl.owner.GetExecCacheKey(process)
+	processNode := NewProcessExecNodeFromProcess(process, processKey, execKey)
+	switch parent.(type) {
+	case *ProcessList:
+		// ProcessList is already lock, call directly the lock-free func
+		pl.appendChild(processNode, true)
+	default:
+		parent.AppendChild(processNode, true)
+	}
+	pl.addProcessToCache(processNode)
+	return processNode
 }
 
 // GetCacheExec retrieve the cached exec matching the given key

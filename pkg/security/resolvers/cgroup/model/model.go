@@ -97,8 +97,5 @@ func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	return &WorkloadSelector{
-		Image: cgce.WorkloadSelector.Image,
-		Tag:   cgce.WorkloadSelector.Tag,
-	}
+	return cgce.WorkloadSelector.Copy()
 }
