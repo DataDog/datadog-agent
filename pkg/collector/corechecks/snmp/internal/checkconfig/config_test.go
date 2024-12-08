@@ -250,7 +250,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, expectedMetrics, config.Metrics)
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
 	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
-	assert.Equal(t, 1, len(config.Profiles))
+	assert.True(t, config.Profiles.HasProfile("f5-big-ip"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
@@ -372,7 +372,8 @@ profiles:
 	assert.Equal(t, "123", config.CommunityString)
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 2, len(config.Profiles))
+	assert.True(t, config.Profiles.HasProfile("f5-big-ip"))
+	assert.True(t, config.Profiles.HasProfile("inline-profile"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, false, config.AutodetectProfile)
@@ -406,8 +407,10 @@ community_string: abc
 
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 2, len(config.Profiles))
-	assert.Equal(t, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.Profiles["f5-big-ip"].Definition.Metrics)
+	// assert.Equal(t, 2, len(config.Profiles))
+	assert.True(t, config.Profiles.HasProfile("f5-big-ip"))
+	assert.True(t, config.Profiles.HasProfile("another_profile"))
+	assert.Equal(t, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.Profiles.GetProfile("f5-big-ip").Definition.Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -927,14 +930,14 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 
-	mockProfiles := profile.ProfileConfigMap{
+	mockProfiles := profile.StaticProvider(profile.ProfileConfigMap{
 		"profile1": profile.ProfileConfig{
 			Definition: profile1,
 		},
 		"profile2": profile.ProfileConfig{
 			Definition: profile2,
 		},
-	}
+	})
 	c := &CheckConfig{
 		IPAddress: "1.2.3.4",
 		Profiles:  mockProfiles,
@@ -946,7 +949,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "profile1", c.Profile)
-	assert.Equal(t, profile1, *c.ProfileDef)
+	assert.Equal(t, &profile1, c.GetProfileDef())
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []profiledefinition.MetricTagConfig{
 		{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
@@ -2113,14 +2116,14 @@ func TestCheckConfig_Copy(t *testing.T) {
 		},
 		OidBatchSize:       10,
 		BulkMaxRepetitions: 10,
-		Profiles: profile.ProfileConfigMap{"f5-big-ip": profile.ProfileConfig{
+		Profiles: profile.StaticProvider(profile.ProfileConfigMap{"f5-big-ip": profile.ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				Device: profiledefinition.DeviceMeta{Vendor: "f5"},
 			},
-		}},
+		}}),
 		ProfileTags: []string{"profile_tag:atag"},
 		Profile:     "f5",
-		ProfileDef: &profiledefinition.ProfileDefinition{
+		AutoDetectProfileDef: &profiledefinition.ProfileDefinition{
 			Device: profiledefinition.DeviceMeta{Vendor: "f5"},
 		},
 		ExtraTags:             []string{"ExtraTags:tag"},
