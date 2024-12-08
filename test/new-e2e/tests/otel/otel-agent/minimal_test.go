@@ -32,8 +32,8 @@ var minimalProvidedConfig string
 //go:embed testdata/minimal-full-config.yml
 var minimalFullConfig string
 
-//go:embed testdata/minimal-sources.json
-var minimalSources string
+//go:embed testdata/sources.json
+var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
@@ -82,7 +82,7 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 }
 
 func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
-	utils.TestOTelFlareExtensionResponse(s, minimalProvidedConfig, minimalFullConfig, minimalSources)
+	utils.TestOTelFlareExtensionResponse(s, minimalProvidedConfig, minimalFullConfig, sources)
 }
 
 func (s *minimalTestSuite) TestOTelFlareFiles() {
