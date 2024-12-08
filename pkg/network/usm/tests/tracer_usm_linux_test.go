@@ -434,6 +434,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 				for _, c := range payload.Conns {
 					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
 						require.Equal(collect, c.ProtocolStack.Contains(protocols.TLS), tt.shouldBeTLS)
+						return
 					}
 				}
 				require.Fail(collect, "")
