@@ -235,6 +235,8 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	r.telemetryForwarder.start()
+
 	if !r.conf.ReceiverEnabled {
 		log.Debug("HTTP Server is off: HTTPReceiver is disabled.")
 		return
