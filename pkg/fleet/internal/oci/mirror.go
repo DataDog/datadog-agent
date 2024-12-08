@@ -37,6 +37,7 @@ func newMirrorTransport(transport http.RoundTripper, mirror string) (*mirrorTran
 // RoundTrip modifies the request to point to the mirror URL before sending it.
 func (mt *mirrorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
+	clone.Host = mt.mirror.Host
 	clone.URL.Scheme = mt.mirror.Scheme
 	clone.URL.Host = mt.mirror.Host
 	clone.URL.User = mt.mirror.User
@@ -47,6 +48,9 @@ func (mt *mirrorTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	r, err := mt.transport.RoundTrip(clone)
 	if err != nil {
 		return nil, err
+	}
+	if r.StatusCode != http.StatusOK {
+		return r, nil
 	}
 	// Unfortunately some mirrors (ex: Nexus) do not respect the Content-Type header of the original request.
 	// We fix the Content-Type header for manifest requests to match the mediaType field in the manifest.
