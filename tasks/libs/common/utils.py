@@ -661,3 +661,15 @@ def agent_working_directory():
     from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
 
     return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY
+
+
+def is_macos():
+    return sys.platform == 'darwin'
+
+
+def is_linux():
+    return sys.platform.startswith('linux')
+
+
+def is_windows():
+    return sys.platform == 'win32'
