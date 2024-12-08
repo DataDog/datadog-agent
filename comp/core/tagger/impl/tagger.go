@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -536,6 +537,12 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	if err := t.globalTagBuilder(cardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
+}
+
+// GenerateContainerIDFromExternalData generates a container ID from the external data.
+func (t *TaggerWrapper) GenerateContainerIDFromExternalData(externalData origindetection.ExternalData) (string, error) {
+	metaCollector := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector()
+	return metaCollector.ContainerIDForPodUIDAndContName(externalData.PodUID, externalData.ContainerName, externalData.Init, time.Second)
 }
 
 // generateContainerIDFromExternalData generates a container ID from the external data

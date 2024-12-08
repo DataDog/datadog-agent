@@ -73,6 +73,16 @@ message Entity {
     repeated string standardTags = 6;
 }
 
+message GenerateContainerIDFromExternalDataRequest {
+    bool init = 1;
+    string containerName = 2;
+    string podUID = 3;
+}
+
+message GenerateContainerIDFromExternalDataResponse {
+    string containerID = 1;
+}
+
 message FetchEntityRequest {
     EntityId id = 1;
     TagCardinality cardinality = 2;

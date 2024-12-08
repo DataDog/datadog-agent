@@ -50,6 +50,22 @@ service AgentSecure {
         };
     };
 
+    // Generates a container ID from External Data.
+    // can be called through the HTTP gateway, and entity will be returned as JSON:
+    //	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //	     -XPOST -k -H "Content-Type: application/json" \
+    //	     --data '{"init": false,"podUID": "54383382-cea3-49e3-9dda-325436ddd5b8","containerName": "dd-trace-py"}' \
+    //	     https://localhost:5001/v1/grpc/tagger/generate_container_id_from_external_data
+    //	  {
+    //	    "containerID":"7e61cd59e787ba99bd8420df93eabdea9307c436c0a27cfcbe2235aa0c80e36f"
+    //	  }
+    rpc TaggerGenerateContainerIDFromExternalData(datadog.model.v1.GenerateContainerIDFromExternalDataRequest) returns (datadog.model.v1.GenerateContainerIDFromExternalDataResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/tagger/generate_container_id_from_external_data"
+            body: "*"
+        };
+    };
+
     // fetches an entity from the Tagger with the desired cardinality tags.
     // can be called through the HTTP gateway, and entity will be returned as JSON:
     //   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \

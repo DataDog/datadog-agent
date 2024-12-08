@@ -279,6 +279,26 @@ func (mr *MockAgentSecureClientMockRecorder) TaggerFetchEntity(ctx, in interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerFetchEntity", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerFetchEntity), varargs...)
 }
 
+// TaggerGenerateContainerIDFromExternalData mocks base method.
+func (m *MockAgentSecureClient) TaggerGenerateContainerIDFromExternalData(ctx context.Context, in *core.GenerateContainerIDFromExternalDataRequest, opts ...grpc.CallOption) (*core.GenerateContainerIDFromExternalDataResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "TaggerGenerateContainerIDFromExternalData", varargs...)
+	ret0, _ := ret[0].(*core.GenerateContainerIDFromExternalDataResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TaggerGenerateContainerIDFromExternalData indicates an expected call of TaggerGenerateContainerIDFromExternalData.
+func (mr *MockAgentSecureClientMockRecorder) TaggerGenerateContainerIDFromExternalData(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerGenerateContainerIDFromExternalData", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerGenerateContainerIDFromExternalData), varargs...)
+}
+
 // TaggerStreamEntities mocks base method.
 func (m *MockAgentSecureClient) TaggerStreamEntities(ctx context.Context, in *core.StreamTagsRequest, opts ...grpc.CallOption) (core.AgentSecure_TaggerStreamEntitiesClient, error) {
 	m.ctrl.T.Helper()
@@ -706,6 +726,21 @@ func (m *MockAgentSecureServer) TaggerFetchEntity(arg0 context.Context, arg1 *co
 func (mr *MockAgentSecureServerMockRecorder) TaggerFetchEntity(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerFetchEntity", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerFetchEntity), arg0, arg1)
+}
+
+// TaggerGenerateContainerIDFromExternalData mocks base method.
+func (m *MockAgentSecureServer) TaggerGenerateContainerIDFromExternalData(arg0 context.Context, arg1 *core.GenerateContainerIDFromExternalDataRequest) (*core.GenerateContainerIDFromExternalDataResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TaggerGenerateContainerIDFromExternalData", arg0, arg1)
+	ret0, _ := ret[0].(*core.GenerateContainerIDFromExternalDataResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TaggerGenerateContainerIDFromExternalData indicates an expected call of TaggerGenerateContainerIDFromExternalData.
+func (mr *MockAgentSecureServerMockRecorder) TaggerGenerateContainerIDFromExternalData(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerGenerateContainerIDFromExternalData", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerGenerateContainerIDFromExternalData), arg0, arg1)
 }
 
 // TaggerStreamEntities mocks base method.
