@@ -63,7 +63,9 @@
 // updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
-    usm_ctx->routing_skip_layers |= proto;
+    if (proto != PROTOCOL_TLS) {
+        usm_ctx->routing_skip_layers |= proto;
+    }
 }
 
 // Check if the connections is used for gRPC traffic.
@@ -149,7 +151,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
 
-    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    if (is_fully_classified(protocol_stack)) {
         return;
     }
 
@@ -160,15 +162,29 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
+    tls_record_header_t tls_hdr = {0};
+
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, &tls_hdr)) {
         protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
         if (!protocol_stack) {
             return;
         }
-        // TLS classification
+
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
-        // The connection is TLS encrypted, thus we cannot classify the protocol
-        // using the socket filter and therefore we can bail out;
+        if (tls_hdr.content_type == TLS_APPLICATION_DATA) {
+            // We can't classify TLS encrypted traffic further, so we mark the stack as fully classified
+            mark_as_fully_classified(protocol_stack);
+            return;
+        }
+
+        // Parse TLS payload
+        tls_info_t *tags = get_or_create_tls_enhanced_tags(&usm_ctx->tuple);
+        if (tags) {
+            usm_ctx->tls_header = tls_hdr;
+            // The packet is a TLS handshake, so trigger some tail calls
+            // to extract metadata from the payload
+            goto next_program;
+        }
         return;
     }
 
@@ -197,6 +213,56 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
  next_program:
+    classification_next_program(skb, usm_ctx);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_client(struct __sk_buff *skb) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
+        return;
+    }
+    tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
+    if (!tls_info) {
+        goto next_program;
+    }
+    __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    if (!is_tls_handshake_client_hello(skb, &usm_ctx->tls_header, offset)) {
+        goto next_program;
+    }
+    if (parse_client_hello(skb, offset, skb->len, tls_info) != 0) {
+        return;
+    }
+
+next_program:
+    classification_next_program(skb, usm_ctx);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_server(struct __sk_buff *skb) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
+        return;
+    }
+    tls_info_t* tls_info = get_tls_enhanced_tags(&usm_ctx->tuple);
+    if (!tls_info) {
+        goto next_program;
+    }
+    __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+    if (!is_tls_handshake_server_hello(skb, &usm_ctx->tls_header, offset)) {
+        goto next_program;
+    }
+    if (parse_server_hello(skb, offset, skb->len, tls_info) != 0) {
+        return;
+    }
+
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&usm_ctx->tuple);
+    if (!protocol_stack) {
+        return;
+    }
+    mark_as_fully_classified(protocol_stack);
+    usm_ctx->tls_header = (tls_record_header_t){0};
+    return;
+
+next_program:
     classification_next_program(skb, usm_ctx);
 }
 

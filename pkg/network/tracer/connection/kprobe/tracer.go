@@ -47,6 +47,22 @@ var (
 	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationTLSClient,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierTLSClientSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationTLSServer,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierTLSServerSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
 			Key:           netebpf.ClassificationQueues,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
@@ -90,8 +106,8 @@ var (
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
-// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
-// filter, and a tracepoint (4.7.0+)
+// The kernel has to be newer than 4.11.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
+// filter which was added in 4.11, and a tracepoint (4.7.0+)
 func ClassificationSupported(config *config.Config) bool {
 	if !config.ProtocolClassificationEnabled {
 		return false

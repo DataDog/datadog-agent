@@ -1072,7 +1072,6 @@ func (s *TracerSuite) TestDNSStats() {
 
 func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
-	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
 
 	tr := setupTracer(t, cfg)
