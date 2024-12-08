@@ -225,6 +225,7 @@ func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
 	// inner loop of Reflector.
 	// However, we add Startup when we got at least some data.
 	startupHealthCheck := health.RegisterStartup(componentName)
+	now := time.Now()
 
 	// Checked synced, in its own scope to cleanly un-reference the syncTimer
 	{
@@ -250,6 +251,6 @@ func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
 	}
 
 	// Once synced, validate startup health check
-	log.Infof("All (%d) K8S reflectors synced to workloadmeta", len(stores))
+	log.Infof("All (%d) K8S reflectors synced to workloadmeta in %s", len(stores), time.Since(now))
 	<-startupHealthCheck.C
 }
