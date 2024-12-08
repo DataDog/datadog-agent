@@ -5,8 +5,8 @@
 
 //go:build otlp
 
-// Package collectorimpl implements the collector component
-package collectorimpl
+// Package pipelineimpl implements the collector component
+package pipelineimpl
 
 import (
 	"encoding/json"

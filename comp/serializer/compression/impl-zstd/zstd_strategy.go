@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package compressionimpl provides a set of functions for compressing with zstd
-package compressionimpl
+// Package zstdimpl provides a set of functions for compressing with zstd
+package zstdimpl
 
 import (
 	"bytes"
 
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/zstd"
+
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
 // Requires contains the compression level for zstd compression
