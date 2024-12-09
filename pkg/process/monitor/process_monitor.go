@@ -487,32 +487,6 @@ func (pm *ProcessMonitor) Stop() {
 	pm.processExitCallbacksMutex.Unlock()
 }
 
-// FindDeletedProcesses returns the terminated PIDs from the given map.
-func FindDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
-	existingPids := make(map[uint32]struct{}, len(pids))
-
-	procIter := func(pid int) error {
-		if _, exists := pids[uint32(pid)]; exists {
-			existingPids[uint32(pid)] = struct{}{}
-		}
-		return nil
-	}
-	// Scanning already running processes
-	if err := kernel.WithAllProcs(kernel.ProcFSRoot(), procIter); err != nil {
-		return nil
-	}
-
-	res := make(map[uint32]struct{}, len(pids)-len(existingPids))
-	for pid := range pids {
-		if _, exists := existingPids[pid]; exists {
-			continue
-		}
-		res[pid] = struct{}{}
-	}
-
-	return res
-}
-
 // Event defines the event used by the process monitor
 type Event struct {
 	Type model.EventType

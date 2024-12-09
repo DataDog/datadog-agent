@@ -16,9 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestPodParser_Parse(t *testing.T) {
+	flake.Mark(t)
 	filterAnnotations := []string{"ignoreAnnotation"}
 
 	parser, err := NewPodParser(filterAnnotations)
