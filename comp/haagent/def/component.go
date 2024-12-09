@@ -20,7 +20,7 @@ type Component interface {
 	GetState() State
 
 	// SetLeader takes the leader agent hostname as input, if it matches the current agent hostname,
-	// the isLeader state is set to true, otherwise false.
+	// the state is set to active, otherwise standby.
 	SetLeader(leaderAgentHostname string)
 
 	// ShouldRunIntegration returns true if the integration should be run

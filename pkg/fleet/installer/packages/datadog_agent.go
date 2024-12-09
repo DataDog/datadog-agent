@@ -64,6 +64,22 @@ var (
 	}
 )
 
+// PrepareAgent prepares the machine to install the agent
+func PrepareAgent(ctx context.Context) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "prepare_agent")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	// Check if the agent has been installed by a package manager, if yes remove it
+	if !oldAgentInstalled() {
+		return nil // Nothing to do
+	}
+	err = stopOldAgentUnits(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to stop old agent units: %w", err)
+	}
+	return removeDebRPMPackage(ctx, agentPackage)
+}
+
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
@@ -74,10 +90,6 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-
-	if err = stopOldAgentUnits(ctx); err != nil {
-		return err
-	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
