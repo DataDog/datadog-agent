@@ -96,7 +96,7 @@ func (s Source) IsGreaterThan(x Source) bool {
 	return sourcesPriority[s] > sourcesPriority[x]
 }
 
-// PreviousSource returns the source before the current one, or Unknown if there isn't one
+// PreviousSource returns the source before the current one, or Default (lowest priority) if there isn't one
 func (s Source) PreviousSource() Source {
 	previous := sourcesPriority[s]
 	if previous == 0 {

@@ -262,6 +262,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 			parentNode.RemoveChild(childName)
 		} else {
 			log.Errorf("cannot remove setting %q, not a leaf", key)
+			return
 		}
 	}
 
