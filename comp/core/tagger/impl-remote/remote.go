@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package remotetaggerimpl implements a remote Tagger.
-package remotetaggerimpl
+// Package remoteimpl implements a remote Tagger.
+package remoteimpl
 
 import (
 	"context"
