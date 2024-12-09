@@ -261,7 +261,7 @@ func (hr *horizontalController) computeScaleAction(
 		}
 	}
 
-	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds)
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds, scaleDirection)
 	if stabilizationLimitReason != "" {
 		limitReason = stabilizationLimitReason
 		targetDesiredReplicas = stabilizationLimitedReplicas
@@ -479,7 +479,7 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogP
 	return
 }
 
-func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32) (int32, string) {
+func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32, scaleDirection scaleDirection) (int32, string) {
 	limitReason := ""
 
 	if len(pastActions) == 0 {
@@ -493,15 +493,15 @@ func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.Dat
 	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowDownscaleSeconds) * time.Second)
 
 	for _, a := range pastActions {
-		if a.Time.Time.After(upCutoff) {
+		if scaleDirection == scaleUp && a.Time.Time.After(upCutoff) {
 			upRecommendation = min(upRecommendation, *a.RecommendedReplicas)
 		}
 
-		if a.Time.Time.After(downCutoff) {
+		if scaleDirection == scaleDown && a.Time.Time.After(downCutoff) {
 			downRecommendation = max(downRecommendation, *a.RecommendedReplicas)
 		}
 
-		if a.Time.Time.Before(upCutoff) && a.Time.Time.Before(downCutoff) {
+		if (scaleDirection == scaleUp && a.Time.Time.Before(upCutoff)) || (scaleDirection == scaleDown && a.Time.Time.Before(downCutoff)) {
 			break
 		}
 	}

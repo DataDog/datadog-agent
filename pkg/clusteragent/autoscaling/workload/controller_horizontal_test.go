@@ -1149,6 +1149,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 		expectedReason  string
 		upscaleWindow   int32
 		downscaleWindow int32
+		scaleDirection  scaleDirection
 	}{
 		{
 			name: "no downscale stabilization - constant upscale",
@@ -1162,6 +1163,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
+			scaleDirection:  scaleUp,
 		},
 		{
 			name: "downscale stabilization",
@@ -1175,6 +1177,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 5 (originally 4) due to stabilization window",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
+			scaleDirection:  scaleDown,
 		},
 		{
 			name: "downscale stabilization, recommendation flapping",
@@ -1189,6 +1192,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 7 (originally 5) due to stabilization window",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
+			scaleDirection:  scaleDown,
 		},
 		{
 			name: "upscale stabilization",
@@ -1202,6 +1206,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 8 (originally 12) due to stabilization window",
 			upscaleWindow:   300,
 			downscaleWindow: 0,
+			scaleDirection:  scaleUp,
 		},
 		{
 			name: "upscale stabilization, recommendation flapping",
@@ -1216,12 +1221,13 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 9 (originally 12) due to stabilization window",
 			upscaleWindow:   300,
 			downscaleWindow: 0,
+			scaleDirection:  scaleUp,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recommendedReplicas, limitReason := stabilizeRecommendations(currentTime, tt.actions, tt.currentReplicas, tt.recReplicas, tt.upscaleWindow, tt.downscaleWindow)
+			recommendedReplicas, limitReason := stabilizeRecommendations(currentTime, tt.actions, tt.currentReplicas, tt.recReplicas, tt.upscaleWindow, tt.downscaleWindow, tt.scaleDirection)
 			assert.Equal(t, tt.expected, recommendedReplicas)
 			assert.Equal(t, tt.expectedReason, limitReason)
 		})
