@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -116,6 +117,11 @@ func (f *FakeTagger) LegacyTag(entity string, cardinality types.TagCardinality) 
 
 	entityID := types.NewEntityID(prefix, id)
 	return f.Tag(entityID, cardinality)
+}
+
+// GenerateContainerIDFromExternalData fake implementation
+func (f *FakeTagger) GenerateContainerIDFromExternalData(origindetection.ExternalData) (string, error) {
+	return "", nil
 }
 
 // GlobalTags fake implementation

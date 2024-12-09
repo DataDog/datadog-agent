@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -97,6 +98,12 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 		return nil, err
 	}
 	return tags.Copy(), nil
+}
+
+// GenerateContainerIDFromExternalData generates a container ID from the external data.
+// This is a no-op for the local tagger
+func (t *localTagger) GenerateContainerIDFromExternalData(_ origindetection.ExternalData) (string, error) {
+	return "", nil
 }
 
 // LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.

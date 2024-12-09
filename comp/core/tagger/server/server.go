@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -163,5 +164,21 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 		Id:          in.Id,
 		Cardinality: in.GetCardinality(),
 		Tags:        tags,
+	}, nil
+}
+
+// TaggerGenerateContainerIDFromExternalData request the generation of a container ID from external data from the Tagger.
+func (s *Server) TaggerGenerateContainerIDFromExternalData(_ context.Context, in *pb.GenerateContainerIDFromExternalDataRequest) (*pb.GenerateContainerIDFromExternalDataResponse, error) {
+	generatedContainerID, err := s.taggerComponent.GenerateContainerIDFromExternalData(origindetection.ExternalData{
+		Init:          in.Init,
+		ContainerName: in.ContainerName,
+		PodUID:        in.PodUID,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+	}
+
+	return &pb.GenerateContainerIDFromExternalDataResponse{
+		ContainerID: generatedContainerID,
 	}, nil
 }
