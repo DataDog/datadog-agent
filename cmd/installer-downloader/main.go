@@ -44,7 +44,7 @@ func main() {
 	env := env.FromEnv()
 	ctx := context.Background()
 
-	t := telemetry.NewTelemetry(env.HTTPClient(), env.APIKey, env.Site, "datadog-installer-downloader")
+	t := telemetry.NewTelemetry(env.HTTPClient(), env.APIKey, env.Site, fmt.Sprintf("datadog-installer-downloader-%s", Flavor))
 	_ = t.Start(ctx)
 	defer func() { _ = t.Stop(ctx) }()
 	var err error
