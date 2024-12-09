@@ -501,25 +501,52 @@ def update(ctx):
     print("Update complete.")
 
 
+def get_git_config(key):
+    result = subprocess.run(['git', 'config', '--get', key], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def set_git_config(key, value):
+    subprocess.run(['git', 'config', key, value])
+
+
+def revert_git_config(original_config):
+    for key, value in original_config.items():
+        if value is None:
+            subprocess.run(['git', 'config', '--unset', key])
+        else:
+            subprocess.run(['git', 'config', key, value])
+
+
 @task()
 def pull_request(ctx):
-    ctx.run('git config --global user.name "github-actions[bot]"')
-    ctx.run('git config --global user.email "github-actions[bot]@users.noreply.github.com"')
-    ctx.run('git add .')
-    if check_uncommitted_changes(ctx):
-        branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
-        ctx.run(f'git switch -c {branch_name}')
-        ctx.run(
-            f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
-        )
-        ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
-        gh = GithubAPI()
-        gh.create_pr(
-            pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
-            pr_body=f"This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.",
-            target_branch=branch_name,
-            base_branch="main",
-            draft=True,
-        )
-    else:
-        print("No changes detected, skipping PR creation.")
+    # Save current Git configuration
+    original_config = {'user.name': get_git_config('user.name'), 'user.email': get_git_config('user.email')}
+
+    try:
+        # Set new Git configuration
+        set_git_config('user.name', 'github-actions[bot]')
+        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+
+        # Perform Git operations
+        ctx.run('git add .')
+        if check_uncommitted_changes(ctx):
+            branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
+            ctx.run(f'git switch -c {branch_name}')
+            ctx.run(
+                f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
+            )
+            ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
+            gh = GithubAPI()
+            gh.create_pr(
+                pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
+                pr_body=f"This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.",
+                target_branch=branch_name,
+                base_branch="main",
+                draft=True,
+            )
+        else:
+            print("No changes detected, skipping PR creation.")
+    finally:
+        # Revert to original Git configuration
+        revert_git_config(original_config)
