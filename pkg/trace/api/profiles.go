@@ -177,7 +177,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
 	}
-	slurp, err := io.ReadAll(req.Body)
+	slurp, err := readAllReqBody(req)
 	if err != nil {
 		return nil, err
 	}
@@ -201,4 +201,23 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 	}
 	return rresp, rerr
+}
+
+func readAllReqBody(req *http.Request) ([]byte, error) {
+	// if we are not able to determine the content length
+	// we read the whole body without pre-allocation
+	if req.ContentLength <= 0 {
+		return io.ReadAll(req.Body)
+	}
+
+	// if we know the content length we pre-allocate the buffer
+	var buf bytes.Buffer
+	buf.Grow(int(req.ContentLength))
+
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
