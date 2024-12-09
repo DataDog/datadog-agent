@@ -17,6 +17,7 @@ func TestAssertTags(t *testing.T) {
 		name                 string
 		actualTags           []string
 		expectedTags         []*regexp.Regexp
+		optionalTags         []*regexp.Regexp
 		acceptUnexpectedTags bool
 		expectedOutput       string
 	}{
@@ -98,11 +99,30 @@ func TestAssertTags(t *testing.T) {
 			},
 			expectedOutput: "unexpected tags: qux:qux, quux:quux\nmissing tags: ^grault:, ^corge:",
 		},
+		{
+			name: "Optional tags",
+			actualTags: []string{
+				"foo:foo",
+				"bar:bar",
+				"baz:baz",
+				"qux:qux",
+			},
+			expectedTags: []*regexp.Regexp{
+				regexp.MustCompile(`^foo:foo$`),
+				regexp.MustCompile(`^bar:`),
+				regexp.MustCompile(`:baz$`),
+			},
+			optionalTags: []*regexp.Regexp{
+				regexp.MustCompile(`^qux:qux$`),
+				regexp.MustCompile(`^krak:krak$`),
+			},
+			expectedOutput: "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := assertTags(tt.actualTags, tt.expectedTags, tt.acceptUnexpectedTags)
+			output := assertTags(tt.actualTags, tt.expectedTags, tt.optionalTags, tt.acceptUnexpectedTags)
 			if output != nil || tt.expectedOutput != "" {
 				assert.EqualError(t, output, tt.expectedOutput)
 			}
