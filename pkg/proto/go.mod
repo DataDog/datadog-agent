@@ -10,7 +10,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tinylib/msgp v1.2.4
+	github.com/tinylib/msgp v1.2.5
 	github.com/vmihailenco/msgpack/v4 v4.3.13
 	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
 	google.golang.org/grpc v1.67.1
