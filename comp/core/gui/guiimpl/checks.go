@@ -45,6 +45,12 @@ var (
 	}
 )
 
+func init() {
+	if pkgconfigsetup.Datadog().GetString("fleet_policies_dir") != "" {
+		configPaths = append(configPaths, filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d"))
+	}
+}
+
 // Adds the specific handlers for /checks/ endpoints
 func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
