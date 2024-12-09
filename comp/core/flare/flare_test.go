@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -75,6 +76,7 @@ func TestFlareCreation(t *testing.T) {
 
 func TestRunProviders(t *testing.T) {
 	firstStarted := make(chan struct{}, 1)
+	var secondDone atomic.Bool
 
 	fakeTagger := mockTagger.SetupFakeTagger(t)
 
@@ -112,6 +114,7 @@ func TestRunProviders(t *testing.T) {
 			func() *types.FlareFiller {
 				return types.NewFiller(func(_ types.FlareBuilder) error {
 					time.Sleep(10 * time.Second)
+					secondDone.Store(true)
 					return nil
 				})
 			},
@@ -131,4 +134,5 @@ func TestRunProviders(t *testing.T) {
 	elapsed := time.Since(start)
 
 	assert.Less(t, elapsed, 5*time.Second)
+	assert.False(t, secondDone.Load())
 }
