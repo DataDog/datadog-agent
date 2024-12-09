@@ -105,18 +105,6 @@ func (p *PoliciesDirProvider) Close() error {
 	return nil
 }
 
-func filesEqual(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // NewPoliciesDirProvider returns providers for the given policies dir
 func NewPoliciesDirProvider(policiesDir string) (*PoliciesDirProvider, error) {
 	return &PoliciesDirProvider{
