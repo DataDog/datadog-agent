@@ -1024,6 +1024,7 @@ require (
 	go.opentelemetry.io/collector/processor/processorprofiles v0.115.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.114.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverprofiles v0.115.0 // indirect
+	go.opentelemetry.io/collector/scraper v0.115.0 // indirect
 	go.opentelemetry.io/contrib/config v0.10.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.56.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.7.0 // indirect
