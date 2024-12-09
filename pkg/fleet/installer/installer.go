@@ -22,10 +22,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
@@ -160,7 +160,7 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkg, err := i.downloader.Download(ctx, url)
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
@@ -168,6 +168,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if ok {
 		span.SetTag(ext.ResourceName, pkg.Name)
 		span.SetTag("package_version", pkg.Version)
+	}
+	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
@@ -203,11 +207,11 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name)
+	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name, args)
+	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -610,6 +614,15 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 		return packages.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.PromoteInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return packages.PrepareAgent(ctx)
 	default:
 		return nil
 	}

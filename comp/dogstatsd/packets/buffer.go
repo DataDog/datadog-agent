@@ -70,6 +70,13 @@ func (pb *Buffer) Append(packet *Packet) {
 	}
 }
 
+// Flush offers a thread-safe method to force a flush of the appended packets
+func (pb *Buffer) Flush() {
+	pb.m.Lock()
+	pb.flush()
+	pb.m.Unlock()
+}
+
 func (pb *Buffer) flush() {
 	if len(pb.packets) > 0 {
 		t1 := time.Now()

@@ -37,7 +37,7 @@ single-machine-performance-regression_detector:
     - mkdir outputs # Also needed for smp job sync step
     # Compute merge base of current commit and `main`
     - git fetch origin
-    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
+    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch --no-worktree)
     - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
     - echo "Merge base is ${SMP_MERGE_BASE}"
