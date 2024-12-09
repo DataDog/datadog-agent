@@ -1,31 +1,37 @@
-import glob
 import os
+from datetime import datetime
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import compute_package_size_metrics
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.package.size import (
+    PACKAGE_SIZE_TEMPLATE,
+    _get_deb_uncompressed_size,
+    _get_rpm_uncompressed_size,
+    compare,
+    compute_package_size_metrics,
+)
+from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_sizes
 
 
-def get_package_path(glob_pattern):
-    package_paths = glob.glob(glob_pattern)
-    if len(package_paths) > 1:
-        raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
-    elif len(package_paths) == 0:
-        raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
-
-    return package_paths[0]
-
-
-def _get_deb_uncompressed_size(ctx, package):
-    # the size returned by dpkg is a number of bytes divided by 1024
-    # so we multiply it back to get the same unit as RPM or stat
-    return int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs').stdout) * 1024
-
-
-def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs').stdout)
+@task
+def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
+    package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
+    if get_current_branch(ctx) == get_default_branch():
+        # Initialize to default values
+        ancestor = get_common_ancestor(ctx, get_default_branch())
+        if ancestor in package_sizes:
+            # The test already ran on this commit
+            return
+        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
+        package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
+    # Check size of packages
+    for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
+        compare(ctx, package_sizes, *package_info)
+    if get_current_branch(ctx) == get_default_branch():
+        upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
 
 
 @task
