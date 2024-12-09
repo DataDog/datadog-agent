@@ -17,6 +17,7 @@ import (
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventMonitor - Event monitor Factory
@@ -41,15 +42,16 @@ var (
 	}
 )
 
-func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) (eventmonitor.EventConsumer, error) {
+func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) error {
 	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) || usmstate.Get() != usmstate.Running {
-		return nil, nil
+		return nil
 	}
 
 	consumer, err := consumers.NewProcessConsumer(eventMonitorID, eventMonitorChannelSize, eventTypes, evm)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	monitor.InitializeEventConsumer(consumer)
-	return consumer, nil
+	log.Info("USM process monitoring consumer initialized")
+	return nil
 }
