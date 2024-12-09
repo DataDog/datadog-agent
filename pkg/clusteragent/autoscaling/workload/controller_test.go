@@ -121,10 +121,11 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 
 	// Check internal store content
 	expectedDPAInternal := model.FakePodAutoscalerInternal{
-		Namespace:  "default",
-		Name:       "dpa-0",
-		Generation: 1,
-		Spec:       &dpaSpec,
+		Namespace:                      "default",
+		Name:                           "dpa-0",
+		Generation:                     1,
+		Spec:                           &dpaSpec,
+		CustomRecommenderConfiguration: &model.RecommenderConfiguration{},
 	}
 	dpaInternal, found := f.store.Get("default/dpa-0")
 	assert.True(t, found)
