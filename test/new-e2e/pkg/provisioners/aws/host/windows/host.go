@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
 )
 
 const (
@@ -43,6 +44,7 @@ type ProvisionerParams struct {
 	activeDirectoryOptions []activedirectory.Option
 	defenderoptions        []defender.Option
 	installerOptions       []installer.Option
+	fipsModeOptions        []fipsmode.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -116,6 +118,16 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.defenderoptions = append(params.defenderoptions, opts...)
+		return nil
+	}
+}
+
+// WithFIPSModeOptions configures FIPS mode on an EC2 VM.
+//
+// Ordered before the Agent setup.
+func WithFIPSModeOptions(opts ...fipsmode.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fipsModeOptions = append(params.fipsModeOptions, opts...)
 		return nil
 	}
 }
@@ -231,6 +243,20 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		env.Installer = nil
 	}
 
+	if params.fipsModeOptions != nil {
+		fipsMode, err := fipsmode.New(awsEnv.CommonEnvironment, host, params.fipsModeOptions...)
+		if err != nil {
+			return err
+		}
+		// We want Agent setup to happen after FIPS mode setup, but only
+		// because that's the use case we are interested in.
+		// Ideally the provisioner would allow the user to specify the order of
+		// the resources.
+		params.agentOptions = append(params.agentOptions,
+			agentparams.WithPulumiResourceOptions(
+				pulumi.DependsOn(fipsMode.Resources)))
+	}
+
 	return nil
 }
 
@@ -243,6 +269,7 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		fakeintakeOptions:  []fakeintake.Option{},
 		// Disable Windows Defender on VMs by default
 		defenderoptions: []defender.Option{defender.WithDefenderDisabled()},
+		fipsModeOptions: []fipsmode.Option{},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
