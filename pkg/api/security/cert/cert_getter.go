@@ -118,8 +118,8 @@ func saveIPCCertKey(cert, key []byte, dest string) (err error) {
 		return err
 	}
 
-	if err := perms.RestrictAccessToUser(dest + ".key"); err != nil {
-		log.Errorf("Failed to write IPC key file %s", err)
+	if err := perms.RestrictAccessToUser(dest); err != nil {
+		log.Errorf("Failed to set IPC cert permissions: %s", err)
 		return err
 	}
 
