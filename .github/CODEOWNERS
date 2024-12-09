@@ -25,7 +25,7 @@
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
-/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/container-ecosystems
 
 /*.md                                   @DataDog/agent-devx-infra @DataDog/documentation
 /NOTICE                                 @DataDog/agent-delivery @DataDog/documentation
@@ -50,20 +50,19 @@
 
 /.circleci/                             @DataDog/agent-devx-infra
 
-/.github/CODEOWNERS                                  # do not notify anyone
-/.github/*_TEMPLATE.md                               @DataDog/agent-devx-loops
-/.github/dependabot.yaml                             @DataDog/agent-devx-infra
-/.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-integration.yml        @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
-/.github/workflows/gohai.yml                         @DataDog/agent-shared-components
-/.github/workflows/go-update-commenter.yml           @DataDog/agent-shared-components
-/.github/workflows/buildimages-update.yml            @DataDog/agent-delivery @DataDog/agent-shared-components
-/.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry
+/.github/CODEOWNERS                                 # do not notify anyone
+/.github/*_TEMPLATE.md                              @DataDog/agent-devx-loops
+/.github/dependabot.yaml                            @DataDog/agent-devx-infra
+/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-binary-size.yml       @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-integration.yml       @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
+/.github/workflows/gohai.yml                        @DataDog/agent-shared-components
+/.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
+/.github/workflows/buildimages-update.yml           @DataDog/agent-delivery @DataDog/agent-shared-components
 
-/.run                                                @DataDog/agent-devx-loops
-/.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
+/.run                                               @DataDog/agent-devx-loops
+/.run/docker/                                       @DataDog/container-integrations @DataDog/container-platform
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx-infra or agent-delivery
@@ -92,7 +91,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx-infra
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx-infra @DataDog/agent-delivery
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx-infra
-/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery
+/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery @DataDog/container-ecosystems
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx-infra @DataDog/agent-metrics-logs
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx-infra
 /.gitlab/integration_test/linux.yml                  @DataDog/agent-devx-infra
@@ -572,7 +571,6 @@
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/winbuild.py                      @DataDog/windows-agent
 /tasks/windows_resources.py             @DataDog/windows-agent
-/tasks/collector.py                     @DataDog/opentelemetry
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/libs/ciproviders/                @DataDog/agent-devx-infra
