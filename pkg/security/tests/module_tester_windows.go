@@ -240,7 +240,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
