@@ -44,5 +44,5 @@
 '@datadog/agent-devx-infra': '#agent-devx-ops'
 '@datadog/agent-devx-loops': '#agent-devx-ops'
 '@datadog/apm-onboarding': '#apm-onboarding'
-'@datadog/apm-reliability-and-performance': '#apm-ecosystems-reliability'
+'@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
 '@DataDog/container-ecosystems': '#container-ecosystems-ops'
