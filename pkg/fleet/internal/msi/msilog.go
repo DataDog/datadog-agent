@@ -26,6 +26,8 @@ type line struct {
 // FindAllIndexWithContext is similar to FindAllIndex but expands the matched range for a number of lines
 // before and after the line (called contextBefore and contextAfter).
 func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, contextAfter int) []line {
+	contextBefore = max(contextBefore, 0)
+	contextAfter = max(contextAfter, 0)
 	var extractedRanges []line
 	results := r.FindAllIndex(input, -1)
 	for _, result := range results {
@@ -85,14 +87,6 @@ func insert(existingRanges, newRanges []line) []line {
 	}
 
 	return merged
-}
-
-// max returns the maximum of two integers.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // Combine processes input using multiple logFileProcessors and merges their output ranges.

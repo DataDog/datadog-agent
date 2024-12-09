@@ -205,6 +205,14 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// 	Action ended 2:11:49: InstallFinalize. Return value 3.
 			// The important context is the line after the error ("Return value 3") but the previous lines can include some useful information too
 			return FindAllIndexWithContext(regexp.MustCompile("returned actual error"), bytes, 5, 1)
+		},
+		func(bytes []byte) []line {
+			// Typically looks like this:
+			//   Action 12:24:00: InstallServices. Installing new services
+			//   InstallServices: Service:
+			//   Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
+			//   MSI (s) (54:EC) [12:25:53:886]: Product: Datadog Agent -- Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
+			return FindAllIndexWithContext(regexp.MustCompile("Verify that you have sufficient privileges to install system services"), bytes, 2, 1)
 		})
 }
 

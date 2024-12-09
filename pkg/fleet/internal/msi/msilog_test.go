@@ -20,6 +20,7 @@ import (
 //go:embed missing_password_for_dc.log
 //go:embed file_in_use.log
 //go:embed invalid_credentials.log
+//go:embed service_marked_for_deletion.log
 var logFilesFS embed.FS
 
 func TestFindAllIndexWithContext(t *testing.T) {
@@ -45,6 +46,26 @@ Action ended 2:10:56: PrepareDecompressPythonDistributions. Return value 1.`,
 Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.StartDDServices
 CustomAction WixFailWhenDeferred returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)
 Action ended 2:11:49: InstallFinalize. Return value 3.`,
+	}
+	for i, expectedMatch := range expectedMatches {
+		text := strings.ReplaceAll(string(decodedLogsBytes[matches[i].start:matches[i].end]), "\r", "")
+		require.Equal(t, expectedMatch, text)
+	}
+}
+
+func TestFindAllIndexWithContextOutOfRangeDoesntFail(t *testing.T) {
+	data, err := logFilesFS.ReadFile("wixfailwhendeferred.log")
+	require.NoError(t, err)
+
+	r := regexp.MustCompile("returned actual error")
+	decodedLogsBytes, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder().Bytes(data)
+	require.NoError(t, err)
+
+	matches := FindAllIndexWithContext(r, decodedLogsBytes, -21, -1435)
+	expectedMatches := []string{
+		`CustomAction WixRemoveFoldersEx returned actual error code 1603 but will be translated to success due to continue marking`,
+		`CustomAction PrepareDecompressPythonDistributions returned actual error code 1603 but will be translated to success due to continue marking`,
+		`CustomAction WixFailWhenDeferred returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)`,
 	}
 	for i, expectedMatch := range expectedMatches {
 		text := strings.ReplaceAll(string(decodedLogsBytes[matches[i].start:matches[i].end]), "\r", "")
@@ -309,6 +330,51 @@ CA: 01:50:49: StartDDServices. Failed to start services: System.InvalidOperation
    at Datadog.CustomActions.Native.ServiceController.StartService(String serviceName, TimeSpan timeout)
    at Datadog.CustomActions.ServiceCustomAction.StartDDServices()
 Action ended 1:50:49: InstallFinalize. Return value 1.
+
+`,
+		},
+		"Service marked for deletion": {
+			input: "service_marked_for_deletion.log",
+			expected: `--- 1546:2037
+Action ended 6:11:36: LaunchConditions. Return value 1.
+Action start 6:11:36: ValidateProductID.
+Action ended 6:11:36: ValidateProductID. Return value 1.
+Action start 6:11:36: WixRemoveFoldersEx.
+WixRemoveFoldersEx:  Error 0x80070057: Missing folder property: dd_PROJECTLOCATION_0 for row: RemoveFolderEx
+CustomAction WixRemoveFoldersEx returned actual error code 1603 but will be translated to success due to continue marking
+Action ended 6:11:36: WixRemoveFoldersEx. Return value 1.
+
+--- 6876:7497
+Action start 6:11:38: PrepareDecompressPythonDistributions.
+SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSI7CB7.tmp-\
+SFXCA: Binding to CLR version v4.0.30319
+Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.PrepareDecompressPythonDistributions
+CA: 06:11:39: PrepareDecompressPythonDistributions. Could not set the progress bar size
+CustomAction PrepareDecompressPythonDistributions returned actual error code 1603 but will be translated to success due to continue marking
+Action ended 6:11:39: PrepareDecompressPythonDistributions. Return value 1.
+
+--- 16762:17181
+CA: 06:12:16: AddUser. ddagentuser already exists, not creating
+CA: 06:12:16: GetPreviousAgentUser. Could not find previous agent user: System.Exception: Agent user information is not in registry
+   at Datadog.CustomActions.InstallStateCustomActions.GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
+CA: 06:12:16: ConfigureUser. Resetting ddagentuser password.
+
+--- 19832:20285
+  }
+]
+MSI (s) (B4:24) [06:12:21:764]: Product: Datadog Agent -- Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
+
+Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
+SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSI2787.tmp-\
+
+--- 20286:20851
+SFXCA: Binding to CLR version v4.0.30319
+Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.EnsureNpmServiceDependency
+ExecServiceConfig:  Error 0x80070430: Cannot change service configuration. Error: The specified service has been marked for deletion.
+
+ExecServiceConfig:  Error 0x80070430: Failed to configure service: datadogagent
+CustomAction ExecServiceConfig returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)
+Action ended 6:12:22: InstallFinalize. Return value 3.
 
 `,
 		},
