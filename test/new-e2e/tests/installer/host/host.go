@@ -143,7 +143,7 @@ func (h *Host) DeletePath(path string) {
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
 		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
@@ -151,7 +151,7 @@ func (h *Host) WaitForUnitActive(units ...string) {
 // WaitForUnitActivating waits for a systemd unit to be activating
 func (h *Host) WaitForUnitActivating(units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
 		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 
 	}
@@ -253,7 +253,9 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
 		case "apt":
-			h.remote.MustExecute("! dpkg-query -l " + pkg)
+			// If a package is removed but not purged, it will be in the "rc" state (opposed to "ii" for installed)
+			// if it's been purged, the command will return an error
+			h.remote.MustExecute(fmt.Sprintf("dpkg-query -l %[1]s | grep '^rc' || ! dpkg-query -l %[1]s", pkg))
 		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
@@ -647,7 +649,7 @@ func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, gro
 func (s *State) AssertPathDoesNotExist(path string) {
 	path = evalSymlinkPath(path, s.FS)
 	_, ok := s.FS[path]
-	assert.False(s.t, ok, "something exists at path", path)
+	assert.False(s.t, ok, "something exists at path %s", path)
 }
 
 // AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.

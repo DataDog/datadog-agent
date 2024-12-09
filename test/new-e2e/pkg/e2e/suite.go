@@ -281,6 +281,8 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		return nil
 	}
 
+	bs.T().Logf("Updating environment with new provisioners")
+
 	logger := newTestLogger(bs.T())
 	ctx, cancel := bs.providerContext(createTimeout)
 	defer cancel()
@@ -293,6 +295,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 	// Check for removed provisioners, we need to call delete on them first
 	for id, provisioner := range bs.currentProvisioners {
 		if _, found := targetProvisioners[id]; !found {
+			bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, logger); err != nil {
 				return fmt.Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
@@ -305,6 +308,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		var provisionerResources RawResources
 		var err error
 
+		bs.T().Logf("Provisioning environment stack %s with provisioner %s", bs.params.stackName, id)
 		switch pType := provisioner.(type) {
 		case TypedProvisioner[Env]:
 			provisionerResources, err = pType.ProvisionEnv(ctx, bs.params.stackName, logger, newEnv)
@@ -375,7 +379,7 @@ func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Va
 
 		importKeyFromTag := field.Tag.Get(importKey)
 		isImportable := field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-		isPtrImportable := reflect.PtrTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
+		isPtrImportable := reflect.PointerTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
 
 		// Produce meaningful error in case we have an importKey but field is not importable
 		if importKeyFromTag != "" && !isImportable {

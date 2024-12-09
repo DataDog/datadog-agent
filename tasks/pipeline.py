@@ -19,8 +19,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
@@ -94,7 +93,7 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
 
 
 @task
-def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
+def clean_running_pipelines(ctx, git_ref=None, here=False, use_latest_sha=False, sha=None):
     """
     Fetch running pipelines on a target ref (+ optionally a git sha), and ask the user if they
     should be cancelled.
@@ -104,6 +103,8 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
 
     if here:
         git_ref = get_current_branch(ctx)
+    else:
+        git_ref = git_ref or get_default_branch()
 
     print(f"Fetching running pipelines on {git_ref}")
 
@@ -130,11 +131,12 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
+def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
 
+    git_ref = git_ref or get_default_branch()
     use_release_entries = ""
     major_versions = []
 
@@ -829,16 +831,16 @@ def test_merge_queue(ctx):
     # Create a new main and push it
     print("Creating a new main branch")
     timestamp = int(datetime.now(timezone.utc).timestamp())
-    test_main = f"mq/test_{timestamp}"
+    test_default = f"mq/test_{timestamp}"
     current_branch = get_current_branch(ctx)
-    ctx.run("git checkout main", hide=True)
+    ctx.run(f"git checkout {get_default_branch()}", hide=True)
     ctx.run("git pull", hide=True)
-    ctx.run(f"git checkout -b {test_main}", hide=True)
-    ctx.run(f"git push origin {test_main}", hide=True)
+    ctx.run(f"git checkout -b {test_default}", hide=True)
+    ctx.run(f"git push origin {test_default}", hide=True)
     # Create a PR towards this new branch and adds it to the merge queue
     print("Creating a PR and adding it to the merge queue")
     gh = GithubAPI()
-    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_main, current_branch)
+    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_default, current_branch)
     pr.create_issue_comment("/merge")
     # Search for the generated pipeline
     print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
@@ -848,7 +850,7 @@ def test_merge_queue(ctx):
         time.sleep(30)
         pipelines = agent.pipelines.list(per_page=100)
         try:
-            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_main}"))
+            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_default}"))
             print(f"Pipeline found: {pipeline.web_url}")
             break
         except StopIteration as e:
@@ -866,8 +868,8 @@ def test_merge_queue(ctx):
         pipeline.cancel()
     pr.edit(state="closed")
     ctx.run(f"git checkout {current_branch}", hide=True)
-    ctx.run(f"git branch -D {test_main}", hide=True)
-    ctx.run(f"git push origin :{test_main}", hide=True)
+    ctx.run(f"git branch -D {test_default}", hide=True)
+    ctx.run(f"git push origin :{test_default}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
 

@@ -79,7 +79,7 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_as_resource_name_enabled", spanNameAsResourceNameEnabledVal, nil, 1)
 	spanNameRemappingsEnabledVal := 0.0
-	if cfg.OTLPReceiver.SpanNameRemappings != nil && len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
+	if len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
 		if operationAndResourceNamesV2GateEnabled {
 			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
 		} else {
@@ -549,6 +549,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		transform.SetMetaOTLP(span, "events", transform.MarshalEvents(in.Events()))
 	}
+	transform.TagSpanIfContainsExceptionEvent(in, span)
 	if in.Links().Len() > 0 {
 		transform.SetMetaOTLP(span, "_dd.span_links", transform.MarshalLinks(in.Links()))
 	}
