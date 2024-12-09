@@ -12,7 +12,6 @@ from invoke.exceptions import Exit
 
 from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
-    cancel_pipeline,
     compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
@@ -312,16 +311,6 @@ def compute_gitlab_ci_config(
     Side effects:
         before_file, after_file and diff_file will be written with the corresponding configuration.
     """
-
-    # TODO
-    from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-
-    pipeline = get_gitlab_repo().pipelines.get(os.environ['CI_PIPELINE_ID'])
-    print('Cancel')
-    cancel_pipeline(pipeline)
-    print('Done')
-
-    raise Exit(code=1)
 
     before_config, after_config, diff = compute_gitlab_ci_config_diff(ctx, before, after)
 
