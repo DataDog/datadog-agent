@@ -326,6 +326,7 @@ func TestMonitor(t *testing.T) {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	lib := getLibSSLPath(t)
@@ -823,7 +824,7 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 
 type SharedLibrarySuite struct {
 	suite.Suite
-	procMonitor ProcessMonitor
+	procMonitor *processMonitorProxy
 }
 
 func TestAttacherSharedLibrary(t *testing.T) {
@@ -838,14 +839,25 @@ func TestAttacherSharedLibrary(t *testing.T) {
 
 		tt.Run("netlink", func(ttt *testing.T) {
 			processMonitor := launchProcessMonitor(ttt, false)
-			suite.Run(ttt, &SharedLibrarySuite{procMonitor: processMonitor})
+
+			// Use a proxy so we can manually trigger events in case of misses
+			procmonObserver := newProcessMonitorProxy(processMonitor)
+			suite.Run(ttt, &SharedLibrarySuite{procMonitor: procmonObserver})
 		})
 
 		tt.Run("event stream", func(ttt *testing.T) {
 			processMonitor := launchProcessMonitor(ttt, true)
-			suite.Run(ttt, &SharedLibrarySuite{procMonitor: processMonitor})
+
+			// Use a proxy so we can manually trigger events in case of misses
+			procmonObserver := newProcessMonitorProxy(processMonitor)
+			suite.Run(ttt, &SharedLibrarySuite{procMonitor: procmonObserver})
 		})
 	})
+}
+
+func (s *SharedLibrarySuite) SetupTest() {
+	// Reset callbacks
+	s.procMonitor.Reset()
 }
 
 func (s *SharedLibrarySuite) TestSingleFile() {
@@ -872,6 +884,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -898,16 +911,31 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 		3, 10*time.Millisecond, 500*time.Millisecond, "did not catch process running, received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
-
 	mockRegistry.Calls = nil
-	require.NoError(t, cmd.Process.Kill())
 
-	require.Eventually(t, func() bool {
-		// Other processes might have finished and forced the Unregister call to the registry
-		return methodHasBeenCalledWithPredicate(mockRegistry, "Unregister", func(call mock.Call) bool {
-			return call.Arguments[0].(uint32) == uint32(cmd.Process.Pid)
-		})
-	}, time.Second*10, 200*time.Millisecond, "received calls %v", mockRegistry.Calls)
+	// The ideal path would be that the process monitor sends an exit event for
+	// the process as it's killed. However, sometimes these events are missed
+	// and the callbacks aren't called. Unlike the "Process launch" event, we
+	// cannot recreate the process exit, which would be the ideal solution to
+	// ensure we're testing the correct behavior (including any
+	// filters/callbacks on the process monitor). Instead, we manually trigger
+	// the exit event for the process using the processMonitorProxy, which
+	// should replicate the same codepath.
+	waitAndRetryIfFail(t,
+		func() {
+			require.NoError(t, cmd.Process.Kill())
+		},
+		func() bool {
+			return methodHasBeenCalledWithPredicate(mockRegistry, "Unregister", func(call mock.Call) bool {
+				return call.Arguments[0].(uint32) == uint32(cmd.Process.Pid)
+			})
+		},
+		func(testSuccess bool) {
+			if !testSuccess {
+				// If the test failed once, manually trigger the exit event
+				s.procMonitor.triggerExit(uint32(cmd.Process.Pid))
+			}
+		}, 2, 10*time.Millisecond, 500*time.Millisecond, "attacher did not correctly handle exit events received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Unregister", uint32(cmd.Process.Pid))
 }
@@ -950,6 +978,7 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 

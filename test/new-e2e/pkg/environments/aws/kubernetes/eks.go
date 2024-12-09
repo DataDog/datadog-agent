@@ -142,9 +142,11 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
-		// dogstatsd clients that report to the dogstatsd standalone deployment
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(cluster)); err != nil {
-			return err
+		if params.deployDogstatsd {
+			// dogstatsd clients that report to the dogstatsd standalone deployment
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(cluster)); err != nil {
+				return err
+			}
 		}
 
 		if _, err := tracegen.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-tracegen", utils.PulumiDependsOn(cluster)); err != nil {

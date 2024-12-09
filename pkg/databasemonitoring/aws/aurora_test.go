@@ -223,7 +223,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns single endpoint from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -238,6 +238,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBName:                           aws.String("postgres"),
 						},
 					},
+				}, nil).Times(1)
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{},
 				}, nil).Times(1)
 			},
 			clusterIDs: []string{"test-cluster", "test-cluster-2"},
@@ -258,7 +261,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns many endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -284,6 +287,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Engine:                           aws.String("aurora-postgresql"),
 							DBName:                           aws.String("postgres"),
 						},
+					},
+				}, nil).Times(1)
+
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),

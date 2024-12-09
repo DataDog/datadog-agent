@@ -140,6 +140,54 @@ func TestInjectAgentSidecar(t *testing.T) {
 			},
 		},
 		{
+			Name: "should inject sidecar if no sidecar present, no provider set, owned by Job",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "batch/v1",
+							Kind:       "Job",
+						},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+					},
+				},
+			},
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
+			ExpectedPodAfterInjection: func() *corev1.Pod {
+				defaultContainer := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				// Update envvar when pod owned by Job
+				defaultContainer.Env = append(defaultContainer.Env, corev1.EnvVar{
+					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
+					Value: "true",
+				})
+				return &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-name",
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "batch/v1",
+								Kind:       "Job",
+							},
+						},
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Name: "container-name"},
+							defaultContainer,
+						},
+					},
+				}
+			},
+		},
+		{
 			Name: "should inject sidecar if no sidecar present, with supported provider",
 			Pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{

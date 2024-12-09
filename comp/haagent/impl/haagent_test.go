@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -56,17 +57,19 @@ func Test_GetGroup(t *testing.T) {
 	assert.Equal(t, "my-group-01", haAgent.GetGroup())
 }
 
-func Test_IsLeader_SetLeader(t *testing.T) {
+func Test_GetState(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
 	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
 
+	assert.Equal(t, haagent.Unknown, haAgent.GetState())
+
 	haAgent.SetLeader("another-agent")
-	assert.False(t, haAgent.IsLeader())
+	assert.Equal(t, haagent.Standby, haAgent.GetState())
 
 	haAgent.SetLeader("my-agent-hostname")
-	assert.True(t, haAgent.IsLeader())
+	assert.Equal(t, haagent.Active, haAgent.GetState())
 }
 
 func Test_RCListener(t *testing.T) {
@@ -166,6 +169,83 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			h.onHaAgentUpdate(tt.updates, applyFunc)
 			assert.Equal(t, tt.expectedApplyID, applyID)
 			assert.Equal(t, tt.expectedApplyStatus, applyStatus)
+		})
+	}
+}
+
+func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
+	testAgentHostname := "my-agent-hostname"
+	tests := []struct {
+		name                       string
+		leader                     string
+		agentConfigs               map[string]interface{}
+		expectShouldRunIntegration map[string]bool
+	}{
+		{
+			name: "ha agent enabled and agent is leader",
+			// should run HA-integrations
+			// should run "non HA integrations"
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader: testAgentHostname,
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                true,
+				"cisco_aci":           true,
+				"cisco_sdwan":         true,
+				"network_path":        true,
+				"unknown_integration": true,
+				"cpu":                 true,
+			},
+		},
+		{
+			name: "ha agent enabled and agent is not active",
+			// should skip HA-integrations
+			// should run "non HA integrations"
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": true,
+				"ha_agent.group":   testGroup,
+			},
+			leader: "another-agent-is-active",
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                false,
+				"cisco_aci":           false,
+				"cisco_sdwan":         false,
+				"network_path":        false,
+				"unknown_integration": true,
+				"cpu":                 true,
+			},
+		},
+		{
+			name: "ha agent not enabled",
+			// should run all integrations
+			agentConfigs: map[string]interface{}{
+				"hostname":         testAgentHostname,
+				"ha_agent.enabled": false,
+				"ha_agent.group":   testGroup,
+			},
+			leader: testAgentHostname,
+			expectShouldRunIntegration: map[string]bool{
+				"snmp":                true,
+				"cisco_aci":           true,
+				"cisco_sdwan":         true,
+				"network_path":        true,
+				"unknown_integration": true,
+				"cpu":                 true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
+			haAgent.Comp.SetLeader(tt.leader)
+
+			for integrationName, shouldRun := range tt.expectShouldRunIntegration {
+				assert.Equalf(t, shouldRun, haAgent.Comp.ShouldRunIntegration(integrationName), "fail for integration: "+integrationName)
+			}
 		})
 	}
 }

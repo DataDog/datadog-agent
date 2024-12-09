@@ -320,6 +320,9 @@ type AgentConfig struct {
 	ProbabilisticSamplerHashSeed           uint32
 	ProbabilisticSamplerSamplingPercentage float32
 
+	// Error Tracking Standalone
+	ErrorTrackingStandalone bool
+
 	// Receiver
 	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
 	ReceiverHost    string
@@ -457,6 +460,10 @@ type AgentConfig struct {
 	// Azure container apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
+
+	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
+	// Function will be nil if in an environment without an auth token
+	GetAgentAuthToken func() string `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -501,6 +508,8 @@ func New() *AgentConfig {
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
+
+		ErrorTrackingStandalone: false,
 
 		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
