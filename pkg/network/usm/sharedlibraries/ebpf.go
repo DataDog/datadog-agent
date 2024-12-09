@@ -107,6 +107,11 @@ type EbpfProgram struct {
 	// otherwise used to check if the program needs to be stopped and re-started
 	// when adding new libsets
 	isInitialized bool
+
+	// enabledProbes is a list of the probes that are enabled for the current system.
+	enabledProbes []manager.ProbeIdentificationPair
+	// disabledProbes is a list of the probes that are disabled for the current system.
+	disabledProbes []manager.ProbeIdentificationPair
 }
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
@@ -198,8 +203,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		handler.perfHandler = perfHandler
 	}
 
-	probeIDs := getSysOpenHooksIdentifiers()
-	for _, identifier := range probeIDs {
+	e.initializedProbes()
+	for _, identifier := range e.enabledProbes {
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{
 				ProbeIdentificationPair: identifier,
@@ -485,12 +490,15 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		Max: math.MaxUint64,
 	}
 
-	for _, probe := range e.Probes {
+	for _, probe := range e.enabledProbes {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: probe.ProbeIdentificationPair,
+				ProbeIdentificationPair: probe,
 			},
 		)
+	}
+	for _, probe := range e.disabledProbes {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.EBPFFuncName)
 	}
 
 	var enabledMsgs []string
@@ -541,7 +549,6 @@ func (e *EbpfProgram) initPrebuilt() error {
 
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-
 	if err == nil && len(missing) == 0 {
 		return true
 	}
@@ -558,27 +565,37 @@ func sysOpenAt2Supported() bool {
 
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
 // system calls.
-func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
-	openatProbes := []string{openatSysCall}
-	if sysOpenAt2Supported() {
-		openatProbes = append(openatProbes, openat2SysCall)
+func (e *EbpfProgram) initializedProbes() {
+	advancedProbes := []manager.ProbeIdentificationPair{
+		{
+			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
+			UID:          probeUID,
+		},
 	}
+
+	openatProbes := []string{openatSysCall}
 	// amd64 has open(2), arm64 doesn't
 	if runtime.GOARCH == "amd64" {
 		openatProbes = append(openatProbes, openSysCall)
 	}
 
-	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
+	oldProbes := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
-			res = append(res, manager.ProbeIdentificationPair{
+			oldProbes = append(oldProbes, manager.ProbeIdentificationPair{
 				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
 				UID:          probeUID,
 			})
 		}
 	}
 
-	return res
+	if sysOpenAt2Supported() {
+		e.enabledProbes = advancedProbes
+		e.disabledProbes = oldProbes
+	} else {
+		e.enabledProbes = oldProbes
+		e.disabledProbes = advancedProbes
+	}
 }
 
 func getAssetName(module string, debug bool) string {
