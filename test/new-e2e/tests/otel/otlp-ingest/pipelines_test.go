@@ -43,7 +43,7 @@ agents:
           value: 'true'
 `
 	t.Parallel()
-	e2e.Run(t, &otlpIngestTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
 }
 
 var otlpIngestParams = utils.IAParams{

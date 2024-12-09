@@ -172,7 +172,7 @@ var expectedFindingsWorkerNode = findings{
 var values string
 
 func TestCSPM(t *testing.T) {
-	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithoutDualShipping()))))
+	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
 }
 
 func (s *cspmTestSuite) TestFindings() {
