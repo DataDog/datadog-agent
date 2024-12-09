@@ -217,6 +217,7 @@ def generate_protobuf(ctx):
         'workloadmeta': (False, False),
         'languagedetection': (False, False),
         'remoteagent': (False, False),
+        'autodiscovery': (False, False),
     }
 
     # maybe put this in a separate function
