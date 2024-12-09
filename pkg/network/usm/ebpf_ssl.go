@@ -8,36 +8,22 @@
 package usm
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
-	"strconv"
-	"strings"
-	"time"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -69,6 +55,9 @@ const (
 	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
 	gnutlsByeProbe              = "uprobe__gnutls_bye"
 	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
+
+	// UsmTLSAttacherName holds the name used for the uprobe attacher of tls programs. Used for tests.
+	UsmTLSAttacherName = "usm_tls"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -420,7 +409,7 @@ var opensslSpec = &protocols.ProtocolSpec{
 
 type sslProgram struct {
 	cfg           *config.Config
-	watcher       *sharedlibraries.Watcher
+	attacher      *uprobes.UprobeAttacher
 	istioMonitor  *istioMonitor
 	nodeJSMonitor *nodeJSMonitor
 }
@@ -432,32 +421,42 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 		}
 
 		var (
-			watcher *sharedlibraries.Watcher
-			err     error
+			attacher *uprobes.UprobeAttacher
+			err      error
 		)
 
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libssl.so`),
-					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
-					UnregisterCB: removeHooks(m, openSSLProbes),
+			rules := []*uprobes.AttachRule{
+				{
+					Targets:          uprobes.AttachToSharedLibraries,
+					ProbesSelector:   openSSLProbes,
+					LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 				},
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libcrypto.so`),
-					RegisterCB:   addHooks(m, procRoot, cryptoProbes),
-					UnregisterCB: removeHooks(m, cryptoProbes),
+				{
+					Targets:          uprobes.AttachToSharedLibraries,
+					ProbesSelector:   cryptoProbes,
+					LibraryNameRegex: regexp.MustCompile(`libcrypto.so`),
 				},
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libgnutls.so`),
-					RegisterCB:   addHooks(m, procRoot, gnuTLSProbes),
-					UnregisterCB: removeHooks(m, gnuTLSProbes),
+				{
+					Targets:          uprobes.AttachToSharedLibraries,
+					ProbesSelector:   gnuTLSProbes,
+					LibraryNameRegex: regexp.MustCompile(`libgnutls.so`),
 				},
-			)
+			}
+			attacherConfig := uprobes.AttacherConfig{
+				ProcRoot:                       procRoot,
+				Rules:                          rules,
+				ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+				EbpfConfig:                     &c.Config,
+				PerformInitialScan:             true,
+				EnablePeriodicScanNewProcesses: false,
+			}
+
+			attacher, err = uprobes.NewUprobeAttacher(UsmTLSAttacherName, attacherConfig, m, nil, &uprobes.NativeBinaryInspector{})
 			if err != nil {
-				return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+				return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)
 			}
 		}
 
@@ -468,7 +467,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 
 		return &sslProgram{
 			cfg:           c,
-			watcher:       watcher,
+			attacher:      attacher,
 			istioMonitor:  newIstioMonitor(c, m),
 			nodeJSMonitor: nodejs,
 		}, nil
@@ -490,7 +489,12 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
-	o.watcher.Start()
+	if o.attacher != nil {
+		err := o.attacher.Start()
+		if err != nil {
+			return err
+		}
+	}
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -503,7 +507,9 @@ func (o *sslProgram) PostStart(*manager.Manager) error {
 
 // Stop stops the program.
 func (o *sslProgram) Stop(*manager.Manager) {
-	o.watcher.Stop()
+	if o.attacher != nil {
+		o.attacher.Stop()
+	}
 	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
 }
@@ -562,206 +568,6 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 // GetStats returns the latest monitoring stats from a protocol implementation.
 func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
-}
-
-const (
-	// Defined in https://man7.org/linux/man-pages/man5/proc.5.html.
-	taskCommLen = 16
-)
-
-var (
-	taskCommLenBufferPool = ddsync.NewSlicePool[byte](taskCommLen, taskCommLen)
-)
-
-func isContainerdTmpMount(path string) bool {
-	return strings.Contains(path, "tmpmounts/containerd-mount")
-}
-
-func isBuildKit(procRoot string, pid uint32) bool {
-	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		// Waiting a bit, as we might get the event of process creation before the directory was created.
-		for i := 0; i < 30; i++ {
-			time.Sleep(1 * time.Millisecond)
-			// reading again.
-			file, err = os.Open(filePath)
-			if err == nil {
-				break
-			}
-		}
-	}
-	if err != nil {
-		return false
-	}
-	defer file.Close()
-
-	buf := taskCommLenBufferPool.Get()
-	defer taskCommLenBufferPool.Put(buf)
-	n, err := file.Read(*buf)
-	if err != nil {
-		// short living process can hit here, or slow start of another process.
-		return false
-	}
-	return bytes.Equal(bytes.TrimSpace((*buf)[:n]), buildKitProcessName)
-}
-
-func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelector) func(utils.FilePath) error {
-	return func(fpath utils.FilePath) error {
-		if isBuildKit(procRoot, fpath.PID) {
-			return fmt.Errorf("%w: process %d is buildkitd, skipping", utils.ErrEnvironment, fpath.PID)
-		} else if isContainerdTmpMount(fpath.HostPath) {
-			return fmt.Errorf("%w: path %s from process %d is tempmount of containerd, skipping", utils.ErrEnvironment, fpath.HostPath, fpath.PID)
-		}
-
-		uid := getUID(fpath.ID)
-
-		elfFile, err := safeelf.Open(fpath.HostPath)
-		if err != nil {
-			return err
-		}
-		defer elfFile.Close()
-
-		// This only allows amd64 and arm64 and not the 32-bit variants, but that
-		// is fine since we don't monitor 32-bit applications at all in the shared
-		// library watcher since compat syscalls aren't supported by the syscall
-		// trace points.  We do actually monitor 32-bit applications for istio and
-		// nodejs monitoring, but our uprobe hooks only properly support 64-bit
-		// applications, so there's no harm in rejecting 32-bit applications here.
-		arch, err := bininspect.GetArchitecture(elfFile)
-		if err != nil {
-			return err
-		}
-
-		// Ignore foreign architectures.  This can happen when running stuff under
-		// qemu-user, for example, and installing a uprobe will lead to segfaults
-		// since the foreign instructions will be patched with the native break
-		// instruction.
-		if string(arch) != runtime.GOARCH {
-			return fmt.Errorf("unspported architecture: %s", arch)
-		}
-
-		symbolsSet := make(common.StringSet)
-		symbolsSetBestEffort := make(common.StringSet)
-		for _, singleProbe := range probes {
-			_, isBestEffort := singleProbe.(*manager.BestEffort)
-			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
-				_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
-				if !ok {
-					continue
-				}
-				if isBestEffort {
-					symbolsSetBestEffort[symbol] = struct{}{}
-				} else {
-					symbolsSet[symbol] = struct{}{}
-				}
-			}
-		}
-		symbolMap, err := bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSet)
-		if err != nil {
-			return err
-		}
-		/* Best effort to resolve symbols, so we don't care about the error */
-		symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSetBestEffort)
-
-		for _, singleProbe := range probes {
-			_, isBestEffort := singleProbe.(*manager.BestEffort)
-			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
-				identifier := manager.ProbeIdentificationPair{
-					EBPFFuncName: selector.EBPFFuncName,
-					UID:          uid,
-				}
-				singleProbe.EditProbeIdentificationPair(selector, identifier)
-				probe, found := m.GetProbe(identifier)
-				if found {
-					if !probe.IsRunning() {
-						err := probe.Attach()
-						if err != nil {
-							return err
-						}
-					}
-
-					continue
-				}
-
-				_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
-				if !ok {
-					continue
-				}
-
-				sym := symbolMap[symbol]
-				if isBestEffort {
-					sym, found = symbolMapBestEffort[symbol]
-					if !found {
-						continue
-					}
-				}
-				manager.SanitizeUprobeAddresses(elfFile.File, []safeelf.Symbol{sym})
-				offset, err := bininspect.SymbolToOffset(elfFile, sym)
-				if err != nil {
-					return err
-				}
-
-				newProbe := &manager.Probe{
-					ProbeIdentificationPair: identifier,
-					BinaryPath:              fpath.HostPath,
-					UprobeOffset:            uint64(offset),
-					HookFuncName:            symbol,
-				}
-				if err := m.AddHook("", newProbe); err == nil {
-					ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
-				}
-			}
-			if err := singleProbe.RunValidator(m); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-}
-
-func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
-	return func(fpath utils.FilePath) error {
-		uid := getUID(fpath.ID)
-		for _, singleProbe := range probes {
-			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
-				identifier := manager.ProbeIdentificationPair{
-					EBPFFuncName: selector.EBPFFuncName,
-					UID:          uid,
-				}
-				probe, found := m.GetProbe(identifier)
-				if !found {
-					continue
-				}
-
-				program := probe.Program()
-				err := m.DetachHook(identifier)
-				if err != nil {
-					log.Debugf("detach hook %s/%s : %s", selector.EBPFFuncName, uid, err)
-				}
-				if program != nil {
-					program.Close()
-				}
-			}
-		}
-
-		return nil
-	}
-}
-
-// getUID() return a key of length 5 as the kernel uprobe registration path is limited to a length of 64
-// ebpf-manager/utils.go:GenerateEventName() MaxEventNameLen = 64
-// MAX_EVENT_NAME_LEN (linux/kernel/trace/trace.h)
-//
-// Length 5 is arbitrary value as the full string of the eventName format is
-//
-//	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
-//
-// functionName is variable but with a minimum guarantee of 10 chars
-func getUID(lib utils.PathIdentifier) string {
-	return lib.Key()[:5]
 }
 
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.
