@@ -36,4 +36,4 @@ jobs:
         run: |
           inv -e collector.update
           inv -e collector.generate
-          inv -e collector.pull-quest
+          inv -e collector.pull-request
