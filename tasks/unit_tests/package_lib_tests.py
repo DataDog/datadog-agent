@@ -134,31 +134,19 @@ class TestGetPreviousSize(unittest.TestCase):
         with open('tasks/unit_tests/testdata/package_sizes.json') as f:
             self.package_sizes = json.load(f)
 
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'puppet'})
     def test_found_on_dev(self):
-        c = MockContext(
-            run={
-                'git rev-parse --abbrev-ref HEAD': Result('puppet'),
-                'git merge-base puppet origin/main': Result('grand_ma'),
-            }
-        )
+        c = MockContext(run={'git merge-base puppet origin/main': Result('grand_ma')})
         self.assertEqual(get_ancestor(c, self.package_sizes, False), "grand_ma")
 
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'puppet'})
     def test_not_found_on_dev(self):
-        c = MockContext(
-            run={
-                'git rev-parse --abbrev-ref HEAD': Result('puppet'),
-                'git merge-base puppet origin/main': Result('grand_pa'),
-            }
-        )
+        c = MockContext(run={'git merge-base puppet origin/main': Result('grand_pa')})
         self.assertEqual(get_ancestor(c, self.package_sizes, False), "grand_ma")
 
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'main'})
     def test_on_main(self):
-        c = MockContext(
-            run={
-                'git rev-parse --abbrev-ref HEAD': Result('load'),
-                'git merge-base load origin/main': Result('kirk'),
-            }
-        )
+        c = MockContext(run={'git merge-base main origin/main': Result('kirk')})
         self.assertEqual(get_ancestor(c, self.package_sizes, True), "kirk")
 
 
@@ -187,13 +175,14 @@ class TestCompare(unittest.TestCase):
         with open('tasks/unit_tests/testdata/package_sizes.json') as f:
             self.package_sizes = json.load(f)
 
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages'})
+    @patch.dict(
+        'os.environ', {'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages', 'CI_COMMIT_REF_NAME': 'main'}
+    )
     @patch('builtins.print')
     def test_on_main(self, mock_print):
         flavor, arch, os_name = 'datadog-heroku-agent', 'amd64', 'deb'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('main'),
                 'git merge-base main origin/main': Result('12345'),
                 f"dpkg-deb --info {self.pkg_root}/{flavor}_7_{arch}.{os_name} | grep Installed-Size | cut -d : -f 2 | xargs": Result(
                     42
@@ -207,13 +196,15 @@ class TestCompare(unittest.TestCase):
         self.assertEqual(self.package_sizes['12345'][arch][flavor][os_name], 43008)
         mock_print.assert_not_called()
 
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages'})
+    @patch.dict(
+        'os.environ',
+        {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages', 'CI_COMMIT_REF_NAME': 'pikachu'},
+    )
     @patch('builtins.print')
     def test_on_branch_warning(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
@@ -224,13 +215,14 @@ class TestCompare(unittest.TestCase):
             f"{flavor}-{arch}-{os_name} size 69.00MB is OK: 1.00MB diff with previous 68.00MB (max: 70.00MB)"
         )
 
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages'})
+    @patch.dict(
+        'os.environ', {'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages', 'CI_COMMIT_REF_NAME': 'pikachu'}
+    )
     @patch('builtins.print')
     def test_on_branch_ok_rpm(self, mock_print):
         flavor, arch, os_name = 'datadog-iot-agent', 'x86_64', 'rpm'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.{os_name} | grep Size | cut -d : -f 2 | xargs": Result(
                     69000000
@@ -243,13 +235,15 @@ class TestCompare(unittest.TestCase):
             f"{flavor}-{arch}-{os_name} size 69.00MB is OK: -9.00MB diff with previous 78.00MB (max: 70.00MB)"
         )
 
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages'})
+    @patch.dict(
+        'os.environ',
+        {'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages', 'CI_COMMIT_REF_NAME': 'pikachu'},
+    )
     @patch('builtins.print')
     def test_on_branch_ko(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(
                     139000000

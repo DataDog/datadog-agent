@@ -5,7 +5,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_current_branch, get_default_branch
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
     _get_deb_uncompressed_size,
@@ -26,7 +26,7 @@ from tasks.libs.package.utils import (
 @task
 def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
     package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
-    on_main = get_current_branch(ctx) == get_default_branch()
+    on_main = os.environ['CI_COMMIT_REF_NAME'] == get_default_branch()
     ancestor = get_ancestor(ctx, package_sizes, on_main)
     if on_main:
         # Initialize to default values
@@ -36,7 +36,9 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
         package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
-    print(color_message(f"Checking package sizes against {ancestor}", Color.BLUE))
+    print(
+        color_message(f"Checking package sizes from {os.environ['CI_COMMIT_REF_NAME']} against {ancestor}", Color.BLUE)
+    )
     size_table = ""
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
         size_table += f"{compare(ctx, package_sizes, ancestor, *package_info)}\n"

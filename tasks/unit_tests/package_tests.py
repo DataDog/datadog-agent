@@ -13,6 +13,7 @@ class TestCheckSize(unittest.TestCase):
         {
             'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages',
             'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages',
+            'CI_COMMIT_REF_NAME': 'pikachu',
         },
     )
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
@@ -21,7 +22,6 @@ class TestCheckSize(unittest.TestCase):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
                 f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(69000000),
@@ -36,6 +36,7 @@ class TestCheckSize(unittest.TestCase):
         {
             'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages',
             'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages',
+            'CI_COMMIT_REF_NAME': 'pikachu',
         },
     )
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
@@ -45,7 +46,6 @@ class TestCheckSize(unittest.TestCase):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('pikachu'),
                 'git merge-base pikachu origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
                 f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
@@ -61,6 +61,7 @@ class TestCheckSize(unittest.TestCase):
         {
             'OMNIBUS_PACKAGE_DIR': 'tasks/unit_tests/testdata/packages',
             'OMNIBUS_PACKAGE_DIR_SUSE': 'tasks/unit_tests/testdata/packages',
+            'CI_COMMIT_REF_NAME': 'main',
         },
     )
     @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
@@ -69,7 +70,6 @@ class TestCheckSize(unittest.TestCase):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
-                'git rev-parse --abbrev-ref HEAD': Result('main'),
                 'git merge-base main origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
                 f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),

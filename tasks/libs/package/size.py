@@ -5,7 +5,7 @@ from datetime import datetime
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
-from tasks.libs.common.git import get_current_branch, get_default_branch
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.utils import get_package_path
 
@@ -170,8 +170,7 @@ def compare(ctx, package_sizes, ancestor, arch, flavor, os_name, threshold):
         separator = '_' if os_name == 'deb' else '-'
         path = f'{dir}/{flavor}{separator}7*{arch}.{os_name}'
     package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
-    branch = get_current_branch(ctx)
-    if branch == get_default_branch():
+    if os.environ['CI_COMMIT_REF_NAME'] == get_default_branch():
         package_sizes[ancestor][arch][flavor][os_name] = package_size
         return
     previous_size = package_sizes[ancestor][arch][flavor][os_name]

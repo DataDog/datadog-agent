@@ -1,11 +1,12 @@
 import glob
 import json
+import os
 
 from invoke import Exit, UnexpectedExit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.notify.utils import AWS_S3_CP_CMD
 
 PACKAGE_SIZE_S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/package_size"
@@ -83,7 +84,7 @@ def get_ancestor(ctx, package_sizes, on_main):
     Get the common ancestor of the current branch and the default branch
     Return the most recent commit if the ancestor is not found
     """
-    ancestor = get_common_ancestor(ctx, get_current_branch(ctx))
+    ancestor = get_common_ancestor(ctx, os.environ["CI_COMMIT_REF_NAME"])
     if not on_main and ancestor not in package_sizes:
         return min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
     return ancestor
