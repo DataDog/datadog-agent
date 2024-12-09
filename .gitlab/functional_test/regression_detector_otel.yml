@@ -22,7 +22,7 @@ single-machine-performance-regression_detector_otel:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.18.2
+    SMP_VERSION: 0.19.3
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
@@ -37,7 +37,7 @@ single-machine-performance-regression_detector_otel:
     - mkdir outputs # Also needed for smp job sync step
     # Compute merge base of current commit and `main`
     - git fetch origin
-    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
+    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch --no-worktree)
     - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
     - echo "Merge base is ${SMP_MERGE_BASE}"
@@ -99,7 +99,6 @@ single-machine-performance-regression_detector_otel:
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-ot-beta-amd64
-    - BASELINE_IMAGE=${COMPARISON_IMAGE}
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID}"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
@@ -269,7 +268,7 @@ single-machine-performance-regression_detector-pr-comment:
       - pr_comment_payload.json # for debugging PR commenter JSON payload bugs
   variables:
     # Not using the entrypoint script for the pr-commenter image
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false       
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
   allow_failure: true # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     # Prevent posting empty Regression Detector report if Markdown report is not found or
