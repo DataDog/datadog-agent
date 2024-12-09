@@ -28,17 +28,13 @@ func BuildMetricTagsFromValue(metricTag *profiledefinition.MetricTagConfig, valu
 		} else {
 			tags = append(tags, metricTag.Tag+":"+value)
 		}
-	} else if metricTag.Match != "" {
-		if metricTag.Pattern == nil {
-			log.Warnf("match Pattern must be present: match=%s", metricTag.Match)
-			return tags
-		}
-		if metricTag.Pattern.MatchString(value) {
+	} else if metricTag.Match != nil {
+		if metricTag.Match.MatchString(value) {
 			for key, val := range metricTag.Tags {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
-				replacedVal := RegexReplaceValue(value, metricTag.Pattern, normalizedTemplate)
+				replacedVal := RegexReplaceValue(value, metricTag.Match, normalizedTemplate)
 				if replacedVal == "" {
-					log.Debugf("Pattern `%v` failed to match `%v` with template `%v`", metricTag.Pattern, value, normalizedTemplate)
+					log.Debugf("Pattern `%v` failed to match `%v` with template `%v`", metricTag.Match, value, normalizedTemplate)
 					continue
 				}
 				tags = append(tags, key+":"+replacedVal)

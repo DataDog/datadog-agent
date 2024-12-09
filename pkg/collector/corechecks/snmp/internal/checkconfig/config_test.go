@@ -209,8 +209,7 @@ bulk_max_repetitions: 20
 						Name: "cpiPduName",
 						OID:  "1.2.3.4.8.1.2",
 					},
-					Match:   "(\\w)(\\w+)",
-					Pattern: regexp.MustCompile(`(\w)(\w+)`),
+					Match: regexp.MustCompile(`(\w)(\w+)`),
 					Tags: map[string]string{
 						"prefix": "\\1",
 						"suffix": "\\2",
@@ -226,18 +225,16 @@ bulk_max_repetitions: 20
 		{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}},
 		{Tag: "my_symbol_mapped", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}, Mapping: map[string]string{"1": "one", "2": "two"}},
 		{
-			Symbol:  profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"},
-			Match:   "(\\w)(\\w+)",
-			Pattern: regexp.MustCompile(`(\w)(\w+)`),
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"},
+			Match:  regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"prefix": "\\1",
 				"suffix": "\\2",
 			},
 		},
 		{
-			Symbol:  profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-			Match:   "(\\w)(\\w+)",
-			Pattern: regexp.MustCompile(`(\w)(\w+)`),
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",
