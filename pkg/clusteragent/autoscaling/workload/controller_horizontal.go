@@ -246,6 +246,27 @@ func (hr *horizontalController) computeScaleAction(
 		evalAfter = rulesNextEvalAfter.Truncate(time.Second) + time.Second
 	}
 
+	// Stabilize recommendation
+	var stabilizationLimitReason string
+	var stabilizationLimitedReplicas int32
+	upscaleStabilizationSeconds := int32(0)
+	downscaleStabilizationSeconds := int32(0)
+
+	if policy := autoscalerInternal.Spec().Policy; policy != nil {
+		if upscalePolicy := policy.Upscale; upscalePolicy != nil {
+			upscaleStabilizationSeconds = int32(upscalePolicy.StabilizationWindowSeconds)
+		}
+		if downscalePolicy := policy.Downscale; downscalePolicy != nil {
+			downscaleStabilizationSeconds = int32(downscalePolicy.StabilizationWindowSeconds)
+		}
+	}
+
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds, scaleDirection)
+	if stabilizationLimitReason != "" {
+		limitReason = stabilizationLimitReason
+		targetDesiredReplicas = stabilizationLimitedReplicas
+	}
+
 	horizontalAction := &datadoghq.DatadogPodAutoscalerHorizontalAction{
 		FromReplicas:        currentDesiredReplicas,
 		ToReplicas:          targetDesiredReplicas,
@@ -456,4 +477,45 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogP
 		expireIn = periodDuration
 	}
 	return
+}
+
+func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32, scaleDirection scaleDirection) (int32, string) {
+	limitReason := ""
+
+	if len(pastActions) == 0 {
+		return originalTargetDesiredReplicas, limitReason
+	}
+
+	upRecommendation := originalTargetDesiredReplicas
+	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowUpscaleSeconds) * time.Second)
+
+	downRecommendation := originalTargetDesiredReplicas
+	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowDownscaleSeconds) * time.Second)
+
+	for _, a := range pastActions {
+		if scaleDirection == scaleUp && a.Time.Time.After(upCutoff) {
+			upRecommendation = min(upRecommendation, *a.RecommendedReplicas)
+		}
+
+		if scaleDirection == scaleDown && a.Time.Time.After(downCutoff) {
+			downRecommendation = max(downRecommendation, *a.RecommendedReplicas)
+		}
+
+		if (scaleDirection == scaleUp && a.Time.Time.Before(upCutoff)) || (scaleDirection == scaleDown && a.Time.Time.Before(downCutoff)) {
+			break
+		}
+	}
+
+	recommendation := currentReplicas
+	if recommendation < upRecommendation {
+		recommendation = upRecommendation
+	}
+	if recommendation > downRecommendation {
+		recommendation = downRecommendation
+	}
+	if recommendation != originalTargetDesiredReplicas {
+		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to stabilization window", recommendation, originalTargetDesiredReplicas)
+	}
+
+	return recommendation, limitReason
 }
