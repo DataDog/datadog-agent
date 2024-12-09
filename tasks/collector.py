@@ -258,7 +258,7 @@ def generate(ctx):
 
                 with open(file_path, "w") as f:
                     f.write(content)
-
+                ctx.run(f"gofmt -l -s -w {file_path}")
                 print(f"Updated package name and ensured license header in: {file_path}")
 
 
