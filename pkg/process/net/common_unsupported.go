@@ -12,8 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	discoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -61,16 +59,6 @@ func (r *RemoteSysProbeUtil) GetProcStats(_ []int32) (*model.ProcStatsWithPermBy
 //nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) Register(_ string) error {
 	return ErrNotImplemented
-}
-
-// DetectLanguage is not supported
-func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
-	return nil, ErrNotImplemented
-}
-
-// GetDiscoveryServices is not supported
-func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
-	return nil, ErrNotImplemented
 }
 
 // GetPing is not supported

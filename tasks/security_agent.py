@@ -52,7 +52,7 @@ def build(
     ctx,
     build_tags,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     install_path=None,
     major_version='7',
     go_mod="readonly",
@@ -100,7 +100,7 @@ def build(
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "" if incremental_build else "-a",
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
@@ -663,7 +663,7 @@ def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
         [generate_cws_documentation],
-        # [gen_mocks], TODO: re-enable this when go is bumped to 1.23 and mocker is updated to >2.46.1
+        [gen_mocks],
         [sync_secl_win_pkg],
     ]
     failing_tasks = []

@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/atomic"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
@@ -40,10 +38,12 @@ const (
 	openat2SysCall = "openat2"
 )
 
-var traceTypes = []string{"enter", "exit"}
+var (
+	singletonMutex = sync.Mutex{}
+	progSingleton  *EbpfProgram
 
-var progSingletonOnce sync.Once
-var progSingleton *EbpfProgram
+	traceTypes = []string{"enter", "exit"}
+)
 
 // LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
 type LibraryCallback func(LibPath)
@@ -93,7 +93,7 @@ type EbpfProgram struct {
 
 	// refcount is the number of times the program has been initialized. It is used to
 	// stop the program only when the refcount reaches 0.
-	refcount atomic.Int32
+	refcount uint16
 
 	// initMutex is a mutex to protect the initialization variables and the libset map
 	wg sync.WaitGroup
@@ -127,7 +127,10 @@ func IsSupported(cfg *ddebpf.Config) bool {
 
 // GetEBPFProgram returns an instance of the shared libraries eBPF program singleton
 func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
-	progSingletonOnce.Do(func() {
+	singletonMutex.Lock()
+	defer singletonMutex.Unlock()
+
+	if progSingleton == nil {
 		progSingleton = &EbpfProgram{
 			cfg:     cfg,
 			libsets: make(map[Libset]*libsetHandler),
@@ -140,8 +143,9 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 				callbacks: make(map[*LibraryCallback]struct{}),
 			}
 		}
-	})
-	progSingleton.refcount.Inc()
+	}
+
+	progSingleton.refcount++
 
 	return progSingleton
 }
@@ -309,7 +313,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 func (e *EbpfProgram) start() error {
 	err := e.Manager.Start()
 	if err != nil {
-		return fmt.Errorf("cannot start manager: %w", err)
+		return err
 	}
 
 	for _, handler := range e.libsets {
@@ -438,21 +442,23 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 
 // Stop stops the eBPF program if the refcount reaches 0
 func (e *EbpfProgram) Stop() {
-	if e.refcount.Dec() != 0 {
-		if e.refcount.Load() < 0 {
-			e.refcount.Swap(0)
-		}
+	singletonMutex.Lock()
+	defer singletonMutex.Unlock()
+
+	if e.refcount == 0 {
+		log.Warn("shared libraries monitor stopping with a refcount of 0")
+		return
+	}
+	e.refcount--
+	if e.refcount > 0 {
+		// Still in use
 		return
 	}
 
-	// At this point any operations are thread safe, as we're using atomics
-	// so it's guaranteed only one thread can reach this point with refcount == 0
 	log.Info("shared libraries monitor stopping due to a refcount of 0")
 
 	e.stopImpl()
 
-	// Reset the program singleton in case it's used again (e.g. in tests)
-	progSingletonOnce = sync.Once{}
 	progSingleton = nil
 }
 
