@@ -201,8 +201,11 @@ def _get_uncompressed_size(ctx, package, os_name):
 def _get_deb_uncompressed_size(ctx, package):
     # the size returned by dpkg is a number of bytes divided by 1024
     # so we multiply it back to get the same unit as RPM or stat
-    return int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs').stdout) * 1024
+    return (
+        int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
+        * 1024
+    )
 
 
 def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs').stdout)
+    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)

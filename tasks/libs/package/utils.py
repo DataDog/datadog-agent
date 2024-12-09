@@ -1,6 +1,5 @@
 import glob
 import json
-import os
 
 from invoke import Exit, UnexpectedExit
 
@@ -81,10 +80,10 @@ def upload_package_sizes(ctx, package_sizes: dict, package_size_file: str, dista
 
 def get_ancestor(ctx, package_sizes, on_main):
     """
-    Get the common ancestor of the current branch and the default branch
-    Return the most recent commit if the ancestor is not found
+    Get the common ancestor between HEAD and the default branch
+    Return the most recent commit if the ancestor is not found in the package_size file
     """
-    ancestor = get_common_ancestor(ctx, os.environ["CI_COMMIT_REF_NAME"])
+    ancestor = get_common_ancestor(ctx, "HEAD")
     if not on_main and ancestor not in package_sizes:
         return min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
     return ancestor
