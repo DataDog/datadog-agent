@@ -221,7 +221,10 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 
 // initCallbackRunner runs multiple workers that run tasks sent over a queue.
 func (pm *ProcessMonitor) initCallbackRunner() {
-	cpuNum := runtime.NumVCPU()
+	cpuNum, err := kernel.PossibleCPUs()
+	if err != nil {
+		cpuNum = runtime.NumVCPU()
+	}
 	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
 	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
