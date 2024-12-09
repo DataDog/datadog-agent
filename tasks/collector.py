@@ -509,8 +509,10 @@ def pull_request(ctx):
     if check_uncommitted_changes(ctx):
         branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
         ctx.run(f'git switch -c {branch_name}')
-        ctx.run(f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent"')
-        ctx.run(f'git push -u origin {branch_name}')
+        ctx.run(
+            f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
+        )
+        ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
         gh = GithubAPI()
         gh.create_pr(
             pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
