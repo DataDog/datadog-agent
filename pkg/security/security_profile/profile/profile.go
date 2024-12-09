@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -69,7 +70,7 @@ type SecurityProfile struct {
 	pathsReducer        *activity_tree.PathsReducer
 
 	// Instances is the list of workload instances to witch the profile should apply
-	Instances []*cgroupModel.CacheEntry
+	Instances []*tags.Workload
 
 	// Metadata contains metadata for the current profile
 	Metadata mtdt.Metadata

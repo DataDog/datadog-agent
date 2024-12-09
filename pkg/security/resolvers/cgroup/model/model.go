@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // CacheEntry cgroup resolver cache entry
@@ -23,9 +22,8 @@ type CacheEntry struct {
 	model.CGroupContext
 	model.ContainerContext
 	sync.RWMutex
-	Deleted          *atomic.Bool
-	WorkloadSelector WorkloadSelector
-	PIDs             map[uint32]bool
+	Deleted *atomic.Bool
+	PIDs    map[uint32]bool
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
@@ -77,28 +75,4 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	defer cgce.Unlock()
 
 	cgce.PIDs[pid] = true
-}
-
-// SetTags sets the tags for the provided workload
-func (cgce *CacheEntry) SetTags(tags []string) {
-	cgce.Lock()
-	defer cgce.Unlock()
-
-	cgce.Tags = tags
-	cgce.WorkloadSelector.Image = utils.GetTagValue("image_name", tags)
-	cgce.WorkloadSelector.Tag = utils.GetTagValue("image_tag", tags)
-	if len(cgce.WorkloadSelector.Image) != 0 && len(cgce.WorkloadSelector.Tag) == 0 {
-		cgce.WorkloadSelector.Tag = "latest"
-	}
-}
-
-// GetWorkloadSelectorCopy returns a copy of the workload selector of this cgroup
-func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
-	cgce.Lock()
-	defer cgce.Unlock()
-
-	return &WorkloadSelector{
-		Image: cgce.WorkloadSelector.Image,
-		Tag:   cgce.WorkloadSelector.Tag,
-	}
 }
