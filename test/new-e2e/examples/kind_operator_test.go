@@ -9,7 +9,6 @@ import (
 	"context"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"testing"
@@ -42,11 +41,7 @@ spec:
 
 	e2e.Run(t, &kindOperatorSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithOperator(),
-		awskubernetes.WithOperatorOptions([]operatorparams.Option{
-			operatorparams.WithNamespace("datadog"),
-		}...),
 		awskubernetes.WithOperatorDDAOptions([]agentwithoperatorparams.Option{
-			agentwithoperatorparams.WithNamespace("datadog"),
 			agentwithoperatorparams.WithDDAConfig(customDDA),
 		}...),
 	)),
