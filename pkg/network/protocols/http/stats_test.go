@@ -10,8 +10,9 @@ package http
 import (
 	"testing"
 
-	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 func TestAddRequest(t *testing.T) {
