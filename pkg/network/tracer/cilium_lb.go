@@ -30,14 +30,16 @@ import (
 )
 
 const (
+	//revive:disable
 	// from github.com/cilium/cilium/pkg/maps/ctmap/lookup.go
 	TUPLE_F_OUT     = 0
 	TUPLE_F_IN      = 1
 	TUPLE_F_RELATED = 2
 	TUPLE_F_SERVICE = 4
+	//revive:enable
 )
 
-type TupleKey4 struct {
+type tupleKey4 struct {
 	DestAddr   [4]byte
 	SourceAddr [4]byte
 	SourcePort uint16
@@ -46,7 +48,7 @@ type TupleKey4 struct {
 	Flags      uint8
 }
 
-type CtEntry struct {
+type ctEntry struct {
 	Reserved0 uint64
 	BackendID uint64
 	Packets   uint64
@@ -63,11 +65,11 @@ type CtEntry struct {
 	LastRxReport     uint32
 }
 
-type Backend4KeyV3 struct {
+type backend4KeyV3 struct {
 	ID uint32
 }
 
-type Backend4ValueV3 struct {
+type backend4ValueV3 struct {
 	Address   [4]byte
 	Port      uint16
 	Proto     uint8
@@ -84,8 +86,8 @@ type backend struct {
 
 type ciliumLoadBalancerConntracker struct {
 	m                  sync.Mutex
-	backends           *maps.GenericMap[Backend4KeyV3, Backend4ValueV3]
-	ctTcp, ctUdp       *maps.GenericMap[TupleKey4, CtEntry]
+	backends           *maps.GenericMap[backend4KeyV3, backend4ValueV3]
+	ctTCP, ctUDP       *maps.GenericMap[tupleKey4, ctEntry]
 	backendIDToBackend map[uint32]backend
 	stop               chan struct{}
 }
@@ -95,14 +97,14 @@ func newCiliumLoadBalancerConntracker(cfg *config.Config) (netlink.Conntracker, 
 		return netlink.NewNoOpConntracker(), nil
 	}
 
-	ctTcp, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_ct4_global", &ebpf.LoadPinOptions{
+	ctTCP, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_ct4_global", &ebpf.LoadPinOptions{
 		ReadOnly: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error loading pinned ct TCP map: %w", err)
 	}
 
-	ctUdp, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_ct_any4_global", &ebpf.LoadPinOptions{
+	ctUDP, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_ct_any4_global", &ebpf.LoadPinOptions{
 		ReadOnly: true,
 	})
 	if err != nil {
@@ -119,13 +121,13 @@ func newCiliumLoadBalancerConntracker(cfg *config.Config) (netlink.Conntracker, 
 	clb := &ciliumLoadBalancerConntracker{
 		backendIDToBackend: make(map[uint32]backend),
 	}
-	if clb.ctTcp, err = maps.Map[TupleKey4, CtEntry](ctTcp); err != nil {
+	if clb.ctTCP, err = maps.Map[tupleKey4, ctEntry](ctTCP); err != nil {
 		return nil, fmt.Errorf("could not make generic map for ct TCP map: %w", err)
 	}
-	if clb.ctUdp, err = maps.Map[TupleKey4, CtEntry](ctUdp); err != nil {
+	if clb.ctUDP, err = maps.Map[tupleKey4, ctEntry](ctUDP); err != nil {
 		return nil, fmt.Errorf("could not make generic map for ct UDP map: %w", err)
 	}
-	if clb.backends, err = maps.Map[Backend4KeyV3, Backend4ValueV3](backends); err != nil {
+	if clb.backends, err = maps.Map[backend4KeyV3, backend4ValueV3](backends); err != nil {
 		return nil, fmt.Errorf("could not make generic map for backends map: %w", err)
 	}
 
@@ -162,8 +164,8 @@ func (clb *ciliumLoadBalancerConntracker) updateBackends() {
 	defer clb.m.Unlock()
 
 	it := clb.backends.Iterate()
-	var k Backend4KeyV3
-	var v Backend4ValueV3
+	var k backend4KeyV3
+	var v backend4ValueV3
 	for it.Next(&k, &v) {
 		clb.backendIDToBackend[k.ID] = backend{
 			addr: util.AddressFromNetIP(net.IPv4(v.Address[0], v.Address[1], v.Address[2], v.Address[3])),
@@ -176,11 +178,11 @@ func (clb *ciliumLoadBalancerConntracker) updateBackends() {
 	}
 }
 
-func (clb *ciliumLoadBalancerConntracker) Describe(descs chan<- *prometheus.Desc) {
+func (clb *ciliumLoadBalancerConntracker) Describe(chan<- *prometheus.Desc) {
 }
 
 // Collect returns the current state of all metrics of the collector
-func (clb *ciliumLoadBalancerConntracker) Collect(metrics chan<- prometheus.Metric) {
+func (clb *ciliumLoadBalancerConntracker) Collect(chan<- prometheus.Metric) {
 }
 
 func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
@@ -197,8 +199,8 @@ func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.Conne
 		return nil
 	}
 
-	queryMap := clb.ctTcp
-	t := TupleKey4{
+	queryMap := clb.ctTCP
+	t := tupleKey4{
 		Flags:      TUPLE_F_OUT | TUPLE_F_SERVICE,
 		NextHeader: uint8(unix.IPPROTO_TCP),
 		SourcePort: htons(c.SPort),
@@ -208,14 +210,14 @@ func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.Conne
 	}
 	if c.Type == network.UDP {
 		t.NextHeader = unix.IPPROTO_UDP
-		queryMap = clb.ctUdp
+		queryMap = clb.ctUDP
 	}
 
 	log.TraceFunc(func() string {
 		return fmt.Sprintf("looking up tuple %+v in ct map", t)
 	})
 
-	var ctEntry CtEntry
+	var ctEntry ctEntry
 	var err error
 	if err = queryMap.Lookup(&t, &ctEntry); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
@@ -263,6 +265,6 @@ func (clb *ciliumLoadBalancerConntracker) DumpCachedTable(context.Context) (map[
 func (clb *ciliumLoadBalancerConntracker) Close() {
 	clb.stop <- struct{}{}
 	<-clb.stop
-	clb.ctTcp.Map().Close()
+	clb.ctTCP.Map().Close()
 	clb.backends.Map().Close()
 }

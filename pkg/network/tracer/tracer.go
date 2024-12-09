@@ -275,12 +275,10 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 		if c, err = loadEbpfConntracker(cfg, telemetryComponent); err != nil {
 			log.Warnf("error initializing ebpf conntracker: %s", err)
 			log.Info("falling back to netlink conntracker")
-			err = nil
 		}
 
 		if clb, err = newCiliumLoadBalancerConntracker(cfg); err != nil {
 			log.Warnf("cilium lb conntracker is enabled, but failed to load: %s", err)
-			err = nil
 		}
 	}
 
