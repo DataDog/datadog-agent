@@ -47,6 +47,7 @@ const (
 )
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
+var tlsTagsMapTTL = 30 * time.Minute.Nanoseconds()
 
 var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	connections       telemetry.Gauge
@@ -152,6 +153,8 @@ type ebpfTracer struct {
 
 	// periodically clean the ongoing connection pid map
 	ongoingConnectCleaner *ddebpf.MapCleaner[netebpf.SkpConn, netebpf.PidTs]
+	// periodically clean the enhanced TLS tags map
+	TLSTagsCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.TLSTagsWrapper]
 
 	removeTuple *netebpf.ConnTuple
 
@@ -274,7 +277,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		ch:             newCookieHasher(),
 	}
 
-	tr.setupMapCleaner(m)
+	tr.setupMapCleaners(m)
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
 	if err != nil {
@@ -353,6 +356,7 @@ func (t *ebpfTracer) Stop() {
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
+		t.TLSTagsCleaner.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
@@ -696,8 +700,14 @@ func (t *ebpfTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTup
 	return t.tcpStats.Lookup(tuple, stats) == nil
 }
 
-// setupMapCleaner sets up a map cleaner for the tcp_ongoing_connect_pid map
-func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
+// setupMapCleaners sets up the map cleaners for the eBPF maps
+func (t *ebpfTracer) setupMapCleaners(m *manager.Manager) {
+	t.setupOngoingConnectMapCleaner(m)
+	t.setupTLSTagsMapCleaner(m)
+}
+
+// setupOngoingConnectMapCleaner sets up a map cleaner for the tcp_ongoing_connect_pid map
+func (t *ebpfTracer) setupOngoingConnectMapCleaner(m *manager.Manager) {
 	tcpOngoingConnectPidMap, _, err := m.GetMap(probes.TCPOngoingConnectPid)
 	if err != nil {
 		log.Errorf("error getting %v map: %s", probes.TCPOngoingConnectPid, err)
@@ -719,6 +729,27 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 	})
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
+}
+
+// setupTLSTagsMapCleaner sets up a map cleaner for the tls_enhanced_tags map
+func (t *ebpfTracer) setupTLSTagsMapCleaner(m *manager.Manager) {
+	TLSTagsMap, _, err := m.GetMap(probes.EnhancedTLSTagsMap)
+	if err != nil {
+		log.Errorf("error getting %v map: %s", probes.EnhancedTLSTagsMap, err)
+		return
+	}
+
+	TLSTagsMapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.TLSTagsWrapper](TLSTagsMap, 1024, probes.EnhancedTLSTagsMap, "npm_tracer")
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+	TLSTagsMapCleaner.Clean(time.Minute*1, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.TLSTagsWrapper) bool {
+		ts := int64(val.Updated)
+		return ts > 0 && now-ts > tlsTagsMapTTL
+	})
+
+	t.TLSTagsCleaner = TLSTagsMapCleaner
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {

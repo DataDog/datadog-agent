@@ -34,6 +34,11 @@ typedef struct {
     __u16 cipher_suite;
     __u8  offered_versions;
 } tls_info_t;
+\
+typedef struct {
+    tls_info_t info;
+    __u64 updated;
+} tls_info_wrapper_t;
 
 typedef struct {
     __u64 sent_bytes;

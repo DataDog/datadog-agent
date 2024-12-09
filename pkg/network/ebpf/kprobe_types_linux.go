@@ -109,6 +109,10 @@ type TLSTags struct {
 	Offered_versions uint8
 	Pad_cgo_0        [1]byte
 }
+type TLSTagsWrapper struct {
+	Info    TLSTags
+	Updated uint64
+}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64

@@ -172,8 +172,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
         if (tls_hdr.content_type == TLS_APPLICATION_DATA) {
-            // We can't classify TLS encrypted traffic further, so we mark the stack as fully classified
-            mark_as_fully_classified(protocol_stack);
+            // We can't classify TLS encrypted traffic further, so return early
             return;
         }
 
@@ -229,7 +228,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!is_tls_handshake_client_hello(skb, &usm_ctx->tls_header, offset)) {
         goto next_program;
     }
-    if (parse_client_hello(skb, offset, skb->len, tls_info) != 0) {
+    if (!parse_client_hello(skb, offset, tls_info)) {
         return;
     }
 
@@ -250,7 +249,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!is_tls_handshake_server_hello(skb, &usm_ctx->tls_header, offset)) {
         goto next_program;
     }
-    if (parse_server_hello(skb, offset, skb->len, tls_info) != 0) {
+    if (!parse_server_hello(skb, offset, tls_info)) {
         return;
     }
 
@@ -258,8 +257,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     if (!protocol_stack) {
         return;
     }
-    mark_as_fully_classified(protocol_stack);
-    usm_ctx->tls_header = (tls_record_header_t){0};
     return;
 
 next_program:

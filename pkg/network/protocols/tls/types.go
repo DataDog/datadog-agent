@@ -79,10 +79,7 @@ func (t *Tags) String() string {
 
 // FormatTLSVersion converts a version uint16 to its string representation
 func FormatTLSVersion(version uint16) string {
-	if name, ok := tlsVersionNames[version]; ok {
-		return name
-	}
-	return ""
+	return tlsVersionNames[version]
 }
 
 // parseOfferedVersions parses the Offered_versions bitmask into a slice of version strings

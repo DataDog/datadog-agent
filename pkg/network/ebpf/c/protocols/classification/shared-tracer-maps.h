@@ -10,7 +10,8 @@
 // classification procedures on the same connection
 BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_wrapper_t, 0)
 
-BPF_HASH_MAP(tls_enhanced_tags, conn_tuple_t, tls_info_t, 0)
+// Map to store extra information about TLS connections like version, cipher, etc.
+BPF_HASH_MAP(tls_enhanced_tags, conn_tuple_t, tls_info_wrapper_t, 1)
 
 static __always_inline bool is_protocol_classification_supported() {
     __u64 val = 0;
@@ -151,7 +152,12 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
 static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
     conn_tuple_t normalized_tup = *tuple;
     normalize_tuple(&normalized_tup);
-    return bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+    if (!wrapper) {
+        return NULL;
+    }
+    wrapper->updated = bpf_ktime_get_ns();
+    return &wrapper->info;
 }
 
 static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t *tuple) {
@@ -159,11 +165,17 @@ static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t 
     if (!tags) {
         conn_tuple_t normalized_tup = *tuple;
         normalize_tuple(&normalized_tup);
-        tls_info_t empty_tags = {0};
-        bpf_map_update_elem(&tls_enhanced_tags, &normalized_tup, &empty_tags, BPF_ANY);
-        tags = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+        tls_info_wrapper_t empty_tags_wrapper = {};
+        empty_tags_wrapper.updated = bpf_ktime_get_ns();
+
+        bpf_map_update_elem(&tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
+        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+        if (!wrapper_ptr) {
+            return NULL;
+        }
+        tags = &wrapper_ptr->info;
     }
-    return tags;
+    return tags; 
 }
 
 #endif
