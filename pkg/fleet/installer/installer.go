@@ -35,6 +35,7 @@ import (
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
+	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -663,7 +664,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
 	switch pkg {
-	case packageDatadogAgent, packageAPMInjector:
+	case packageDatadogAgent, packageAPMInjector, packageAPMLibraries:
 		config, err := i.cdn.Get(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
@@ -683,6 +684,11 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 			return fmt.Errorf("could not create %s repository: %w", pkg, err)
 		}
 		return nil
+	case packageDatadogInstaller:
+		// The installer doesn't have a config; but we need to create repositories to
+		// receive configurations from the CDN from "packages" that may not be installed
+		// (e.g. the APM libraries).
+		return i.configurePackage(ctx, packageAPMLibraries)
 	default:
 		return nil
 	}

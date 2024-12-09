@@ -14,56 +14,53 @@ import (
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (
-	injectorConfigFilename = "injector.msgpack"
+	apmLibrariesConfigPath = "libraries_config.yaml"
 )
 
-// apmConfig represents the injector configuration from the CDN.
-type apmConfig struct {
+// apmLibrariesConfig represents the injector configuration from the CDN.
+type apmLibrariesConfig struct {
 	version   string
 	policyIDs []string
 
-	injectorConfig []byte
+	apmLibrariesConfig []byte
 }
 
-// apmConfigLayer is a config layer that can be merged with other layers into a config.
-type apmConfigLayer struct {
-	ID             string                 `json:"name"`
-	InjectorConfig map[string]interface{} `json:"apm_ssi_config"`
+// apmLibrariesConfigLayer is a config layer that can be merged with other layers into a config.
+type apmLibrariesConfigLayer struct {
+	ID                 string                 `json:"name"`
+	APMLibrariesConfig map[string]interface{} `json:"apm_libraries_config"`
 }
 
 // State returns the APM configs state
-func (i *apmConfig) State() *pbgo.PoliciesState {
+func (i *apmLibrariesConfig) State() *pbgo.PoliciesState {
 	return &pbgo.PoliciesState{
 		MatchedPolicies: i.policyIDs,
 		Version:         i.version,
 	}
 }
 
-func newAPMConfig(hostTags []string, orderedLayers ...[]byte) (*apmConfig, error) {
+func newAPMLibrariesConfig(hostTags []string, orderedLayers ...[]byte) (*apmLibrariesConfig, error) {
 	// Compile ordered layers into a single config
-	// TODO: maybe we don't want that and we should reject if there are more than one config?
 	policyIDs := []string{}
-	compiledLayer := &apmConfigLayer{
-		InjectorConfig: map[string]interface{}{},
+	compiledLayer := &apmLibrariesConfigLayer{
+		APMLibrariesConfig: map[string]interface{}{},
 	}
 	for _, rawLayer := range orderedLayers {
-		layer := &apmConfigLayer{}
+		layer := &apmLibrariesConfigLayer{}
 		if err := json.Unmarshal(rawLayer, layer); err != nil {
 			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
 
-		// Only add layers that match the injector
-		if layer.InjectorConfig != nil {
-			injectorConfig, err := merge(compiledLayer.InjectorConfig, layer.InjectorConfig)
+		if layer.APMLibrariesConfig != nil {
+			cfg, err := merge(compiledLayer.APMLibrariesConfig, layer.APMLibrariesConfig)
 			if err != nil {
 				return nil, err
 			}
-			compiledLayer.InjectorConfig = injectorConfig.(map[string]interface{})
+			compiledLayer.APMLibrariesConfig = cfg.(map[string]interface{})
 			policyIDs = append(policyIDs, layer.ID)
 		}
 	}
@@ -76,28 +73,28 @@ func newAPMConfig(hostTags []string, orderedLayers ...[]byte) (*apmConfig, error
 	hash.Write(version)
 
 	// Add host tags AFTER compiling the version -- we don't want to trigger noop updates
-	compiledLayer.InjectorConfig["host_tags"] = hostTags
+	compiledLayer.APMLibrariesConfig["host_tags"] = hostTags
 
 	// Marshal into msgpack configs
-	injectorConfig, err := msgpack.Marshal(compiledLayer.InjectorConfig)
+	yamlCfg, err := marshalYAMLConfig(compiledLayer.APMLibrariesConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return &apmConfig{
+	return &apmLibrariesConfig{
 		version:   fmt.Sprintf("%x", hash.Sum(nil)),
 		policyIDs: policyIDs,
 
-		injectorConfig: injectorConfig,
+		apmLibrariesConfig: yamlCfg,
 	}, nil
 }
 
 // Write writes the agent configuration to the given directory.
-func (i *apmConfig) Write(dir string) error {
-	if i.injectorConfig != nil {
-		err := os.WriteFile(filepath.Join(dir, injectorConfigFilename), []byte(i.injectorConfig), 0644) // Must be world readable
+func (i *apmLibrariesConfig) Write(dir string) error {
+	if i.apmLibrariesConfig != nil {
+		err := os.WriteFile(filepath.Join(dir, apmLibrariesConfigPath), []byte(i.apmLibrariesConfig), 0644) // Must be world readable
 		if err != nil {
-			return fmt.Errorf("could not write %s: %w", injectorConfigFilename, err)
+			return fmt.Errorf("could not write %s: %w", apmLibrariesConfigPath, err)
 		}
 	}
 	return writePolicyMetadata(i, dir)

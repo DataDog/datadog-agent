@@ -142,7 +142,34 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	return d.installer.States()
+	states, err := d.installer.States()
+	if err != nil {
+		return nil, err
+	}
+
+	var configStates map[string]repository.State
+	if d.env.RemotePolicies {
+		configStates, err = d.installer.ConfigStates()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	res := make(map[string]repository.State)
+	for pkg, state := range states {
+		res[pkg] = state
+	}
+	for pkg, state := range configStates {
+		if _, ok := res[pkg]; !ok {
+			res[pkg] = repository.State{
+				Stable:                  "",
+				Experiment:              "",
+				StablePoliciesState:     state.StablePoliciesState,
+				ExperimentPoliciesState: state.ExperimentPoliciesState,
+			}
+		}
+	}
+	return res, nil
 }
 
 // GetRemoteConfigState returns the remote config state.
@@ -605,17 +632,24 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get available size: %v", err)
 	}
 
+	for pkg, configState := range configState {
+		if _, ok := state[pkg]; !ok {
+			state[pkg] = repository.State{}
+		}
+		tmp := state[pkg]
+		tmp.StablePoliciesState = configState.StablePoliciesState
+		tmp.ExperimentPoliciesState = configState.ExperimentPoliciesState
+		state[pkg] = tmp
+	}
+
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
-			Package:           pkg,
-			StableVersion:     s.Stable,
-			ExperimentVersion: s.Experiment,
-		}
-		cs, hasConfig := configState[pkg]
-		if hasConfig {
-			p.StableConfigState = cs.StablePoliciesState
-			p.ExperimentConfigState = cs.ExperimentPoliciesState
+			Package:               pkg,
+			StableVersion:         s.Stable,
+			ExperimentVersion:     s.Experiment,
+			StableConfigState:     s.StablePoliciesState,
+			ExperimentConfigState: s.ExperimentPoliciesState,
 		}
 
 		configState, err := d.resolveRemoteConfigVersion(ctx, pkg)
