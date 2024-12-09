@@ -125,7 +125,7 @@ func (m *istioMonitor) Start() {
 	}
 
 	if m.attacher == nil {
-		log.Errorf("istio monitoring is enabled but the attacher is nil")
+		log.Error("istio monitoring is enabled but the attacher is nil")
 		return
 	}
 
