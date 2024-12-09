@@ -118,7 +118,7 @@
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 
-/.gitlab/benchmarks/                                 @DataDog/agent-devx-infra @DataDog/apm-reliability-and-performance @DataDog/agent-apm
+/.gitlab/benchmarks/                                 @DataDog/agent-devx-infra @DataDog/apm-ecosystems-performance @DataDog/agent-apm
 
 /.gitlab/deploy_containers/                          @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy_dca/                                 @DataDog/container-integrations @DataDog/agent-delivery
