@@ -82,12 +82,21 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
         goto cleanup;
     }
 
-    if (!match6chars(0, 'l', 'i', 'b', 's', 's', 'l') && !match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') && !match6chars(0, 'g', 'n', 'u', 't', 'l', 's') && !match6chars(0, 'c', 'u', 'd', 'a', 'r', 't')) {
+    u64 crypto_libset_enabled = 0;
+    LOAD_CONSTANT("crypto_libset_enabled", crypto_libset_enabled);
+
+    if (crypto_libset_enabled && (match6chars(0, 'l', 'i', 'b', 's', 's', 'l') || match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') || match6chars(0, 'g', 'n', 'u', 't', 'l', 's'))) {
+        bpf_perf_event_output((void *)args, &crypto_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
         goto cleanup;
     }
 
-    u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output((void *)args, &shared_libraries, cpu, path, sizeof(lib_path_t));
+    u64 gpu_libset_enabled = 0;
+    LOAD_CONSTANT("gpu_libset_enabled", gpu_libset_enabled);
+
+    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't'))) {
+        bpf_perf_event_output((void *)args, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+    }
+
 cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return;

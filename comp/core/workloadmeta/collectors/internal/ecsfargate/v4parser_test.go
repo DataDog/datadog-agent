@@ -60,6 +60,7 @@ func TestPullWithTaskCollectionEnabledWithV4Parser(t *testing.T) {
 		case *workloadmeta.Container:
 			require.Equal(t, "RUNNING", entity.KnownStatus)
 			require.Equal(t, "awslogs", entity.LogDriver)
+			require.Equal(t, 42, entity.RestartCount)
 			require.Len(t, entity.Networks, 1)
 			require.Equal(t, "awsvpc", entity.Networks[0].NetworkMode)
 			if entity.Image.Name == "public.ecr.aws/datadog/agent" {

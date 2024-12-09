@@ -44,7 +44,7 @@ agents:
 
 func (s *completeTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s)
+	utils.TestCalendarApp(s, false)
 }
 
 func (s *completeTestSuite) TestOTLPTraces() {

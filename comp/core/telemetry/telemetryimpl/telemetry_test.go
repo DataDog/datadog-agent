@@ -6,10 +6,8 @@
 package telemetryimpl
 
 import (
-	"context"
 	"testing"
 
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,26 +20,15 @@ func TestCounterInitializer(t *testing.T) {
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
 
-	// Sanity check that we don't have any metrics
-	startMetrics, err := telemetry.GetRegistry().Gather()
-	assert.NoError(t, err)
-	if err != nil {
-		return
-	}
-
-	// 1 because OTEL adds a target_info gauge by default
-	assert.Equal(t, 1, len(startMetrics))
-
 	// Set some values and ensure that we have those counters
 	counter.InitializeToZero("mycheck", "mystate")
 
-	endMetrics, err := telemetry.GetRegistry().Gather()
+	startMetrics, err := telemetry.GetRegistry().Gather()
 	if !assert.NoError(t, err) {
 		return
 	}
 
-	// 2 because OTEL adds a target_info gauge by default
-	if !assert.Equal(t, len(endMetrics), 2) {
+	if !assert.Equal(t, len(startMetrics), 1) {
 		return
 	}
 
@@ -127,30 +114,6 @@ func TestGetHistogramValue(t *testing.T) {
 
 	assert.Equal(t, uint64(1), hist.WithTags(map[string]string{"state": "ok"}).Get().Buckets[0].Count)
 	assert.Equal(t, uint64(2), hist.WithTags(map[string]string{"state": "ok"}).Get().Buckets[1].Count)
-}
-
-func TestMeterProvider(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
-
-	counter, _ := telemetry.Meter("foo").Int64Counter("bar")
-	counter.Add(context.TODO(), 123)
-
-	_ = telemetry.GetMeterProvider().ForceFlush(context.TODO())
-
-	metrics, err := telemetry.GetRegistry().Gather()
-	assert.NoError(t, err)
-
-	var metricFamily *dto.MetricFamily
-
-	for _, m := range metrics {
-		if m.GetName() == "bar_total" {
-			metricFamily = m
-		}
-	}
-
-	metric := metricFamily.GetMetric()[0]
-	assert.Equal(t, metric.GetCounter().GetValue(), 123.0)
-	assert.Equal(t, *metric.GetLabel()[0].Value, "foo")
 }
 
 func TestGoMetrics(t *testing.T) {

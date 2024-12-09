@@ -17,6 +17,7 @@ from invoke.exceptions import Exit
 
 from tasks import vscode
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import running_in_pyapp
 
@@ -95,7 +96,7 @@ def check_git_repo(ctx) -> SetupResult:
     ctx.run("git fetch", hide=True)
 
     print(color_message("Checking main branch...", Color.BLUE))
-    output = ctx.run('git rev-list "^HEAD" origin/main --count', hide=True)
+    output = ctx.run(f'git rev-list "^HEAD" origin/{get_default_branch()} --count', hide=True)
     count = output.stdout.strip()
 
     message = ""
@@ -103,7 +104,7 @@ def check_git_repo(ctx) -> SetupResult:
 
     if count != "0":
         status = Status.WARN
-        message = f"Your branch is {count} commit(s) behind main. Please update your branch."
+        message = f"Your branch is {count} commit(s) behind {get_default_branch()}. Please update your branch."
 
     return SetupResult("Check git repository", status, message)
 

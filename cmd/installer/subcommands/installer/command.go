@@ -9,15 +9,16 @@ package installer
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -46,6 +47,13 @@ const (
 	envAgentMajorVersion           = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion           = "DD_AGENT_MINOR_VERSION"
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
+	envRemoteUpdates               = "DD_REMOTE_UPDATES"
+	envHTTPProxy                   = "HTTP_PROXY"
+	envhttpProxy                   = "http_proxy"
+	envHTTPSProxy                  = "HTTPS_PROXY"
+	envhttpsProxy                  = "https_proxy"
+	envNoProxy                     = "NO_PROXY"
+	envnoProxy                     = "no_proxy"
 )
 
 // BootstrapCommand returns the bootstrap command.
@@ -161,9 +169,28 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
 	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
 	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
+	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
+	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
+	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
+	cmd.span.SetTag("env.http_proxy", redactURL(os.Getenv(envhttpProxy)))
+	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
+	cmd.span.SetTag("env.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
+	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
+	cmd.span.SetTag("env.no_proxy", os.Getenv(envnoProxy))
 	return &bootstrapperCmd{
 		cmd: cmd,
 	}
+}
+
+func redactURL(u string) string {
+	if u == "" {
+		return ""
+	}
+	url, err := url.Parse(u)
+	if err != nil {
+		return "invalid"
+	}
+	return url.Redacted()
 }
 
 type telemetryConfigFields struct {
@@ -199,7 +226,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if site == "" {
 		site = config.Site
 	}
-	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
+	t, err := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
 		return nil
@@ -246,7 +273,6 @@ func defaultPackagesCommand() *cobra.Command {
 }
 
 func bootstrapCommand() *cobra.Command {
-	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:     "bootstrap",
 		Short:   "Bootstraps the package with the first version.",
@@ -254,17 +280,13 @@ func bootstrapCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			b := newBootstrapperCmd("bootstrap")
 			defer func() { b.Stop(err) }()
-			ctx, cancel := context.WithTimeout(b.ctx, timeout)
-			defer cancel()
-			return bootstrapper.Bootstrap(ctx, b.env)
+			return bootstrapper.Bootstrap(b.ctx, b.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to bootstrap with")
 	return cmd
 }
 
 func setupCommand() *cobra.Command {
-	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
@@ -272,12 +294,9 @@ func setupCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
-			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
-			defer cancel()
-			return installer.Setup(ctx, cmd.env)
+			return setup.Setup(cmd.ctx, cmd.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to install with")
 	return cmd
 }
 

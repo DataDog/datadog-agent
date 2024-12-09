@@ -10,7 +10,7 @@ package constantfetch
 
 import (
 	"bytes"
-	"debug/elf"
+	"errors"
 	"fmt"
 	"sort"
 	"text/template"
@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 type rcSymbolPair struct {
@@ -121,7 +122,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 
-	f, err := elf.NewFile(elfFile)
+	f, err := safeelf.NewFile(elfFile)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +137,9 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		}
 
 		section := f.Sections[sym.Section]
+		if section.ReaderAt == nil {
+			return nil, errors.New("section not available in random-access form")
+		}
 		buf := make([]byte, sym.Size)
 		if _, err := section.ReadAt(buf, int64(sym.Value)); err != nil {
 			return nil, fmt.Errorf("unable to read section at %d: %s", int64(sym.Value), err)

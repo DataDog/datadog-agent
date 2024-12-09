@@ -9,12 +9,13 @@ on:
         description: "PR number"
         required: true
         type: number
-permissions:
-  contents: write
+
 jobs:
   mod_tidy_and_generate_licenses:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go')) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:

@@ -167,6 +167,9 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
+	s.host.Run("sudo dd-container-install --no-agent-restart")
+	s.host.Run("sudo dd-host-install --no-agent-restart")
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
 
@@ -217,6 +220,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	defer s.purgeInjectorDebInstall()
 
 	// OCI mustn't be overridden
@@ -342,6 +346,9 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/stable", 0755, "root", "root")
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdNotInstrumented()
+	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+		s.assertAppArmorProfile() // AppArmor profile should still be there
+	}
 }
 
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
@@ -360,6 +367,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
 
@@ -531,10 +539,6 @@ func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
 	packageList := []string{
 		"datadog-agent",
 		"datadog-apm-inject",
-		"datadog-apm-library-java",
-		"datadog-apm-library-ruby",
-		"datadog-apm-library-js",
-		"datadog-apm-library-dotnet",
 		"datadog-apm-library-python",
 	}
 	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo apt-get remove -y --purge %[1]s || sudo yum remove -y %[1]s", strings.Join(packageList, " ")))

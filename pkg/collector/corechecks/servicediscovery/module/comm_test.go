@@ -30,7 +30,8 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url := setupDiscoveryModule(t)
+	url, mockContainerProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -50,15 +51,15 @@ func TestIgnoreComm(t *testing.T) {
 	badPid := badCmd.Process.Pid
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(t, url)
+		svcMap := getServicesMap(collect, url)
 		assert.Contains(collect, svcMap, goodPid)
-		require.NotContains(t, svcMap, badPid)
+		assert.NotContains(collect, svcMap, badPid)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	discovery := newDiscovery()
+	discovery := newDiscovery(nil)
 	require.NotEmpty(t, discovery)
 	require.Equal(t, len(discovery.config.ignoreComms), 10)
 
@@ -114,7 +115,7 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 	serverBin := buildTestBin(t)
 	serverDir := filepath.Dir(serverBin)
-	discovery := newDiscovery()
+	discovery := newDiscovery(nil)
 	require.NotEmpty(t, discovery)
 	require.NotEmpty(t, discovery.config.ignoreComms)
 	require.Equal(t, len(discovery.config.ignoreComms), 10)
@@ -208,7 +209,7 @@ func BenchmarkProcName(b *testing.B) {
 
 // BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkShouldIgnoreComm(b *testing.B) {
-	discovery := newDiscovery()
+	discovery := newDiscovery(nil)
 	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()

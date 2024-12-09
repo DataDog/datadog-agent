@@ -1405,7 +1405,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 22)
+	require.Len(t, serverlessConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
@@ -1421,6 +1421,29 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 	assert.False(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestDisableCoreAgent(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
+
+	InitConfig(conf)
+	assert.True(t, conf.GetBool("core_agent.enabled"))
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
+	// ensure events default payloads are enabled
+	assert.True(t, conf.GetBool("enable_payloads.events"))
+	assert.True(t, conf.GetBool("enable_payloads.series"))
+	assert.True(t, conf.GetBool("enable_payloads.service_checks"))
+	assert.True(t, conf.GetBool("enable_payloads.sketches"))
+
+	conf.BindEnvAndSetDefault("core_agent.enabled", false)
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
+	// ensure events default payloads are disabled
+	assert.False(t, conf.GetBool("enable_payloads.events"))
+	assert.False(t, conf.GetBool("enable_payloads.series"))
+	assert.False(t, conf.GetBool("enable_payloads.service_checks"))
+	assert.False(t, conf.GetBool("enable_payloads.sketches"))
 }
 
 func TestAgentConfigInit(t *testing.T) {

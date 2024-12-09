@@ -8,7 +8,7 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -190,6 +190,10 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	if containerStats.PID != nil {
 		p.sendMetric(sender.Gauge, "container.pid.thread_count", containerStats.PID.ThreadCount, tags)
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
+	}
+
+	if container.RestartCount > 0 {
+		p.sendMetric(sender.Gauge, "container.restarts", pointer.Ptr(float64(container.RestartCount)), tags)
 	}
 
 	return nil

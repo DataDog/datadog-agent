@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -36,9 +36,12 @@ func newAutoscalersController(client kubernetes.Interface,
 	dogCl datadogclient.Component) (*autoscalersController, error) {
 	var err error
 	h := &autoscalersController{
-		clientSet:     client,
-		isLeaderFunc:  isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
-		hpaQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		clientSet:    client,
+		isLeaderFunc: isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
+		hpaQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedItemBasedRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "autoscalers"},
+		),
 		eventRecorder: eventRecorder,
 	}
 
@@ -162,7 +165,7 @@ func (h *autoscalersController) deleteFromLocalStore(toDelete []custommetrics.Ex
 	}
 }
 
-func (h *autoscalersController) handleErr(err error, key interface{}) {
+func (h *autoscalersController) handleErr(err error, key string) {
 	if err == nil {
 		log.Tracef("Faithfully dropping key %v", key)
 		h.hpaQueue.Forget(key)

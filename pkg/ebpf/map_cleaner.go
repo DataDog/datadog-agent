@@ -15,8 +15,24 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const ebpfMapsCleanerModule = "ebpf__maps__cleaner"
+
+var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
+var mapCleanerTelemetry = struct {
+	examined telemetry.Counter
+	deleted  telemetry.Counter
+	aborts   telemetry.Counter
+	elapsed  telemetry.Histogram
+}{
+	telemetry.NewCounter(ebpfMapsCleanerModule, "examined", []string{"map_name", "module", "api"}, "Counter measuring how many entries are examined"),
+	telemetry.NewCounter(ebpfMapsCleanerModule, "deleted", []string{"map_name", "module", "api"}, "Counter measuring how many entries are deleted"),
+	telemetry.NewCounter(ebpfMapsCleanerModule, "aborts", []string{"map_name", "module", "api"}, "Counter measuring how many iteration aborts occur"),
+	telemetry.NewHistogram(ebpfMapsCleanerModule, "elapsed", []string{"map_name", "module", "api"}, "Histogram of elapsed time for each Clean call", defaultBuckets),
+}
 
 // MapCleaner is responsible for periodically sweeping an eBPF map
 // and deleting entries that satisfy a certain predicate function supplied by the user
@@ -29,10 +45,16 @@ type MapCleaner[K any, V any] struct {
 	// termination
 	stopOnce sync.Once
 	done     chan struct{}
+
+	examined      telemetry.SimpleCounter
+	singleDeleted telemetry.SimpleCounter
+	batchDeleted  telemetry.SimpleCounter
+	aborts        telemetry.SimpleCounter
+	elapsed       telemetry.SimpleHistogram
 }
 
 // NewMapCleaner instantiates a new MapCleaner
-func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32) (*MapCleaner[K, V], error) {
+func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, module string) (*MapCleaner[K, V], error) {
 	batchSize := defaultBatchSize
 	if defaultBatchSize > emap.MaxEntries() {
 		batchSize = emap.MaxEntries()
@@ -46,10 +68,21 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32) (*MapC
 		return nil, err
 	}
 
+	singleTags := map[string]string{"map_name": name, "module": module, "api": "single"}
+	batchTags := map[string]string{"map_name": name, "module": module, "api": "batch"}
+	tags := singleTags
+	if m.CanUseBatchAPI() {
+		tags = batchTags
+	}
 	return &MapCleaner[K, V]{
-		emap:      m,
-		batchSize: batchSize,
-		done:      make(chan struct{}),
+		emap:          m,
+		batchSize:     batchSize,
+		done:          make(chan struct{}),
+		examined:      mapCleanerTelemetry.examined.WithTags(tags),
+		singleDeleted: mapCleanerTelemetry.deleted.WithTags(singleTags),
+		batchDeleted:  mapCleanerTelemetry.deleted.WithTags(batchTags),
+		aborts:        mapCleanerTelemetry.aborts.WithTags(tags),
+		elapsed:       mapCleanerTelemetry.elapsed.WithTags(tags),
 	}, nil
 }
 
@@ -66,16 +99,15 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 		return
 	}
 
-	// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
-	// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
-	// of a version comparison because some distros have backported this API), and fallback to
-	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
-	cleaner := mc.cleanWithoutBatches
-	if mc.emap.CanUseBatchAPI() {
-		cleaner = mc.cleanWithBatches
-	}
-
 	mc.once.Do(func() {
+		// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
+		// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
+		// of a version comparison because some distros have backported this API), and fallback to
+		// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
+		cleaner := mc.cleanWithoutBatches
+		if mc.emap.CanUseBatchAPI() {
+			cleaner = mc.cleanWithBatches
+		}
 		ticker := time.NewTicker(interval)
 		go func() {
 			defer ticker.Stop()
@@ -118,12 +150,12 @@ func (mc *MapCleaner[K, V]) Stop() {
 }
 
 func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
-	now := time.Now()
+	start := time.Now()
 
 	var keysToDelete []K
 	var key K
 	var val V
-	totalCount, deletedCount := 0, 0
+	totalCount, batchDeletedCount, singleDeletedCount := 0, 0, 0
 	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
 
 	for it.Next(&key, &val) {
@@ -136,38 +168,36 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	}
 
 	if err := it.Err(); err != nil {
-		log.Errorf("error iterating map=%s: %s", mc.emap, err)
+		if errors.Is(err, ebpf.ErrIterationAborted) {
+			mc.aborts.Inc()
+		} else {
+			log.Errorf("error iterating map=%s: %s", mc.emap, err)
+		}
 	}
 
-	var deletionError error
 	if len(keysToDelete) > 0 {
-		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete)
+		var deletionError error
+		batchDeletedCount, deletionError = mc.emap.BatchDelete(keysToDelete)
 		// We might have a partial deletion (as a key might be missing due to other cleaning mechanism), so we want
 		// to have a best-effort method to delete all keys. We cannot know which keys were deleted, so we have to try
 		// and delete all of them one by one.
 		if errors.Is(deletionError, ebpf.ErrKeyNotExist) {
-			deletionError = nil
 			for _, k := range keysToDelete {
 				if err := mc.emap.Delete(&k); err == nil {
-					deletedCount++
+					singleDeletedCount++
 				}
 			}
 		}
 	}
 
-	elapsed := time.Since(now)
-	log.Debugf(
-		"finished cleaning map=%s entries_checked=%d entries_deleted=%d deletion_error='%v' elapsed=%s",
-		mc.emap,
-		totalCount,
-		deletedCount,
-		deletionError,
-		elapsed,
-	)
+	mc.examined.Add(float64(totalCount))
+	mc.batchDeleted.Add(float64(batchDeletedCount))
+	mc.singleDeleted.Add(float64(singleDeletedCount))
+	mc.elapsed.Observe(float64(time.Since(start).Microseconds()))
 }
 
 func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
-	now := time.Now()
+	start := time.Now()
 
 	var keysToDelete []K
 	var key K
@@ -184,7 +214,11 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 	}
 
 	if err := entries.Err(); err != nil {
-		log.Errorf("error iterating map=%s: %s", mc.emap, err)
+		if errors.Is(err, ebpf.ErrIterationAborted) {
+			mc.aborts.Inc()
+		} else {
+			log.Errorf("error iterating map=%s: %s", mc.emap, err)
+		}
 	}
 
 	for _, k := range keysToDelete {
@@ -194,12 +228,7 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 		}
 	}
 
-	elapsed := time.Since(now)
-	log.Debugf(
-		"finished cleaning map=%s entries_checked=%d entries_deleted=%d elapsed=%s",
-		mc.emap,
-		totalCount,
-		deletedCount,
-		elapsed,
-	)
+	mc.examined.Add(float64(totalCount))
+	mc.singleDeleted.Add(float64(deletedCount))
+	mc.elapsed.Observe(float64(time.Since(start).Microseconds()))
 }

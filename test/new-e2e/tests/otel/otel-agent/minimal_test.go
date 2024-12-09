@@ -54,7 +54,7 @@ var minimalParams = utils.IAParams{
 
 func (s *minimalTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s)
+	utils.TestCalendarApp(s, false)
 }
 
 func (s *minimalTestSuite) TestOTLPTraces() {
@@ -87,4 +87,8 @@ func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
 
 func (s *minimalTestSuite) TestOTelFlareFiles() {
 	utils.TestOTelFlareFiles(s)
+}
+
+func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
+	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
 }

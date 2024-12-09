@@ -20,7 +20,6 @@ type ConnTuple C.conn_tuple_t
 type TCPStats C.tcp_stats_t
 type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
-type FailedConn C.conn_failed_t
 type SkpConn C.skp_conn_tuple_t
 type PidTs C.pid_ts_t
 type Batch C.batch_t
@@ -60,7 +59,6 @@ const TCPFailureConnTimeout = C.TCP_CONN_FAILED_TIMEOUT
 const TCPFailureConnRefused = C.TCP_CONN_FAILED_REFUSED
 
 const SizeofConn = C.sizeof_conn_t
-const SizeofFailedConn = C.sizeof_conn_failed_t
 
 type ClassificationProgram = uint32
 

@@ -211,7 +211,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns single endpoint from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -225,6 +225,9 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Engine:                           aws.String("aurora-postgresql"),
 						},
 					},
+				}, nil).Times(1)
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{},
 				}, nil).Times(1)
 			},
 			clusterIDs: []string{"test-cluster", "test-cluster-2"},
@@ -244,7 +247,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns many endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -268,6 +271,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
 						},
+					},
+				}, nil).Times(1)
+
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),
@@ -557,6 +565,67 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 								},
 							},
 						},
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+								{
+									Key:   aws.String("foo"),
+									Value: aws.String("bar"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag", "test2:tag2"},
+			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+		},
+		{
+			name: "multiple pages returns ids from all pages",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					Marker: aws.String("next"),
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Marker: aws.String("next"),
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
 						{
 							DBClusterIdentifier: aws.String("test-cluster-2"),
 							TagList: []types.Tag{

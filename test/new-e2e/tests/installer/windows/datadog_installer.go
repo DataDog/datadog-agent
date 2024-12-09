@@ -77,6 +77,32 @@ func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) 
 	return strings.TrimSpace(output), nil
 }
 
+// executeFromCopy executes a command using a copy of the Datadog Installer binary that is created
+// outside of the install directory. This is useful for commands that may remove the installer binary
+func (d *DatadogInstaller) executeFromCopy(cmd string, options ...client.ExecuteOption) (string, error) {
+	// Create temp file
+	tempFile, err := windowsCommon.GetTemporaryFile(d.env.RemoteHost)
+	if err != nil {
+		return "", err
+	}
+	defer d.env.RemoteHost.Remove(tempFile) //nolint:errcheck
+	// ensure it has a .exe extension
+	exeTempFile := tempFile + ".exe"
+	defer d.env.RemoteHost.Remove(exeTempFile) //nolint:errcheck
+	// must pass -Force b/c the temporary file is already created
+	copyCmd := fmt.Sprintf(`Copy-Item -Force -Path "%s" -Destination "%s"`, d.binaryPath, exeTempFile)
+	_, err = d.env.RemoteHost.Execute(copyCmd)
+	if err != nil {
+		return "", err
+	}
+	// Execute the command with the copied binary
+	output, err := d.env.RemoteHost.Execute(fmt.Sprintf("& \"%s\" %s", exeTempFile, cmd), options...)
+	if err != nil {
+		return output, err
+	}
+	return strings.TrimSpace(output), nil
+}
+
 // Version returns the version of the Datadog Installer on the host.
 func (d *DatadogInstaller) Version() (string, error) {
 	return d.execute("version")
@@ -112,6 +138,28 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
+// RunInstallScript runs the Datadog Installer install script on the remote host.
+func (d *DatadogInstaller) RunInstallScript(extraEnvVars map[string]string) (string, error) {
+	// Get the URL of the installer.exe artifact from the pipeline
+	artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+		return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
+	})
+	if err != nil {
+		return "", err
+	}
+	// Set the environment variables for the install script
+	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
+	for k, v := range extraEnvVars {
+		envVars[k] = v
+	}
+	envVars["DD_INSTALLER_URL"] = artifactURL
+	// TODO: Use install script from pipeline
+	cmd := `Set-ExecutionPolicy Bypass -Scope Process -Force;
+		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+		iex ((New-Object System.Net.WebClient).DownloadString('https://s3.amazonaws.com/dd-agent-mstesting/Install-Datadog.ps1'));`
+	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
+}
+
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
 // version: A function that returns the version of the package to install. By default, it will install
 // the package matching the current pipeline. This is a function so that it can be combined with
@@ -138,6 +186,14 @@ func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) 
 // Status returns the status provided by the running daemon
 func (d *DatadogInstaller) Status() (string, error) {
 	return d.execute("status")
+}
+
+// Purge runs the purge command, removing all packages
+func (d *DatadogInstaller) Purge() (string, error) {
+	// executeFromCopy is used here because the installer will remove itself
+	// if purge is run from the install directory it may cause an uninstall failure due
+	// to the file being in use.
+	return d.executeFromCopy("purge")
 }
 
 // Params contains the optional parameters for the Datadog Installer Install command
