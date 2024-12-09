@@ -9,14 +9,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"os"
+	"testing"
+
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
-	"os"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 )
 
 type DockerSuite struct {
@@ -31,8 +33,9 @@ func (suite *DockerSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":     auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
+		"ddagent:deploy":       auto.ConfigValue{Value: "true"},
+		"ddagent:fakeintake":   auto.ConfigValue{Value: "true"},
+		"ddagent:dualshipping": auto.ConfigValue{Value: "true"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "dockerstack", stackConfig, ec2.VMRunWithDocker, false)
