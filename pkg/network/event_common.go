@@ -234,14 +234,15 @@ type StatCookie = uint64
 
 // ConnectionTuple represents the unique network key for a connection
 type ConnectionTuple struct {
-	Source util.Address
-	Dest   util.Address
-	Pid    uint32
-	NetNS  uint32
-	SPort  uint16
-	DPort  uint16
-	Type   ConnectionType
-	Family ConnectionFamily
+	Source    util.Address
+	Dest      util.Address
+	Pid       uint32
+	NetNS     uint32
+	SPort     uint16
+	DPort     uint16
+	Type      ConnectionType
+	Family    ConnectionFamily
+	Direction ConnectionDirection
 }
 
 func (c ConnectionTuple) String() string {
@@ -285,7 +286,6 @@ type ConnectionStats struct {
 	ProtocolStack   protocols.Stack
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
-	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	IntraHost        bool
 	IsAssured        bool

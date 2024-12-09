@@ -16,15 +16,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
-	"github.com/cihub/seelog"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
