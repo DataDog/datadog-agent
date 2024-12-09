@@ -726,9 +726,9 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 	var clientIP string
 	var clientPort int
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
-		return err == nil
+		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
 	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
@@ -783,9 +783,9 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 
 	var clientIP string
 	var clientPort int
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
-		return err == nil
+		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
 	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
@@ -798,9 +798,9 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
-		return err == nil
+		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
 	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
@@ -958,12 +958,12 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
 		var clientIP string
 		var clientPort int
-		require.Eventually(t, func() bool {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			kernel.WithNS(test2Ns, func() error {
 				clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
 				return nil
 			})
-			return err == nil
+			assert.NoError(c, err)
 		}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
 		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
