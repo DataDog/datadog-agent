@@ -14,7 +14,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

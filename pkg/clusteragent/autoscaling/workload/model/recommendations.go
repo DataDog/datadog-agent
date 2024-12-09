@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 )
 
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
