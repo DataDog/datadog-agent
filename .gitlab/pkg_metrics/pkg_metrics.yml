@@ -206,6 +206,4 @@ new_check_pkg_size:
     - iot_agent_rpm-arm64
   script:
     - !reference [.setup_agent_github_app]
-    - ls -l $OMNIBUS_PACKAGE_DIR
-    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
     - inv package.check-size

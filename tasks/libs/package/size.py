@@ -34,24 +34,25 @@ SCANNED_BINARIES = {
     },
 }
 
+# The below template contains the relative increase threshold for each package type
 PACKAGE_SIZE_TEMPLATE = {
     'amd64': {
-        'datadog-agent': {'deb': 140000000},
-        'datadog-iot-agent': {'deb': 10000000},
-        'datadog-dogstatsd': {'deb': 10000000},
-        'datadog-heroku-agent': {'deb': 70000000},
+        'datadog-agent': {'deb': 140 * pow(10, 6)},
+        'datadog-iot-agent': {'deb': 10 * pow(10, 6)},
+        'datadog-dogstatsd': {'deb': 10 * pow(10, 6)},
+        'datadog-heroku-agent': {'deb': 70 * pow(10, 6)},
     },
     'x86_64': {
-        'datadog-agent': {'rpm': 140000000, 'suse': 140000000},
-        'datadog-iot-agent': {'rpm': 10000000, 'suse': 10000000},
-        'datadog-dogstatsd': {'rpm': 10000000, 'suse': 10000000},
+        'datadog-agent': {'rpm': 140 * pow(10, 6), 'suse': 140 * pow(10, 6)},
+        'datadog-iot-agent': {'rpm': 10 * pow(10, 6), 'suse': 10 * pow(10, 6)},
+        'datadog-dogstatsd': {'rpm': 10 * pow(10, 6), 'suse': 10 * pow(10, 6)},
     },
     'arm64': {
-        'datadog-agent': {'deb': 140000000},
-        'datadog-iot-agent': {'deb': 10000000},
-        'datadog-dogstatsd': {'deb': 10000000},
+        'datadog-agent': {'deb': 140 * pow(10, 6)},
+        'datadog-iot-agent': {'deb': 10 * pow(10, 6)},
+        'datadog-dogstatsd': {'deb': 10 * pow(10, 6)},
     },
-    'aarch64': {'datadog-agent': {'rpm': 140000000}, 'datadog-iot-agent': {'rpm': 10000000}},
+    'aarch64': {'datadog-agent': {'rpm': 140 * pow(10, 6)}, 'datadog-iot-agent': {'rpm': 10 * pow(10, 6)}},
 }
 
 
