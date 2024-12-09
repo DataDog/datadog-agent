@@ -103,17 +103,17 @@ def get_current_branch(ctx) -> str:
 
 
 def is_agent6(ctx) -> bool:
-    return get_current_branch(ctx).startswith("6.")
+    return get_current_branch(ctx).startswith("6.53")
 
 
-def get_default_branch():
+def get_default_branch(major: int | None = None):
     """Returns the default git branch given the current context (agent 6 / 7)."""
 
     # We create a context to avoid passing context in each function
     # This context is used to get the current branch so there is no side effect
     ctx = Context()
 
-    return '6.53.x' if is_agent6(ctx) else 'main'
+    return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
 
 
 def get_common_ancestor(ctx, branch, base=None) -> str:
