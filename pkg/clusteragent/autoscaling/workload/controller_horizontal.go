@@ -204,30 +204,6 @@ func (hr *horizontalController) computeScaleAction(
 		return nil, 0, errors.New(reason)
 	}
 
-	var evalAfter time.Duration
-	var limitReason string
-
-	// Stabilize recommendation
-	var stabilizationLimitReason string
-	var stabilizationLimitedReplicas int32
-	upscaleStabilizationSeconds := int32(0)
-	downscaleStabilizationSeconds := int32(0)
-
-	if policy := autoscalerInternal.Spec().Policy; policy != nil {
-		if upscalePolicy := policy.Upscale; upscalePolicy != nil {
-			upscaleStabilizationSeconds = int32(upscalePolicy.StabilizationWindowSeconds)
-		}
-		if downscalePolicy := policy.Downscale; downscalePolicy != nil {
-			downscaleStabilizationSeconds = int32(downscalePolicy.StabilizationWindowSeconds)
-		}
-	}
-
-	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds)
-	if stabilizationLimitReason != "" {
-		limitReason = stabilizationLimitReason
-		targetDesiredReplicas = stabilizationLimitedReplicas
-	}
-
 	// Going back inside requested boundaries in one shot.
 	// TODO: Should we apply scaling rules in this case?
 	if outsideBoundaries {
@@ -240,6 +216,9 @@ func (hr *horizontalController) computeScaleAction(
 			LimitedReason:       pointer.Ptr(fmt.Sprintf("current replica count is outside of min/max constraints, scaling back to closest boundary: %d replicas", targetDesiredReplicas)),
 		}, 0, nil
 	}
+
+	var evalAfter time.Duration
+	var limitReason string
 
 	// Scaling is allowed, applying Min/Max replicas constraints from Spec
 	if targetDesiredReplicas > maxReplicas {
@@ -265,6 +244,27 @@ func (hr *horizontalController) computeScaleAction(
 		targetDesiredReplicas = rulesLimitedReplicas
 		// To make sure event has expired and not have sub-second requeue, will be rounded to the next second
 		evalAfter = rulesNextEvalAfter.Truncate(time.Second) + time.Second
+	}
+
+	// Stabilize recommendation
+	var stabilizationLimitReason string
+	var stabilizationLimitedReplicas int32
+	upscaleStabilizationSeconds := int32(0)
+	downscaleStabilizationSeconds := int32(0)
+
+	if policy := autoscalerInternal.Spec().Policy; policy != nil {
+		if upscalePolicy := policy.Upscale; upscalePolicy != nil {
+			upscaleStabilizationSeconds = int32(upscalePolicy.StabilizationWindowSeconds)
+		}
+		if downscalePolicy := policy.Downscale; downscalePolicy != nil {
+			downscaleStabilizationSeconds = int32(downscalePolicy.StabilizationWindowSeconds)
+		}
+	}
+
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds)
+	if stabilizationLimitReason != "" {
+		limitReason = stabilizationLimitReason
+		targetDesiredReplicas = stabilizationLimitedReplicas
 	}
 
 	horizontalAction := &datadoghq.DatadogPodAutoscalerHorizontalAction{
