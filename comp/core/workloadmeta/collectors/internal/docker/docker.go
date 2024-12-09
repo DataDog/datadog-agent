@@ -164,7 +164,7 @@ func (c *collector) stream(ctx context.Context) {
 
 			err = c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
 			if err != nil {
-				log.Warnf("error unsubscribbing from container events: %s", err)
+				log.Warnf("error unsubscribing from container events: %s", err)
 			}
 
 			err = health.Deregister()
@@ -316,9 +316,10 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				FinishedAt: finishedAt,
 				CreatedAt:  createdAt,
 			},
-			NetworkIPs: extractNetworkIPs(container.NetworkSettings.Networks),
-			Hostname:   container.Config.Hostname,
-			PID:        container.State.Pid,
+			NetworkIPs:   extractNetworkIPs(container.NetworkSettings.Networks),
+			Hostname:     container.Config.Hostname,
+			PID:          container.State.Pid,
+			RestartCount: container.RestartCount,
 		}
 
 	case events.ActionDie, docker.ActionDied:

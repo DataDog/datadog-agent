@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -86,12 +87,13 @@ type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticat
 
 // WebhookForPods is the webhook that injects CWS pod instrumentation
 type WebhookForPods struct {
-	name          string
-	isEnabled     bool
-	endpoint      string
-	resources     []string
-	operations    []admissionregistrationv1.OperationType
-	admissionFunc admission.WebhookFunc
+	name            string
+	isEnabled       bool
+	endpoint        string
+	resources       map[string][]string
+	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
+	admissionFunc   admission.WebhookFunc
 }
 
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
@@ -99,10 +101,11 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		name: webhookForPodsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-		resources:     []string{"pods"},
-		operations:    []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-		admissionFunc: admissionFunc,
+		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+		resources:       map[string][]string{"": {"pods"}},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		matchConditions: []admissionregistrationv1.MatchCondition{},
+		admissionFunc:   admissionFunc,
 	}
 }
 
@@ -128,7 +131,7 @@ func (w *WebhookForPods) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForPods) Resources() []string {
+func (w *WebhookForPods) Resources() map[string][]string {
 	return w.resources
 }
 
@@ -144,6 +147,12 @@ func (w *WebhookForPods) LabelSelectors(useNamespaceSelector bool) (namespaceSel
 	return labelSelectors(useNamespaceSelector)
 }
 
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *WebhookForPods) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
+}
+
 // WebhookFunc returns the function that mutates the resources
 func (w *WebhookForPods) WebhookFunc() admission.WebhookFunc {
 	return w.admissionFunc
@@ -151,12 +160,13 @@ func (w *WebhookForPods) WebhookFunc() admission.WebhookFunc {
 
 // WebhookForCommands is the webhook that injects CWS pods/exec instrumentation
 type WebhookForCommands struct {
-	name          string
-	isEnabled     bool
-	endpoint      string
-	resources     []string
-	operations    []admissionregistrationv1.OperationType
-	admissionFunc admission.WebhookFunc
+	name            string
+	isEnabled       bool
+	endpoint        string
+	resources       map[string][]string
+	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
+	admissionFunc   admission.WebhookFunc
 }
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
@@ -164,10 +174,11 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		name: webhookForCommandsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
-		resources:     []string{"pods/exec"},
-		operations:    []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
-		admissionFunc: admissionFunc,
+		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
+		resources:       map[string][]string{"": {"pods/exec"}},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
+		matchConditions: []admissionregistrationv1.MatchCondition{},
+		admissionFunc:   admissionFunc,
 	}
 }
 
@@ -193,7 +204,7 @@ func (w *WebhookForCommands) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForCommands) Resources() []string {
+func (w *WebhookForCommands) Resources() map[string][]string {
 	return w.resources
 }
 
@@ -207,6 +218,12 @@ func (w *WebhookForCommands) Operations() []admissionregistrationv1.OperationTyp
 // should be invoked
 func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
 	return nil, nil
+}
+
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *WebhookForCommands) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
 }
 
 // WebhookFunc MutateFunc returns the function that mutates the resources
@@ -293,7 +310,7 @@ type CWSInstrumentation struct {
 }
 
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
-func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, error) {
+func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component) (*CWSInstrumentation, error) {
 	ci := CWSInstrumentation{
 		wmeta: wmeta,
 	}
@@ -313,7 +330,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 	cwsInjectorImageName := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")
 	cwsInjectorImageTag := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_tag")
 
-	cwsInjectorContainerRegistry := mutatecommon.ContainerRegistry("admission_controller.cws_instrumentation.container_registry")
+	cwsInjectorContainerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageName) == 0 {
 		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
@@ -369,7 +386,7 @@ func (ci *CWSInstrumentation) WebhookForCommands() *WebhookForCommands {
 }
 
 func (ci *CWSInstrumentation) injectForCommand(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatePodExecOptions(request.Raw, request.Name, request.Namespace, ci.webhookForCommands.Name(), request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient))
+	return common.MutationResponse(mutatePodExecOptions(request.Object, request.Name, request.Namespace, ci.webhookForCommands.Name(), request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient))
 }
 
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
@@ -616,7 +633,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
+	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {

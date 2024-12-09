@@ -28,6 +28,7 @@ const commonRegistry = "gcr.io/datadoghq"
 
 func TestInjectAgentSidecar(t *testing.T) {
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
 	tests := []struct {
 		Name                      string
 		Pod                       *corev1.Pod
@@ -70,7 +71,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(commonRegistry, configmock.New(t)),
+							*NewWebhook(mockConfig).getDefaultSidecarTemplate(),
 						},
 					},
 				}
@@ -116,7 +117,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{Name: "container-name"},
-						*getDefaultSidecarTemplate(commonRegistry, configmock.New(t)),
+						*NewWebhook(mockConfig).getDefaultSidecarTemplate(),
 					},
 				},
 			},
@@ -132,7 +133,55 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(commonRegistry, mockConfig),
+							*NewWebhook(mockConfig).getDefaultSidecarTemplate(),
+						},
+					},
+				}
+			},
+		},
+		{
+			Name: "should inject sidecar if no sidecar present, no provider set, owned by Job",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "batch/v1",
+							Kind:       "Job",
+						},
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+					},
+				},
+			},
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
+			ExpectedPodAfterInjection: func() *corev1.Pod {
+				defaultContainer := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+				// Update envvar when pod owned by Job
+				defaultContainer.Env = append(defaultContainer.Env, corev1.EnvVar{
+					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
+					Value: "true",
+				})
+				return &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-name",
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "batch/v1",
+								Kind:       "Job",
+							},
+						},
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Name: "container-name"},
+							defaultContainer,
 						},
 					},
 				}
@@ -155,7 +204,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate(commonRegistry, mockConfig)
+				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
 				_, _ = withEnvOverrides(
 					&sidecar,
 					corev1.EnvVar{
@@ -256,7 +305,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate(commonRegistry, mockConfig)
+				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
 
 				_, _ = withEnvOverrides(
 					&sidecar,
@@ -418,7 +467,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig := test.setConfig()
-			sidecar := getDefaultSidecarTemplate(test.containerRegistry, mockConfig)
+			sidecar := NewWebhook(mockConfig).getDefaultSidecarTemplate()
 			assert.Equal(tt, test.expectedImage, sidecar.Image)
 		})
 	}
@@ -428,15 +477,17 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		setConfig         func()
+		setConfig         func() model.Config
 		expectedEnvVars   []corev1.EnvVar
 		unexpectedEnvVars []string
 	}{
 		{
 			name: "cluster agent not enabled",
-			setConfig: func() {
+			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
 				{
@@ -453,9 +504,11 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		},
 		{
 			name: "cluster agent enabled with default values",
-			setConfig: func() {
+			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
 				{
@@ -489,10 +542,12 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		},
 		{
 			name: "cluster agent enabled with language derection enabled",
-			setConfig: func() {
+			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
 				mockConfig.SetWithoutSource("language_detection.enabled", true)
+				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
 				{
@@ -526,12 +581,14 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		},
 		{
 			name: "cluster agent enabled with custom values",
-			setConfig: func() {
+			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
 				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
 				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
 				mockConfig.SetWithoutSource("language_detection.enabled", "false")
+				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
 				{
@@ -567,8 +624,8 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			test.setConfig()
-			sidecar := getDefaultSidecarTemplate(commonRegistry, configmock.New(t))
+			mockConfig := test.setConfig()
+			sidecar := NewWebhook(mockConfig).getDefaultSidecarTemplate()
 			envVarsMap := make(map[string]corev1.EnvVar)
 			for _, envVar := range sidecar.Env {
 				envVarsMap[envVar.Name] = envVar

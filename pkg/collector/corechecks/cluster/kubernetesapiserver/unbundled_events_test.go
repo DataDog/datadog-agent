@@ -17,13 +17,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
 	ts := metav1.Time{Time: time.Date(2024, 5, 29, 6, 0, 51, 0, time.Now().Location())}
+	oldTs := metav1.Time{Time: ts.Add(-3 * time.Hour)}
 
 	incomingEvents := []*v1.Event{
 		{
@@ -58,7 +59,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				Component: "kubelet",
 				Host:      "test-host",
 			},
-			FirstTimestamp: ts,
+			FirstTimestamp: oldTs,
 			LastTimestamp:  ts,
 			Count:          1,
 		},
@@ -136,7 +137,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 	}
 
-	taggerInstance := taggerimpl.SetupFakeTagger(t)
+	taggerInstance := mock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name                    string
@@ -375,9 +376,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					Text: fmt.Sprintf(`%%%%%%%[1]s
 1 **Pulled**: Successfully pulled image "pokemon/squirtle:latest" in 1.263s (1.263s including waiting)
 %[1]s
- _Events emitted by the kubelet seen at %[2]s since %[2]s_%[1]s
+ _Events emitted by the kubelet seen at %[2]s since %[3]s_%[1]s
 
- %%%%%%`, " ", ts.String()),
+ %%%%%%`, " ", ts.String(), oldTs.String()),
 					Ts:       ts.Time.Unix(),
 					Priority: event.PriorityNormal,
 					Tags: []string{
@@ -654,7 +655,7 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 		},
 	}
 
-	taggerInstance := taggerimpl.SetupFakeTagger(t)
+	taggerInstance := mock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name                   string
@@ -900,7 +901,7 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 }
 
 func TestGetTagsFromTagger(t *testing.T) {
-	taggerInstance := taggerimpl.SetupFakeTagger(t)
+	taggerInstance := mock.SetupFakeTagger(t)
 	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
 	tests := []struct {
@@ -934,7 +935,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 }
 
 func TestUnbundledEventsShouldCollect(t *testing.T) {
-	taggerInstance := taggerimpl.SetupFakeTagger(t)
+	taggerInstance := mock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name     string

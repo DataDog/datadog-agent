@@ -207,7 +207,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     }
 
     int err = 0;
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
     if (err == 0) {
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         return 0; // no failure
@@ -220,7 +220,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    // connection timeouts will have 0 pids as they are cleaned up by an idle process. 
+    // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
@@ -232,17 +232,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    // check if this connection was already flushed and ensure we don't flush again
-    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
-    // skip EEXIST errors for telemetry since it is an expected error
-    __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
-        cleanup_conn(ctx, &t, sk);
-        flush_tcp_failure(ctx, &t, err);
-    } else {
-        bpf_map_delete_elem(&conn_close_flushed, &t);
-        increment_telemetry_count(double_flush_attempts_done);
+    tcp_stats_t stats = {.failure_reason = err};
+    update_tcp_stats(&t, stats);
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_done_connection_flush);
     }
+
+    increment_telemetry_count(tcp_failed_connect);
 
     return 0;
 }
@@ -281,21 +278,16 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         return 0;
     }
 
-    // check if this connection was already flushed and ensure we don't flush again
-    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
-    // skip EEXIST errors for telemetry since it is an expected error
-    __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
-        cleanup_conn(ctx, &t, sk);
-        int err = 0;
-        bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-        if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
-            increment_telemetry_count(tcp_close_target_failures);
-            flush_tcp_failure(ctx, &t, err);
-        }
-    } else {
-        bpf_map_delete_elem(&conn_close_flushed, &t);
-        increment_telemetry_count(double_flush_attempts_close);
+    int err = 0;
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
+    if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
+        increment_telemetry_count(tcp_close_target_failures);
+        tcp_stats_t stats = {.failure_reason = err};
+        update_tcp_stats(&t, stats);
+    }
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
     }
 
     return 0;

@@ -66,7 +66,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 	bundle := &CollectorBundle{
 		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
 		check:              chk,
-		inventory:          inventory.NewCollectorInventory(chk.cfg, chk.wlmStore),
+		inventory:          inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
 		runCfg: &collectors.CollectorRunConfig{
 			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
 				APIClient:                   chk.apiClient,

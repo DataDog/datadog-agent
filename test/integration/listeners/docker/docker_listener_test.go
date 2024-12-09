@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -52,6 +52,7 @@ type DockerListenerTestSuite struct {
 	m              sync.RWMutex
 	wmeta          workloadmeta.Component
 	telemetryStore *acTelemetry.Store
+	tagger         tagger.Component
 }
 
 type deps struct {
@@ -81,6 +82,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	}
 
 	var err error
+	env.SetFeatures(suite.T(), env.Docker)
 	deps := fxutil.Test[deps](suite.T(), fx.Options(
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
@@ -88,13 +90,12 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		taggerimpl.Module(),
-		fx.Supply(tagger.NewTaggerParams()),
+		taggerfx.Module(tagger.Params{}),
 	))
-	env.SetFeatures(suite.T(), env.Docker)
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
+	suite.tagger = deps.Tagger
 	require.Nil(suite.T(), err, "can't connect to docker")
 
 	suite.compose = utils.ComposeConf{
@@ -108,7 +109,12 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&pkgconfigsetup.Listeners{}, optional.NewOption(suite.wmeta), suite.telemetryStore)
+	dl, err := listeners.NewContainerListener(listeners.ServiceListernerDeps{
+		Config:    &pkgconfigsetup.Listeners{},
+		Wmeta:     optional.NewOption(suite.wmeta),
+		Telemetry: suite.telemetryStore,
+		Tagger:    suite.tagger,
+	})
 	if err != nil {
 		panic(err)
 	}

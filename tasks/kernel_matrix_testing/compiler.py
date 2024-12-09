@@ -11,8 +11,8 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
-from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
@@ -29,8 +29,9 @@ DOCKER_IMAGE_BASE = f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/system-prob
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(gitlab_ci_file) as f:
-        ci_config = yaml.load(f, Loader=GitlabYamlLoader())
+        ci_config = yaml.safe_load(f)
 
     ci_vars = ci_config['variables']
     return ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
@@ -184,9 +185,9 @@ class CompilerImage:
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
-        # Install all requirements except for libvirt ones (they won't build in the compiler and are not needed)
+        # Install requirements only for building in CI (not libvirt)
         self.exec(
-            f"cat {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements.txt | grep -v libvirt | xargs pip install ",
+            f"pip install -r {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements-ci.txt",
             user="compiler",
         )
 

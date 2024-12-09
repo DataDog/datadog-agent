@@ -10,6 +10,8 @@ package http2
 import (
 	"strconv"
 
+	"github.com/cihub/seelog"
+
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,7 +91,9 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 }
 
 func (t *kernelTelemetry) Log() {
-	log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
+	}
 }
 
 // Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other

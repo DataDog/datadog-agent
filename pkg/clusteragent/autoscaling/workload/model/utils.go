@@ -8,7 +8,7 @@
 package model
 
 import (
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 )
 
 // ApplyModeAllowSource returns true if the given source is allowed by the given apply mode.

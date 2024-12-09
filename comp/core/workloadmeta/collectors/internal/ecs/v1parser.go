@@ -11,6 +11,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
@@ -42,17 +43,20 @@ func (c *collector) parseTasksFromV1Endpoint(ctx context.Context) ([]workloadmet
 		arnParts := strings.Split(task.Arn, "/")
 		taskID := arnParts[len(arnParts)-1]
 		taskContainers, containerEvents := c.parseTaskContainers(task, seen)
+		taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.Arn)
 
 		entity := &workloadmeta.ECSTask{
 			EntityID: entityID,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: taskID,
 			},
-			ClusterName: c.clusterName,
-			Family:      task.Family,
-			Version:     task.Version,
-			LaunchType:  workloadmeta.ECSLaunchTypeEC2,
-			Containers:  taskContainers,
+			ClusterName:  c.clusterName,
+			Family:       task.Family,
+			Version:      task.Version,
+			Region:       taskRegion,
+			AWSAccountID: taskAccountID,
+			LaunchType:   workloadmeta.ECSLaunchTypeEC2,
+			Containers:   taskContainers,
 		}
 
 		// Only fetch tags if they're both available and used

@@ -4,6 +4,8 @@ erratic: false
 target:
   name: datadog-agent
   command: /bin/entrypoint.sh
+  cpu_allotment: 8
+  memory_allotment: 4GiB
 
   environment:
     DD_API_KEY: 00000001
@@ -37,4 +39,3 @@ target:
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
-

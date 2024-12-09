@@ -26,12 +26,12 @@ const (
 )
 
 var (
-	redisDefaultConnection = network.ConnectionStats{
+	redisDefaultConnection = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: localhost,
 		Dest:   localhost,
 		SPort:  redisClientPort,
 		DPort:  redisServerPort,
-	}
+	}}
 )
 
 type RedisSuite struct {
@@ -87,20 +87,20 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  redisClientPort,
 			Dest:   localhost,
 			DPort:  redisServerPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  redisClientPort,
 			Dest:   localhost,
 			DPort:  redisServerPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	redisKey := redis.NewKey(
@@ -138,20 +138,20 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  redisClientPort,
 			Dest:   localhost,
 			DPort:  redisServerPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  redisServerPort,
 			Dest:   localhost,
 			DPort:  redisClientPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	redisKey := redis.NewKey(

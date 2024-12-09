@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestNewHTTPTransaction(t *testing.T) {
@@ -52,7 +52,7 @@ func TestProcess(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
@@ -67,7 +67,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
@@ -82,7 +82,7 @@ func TestProcessNetworkError(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
@@ -104,7 +104,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	client := &http.Client{}
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
@@ -136,7 +136,7 @@ func TestProcessCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	err := transaction.Process(ctx, mockConfig, log, client)
 	assert.NoError(t, err)

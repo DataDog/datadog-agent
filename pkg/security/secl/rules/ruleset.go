@@ -241,7 +241,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					variableProvider = &rs.globalVariables
 				}
 
-				opts := eval.VariableOpts{TTL: actionDef.Set.TTL, Size: actionDef.Set.Size}
+				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size}
 
 				variable, err := variableProvider.GetVariable(actionDef.Set.Name, variableValue, opts)
 				if err != nil {
@@ -340,7 +340,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
-		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {
+		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
 			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
 		}
 	}
@@ -603,7 +603,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	// no-op in the general case, only used to collect events in functional tests
 	// for debugging purposes
-	rs.eventCollector.CollectEvent(rs, event, result)
+	rs.eventCollector.CollectEvent(rs, ctx, event, result)
 
 	return result
 }
@@ -743,7 +743,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		rulesIndex = make(map[string]*PolicyRule)
 	)
 
-	parsingContext := ast.NewParsingContext()
+	parsingContext := ast.NewParsingContext(false)
 
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {

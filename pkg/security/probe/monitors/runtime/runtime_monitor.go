@@ -58,7 +58,7 @@ func (m *Monitor) sendCgroupMetrics() error {
 		}
 	}
 	if len(memoryCgroup.Path) == 0 {
-		return fmt.Errorf("couldn't find memory controller in: %v: %w", cgroups, err)
+		return fmt.Errorf("couldn't find memory controller in: %v", cgroups)
 	}
 
 	usageInBytes, err := utils.ParseCgroupFileValue("memory", memoryCgroup.Path, "memory.usage_in_bytes")

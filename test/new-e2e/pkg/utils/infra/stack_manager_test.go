@@ -259,6 +259,11 @@ func TestStackManager(t *testing.T) {
 				expectedRetryType: ReCreate,
 			},
 			{
+				name:              "cloud-init-timeout",
+				errMessage:        "Process exited with status 6: running \" sudo cloud-init status --wait\"",
+				expectedRetryType: ReCreate,
+			},
+			{
 				name:              "ecs-fakeintake-timeout",
 				errMessage:        "waiting for ECS Service (arn:aws:ecs:us-east-1:669783387624:service/fakeintake-ecs/ci-633219896-4670-e2e-dockersuite-80f62edf7bcc6194-aws-fakeintake-dockervm-srv) create: timeout while waiting for state to become 'tfSTABLE' (last state: 'tfPENDING', timeout: 20m0s)",
 				expectedRetryType: ReCreate,

@@ -16,6 +16,8 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 func TestInjectedEnvBasic(t *testing.T) {
@@ -55,7 +57,7 @@ func TestInjectedEnvLimit(t *testing.T) {
 	require.False(t, ok)
 }
 
-// createEnvsMemfd creates an memfd in the current process with the specified
+// createEnvsMemfd creates a memfd in the current process with the specified
 // environment variables in the same way as Datadog/auto_inject.
 func createEnvsMemfd(t *testing.T, envs []string) {
 	t.Helper()
@@ -102,4 +104,80 @@ func memfile(name string, b []byte) (int, error) {
 	}
 
 	return fd, nil
+}
+
+// TestTargetEnvs it checks reading of target environment variables only from /proc/<pid>/environ.
+func TestTargetEnvs(t *testing.T) {
+	curPid := os.Getpid()
+	proc, err := process.NewProcess(int32(curPid))
+	require.NoError(t, err)
+
+	expectedEnvs := envs.GetExpectedEnvs()
+	createEnvsMemfd(t, expectedEnvs)
+
+	vars, err := getTargetEnvs(proc)
+	require.NoError(t, err)
+
+	expectedMap := envs.GetExpectedMap()
+	for k, v := range expectedMap {
+		val, ok := vars.Get(k)
+		require.True(t, ok)
+		require.Equal(t, val, v)
+	}
+
+	// check unexpected env variables
+	val, ok := vars.Get("HOME")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("PATH")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("SHELL")
+	require.Empty(t, val)
+	require.False(t, ok)
+
+	// check that non-target variables return an empty map.
+	vars = envs.NewVariables(map[string]string{
+		"NON_TARGET1": "some",
+		"NON_TARGET2": "some",
+	})
+	val, ok = vars.Get("NON_TARGET1")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("NON_TARGET2")
+	require.Empty(t, val)
+	require.False(t, ok)
+}
+
+// BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.
+func BenchmarkGetEnvs(b *testing.B) {
+	proc, err := customNewProcess(int32(os.Getpid()))
+	if err != nil {
+		return
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, err = getEnvs(proc)
+		if err != nil {
+			return
+		}
+	}
+}
+
+// BenchmarkGetEnvsTarget benchmarks reading of target environment variables only from /proc/<pid>/environ.
+func BenchmarkGetEnvsTarget(b *testing.B) {
+	proc, err := customNewProcess(int32(os.Getpid()))
+	if err != nil {
+		return
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, err = getTargetEnvs(proc)
+		if err != nil {
+			return
+		}
+	}
 }

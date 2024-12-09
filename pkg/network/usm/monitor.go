@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -168,9 +169,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	response["blocked_processes"] = utils.GetBlockedPathIDsList()
+	response["blocked_processes"] = utils.GetBlockedPathIDsList(consts.USMModuleName)
 
-	tracedPrograms := utils.GetTracedProgramList()
+	tracedPrograms := utils.GetTracedProgramList(consts.USMModuleName)
 	response["traced_programs"] = tracedPrograms
 
 	if m != nil {

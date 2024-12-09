@@ -20,6 +20,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -440,11 +441,16 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 func startAgents() *Daemon {
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", testutil.FreeTCPPort(nil)))
 
-	ta := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
+	ta := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         true,
+		LoadConfig:      &trace.LoadConfig{Path: "/some/path/datadog.yml"},
+		ColdStartSpanID: 123,
+	})
 	d.SetTraceAgent(ta)
 
 	ma := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
 	}
 	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	d.SetStatsdServer(ma)

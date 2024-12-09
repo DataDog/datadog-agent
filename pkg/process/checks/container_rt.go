@@ -44,7 +44,11 @@ type RTContainerCheck struct {
 func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
-	r.containerProvider = proccontainers.GetSharedContainerProvider(r.wmeta)
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	r.containerProvider = sharedContainerProvider
 	return nil
 }
 

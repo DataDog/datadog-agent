@@ -3,7 +3,7 @@
 # publish it to a production bucket like ddagent-windows-stable.
 # For now we can use the dd-agent-mstesting bucket to store the PowerShell script.
 powershell_script_deploy:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: choco_and_install_script_deploy
   rules:
@@ -17,7 +17,7 @@ powershell_script_deploy:
 # but it requires changes in agent-release-management to deploy to a production bucket like ddagent-windows-stable.
 # For now we can use the dd-agent-mstesting bucket to store the bootstrapper.
 windows_bootstrapper_deploy:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: choco_and_install_script_deploy
   rules:

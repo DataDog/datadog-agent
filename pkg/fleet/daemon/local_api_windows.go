@@ -12,6 +12,8 @@ import (
 	"github.com/Microsoft/go-winio"
 	"net"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 const (
@@ -20,6 +22,11 @@ const (
 
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon, _ string) (LocalAPI, error) {
+	// Prevent daemon from running in insecure directories
+	err := paths.IsInstallerDataDirSecure()
+	if err != nil {
+		return nil, err
+	}
 	listener, err := winio.ListenPipe(namedPipePath, &winio.PipeConfig{
 		SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;BA)",
 		MessageMode:        false,

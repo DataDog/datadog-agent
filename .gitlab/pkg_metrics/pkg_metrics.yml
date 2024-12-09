@@ -4,7 +4,7 @@
 
 send_pkg_size:
   stage: pkg_metrics
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
@@ -45,7 +45,7 @@ send_pkg_size:
       optional: true
   script:
     # Get API key to send metrics
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
 
     # Allow failures: some packages are not always built, and therefore stats cannot be sent for them
     - set +e
@@ -78,14 +78,14 @@ send_pkg_size:
 
 .check_pkg_size:
   stage: pkg_metrics
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
     - ls -l $OMNIBUS_PACKAGE_DIR
     - if [[ "${ARCH}" == "amd64" ]]; then ls -l $OMNIBUS_PACKAGE_DIR_SUSE; fi
 
     - export failures=0
-    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
+    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}" --no-worktree)
     # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes
     # The loop assumes that all flavors start with "da", which is currently the case
     # We want to run all package size comparisons before failing, so we set +e while doing the comparisons
@@ -179,3 +179,32 @@ check_pkg_size-arm64-a7:
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
       )
+
+new_check_pkg_size:
+  stage: pkg_metrics
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  allow_failure: true
+  needs:
+    - agent_deb-x64-a7
+    - iot_agent_deb-x64
+    - dogstatsd_deb-x64
+    - agent_heroku_deb-x64-a7
+    - agent_rpm-x64-a7
+    - iot_agent_rpm-x64
+    - dogstatsd_rpm-x64
+    - agent_suse-x64-a7
+    - dogstatsd_suse-x64
+    - iot_agent_suse-x64
+    - agent_deb-arm64-a7
+    - iot_agent_deb-arm64
+    - dogstatsd_deb-arm64
+    - agent_rpm-arm64-a7
+    - iot_agent_rpm-arm64
+  script:
+    - ls -l $OMNIBUS_PACKAGE_DIR
+    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+    - inv package.check-size

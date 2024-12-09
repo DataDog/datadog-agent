@@ -169,8 +169,8 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
-func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
-	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		return nil, closeFn, err
 	}
 }
@@ -213,7 +213,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRCFallback
 			cfg.EnableRuntimeCompiler = te.enableRC
-			cfg.AllowPrecompiledFallback = te.allowPrebuiltFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			prevOffsetGuessingRun := offsetGuessingRun
 			_, closeFn, tracerType, err := LoadTracer(cfg, manager.Options{}, nil, nil)
@@ -251,7 +251,7 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(*config.Config, manager.Options, ddebpf.EventHandler, ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	coreTracerLoader = func(*config.Config, manager.Options, ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		coreCalled = true
 		return nil, nil, nil
 	}
@@ -296,7 +296,7 @@ func TestCORETracerSupported(t *testing.T) {
 
 func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	prevLoader := tracerLoaderFromAsset
-	tracerLoaderFromAsset = func(_ bytecode.AssetReader, _, _ bool, _ *config.Config, mgrOpts manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	tracerLoaderFromAsset = func(_ bytecode.AssetReader, _, _ bool, _ *config.Config, mgrOpts manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		assert.Equal(t, mgrOpts.DefaultKProbeMaxActive, 128)
 		return nil, nil, nil
 	}

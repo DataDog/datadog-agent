@@ -7,7 +7,6 @@
 package check
 
 import (
-	_ "embed"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -21,12 +20,6 @@ import (
 type linuxCheckSuite struct {
 	baseCheckSuite
 }
-
-//go:embed fixtures/hello.yaml
-var customCheckYaml []byte
-
-//go:embed fixtures/hello.py
-var customCheckPython []byte
 
 func TestLinuxCheckSuite(t *testing.T) {
 	t.Parallel()

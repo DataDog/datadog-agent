@@ -129,8 +129,15 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 	return p.TPacket.SetBPF(filter)
 }
 
-// VisitPackets starts reading packets from the source
-func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []byte, info PacketInfo, t time.Time) error) error {
+type zeroCopyPacketReader interface {
+	ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error)
+}
+
+// AFPacketVisitor is the callback that AFPacketSource will trigger for packets
+// The data buffer is reused between calls, so be careful
+type AFPacketVisitor = func(data []byte, info PacketInfo, t time.Time) error
+
+func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVisitor) error {
 	pktInfo := &AFPacketInfo{}
 	for {
 		// allow the read loop to be prematurely interrupted
@@ -155,11 +162,23 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []by
 			return err
 		}
 
-		pktInfo.PktType = stats.AncillaryData[0].(afpacket.AncillaryPktType).Type
+		for _, data := range stats.AncillaryData {
+			// if addPktType = true, AncillaryData will contain an AncillaryPktType element;
+			// however, it might not be the first element, so scan through.
+			pktType, ok := data.(afpacket.AncillaryPktType)
+			if ok {
+				pktInfo.PktType = pktType.Type
+			}
+		}
 		if err := visit(data, pktInfo, stats.Timestamp); err != nil {
 			return err
 		}
 	}
+}
+
+// VisitPackets starts reading packets from the source
+func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit AFPacketVisitor) error {
+	return visitPackets(p, exit, visit)
 }
 
 // LayerType is the gopacket.LayerType for this source

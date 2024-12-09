@@ -1,15 +1,18 @@
 import os
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
 import urllib.request
 
+import requests
 import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.go import tidy
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
@@ -17,7 +20,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.104.0"
+OCB_VERSION = "0.114.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -42,9 +45,7 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-BASE_URL = (
-    f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
-)
+BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
@@ -57,6 +58,8 @@ BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
         "arm64": f"ocb_{OCB_VERSION}_darwin_arm64",
     },
 }
+
+MANIFEST_FILE = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
 
 
 class YAMLValidationError(Exception):
@@ -84,13 +87,26 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
     return res
 
 
+def versions_equal(version1, version2):
+    # strip leading 'v' if present
+    if version1.startswith("v"):
+        version1 = version1[1:]
+    if version2.startswith("v"):
+        version2 = version2[1:]
+    # Split the version strings by '.'
+    parts1 = version1.split(".")
+    parts2 = version2.split(".")
+    # Compare the first two parts (major and minor versions)
+    return parts1[0] == parts2[0] and parts1[1] == parts2[1]
+
+
 def validate_manifest(manifest) -> list:
     """Return a list of components to remove, or empty list if valid.
     If invalid components are found, raise a YAMLValidationError."""
 
     # validate collector version matches ocb version
     manifest_version = manifest.get("dist", {}).get("otelcol_version")
-    if manifest_version and manifest_version != OCB_VERSION:
+    if manifest_version and not versions_equal(manifest_version, OCB_VERSION):
         raise YAMLValidationError(
             f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
         )
@@ -155,7 +171,6 @@ def generate(ctx):
 
     binary_url = f"{BASE_URL}{binary_name}"
 
-    config_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
     with tempfile.TemporaryDirectory() as tmpdirname:
         binary_path = os.path.join(tmpdirname, binary_name)
         print(f"Downloading {binary_url} to {binary_path}...")
@@ -171,7 +186,7 @@ def generate(ctx):
             ) from e
 
         # Run the binary with specified options
-        run_command = f"{binary_path} --config {config_path} --skip-compilation"
+        run_command = f"{binary_path} --config {MANIFEST_FILE} --skip-compilation"
         print(f"Running command: {run_command}")
 
         try:
@@ -191,7 +206,7 @@ def generate(ctx):
     output_path = None
     components_to_remove = []
     try:
-        with open(config_path) as file:
+        with open(MANIFEST_FILE) as file:
             manifest = yaml.safe_load(file)
             output_path = manifest["dist"]["output_path"]
             components_to_remove = validate_manifest(manifest)
@@ -202,7 +217,7 @@ def generate(ctx):
         ) from e
 
     if components_to_remove:
-        strip_invalid_components(config_path, components_to_remove)
+        strip_invalid_components(MANIFEST_FILE, components_to_remove)
 
     if output_path != impl_path:
         files_to_copy = ["components.go", "go.mod"]
@@ -244,3 +259,242 @@ def generate(ctx):
                     f.write(content)
 
                 print(f"Updated package name and ensured license header in: {file_path}")
+
+
+def update_go_mod_file(go_mod_path, module_versions):
+    print(f"Updating {go_mod_path}")
+    # Read all lines from the go.mod file
+    with open(go_mod_path) as file:
+        lines = file.readlines()
+
+    updated_lines = []
+    file_updated = False  # To check if the file was modified
+
+    # Compile a regex for each module to match the module name exactly
+    compiled_modules = {module: re.compile(rf"^\s*{re.escape(module)}\s+v[\d\.]+") for module in module_versions.keys()}
+
+    # Regex to match any `require` line
+    require_regex = re.compile(r"^require\s+(\S+)\s+v[\d\.]+")
+
+    for line in lines:
+        updated_line = line
+
+        # Check for any `require` line case
+        require_match = require_regex.match(line)
+        if require_match:
+            module_name = require_match.group(1)
+            for module, version in module_versions.items():
+                if module_name == module:
+                    print(f"Updating {module_name} to version {version} in {go_mod_path}")
+                    updated_line = f"require {module_name} {version}\n"
+                    file_updated = True
+                    break  # Stop checking once updated
+
+        # General case for other module versions
+        else:
+            for module, version in module_versions.items():
+                module_regex = compiled_modules[module]
+                match = module_regex.match(line)
+                if match:
+                    print(f"Updating {module} to version {version} in {go_mod_path}")
+                    updated_line = f"{match.group(0).split()[0]} {version}\n"
+                    file_updated = True
+                    break  # Stop checking other modules once we find a match
+                if updated_line != line:
+                    break  # If the line was updated, stop checking other versions
+
+        updated_lines.append(updated_line)
+
+    # Write the updated lines back to the file only if changes were made
+    if file_updated:
+        with open(go_mod_path, "w") as file:
+            file.writelines(updated_lines)
+        print(f"{go_mod_path} updated.")
+    else:
+        print(f"No changes made to {go_mod_path}.")
+
+
+def update_all_go_mod(collector_version_modules):
+    for root, _, files in os.walk("."):
+        if "go.mod" in files:
+            go_mod_path = os.path.join(root, "go.mod")
+            update_go_mod_file(go_mod_path, collector_version_modules)
+    print("All go.mod files updated.")
+
+
+def read_old_version(filepath):
+    """Reads the old version from the manifest.yaml file."""
+    version_regex = re.compile(r"^\s*version:\s+([\d\.]+)")
+    with open(filepath) as file:
+        for line in file:
+            match = version_regex.match(line)
+            if match:
+                return match.group(1)
+    return None
+
+
+def update_file(filepath, old_version, new_version):
+    """Updates all instances of the old version to the new version in the file."""
+    print(f"Updating all instances of {old_version} to {new_version} in {filepath}")
+    with open(filepath) as file:
+        content = file.read()
+
+    # Replace all occurrences of the old version with the new version
+    updated_content = content.replace(old_version, new_version)
+
+    # Write the updated content back to the file
+    with open(filepath, "w") as file:
+        file.write(updated_content)
+
+    print(f"Updated all instances of {old_version} to {new_version} in {filepath}")
+
+
+OTEL_COLLECTOR_CORE_REPO = "open-telemetry/opentelemetry-collector"
+OTEL_COLLECTOR_CONTRIB_REPO = "open-telemetry/opentelemetry-collector-contrib"
+
+
+def update_versions_in_ocb_yaml(yaml_file_path, modules_version):
+    with open(yaml_file_path) as file:
+        data = yaml.safe_load(file)
+
+    # Function to update versions in a list of components
+    def update_component_versions(components):
+        for i, component in enumerate(components):
+            if "gomod" in component:
+                parts = component["gomod"].split(" ")
+                if len(parts) == 2:
+                    version = modules_version.get(parts[0], parts[1])
+                    parts[1] = version
+                    components[i]["gomod"] = " ".join(parts)
+
+    # Update extensions, receivers, processors, and exporters
+    for key in ["extensions", "receivers", "processors", "exporters", "connectors", "providers", "converters"]:
+        if key in data:
+            update_component_versions(data[key])
+
+    with open(yaml_file_path, "w") as file:
+        yaml.dump(data, file, default_flow_style=False)
+
+    print(f"Updated YAML file at {yaml_file_path}")
+
+
+def fetch_latest_release(repo):
+    gh = GithubAPI(repo)
+    return gh.latest_release()
+
+
+class CollectorRepo:
+    def __init__(self, repo):
+        self.repo = repo
+        self.version = self.fetch_latest_release()
+        if not self.version:
+            raise Exit(
+                color_message(f"Failed to fetch the latest release for {repo}", Color.RED),
+                code=1,
+            )
+        self.version_modules = self.fetch_module_versions()
+        self.old_version = read_old_version(MANIFEST_FILE)
+        if not self.old_version:
+            raise Exit(
+                color_message(f"Failed to read the old version from {MANIFEST_FILE}", Color.RED),
+                code=1,
+            )
+        self.modules_version = {}
+        for k, v in self.version_modules.items():
+            for module in v:
+                self.modules_version[module] = k
+
+    def get_old_version(self):
+        return self.old_version
+
+    def get_modules_version(self):
+        return self.modules_version
+
+    def get_version(self):
+        return self.version
+
+    def fetch_latest_release(self):
+        gh = GithubAPI(self.repo)
+        self.version = gh.latest_release()
+        return self.version
+
+    def fetch_module_versions(self):
+        url = f"https://raw.githubusercontent.com/{self.repo}/refs/tags/{self.version}/versions.yaml"
+        print(f"Fetching versions from {url}")
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
+        except requests.exceptions.RequestException as e:
+            raise Exit(
+                color_message(f"Failed to fetch the YAML file: {e}", Color.RED),
+                code=1,
+            ) from e
+
+        yaml_content = response.content
+
+        try:
+            data = yaml.safe_load(yaml_content)
+        except yaml.YAMLError as e:
+            raise Exit(
+                color_message(f"Failed to parse YAML content: {e}", Color.RED),
+                code=1,
+            ) from e
+
+        version_modules = {}
+
+        for _, details in data.get("module-sets", {}).items():
+            version = details.get("version", "unknown")
+            for module in details.get("modules", []):
+                version_modules[version] = version_modules.get(version, []) + [module]
+
+        return version_modules
+
+
+class CollectorVersionUpdater:
+    def __init__(self):
+        self.core_collector = CollectorRepo(OTEL_COLLECTOR_CORE_REPO)
+        self.contrib_collector = CollectorRepo(OTEL_COLLECTOR_CONTRIB_REPO)
+        self.modules_version = {}
+        self.modules_version.update(self.core_collector.get_modules_version())
+        self.modules_version.update(self.contrib_collector.get_modules_version())
+
+    def update_all_go_mod(self):
+        update_all_go_mod(self.modules_version)
+
+    def update_ocb_yaml(self):
+        update_versions_in_ocb_yaml(
+            "./test/otel/testdata/builder-config.yaml",
+            self.modules_version,
+        )
+        update_versions_in_ocb_yaml(
+            MANIFEST_FILE,
+            self.modules_version,
+        )
+
+    def update_files(self):
+        files = [
+            MANIFEST_FILE,
+            "./comp/otelcol/collector/impl/collector.go",
+            "./tasks/collector.py",
+            "./.gitlab/integration_test/otel.yml",
+        ]
+        for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
+            for file in files:
+                files.append(os.path.join(root, file))
+        collector_version = self.core_collector.get_version()[1:]
+        for file in files:
+            update_file(file, self.core_collector.get_old_version(), collector_version)
+
+    def update(self):
+        self.update_all_go_mod()
+        self.update_ocb_yaml()
+        self.update_files()
+        print("Update complete.")
+
+
+@task(post=[tidy])
+def update(ctx):
+    updater = CollectorVersionUpdater()
+    updater.update()
+    print("Update complete.")

@@ -63,16 +63,19 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 	mockProcessData, probe := NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
 	mockClock := clock.NewMock()
+	mockCtrl := gomock.NewController(t)
+	mockProvider := proccontainers.NewMockContainerProvider(mockCtrl)
 	processDiffCh := wlmExtractor.ProcessCacheDiff()
 	processCollector := &collector{
-		id:              collectorID,
-		store:           mockStore,
-		catalog:         workloadmeta.NodeAgent,
-		processDiffCh:   processDiffCh,
-		processData:     mockProcessData,
-		pidToCid:        make(map[int]string),
-		wlmExtractor:    wlmExtractor,
-		collectionClock: mockClock,
+		id:                collectorID,
+		store:             mockStore,
+		catalog:           workloadmeta.NodeAgent,
+		processDiffCh:     processDiffCh,
+		processData:       mockProcessData,
+		pidToCid:          make(map[int]string),
+		wlmExtractor:      wlmExtractor,
+		collectionClock:   mockClock,
+		containerProvider: mockProvider,
 	}
 
 	return collectorTest{processCollector, probe, mockClock, mockStore}

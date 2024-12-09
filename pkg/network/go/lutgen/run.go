@@ -157,8 +157,6 @@ func (g *LookupTableGenerator) getVersions(ctx context.Context) ([]goversion.GoV
 	includedVersions := make(map[majorMinorPair]struct{})
 	for _, version := range allVersions {
 		if version.Rev != 0 ||
-			version.Beta != 0 ||
-			version.RC != 0 ||
 			version.Proposal != "" ||
 			!version.AfterOrEqual(g.MinGoVersion) {
 			continue
@@ -174,12 +172,9 @@ func (g *LookupTableGenerator) getVersions(ctx context.Context) ([]goversion.GoV
 	highestNonZeroRelease := make(map[majorMinorPair]goversion.GoVersion)
 	for _, version := range allVersions {
 		if _, ok := includedVersions[majorMinorPair{version.Major, version.Minor}]; !ok && version.AfterOrEqual(g.MinGoVersion) {
-			// This version is a candiadate to be its major,minor pair's highest beta/RC/rev!=0 version.
+			// This version is a candidate to be its major,minor pair's highest beta/RC/rev!=0 version.
 			if existing, ok := highestNonZeroRelease[majorMinorPair{version.Major, version.Minor}]; ok {
-				if existing.RC > 0 && version.Beta == 0 {
-					// AfterOrEqual considers Beta versions after RC versions, so fix this manually
-					continue
-				} else if existing.AfterOrEqual(version) {
+				if existing.AfterOrEqual(version) {
 					// There is already a newer version
 					continue
 				}

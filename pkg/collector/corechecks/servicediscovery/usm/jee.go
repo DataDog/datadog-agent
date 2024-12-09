@@ -134,7 +134,7 @@ func (je jeeExtractor) resolveAppServer() (serverVendor, string) {
 	var baseDir string
 	// jboss in domain mode does not expose the domain base dir but that path can be derived from the logging configuration
 	var julConfigFile string
-	for _, a := range je.ctx.args {
+	for _, a := range je.ctx.Args {
 		if serverHomeHint == unknown {
 			switch {
 			case strings.HasPrefix(a, wlsHomeSysProp):
@@ -297,38 +297,37 @@ func (je jeeExtractor) doExtractContextRoots(extractor vendorExtractor, app *jee
 	return nil
 }
 
-// extractServiceNamesForJEEServer takes args, cws and the fs (for testability reasons) and, after having determined the vendor,
-// If the vendor can be determined, it returns the context roots if found, otherwise the server name.
-// If the vendor is unknown, it returns a nil slice
-func (je jeeExtractor) extractServiceNamesForJEEServer() []string {
+// extractServiceNamesForJEEServer extracts the server vendor name and the
+// service names from server-specific deployment files.
+func (je jeeExtractor) extractServiceNamesForJEEServer() (serverVendor, []string) {
 	vendor, domainHome := je.resolveAppServer()
 	if vendor == unknown {
-		return nil
+		return vendor, nil
 	}
 	log.Debugf("running java enterprise service extraction - vendor %q", vendor)
 	// check if able to find which applications are deployed
 	extractorCreator, ok := extractors[vendor]
 	if !ok {
-		return nil
+		return vendor, nil
 	}
 	extractor := extractorCreator(je.ctx)
-	cwd, ok := workingDirFromEnvs(je.ctx.envs)
+	cwd, ok := workingDirFromEnvs(je.ctx.Envs)
 	if ok {
 		domainHome = abs(domainHome, cwd)
 	}
 
 	apps, ok := extractor.findDeployedApps(domainHome)
 	if !ok {
-		return nil
+		return vendor, nil
 	}
 	var contextRoots []string
 	for _, app := range apps {
 		contextRoots = append(contextRoots, normalizeContextRoot(je.doExtractContextRoots(extractor, &app)...)...)
 	}
 	if len(contextRoots) == 0 {
-		return nil
+		return vendor, nil
 	}
-	return contextRoots
+	return vendor, contextRoots
 }
 
 func (s serverVendor) String() string {

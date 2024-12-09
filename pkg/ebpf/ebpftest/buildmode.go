@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	Prebuilt = prebuilt{}
+	Prebuilt = prebuiltMode{}
 	RuntimeCompiled = runtimeCompiled{}
 	CORE = core{}
 	Fentry = fentry{}
@@ -33,19 +33,19 @@ type BuildMode interface {
 	Env() map[string]string
 }
 
-type prebuilt struct{}
+type prebuiltMode struct{}
 
-func (p prebuilt) String() string {
+func (p prebuiltMode) String() string {
 	return "prebuilt"
 }
 
-func (p prebuilt) Env() map[string]string {
+func (p prebuiltMode) Env() map[string]string {
 	return map[string]string{
 		"NETWORK_TRACER_FENTRY_TESTS":        "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
-		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
 	}
 }
 
@@ -61,7 +61,7 @@ func (r runtimeCompiled) Env() map[string]string {
 		"DD_ENABLE_RUNTIME_COMPILER":         "true",
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
-		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
 	}
 }
 
@@ -77,7 +77,7 @@ func (c core) Env() map[string]string {
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
-		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
 	}
 }
 
@@ -93,7 +93,7 @@ func (f fentry) Env() map[string]string {
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
-		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
 	}
 }
 
@@ -109,7 +109,7 @@ func (e ebpfless) Env() map[string]string {
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
-		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
 		"DD_NETWORK_CONFIG_ENABLE_EBPFLESS":  "true",
 	}
 }

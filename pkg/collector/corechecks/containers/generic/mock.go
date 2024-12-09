@@ -10,6 +10,7 @@ package generic
 import (
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
@@ -31,6 +32,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter,
+	tagger tagger.Component,
 ) (*mocksender.MockSender, *Processor, ContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
@@ -48,7 +50,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	mockedSender := mocksender.NewMockSender("generic-container")
 	mockedSender.SetupAcceptAll()
 
-	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter)
+	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger)
 
 	return mockedSender, &p, &mockAccessor
 }
@@ -73,5 +75,6 @@ func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
 			// Put the creation date in the past as, on Windows, the timer resolution may generate a 0 elapsed.
 			StartedAt: time.Now().Add(-2 * time.Second),
 		},
+		RestartCount: 42,
 	}
 }

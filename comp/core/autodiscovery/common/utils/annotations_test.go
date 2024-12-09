@@ -344,12 +344,13 @@ func TestParseCheckNames(t *testing.T) {
 func TestBuildTemplates(t *testing.T) {
 	key := "id"
 	tests := []struct {
-		name            string
-		inputCheckNames []string
-		inputInitConfig [][]integration.Data
-		inputInstances  [][]integration.Data
-		expectedConfigs []integration.Config
-		ignoreAdTags    bool
+		name                string
+		inputCheckNames     []string
+		inputInitConfig     [][]integration.Data
+		inputInstances      [][]integration.Data
+		expectedConfigs     []integration.Config
+		ignoreAdTags        bool
+		checkTagCardinality string
 	}{
 		{
 			name:            "wrong number of checkNames",
@@ -434,10 +435,40 @@ func TestBuildTemplates(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                "valid inputs with list and checkCardinality",
+			inputCheckNames:     []string{"a", "b"},
+			inputInitConfig:     [][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
+			inputInstances:      [][]integration.Data{{integration.Data("{\"foo\": 1}"), integration.Data("{\"foo\": 2}")}, {integration.Data("{1:2}")}},
+			checkTagCardinality: "low",
+			expectedConfigs: []integration.Config{
+				{
+					Name:                "a",
+					ADIdentifiers:       []string{key},
+					InitConfig:          integration.Data("{\"test\": 1}"),
+					Instances:           []integration.Data{integration.Data("{\"foo\": 1}")},
+					CheckTagCardinality: "low",
+				},
+				{
+					Name:                "a",
+					ADIdentifiers:       []string{key},
+					InitConfig:          integration.Data("{\"test\": 1}"),
+					Instances:           []integration.Data{integration.Data("{\"foo\": 2}")},
+					CheckTagCardinality: "low",
+				},
+				{
+					Name:                "b",
+					ADIdentifiers:       []string{key},
+					InitConfig:          integration.Data("{}"),
+					Instances:           []integration.Data{integration.Data("{1:2}")},
+					CheckTagCardinality: "low",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags))
+			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags, tt.checkTagCardinality))
 		})
 	}
 }

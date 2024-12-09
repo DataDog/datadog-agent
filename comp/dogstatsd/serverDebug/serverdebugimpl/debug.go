@@ -20,7 +20,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
@@ -30,6 +29,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -286,7 +286,7 @@ func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) slog.LoggerInterfa
 	// Configuring the log file path
 	logFile := cfg.GetString("dogstatsd_log_file")
 	if logFile == "" {
-		logFile = commonpath.DefaultDogstatsDLogFile
+		logFile = defaultpaths.DogstatsDLogFile
 	}
 
 	// Set up dogstatsdLogger

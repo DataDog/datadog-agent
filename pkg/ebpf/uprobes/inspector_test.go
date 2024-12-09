@@ -36,28 +36,25 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 	inspector := &NativeBinaryInspector{}
 
 	t.Run("MandatoryAllExist", func(tt *testing.T) {
-		result, compat, err := inspector.Inspect(fpath, allMandatoryExisting)
+		result, err := inspector.Inspect(fpath, allMandatoryExisting)
 		require.NoError(tt, err)
-		require.True(tt, compat)
 		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
 	})
 
 	t.Run("BestEffortAllExist", func(tt *testing.T) {
-		result, compat, err := inspector.Inspect(fpath, allBestEffortExisting)
+		result, err := inspector.Inspect(fpath, allBestEffortExisting)
 		require.NoError(tt, err)
-		require.True(tt, compat)
 		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
 	})
 
 	t.Run("BestEffortDontExist", func(tt *testing.T) {
-		result, compat, err := inspector.Inspect(fpath, mandatoryExistBestEffortDont)
+		result, err := inspector.Inspect(fpath, mandatoryExistBestEffortDont)
 		require.NoError(tt, err)
-		require.True(tt, compat)
 		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
 	})
 
 	t.Run("SomeMandatoryDontExist", func(tt *testing.T) {
-		_, _, err := inspector.Inspect(fpath, mandatoryNonExisting)
+		_, err := inspector.Inspect(fpath, mandatoryNonExisting)
 		require.Error(tt, err, "should have failed to find mandatory symbols")
 	})
 }

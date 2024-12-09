@@ -20,8 +20,9 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -375,15 +376,15 @@ func TestMarshalSplitCompress(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			series := makeSeries(10000, 50)
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 			require.NoError(t, err)
 			// check that we got multiple payloads, so splitting occurred
@@ -409,8 +410,8 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -421,7 +422,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 			// ten series, each with 50 points, so two should fit in each payload
 			series := makeSeries(10, 50)
 
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressionimpl.NewCompressor(mockConfig))
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, selector.NewCompressor(mockConfig))
 			require.NoError(t, err)
 			require.Equal(t, 5, len(payloads))
 		})
@@ -432,8 +433,8 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -462,13 +463,19 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 			}
 			series := CreateIterableSeries(CreateSerieSource(rawSeries))
 
-			payloads, filteredPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressionimpl.NewCompressor(mockConfig), func(s *metrics.Serie) bool {
-				return s.Name == "test.metrics42"
-			})
+			payloads, filteredPayloads, autoscalingFailoverPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, selector.NewCompressor(mockConfig),
+				func(s *metrics.Serie) bool {
+					return s.Name == "test.metrics42"
+				},
+				func(s *metrics.Serie) bool {
+					return s.Name == "test.metrics99" || s.Name == "test.metrics98"
+				},
+			)
 			require.NoError(t, err)
 			require.Equal(t, 5, len(payloads))
 			// only one serie should be present in the filtered payload, so 5 total points, which fits in one payload
 			require.Equal(t, 1, len(filteredPayloads))
+			require.Equal(t, 1, len(autoscalingFailoverPayloads))
 		})
 	}
 }
@@ -477,8 +484,8 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -487,7 +494,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
 
 			series := makeSeries(1, 2)
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressionimpl.NewCompressor(mockConfig))
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, selector.NewCompressor(mockConfig))
 			require.NoError(t, err)
 			require.Len(t, payloads, 0)
 		})
@@ -501,8 +508,8 @@ func TestPayloadsSeries(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -534,7 +541,7 @@ func TestPayloadsSeries(t *testing.T) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			originalLength := len(testSeries)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			builder := stream.NewJSONPayloadBuilder(true, mockConfig, strategy)
 			iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
@@ -582,7 +589,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 
 	var r transaction.BytesPayloads
 	mockConfig := mock.New(b)
-	builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+	builder := stream.NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

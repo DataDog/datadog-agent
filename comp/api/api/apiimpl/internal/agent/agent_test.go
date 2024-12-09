@@ -18,36 +18,24 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	demultiplexerendpointmock "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx-mock"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 
 	// package dependencies
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -62,22 +50,14 @@ import (
 type handlerdeps struct {
 	fx.In
 
-	Server                dogstatsdServer.Component
-	ServerDebug           dogstatsddebug.Component
-	Wmeta                 workloadmeta.Component
-	LogsAgent             optional.Option[logsAgent.Component]
-	HostMetadata          host.Component
-	InvAgent              inventoryagent.Component
-	SecretResolver        secrets.Component
-	Demux                 demultiplexer.Component
-	InvHost               inventoryhost.Component
-	InvChecks             inventorychecks.Component
-	PkgSigning            packagesigning.Component
-	Collector             optional.Option[collector.Component]
-	EventPlatformReceiver eventplatformreceiver.Component
-	Ac                    autodiscovery.Mock
-	Tagger                tagger.Mock
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
+	Wmeta          workloadmeta.Component
+	LogsAgent      optional.Option[logsAgent.Component]
+	HostMetadata   host.Component
+	SecretResolver secrets.Component
+	Demux          demultiplexer.Component
+	Collector      optional.Option[collector.Component]
+	Ac             autodiscovery.Mock
+	Tagger         taggermock.Mock
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
@@ -85,36 +65,36 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		t,
 		fx.Supply(context.Background()),
 		hostnameinterface.MockModule(),
-		flareimpl.MockModule(),
-		dogstatsdServer.MockModule(),
-		serverdebugimpl.MockModule(),
 		fx.Provide(func() optional.Option[logsAgent.Component] {
 			return optional.NewNoneOption[logsAgent.Component]()
 		}),
 		hostimpl.MockModule(),
-		inventoryagentimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		demultiplexerendpointmock.MockModule(),
-		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
-		inventorychecksimpl.MockModule(),
-		packagesigningimpl.MockModule(),
 		fx.Provide(func() optional.Option[collector.Component] {
 			return optional.NewNoneOption[collector.Component]()
 		}),
-		eventplatformreceiverimpl.MockModule(),
-		taggerimpl.MockModule(),
+		taggermock.Module(),
 		fx.Options(
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
-		settingsimpl.MockModule(),
+		config.MockModule(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		telemetryimpl.MockModule(),
 	)
 }
 
 func setupRoutes(t *testing.T) *mux.Router {
 	deps := getComponentDeps(t)
 	sender := aggregator.NewNoOpSenderManager()
+
+	apiProviders := []api.EndpointProvider{
+		api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("OK"))
+		}, "/dynamic_route", "GET").Provider,
+	}
 
 	router := mux.NewRouter()
 	SetupHandlers(
@@ -125,7 +105,8 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.SecretResolver,
 		deps.Collector,
 		deps.Ac,
-		deps.EndpointProviders,
+		apiProviders,
+		deps.Tagger,
 	)
 
 	return router
@@ -138,97 +119,7 @@ func TestSetupHandlers(t *testing.T) {
 		wantCode int
 	}{
 		{
-			route:    "/flare",
-			method:   "POST",
-			wantCode: 200,
-		},
-		{
-			route:    "/stream-event-platform",
-			method:   "POST",
-			wantCode: 200,
-		},
-		{
-			route:    "/dogstatsd-contexts-dump",
-			method:   "POST",
-			wantCode: 200,
-		},
-		{
-			route:    "/dogstatsd-stats",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/config",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/config/list-runtime",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/config/log_level",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/config/log_level",
-			method:   "POST",
-			wantCode: 200,
-		},
-		{
-			route:    "/secrets",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/secret/refresh",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/config-check",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/tagger-list",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/workload-list",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/metadata/v5",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/metadata/gohai",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/metadata/inventory-agent",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/metadata/inventory-host",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/metadata/inventory-checks",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
-			route:    "/metadata/package-signing",
+			route:    "/dynamic_route",
 			method:   "GET",
 			wantCode: 200,
 		},

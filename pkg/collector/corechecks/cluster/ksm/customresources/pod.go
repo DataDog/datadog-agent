@@ -42,8 +42,15 @@ func NewExtendedPodFactory(client *apiserver.APIClient) customresource.RegistryF
 	}
 }
 
+// NewExtendedPodFactoryForKubelet returns a new Pod metric family generator
+// factory meant to be used when pods are collected from the Kubelet.
+func NewExtendedPodFactoryForKubelet() customresource.RegistryFactory {
+	// No need to set an API server client, because we're collecting from the Kubelet.
+	return &extendedPodFactory{}
+}
+
 type extendedPodFactory struct {
-	client interface{}
+	client clientset.Interface
 }
 
 // Name is the name of the factory
@@ -51,17 +58,12 @@ func (f *extendedPodFactory) Name() string {
 	return "pods_extended"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedPodFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *extendedPodFactory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended pod metric family generators
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedPodFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
@@ -234,20 +236,26 @@ func wrapPodFunc(f func(*v1.Pod) *metric.Family) func(interface{}) *metric.Famil
 
 // ExpectedType returns the type expected by the factory
 func (f *extendedPodFactory) ExpectedType() interface{} {
-	return &v1.Pod{}
+	return &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 // ListWatch returns a ListerWatcher for v1.Pod
 func (f *extendedPodFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.CoreV1().Pods(ns).List(context.TODO(), opts)
+			return client.CoreV1().Pods(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.CoreV1().Pods(ns).Watch(context.TODO(), opts)
+			return client.CoreV1().Pods(ns).Watch(ctx, opts)
 		},
 	}
 }

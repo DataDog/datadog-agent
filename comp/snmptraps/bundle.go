@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: network-device-monitoring
+// team: ndm-core
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {

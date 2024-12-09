@@ -105,7 +105,8 @@ func TestStatsWriter(t *testing.T) {
 
 	t.Run("buildPayloads", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, _ := testStatsWriter()
+		sw, srv := testStatsWriter()
+		srv.Close()
 		// This gives us a total of 45 entries. 3 per span, 5
 		// spans per stat bucket. Each buckets have the same
 		// time window (start: 0, duration 1e9).
@@ -178,9 +179,10 @@ func TestStatsWriter(t *testing.T) {
 		rand.Seed(1)
 		assert := assert.New(t)
 
-		sw, _ := testStatsWriter()
-		// This gives us a tota of 45 entries. 3 per span, 5 spans per
-		// stat bucket. Each buckets have the same time window (start:
+		sw, srv := testStatsWriter()
+		srv.Close()
+		// This gives us a total of 45 entries. 3 per span, 5 spans per
+		// stat bucket. Each bucket has the same time window (start:
 		// 0, duration 1e9).
 		stats := &pb.ClientStatsPayload{
 			Hostname: testHostname,
@@ -204,7 +206,8 @@ func TestStatsWriter(t *testing.T) {
 
 	t.Run("container-tags", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, _ := testStatsWriter()
+		sw, srv := testStatsWriter()
+		srv.Close()
 		stats := &pb.StatsPayload{
 			AgentHostname: "agenthost",
 			AgentEnv:      "agentenv",
@@ -293,6 +296,8 @@ func TestStatsSyncWriter(t *testing.T) {
 		sw.Write(testSets[1])
 		err := sw.FlushSync()
 		assert.Nil(err)
+		sw.Stop()
+		srv.Close()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 
@@ -328,6 +333,7 @@ func TestStatsSyncWriter(t *testing.T) {
 		sw.Write(testSets[0])
 		sw.Write(testSets[1])
 		sw.Stop()
+		srv.Close()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 }
@@ -352,6 +358,7 @@ func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	sw.UpdateAPIKey("123", "foo")
 	assert.Equal("foo", sw.senders[0].cfg.apiKey)
 	assert.Equal(url, sw.senders[0].cfg.url)
+	srv.Close()
 }
 
 func testStatsWriter() (*DatadogStatsWriter, *testServer) {

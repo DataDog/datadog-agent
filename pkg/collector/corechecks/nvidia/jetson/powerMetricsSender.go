@@ -21,7 +21,7 @@ type voltageMetricsSender struct {
 }
 
 func (voltageMetricsSender *voltageMetricsSender) Init() error {
-	regex, err := regexp.Compile(`(?P<voltageProbeName>\w+)\s+(?P<currentVoltage>\d+)/(?P<averageVoltage>\d+)(?:\s+|$)`)
+	regex, err := regexp.Compile(`(?P<voltageProbeName>\w+)\s+(?P<currentVoltage>\d+)(?:mW)?/(?P<averageVoltage>\d+)(?:mW)?(?:\s+|$)`)
 	if err != nil {
 		return err
 	}

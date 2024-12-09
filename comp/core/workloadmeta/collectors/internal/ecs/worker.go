@@ -22,7 +22,7 @@ import (
 // worker is a rate limited worker that processes tasks to avoid hitting the ECS API rate limit
 type worker[T any] struct {
 	processFunc func(ctx context.Context, task v1.Task) (T, error)
-	taskQueue   workqueue.RateLimitingInterface
+	taskQueue   workqueue.TypedRateLimitingInterface[*v1.Task]
 	taskCache   *cache.Cache
 }
 
@@ -30,8 +30,8 @@ func newWorker[T any](taskRateRPS, taskRateBurst int, cache *cache.Cache, proces
 	return &worker[T]{
 		processFunc: processFunc,
 		taskCache:   cache,
-		taskQueue: workqueue.NewRateLimitingQueue(workqueue.NewMaxOfRateLimiter(
-			&workqueue.BucketRateLimiter{
+		taskQueue: workqueue.NewTypedRateLimitingQueue(workqueue.NewTypedMaxOfRateLimiter(
+			&workqueue.TypedBucketRateLimiter[*v1.Task]{
 				Limiter: rate.NewLimiter(rate.Every(time.Duration(1/taskRateRPS)*time.Second), taskRateBurst),
 			},
 		)),
@@ -96,13 +96,13 @@ func (w *worker[T]) run(ctx context.Context, tasksInQueue map[string]v1.Task) []
 				return tasks
 			}
 
-			processedTask, err := w.processFunc(ctx, *task.(*v1.Task))
+			processedTask, err := w.processFunc(ctx, *task)
 			// if no error, add the processed task to the list of processed tasks
 			// add the task to the cache and remove it from the tasksInQueue
 			if err == nil {
 				tasks = append(tasks, processedTask)
-				w.taskCache.SetDefault(task.(*v1.Task).Arn, struct{}{})
-				delete(tasksInQueue, task.(*v1.Task).Arn)
+				w.taskCache.SetDefault(task.Arn, struct{}{})
+				delete(tasksInQueue, task.Arn)
 			}
 
 			w.taskQueue.Done(task)

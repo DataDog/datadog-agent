@@ -11,13 +11,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -42,6 +40,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+
 	"go.uber.org/zap"
 )
 
@@ -63,7 +62,7 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info)
+	return NewExtension(c, cfg, telemetry, info, true)
 }
 
 func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
@@ -99,7 +98,7 @@ func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.R
 
 	ddExt.Start(context.TODO(), host)
 
-	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), false))
+	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), true))
 	ddExt.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
@@ -121,13 +120,7 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
-
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
+	conf := configmock.New(t)
 	err := apiutil.CreateAndSetAuthToken(conf)
 	if err != nil {
 		t.Fatal(err)
@@ -162,13 +155,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
-
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
+	conf := configmock.New(t)
 	err := apiutil.CreateAndSetAuthToken(conf)
 	if err != nil {
 		t.Fatal(err)

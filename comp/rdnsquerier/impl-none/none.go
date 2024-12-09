@@ -7,6 +7,8 @@
 package rdnsquerierimpl
 
 import (
+	"context"
+
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
@@ -25,7 +27,19 @@ func NewNone() Provides {
 }
 
 // GetHostnameAsync does nothing for the noop rdnsquerier implementation
-func (q *rdnsQuerierImplNone) GetHostname(_ []byte, _ func(string), _ func(string, error)) error {
+func (q *rdnsQuerierImplNone) GetHostnameAsync(_ []byte, _ func(string), _ func(string, error)) error {
+	// noop
+	return nil
+}
+
+// GetHostname does nothing for the noop rdnsquerier implementation
+func (q *rdnsQuerierImplNone) GetHostname(_ context.Context, _ string) (string, error) {
+	// noop
+	return "", nil
+}
+
+// GetHostnames does nothing for the noop rdnsquerier implementation
+func (q *rdnsQuerierImplNone) GetHostnames(_ context.Context, _ []string) map[string]rdnsquerier.ReverseDNSResult {
 	// noop
 	return nil
 }

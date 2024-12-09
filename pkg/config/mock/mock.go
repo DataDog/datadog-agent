@@ -28,21 +28,6 @@ type mockConfig struct {
 	model.Config
 }
 
-// Set is used for setting configuration in tests
-func (c *mockConfig) Set(key string, value interface{}, source model.Source) {
-	c.Config.Set(key, value, source)
-}
-
-// SetWithoutSource is used for setting configuration in tests
-func (c *mockConfig) SetWithoutSource(key string, value interface{}) {
-	c.Config.SetWithoutSource(key, value)
-}
-
-// SetKnown is used for setting configuration in tests
-func (c *mockConfig) SetKnown(key string) {
-	c.Config.SetKnown(key)
-}
-
 // New creates a mock for the config
 func New(t testing.TB) model.Config {
 	m.Lock()
@@ -58,13 +43,13 @@ func New(t testing.TB) model.Config {
 		m.Lock()
 		defer m.Unlock()
 		isConfigMocked = false
-		setup.SetDatadog(originalDatadogConfig)
+		setup.SetDatadog(originalDatadogConfig) // nolint: forbidigo // legitimate use of SetDatadog
 	})
 
 	// Configure Datadog global configuration
-	newCfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newCfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
 	// Configuration defaults
-	setup.SetDatadog(newCfg)
+	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
 	return &mockConfig{newCfg}
 }
@@ -107,12 +92,12 @@ func NewSystemProbe(t testing.TB) model.Config {
 			m.Lock()
 			defer m.Unlock()
 			isSystemProbeConfigMocked = false
-			setup.SetSystemProbe(originalConfig)
+			setup.SetSystemProbe(originalConfig) // nolint forbidigo legitimate use of SetSystemProbe
 		})
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(model.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")))
+	setup.SetSystemProbe(model.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))) // nolint forbidigo legitimate use of NewConfig and SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.SystemProbe())
 	return &mockConfig{setup.SystemProbe()}
