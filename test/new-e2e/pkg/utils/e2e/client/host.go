@@ -126,10 +126,28 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 	return h.executeAndReconnectOnError(command)
 }
 
-func (h *Host) executeAndReconnectOnError(command string) (string, error) {
+func (h *Host) executeAndReconnectOnError(command string) (stdout string, err error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	defer func() {
+		stdoutBytes, scrubErr := h.scrubber.ScrubBytes([]byte(stdout)) // scrub the output in case it contains secrets
+		stdout = string(stdoutBytes)
+		if scrubErr != nil {
+			stdout = ""
+			err = fmt.Errorf("failed to scrub output, empty output returned: %w", scrubErr)
+			return
+		}
+		if err != nil {
+			errorMessage := err.Error()
+			errBytes, scrubErr := h.scrubber.ScrubBytes([]byte(errorMessage))
+			if scrubErr != nil {
+				err = fmt.Errorf("the command returned an error but we failed to scrub error, empty error returned: %w", scrubErr)
+				return
+			}
+			err = fmt.Errorf("%v", string(errBytes)) // scrubbed error, we will not be able to unwrap errors anymore
+		}
+	}()
 	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
-	stdout, err := execute(h.client, command)
+	stdout, err = execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
 		if err != nil {
