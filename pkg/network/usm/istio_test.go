@@ -9,7 +9,6 @@ package usm
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -110,26 +109,6 @@ func TestIstioSync(t *testing.T) {
 		monitor.attacher.Sync(true, true)
 		mockRegistry.AssertCalled(tt, "Unregister", uint32(3))
 	})
-}
-
-// createFakeProcess creates a fake process in a temporary location.
-// returns the full path of the temporary process and the PID of the fake process.
-func createFakeProcess(t *testing.T, processName string) (procRoot string, pid int) {
-	fakePath := filepath.Join(t.TempDir(), processName)
-	require.NoError(t, exec.Command("mkdir", "-p", filepath.Dir(fakePath)).Run())
-
-	// we are using the `yes` command as a fake envoy binary.
-	require.NoError(t, exec.Command("cp", "/usr/bin/yes", fakePath).Run())
-
-	cmd := exec.Command(fakePath)
-	require.NoError(t, cmd.Start())
-
-	// Schedule process termination after the test
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-	})
-
-	return fakePath, cmd.Process.Pid
 }
 
 func newIstioTestMonitor(t *testing.T, procRoot string) *istioMonitor {
