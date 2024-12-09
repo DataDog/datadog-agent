@@ -684,6 +684,12 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + svc
 		}
 		return m
+		// Enrich GraphQL query resource names
+	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
+		if name := meta[semconv117.AttributeGraphqlOperationName]; name != "" {
+			return typ + " " + name
+		}
+		return typ
 	}
 	return ""
 }
