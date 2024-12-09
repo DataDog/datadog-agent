@@ -24,7 +24,7 @@ def build(
     build_exclude=None,
     install_path=None,
     flavor=AgentFlavor.base.name,
-    incremental_build=False,
+    rebuild=False,
     major_version='7',
     go_mod="readonly",
 ):
@@ -80,7 +80,7 @@ def build(
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "" if incremental_build else "-a",
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,

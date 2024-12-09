@@ -24,6 +24,11 @@ const (
 	datadogAgent = "datadog-agent"
 )
 
+// PrepareAgent prepares the machine to install the agent
+func PrepareAgent(_ context.Context) error {
+	return nil // No-op on Windows
+}
+
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, args []string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "setup_agent")

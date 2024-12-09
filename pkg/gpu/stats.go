@@ -78,8 +78,9 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
 	aggKey := model.StatsKey{
-		PID:        sKey.pid,
-		DeviceUUID: sKey.gpuUUID,
+		PID:         sKey.pid,
+		DeviceUUID:  sKey.gpuUUID,
+		ContainerID: sKey.containerID,
 	}
 
 	if _, ok := g.aggregators[aggKey]; !ok {

@@ -20,7 +20,6 @@ dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # 
 # especially at higher thread counts.
 dependency "libjemalloc" if linux_target?
 
-dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'
@@ -33,7 +32,6 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  msgoroot = "/usr/local/msgo"
   flavor_arg = ENV['AGENT_FLAVOR']
   fips_args = fips_mode? ? "--fips-mode" : ""
   if windows_target?
@@ -62,9 +60,22 @@ build do
   env = with_standard_compiler_flags(with_embedded_path(env))
 
   # Use msgo toolchain when fips mode is enabled
-  if fips_mode? && !windows_target?
-    env["GOROOT"] = msgoroot
-    env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+  if fips_mode?
+    if windows_target?
+      msgoroot = ENV['MSGO_ROOT']
+      if msgoroot.nil? || msgoroot.empty?
+        raise "MSGO_ROOT not set"
+      end
+      if !File.exist?("#{msgoroot}\\bin\\go.exe")
+        raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
+      end
+      env["GOROOT"] = msgoroot
+      env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+    else
+      msgoroot = "/usr/local/msgo"
+      env["GOROOT"] = msgoroot
+      env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+    end
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -77,8 +88,8 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
+    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg}", env: env
   else
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
@@ -88,10 +99,10 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
 
     if heroku_target?
-      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
+      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
     end
   end
 
@@ -141,7 +152,7 @@ build do
   # System-probe
   if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
     if windows_target?
-      command "invoke -e system-probe.build", env: env
+      command "invoke -e system-probe.build #{fips_args}", env: env
     elsif linux_target?
       command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
     end
