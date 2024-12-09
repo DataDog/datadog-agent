@@ -567,6 +567,196 @@ issues:
     - path: comp/dogstatsd/packets/packet_manager_windows.go
       linters:
         - pkgconfigusage
+    - path: comp/agent/autoexit/autoexitimpl/autoexit.go
+      linters:
+        - compimpl
+    - path: comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl/cloudfoundrycontainer.go
+      linters:
+        - compimpl
+    - path: comp/agent/expvarserver/expvarserverimpl/expvarserver.go
+      linters:
+        - compimpl
+    - path: comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl/sendermanager.go
+      linters:
+        - compimpl
+    - path: comp/api/api/apiimpl/api.go
+      linters:
+        - compimpl
+    - path: comp/checks/windowseventlog/windowseventlogimpl/windows_event_log.go
+      linters:
+        - compimpl
+    - path: comp/collector/collector/collectorimpl/collector.go
+      linters:
+        - compimpl
+    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go
+      linters:
+        - compimpl
+    - path: comp/core/autodiscovery/noopimpl/autoconfig.go
+      linters:
+        - compimpl
+    - path: comp/core/gui/guiimpl/gui.go
+      linters:
+        - compimpl
+    - path: comp/core/hostname/hostnameimpl/service.go
+      linters:
+        - compimpl
+    - path: comp/core/hostname/remotehostnameimpl/hostname.go
+      linters:
+        - compimpl
+    - path: comp/core/pid/pidimpl/pid.go
+      linters:
+        - compimpl
+    - path: comp/core/settings/settingsimpl/settingsimpl.go
+      linters:
+        - compimpl
+    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/pidmap/pidmapimpl/state.go
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
+      linters:
+        - compimpl
+    - path: comp/dogstatsd/status/statusimpl/status.go
+      linters:
+        - compimpl
+    - path: comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl/eventplatformreceiver.go
+      linters:
+        - compimpl
+    - path: comp/languagedetection/client/clientimpl/client.go
+      linters:
+        - compimpl
+    - path: comp/logs/adscheduler/adschedulerimpl/adscheduler.go
+      linters:
+        - compimpl
+    - path: comp/logs/agent/agentimpl/agent.go
+      linters:
+        - compimpl
+    - path: comp/metadata/host/hostimpl/host.go
+      linters:
+        - compimpl
+    - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go
+      linters:
+        - compimpl
+    - path: comp/metadata/inventorychecks/inventorychecksimpl/inventorychecks.go
+      linters:
+        - compimpl
+    - path: comp/metadata/inventoryhost/inventoryhostimpl/inventoryhost.go
+      linters:
+        - compimpl
+    - path: comp/metadata/inventoryotel/inventoryotelimpl/inventoryotel.go
+      linters:
+        - compimpl
+    - path: comp/metadata/packagesigning/packagesigningimpl/packagesigning.go
+      linters:
+        - compimpl
+    - path: comp/metadata/resources/resourcesimpl/params.go
+      linters:
+        - compimpl
+    - path: comp/metadata/runner/runnerimpl/runner.go
+      linters:
+        - compimpl
+    - path: comp/ndmtmp/forwarder/forwarderimpl/forwarder.go
+      linters:
+        - compimpl
+    - path: comp/networkpath/npcollector/npcollectorimpl/npcollectorcomp.go
+      linters:
+        - compimpl
+    - path: comp/process/agent/agentimpl/agent.go
+      linters:
+        - compimpl
+    - path: comp/process/connectionscheck/connectionscheckimpl/check.go
+      linters:
+        - compimpl
+    - path: comp/process/containercheck/containercheckimpl/check.go
+      linters:
+        - compimpl
+    - path: comp/process/expvars/expvarsimpl/expvars.go
+      linters:
+        - compimpl
+    - path: comp/process/forwarders/forwardersimpl/forwarders.go
+      linters:
+        - compimpl
+    - path: comp/process/hostinfo/hostinfoimpl/hostinfo.go
+      linters:
+        - compimpl
+    - path: comp/process/processcheck/processcheckimpl/check.go
+      linters:
+        - compimpl
+    - path: comp/process/processdiscoverycheck/processdiscoverycheckimpl/check.go
+      linters:
+        - compimpl
+    - path: comp/process/processeventscheck/processeventscheckimpl/check.go
+      linters:
+        - compimpl
+    - path: comp/process/profiler/profilerimpl/profiler.go
+      linters:
+        - compimpl
+    - path: comp/process/rtcontainercheck/rtcontainercheckimpl/check.go
+      linters:
+        - compimpl
+    - path: comp/process/runner/runnerimpl/runner.go
+      linters:
+        - compimpl
+    - path: comp/process/status/statusimpl/status.go
+      linters:
+        - compimpl
+    - path: comp/process/submitter/submitterimpl/submitter.go
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcclient/rcclientimpl/rcclient.go
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcservice/rcserviceimpl/rcservice.go
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl/rcservicemrf.go
+      linters:
+        - compimpl
+    - path: comp/remote-config/rcstatus/rcstatusimpl/status.go
+      linters:
+        - compimpl
+    - path: comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl/rctelemetryreporter.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/config/configimpl/service.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/formatter/formatterimpl/formatter.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/forwarder/forwarderimpl/forwarder.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/listener/listenerimpl/listener.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/oidresolver/oidresolverimpl/oid_resolver.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/server/serverimpl/server.go
+      linters:
+        - compimpl
+    - path: comp/snmptraps/status/statusimpl/status.go
+      linters:
+        - compimpl
+    - path: comp/trace/status/statusimpl/status.go
+      linters:
+        - compimpl
+    - path: comp/updater/localapi/localapiimpl/local_api.go
+      linters:
+        - compimpl
+    - path: comp/updater/localapiclient/localapiclientimpl/localapiclient.go
+      linters:
+        - compimpl
+    - path: comp/updater/telemetry/telemetryimpl/telemetry.go
+      linters:
+        - compimpl
+    - path: comp/updater/updater/updaterimpl/updater.go
+      linters:
+        - compimpl
+
 linters:
   disable-all: true
   enable:
@@ -585,6 +775,7 @@ linters:
     - gocheckcompilerdirectives # Checks Go compiler directives syntax
     - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
     - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
+    - compimpl                  # Check the component implementation follows the expected naming convention
 
 linters-settings:
   depguard:
@@ -733,3 +924,6 @@ linters-settings:
     pkgconfigusage:
       type: "module"
       description: "Check usage of pkgconfig in components folder"
+    compimpl:
+      type: "module"
+      description: "Check the component implementation follows the expected naming convention"
