@@ -27,7 +27,7 @@ const (
 
 type databricksSetup struct {
 	ctx context.Context
-	*common.HostInstaller
+	*common.Setup
 	setupIssues []string
 }
 
@@ -36,13 +36,13 @@ func SetupDatabricks(ctx context.Context, env *env.Env) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup.databricks")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
-	i, err := common.NewHostInstaller(env)
+	i, err := common.NewSetup(env)
 	if err != nil {
 		return err
 	}
 	ds := &databricksSetup{
-		ctx:           ctx,
-		HostInstaller: i,
+		ctx:   ctx,
+		Setup: i,
 	}
 	return ds.setup()
 }
