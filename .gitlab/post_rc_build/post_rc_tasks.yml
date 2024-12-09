@@ -5,9 +5,7 @@ update_rc_build_links:
   stage: post_rc_build
   rules:
     - if: $RC_BUILD == "true"
-  needs:
-    - job: docker_trigger_internal
-      artifacts: false
+  dependencies: []
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
