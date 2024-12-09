@@ -6,6 +6,7 @@
 package testinfradefinition
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -82,6 +83,8 @@ func TestVMSuite(t *testing.T) {
 
 func (v *vmSuiteWithAMI) TestWithImageName() {
 	vm := v.Env().RemoteHost
+	fmt.Print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	fmt.Println("this is a fake api_key:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	metadata := client.NewEC2Metadata(v.T(), vm.Host, vm.OSFamily)
 	require.Equal(v.T(), requestedAmi, metadata.Get("ami-id"))
 	require.Equal(v.T(), "aarch64\n", vm.MustExecute("uname -m"))
