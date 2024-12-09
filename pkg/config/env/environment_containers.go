@@ -239,7 +239,7 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	} else if exists && !reachable {
 		log.Infof("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
-		log.Infof("Agent did not find PodResources socket at %s")
+		log.Infof("Agent did not find PodResources socket at %s", socketPath)
 	}
 }
 
