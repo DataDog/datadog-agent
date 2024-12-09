@@ -120,7 +120,7 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+  move 'bin/agent/dist/conf.d/*', "#{conf_dir}/"
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
