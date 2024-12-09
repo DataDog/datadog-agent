@@ -28,6 +28,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/go-sqllexer v0.0.17 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
@@ -107,3 +108,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber
 )
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../../version
