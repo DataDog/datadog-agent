@@ -77,6 +77,15 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
+
+	sendFunc := func(chunk []*pb.StreamTagsEvent) error {
+		return grpc.DoWithTimeout(func() error {
+			return out.Send(&pb.StreamTagsResponse{
+				Events: chunk,
+			})
+		}, taggerStreamSendTimeout)
+	}
+
 	for {
 		select {
 		case events, ok := <-subscription.EventsChan():
@@ -98,20 +107,10 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			// Split events into chunks and send each one
-			chunks := splitEvents(responseEvents, s.maxEventSize)
-			for _, chunk := range chunks {
-				err = grpc.DoWithTimeout(func() error {
-					return out.Send(&pb.StreamTagsResponse{
-						Events: chunk,
-					})
-				}, taggerStreamSendTimeout)
-
-				if err != nil {
-					log.Warnf("error sending tagger event: %s", err)
-					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
-					return err
-				}
+			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
+				log.Warnf("error sending tagger event: %s", err)
+				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+				return err
 			}
 
 		case <-out.Context().Done():

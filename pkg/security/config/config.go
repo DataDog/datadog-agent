@@ -45,8 +45,6 @@ type RuntimeSecurityConfig struct {
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
-	// WatchPoliciesDir activate policy dir inotify
-	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
 	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
@@ -353,7 +351,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// policy & ruleset
 		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.watch_dir"),
 		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),

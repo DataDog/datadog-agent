@@ -96,7 +96,7 @@ type cmd struct {
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
-	span, ctx := newSpan(operation)
+	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	setInstallerUmask(span)
 	return &cmd{
 		t:    t,
@@ -226,26 +226,13 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if site == "" {
 		site = config.Site
 	}
-	t, err := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
-	if err != nil {
-		fmt.Printf("failed to initialize telemetry: %v\n", err)
-		return nil
-	}
-	err = t.Start(context.Background())
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
+	err := t.Start(context.Background())
 	if err != nil {
 		fmt.Printf("failed to start telemetry: %v\n", err)
 		return nil
 	}
 	return t
-}
-
-func newSpan(operationName string) (ddtrace.Span, context.Context) {
-	var spanOptions []ddtrace.StartSpanOption
-	spanContext, ok := telemetry.SpanContextFromEnv()
-	if ok {
-		spanOptions = append(spanOptions, tracer.ChildOf(spanContext))
-	}
-	return tracer.StartSpanFromContext(context.Background(), operationName, spanOptions...)
 }
 
 func versionCommand() *cobra.Command {
@@ -287,6 +274,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func setupCommand() *cobra.Command {
+	flavor := ""
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
@@ -294,9 +282,13 @@ func setupCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
-			return setup.Setup(cmd.ctx, cmd.env)
+			if flavor == "" {
+				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
+			}
+			return setup.Setup(cmd.ctx, cmd.env, flavor)
 		},
 	}
+	cmd.Flags().StringVar(&flavor, "flavor", "", "The setup flavor")
 	return cmd
 }
 

@@ -11,7 +11,7 @@ from gitlab import GitlabError
 from gitlab.exceptions import GitlabJobPlayError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
-from tasks.libs.ciproviders.gitlab_api import refresh_pipeline
+from tasks.libs.ciproviders.gitlab_api import cancel_pipeline, refresh_pipeline
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
@@ -64,7 +64,7 @@ def cancel_pipelines_with_confirmation(repo: Project, pipelines: list[ProjectPip
         )
 
         if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
-            pipeline.cancel()
+            cancel_pipeline(pipeline)
             print(f"Pipeline {color_message(pipeline.id, 'bold')} has been cancelled.\n")
         else:
             print(f"Pipeline {color_message(pipeline.id, 'bold')} will keep running.\n")
