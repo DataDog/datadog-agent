@@ -197,7 +197,7 @@ var configTemplateText = `
             ],
             "captureSnapshot": false,
             "capture": {
-                "maxReferenceDepth": 6
+                "maxReferenceDepth": 10
             },
             "sampling": {
                 "snapshotsPerSecond": 5000

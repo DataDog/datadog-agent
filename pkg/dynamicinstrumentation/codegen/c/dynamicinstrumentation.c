@@ -2,30 +2,11 @@
 #include "bpf_tracing.h"
 #include "kconfig.h"
 #include <asm/ptrace.h>
-#include "types.h"
-
-#define MAX_STRING_SIZE {{ .InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
-#define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
-#define STACK_DEPTH_LIMIT 10
-#define MAX_SLICE_SIZE 1800
-#define MAX_SLICE_LENGTH 20
-
-struct {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 1 << 24);
-} events SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(key_size, sizeof(__u32));
-    __uint(value_size, sizeof(char[PARAM_BUFFER_SIZE]));
-    __uint(max_entries, 1);
-} zeroval SEC(".maps");
-
-struct event {
-    struct base_event base;
-    char output[PARAM_BUFFER_SIZE];
-};
+#include "base_event.h"
+#include "macros.h"
+#include "event.h"
+#include "maps.h"
+#include "expressions.h"
 
 SEC("uprobe/{{.GetBPFFuncName}}")
 int {{.GetBPFFuncName}}(struct pt_regs *ctx)
@@ -72,6 +53,8 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u64 ret_addr = PT_REGS_RET(ctx); // when bpf prog enters, the return address hasn't yet been written to the stack
 
     int i;
+    int j;
+    __u16 n;
     for (i = 1; i < STACK_DEPTH_LIMIT; i++)
     {
         if (bp == 0) {
@@ -83,11 +66,28 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     }
 
     // Collect parameters
+    __u16 collectionMax = MAX_SLICE_LENGTH;
     __u8 param_type;
     __u16 param_size;
     __u16 slice_length;
+    __u16 *collectionLimit;
 
-    int outputOffset = 0;
+    int chunk_size = 0;
+    __u64 outputOffset = 0;
+
+    __u64 *temp_storage = bpf_map_lookup_elem(&temp_storage_array, &key) ;
+    if (!temp_storage) {
+        bpf_ringbuf_discard(event, 0);
+        return 0;
+    }
+
+    struct expression_context context = {
+        .ctx = ctx,
+        .output_offset = &outputOffset,
+        .event = event,
+        .temp_storage = temp_storage,
+        .zero_string = zero_string
+    };
 
     {{ .InstrumentationInfo.BPFParametersSourceCode }}
 
