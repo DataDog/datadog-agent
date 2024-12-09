@@ -45,9 +45,10 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
 	// windows specific channel size for etw events
-	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 128)
-	cfg.SetDefault("runtime_security_config.etw_events_max_buffers", 0)
+	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 16384)
 	cfg.SetDefault("runtime_security_config.windows_probe_block_on_channel_send", false)
+	cfg.SetDefault("runtime_security_config.windows_write_event_rate_limiter_max_allowed", 4096)
+	cfg.SetDefault("runtime_security_config.windows_write_event_rate_limiter_period", "1s")
 
 	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
@@ -113,7 +114,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*10) // 10 MB
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_rate", 500)
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_burst", 1000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
@@ -122,7 +122,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
 	// CWS -eBPF Less
-	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
+	cfg.BindEnv("runtime_security_config.ebpfless.enabled")
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
 
 	// CWS - IMDS

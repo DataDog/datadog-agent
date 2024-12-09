@@ -34,10 +34,9 @@ type Reader interface {
 	GetInt32(key string) int32
 	GetInt64(key string) int64
 	GetFloat64(key string) float64
-	GetTime(key string) time.Time
 	GetDuration(key string) time.Duration
 	GetStringSlice(key string) []string
-	GetFloat64SliceE(key string) ([]float64, error)
+	GetFloat64Slice(key string) []float64
 	GetStringMap(key string) map[string]interface{}
 	GetStringMapString(key string) map[string]string
 	GetStringMapStringSlice(key string) map[string][]string
@@ -83,6 +82,9 @@ type Reader interface {
 	// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
 	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
 	OnUpdate(callback NotificationReceiver)
+
+	// Stringify stringifies the config
+	Stringify(source Source) string
 }
 
 // Writer is a subset of Config that only allows writing the configuration
@@ -90,7 +92,6 @@ type Writer interface {
 	Set(key string, value interface{}, source Source)
 	SetWithoutSource(key string, value interface{})
 	UnsetForSource(key string, source Source)
-	CopyConfig(cfg Config)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration

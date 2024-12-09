@@ -244,12 +244,11 @@ func TestGetOTelService(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
 			res := pcommon.NewResource()
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelService(span, res, tt.normalize)
+			actual := GetOTelService(res, tt.normalize)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}

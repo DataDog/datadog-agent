@@ -5,7 +5,7 @@ target:
   name: datadog-agent
   command: /bin/entrypoint.sh
   cpu_allotment: 8
-  memory_allotment: 30g
+  memory_allotment: 4GiB
 
   environment:
     DD_API_KEY: 00000001
@@ -36,4 +36,4 @@ checks:
     description: "Allowable bytes not polled by log Agent"
     bounds:
       series: lost_bytes
-      upper_bound: 0KB
+      upper_bound: 0KiB

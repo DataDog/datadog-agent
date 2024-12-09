@@ -59,14 +59,14 @@ type Telemetry struct {
 type Option func(*Telemetry)
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(apiKey string, site string, service string, opts ...Option) (*Telemetry, error) {
+func NewTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
 	endpoint := &traceconfig.Endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
 	}
 	listener := newTelemetryListener()
 	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
+		telemetryClient: internaltelemetry.NewClient(client, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
 		site:            site,
 		service:         service,
 		listener:        listener,
@@ -81,7 +81,7 @@ func NewTelemetry(apiKey string, site string, service string, opts ...Option) (*
 		opt(t)
 	}
 	t.server.Handler = t.handler()
-	return t, nil
+	return t
 }
 
 // Start starts the telemetry
@@ -205,8 +205,17 @@ func (addr) String() string {
 	return "local"
 }
 
-// SpanContextFromEnv injects the traceID and parentID from the environment into the context if available.
-func SpanContextFromEnv() (ddtrace.SpanContext, bool) {
+// StartSpanFromEnv starts a span using the environment variables to find the parent span.
+func StartSpanFromEnv(ctx context.Context, operationName string, spanOptions ...ddtrace.StartSpanOption) (ddtrace.Span, context.Context) {
+	spanContext, ok := spanContextFromEnv()
+	if ok {
+		spanOptions = append([]ddtrace.StartSpanOption{tracer.ChildOf(spanContext)}, spanOptions...)
+	}
+	return tracer.StartSpanFromContext(ctx, operationName, spanOptions...)
+}
+
+// spanContextFromEnv injects the traceID and parentID from the environment into the context if available.
+func spanContextFromEnv() (ddtrace.SpanContext, bool) {
 	traceID := os.Getenv(EnvTraceID)
 	parentID := os.Getenv(EnvParentID)
 	ctxCarrier := tracer.TextMapCarrier{

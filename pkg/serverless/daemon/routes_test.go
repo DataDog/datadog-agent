@@ -20,7 +20,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -450,7 +450,7 @@ func startAgents() *Daemon {
 
 	ma := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
-		Tagger:               nooptagger.NewTaggerClient(),
+		Tagger:               nooptagger.NewComponent(),
 	}
 	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	d.SetStatsdServer(ma)

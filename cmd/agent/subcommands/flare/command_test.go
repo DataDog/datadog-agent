@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path"
 	"runtime"
 	"testing"
 
@@ -36,7 +35,7 @@ type commandTestSuite struct {
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
-	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+	c.sysprobeSocketPath = sysprobeSocketPath(t)
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.
@@ -125,11 +124,9 @@ func (c *commandTestSuite) TestReadProfileData() {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	if runtime.GOOS == "windows" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
-	} else {
+	if runtime.GOOS != "darwin" {
+		mockSysProbeConfig := configmock.NewSystemProbe(t)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
@@ -197,11 +194,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	if runtime.GOOS == "windows" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
-	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-	}
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)

@@ -63,7 +63,7 @@ func (n *innerNode) GetChild(key string) (Node, error) {
 
 // HasChild returns true if the node has a child for that given key
 func (n *innerNode) HasChild(key string) bool {
-	_, ok := n.children[key]
+	_, ok := n.children[strings.ToLower(key)]
 	return ok
 }
 
@@ -161,4 +161,27 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 func (n *innerNode) InsertChildNode(name string, node Node) {
 	n.children[name] = node
 	n.makeRemapCase()
+}
+
+// DumpSettings clone the entire tree starting from the node into a map based on the leaf source.
+//
+// The selector will be call with the source of each leaf to determine if it should be included in the dump.
+func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]interface{} {
+	res := map[string]interface{}{}
+
+	for _, k := range n.ChildrenKeys() {
+		child, _ := n.GetChild(k)
+		if leaf, ok := child.(LeafNode); ok {
+			if selector(leaf.Source()) {
+				res[k] = leaf.Get()
+			}
+			continue
+		}
+
+		childDump := child.(InnerNode).DumpSettings(selector)
+		if len(childDump) != 0 {
+			res[k] = childDump
+		}
+	}
+	return res
 }

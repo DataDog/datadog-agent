@@ -30,12 +30,12 @@ import (
 
 const probeUID = "net"
 
-type TracerType int
+type TracerType int //nolint:revive // TODO
 
 const (
-	TracerTypePrebuilt TracerType = iota
-	TracerTypeRuntimeCompiled
-	TracerTypeCORE
+	TracerTypePrebuilt        TracerType = iota //nolint:revive // TODO
+	TracerTypeRuntimeCompiled                   //nolint:revive // TODO
+	TracerTypeCORE                              //nolint:revive // TODO
 )
 
 var (
@@ -109,7 +109,7 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
-func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
+func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) { //nolint:revive // TODO
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -179,14 +179,10 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
-	ringbufferEnabled := false
 	switch connCloseEventHandler.(type) {
 	case *ddebpf.RingBufferHandler:
-		ringbufferEnabled = true
-	}
-	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
-	if ringbufferEnabled {
 		util.EnableRingbuffersViaMapEditor(&mgrOpts)
+		util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", true)
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair

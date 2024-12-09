@@ -91,6 +91,7 @@ func TestCGroup(t *testing.T) {
 			assertFieldEqual(t, event, "container.runtime", "")
 			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
 			assertFieldIsOneOf(t, event, "cgroup.id", "/memory/cg1")
+			assertFieldIsOneOf(t, event, "cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
 		})
@@ -120,6 +121,7 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 				return err
 			}
 			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
+				return err
 			}
 			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 				return err
@@ -158,6 +160,7 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 				return err
 			}
 			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
+				return err
 			}
 			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 				return err

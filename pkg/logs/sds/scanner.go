@@ -11,15 +11,15 @@ package sds
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 )
 
 const ScannedTag = "sds_agent:true"
@@ -34,7 +34,7 @@ var (
 	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
 	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency", "Processing latency histogram",
-	                 []float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
+		[]float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
 )
 
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
@@ -63,8 +63,8 @@ type Scanner struct {
 
 // CreateScanner creates an SDS scanner.
 // Use `Reconfigure` to configure it manually.
-func CreateScanner(pipelineID int) *Scanner {
-	scanner := &Scanner{pipelineID: strconv.Itoa(pipelineID)}
+func CreateScanner(pipelineID string) *Scanner {
+	scanner := &Scanner{pipelineID: pipelineID}
 	log.Debugf("creating a new SDS scanner (internal id: %p)", scanner)
 	return scanner
 }
@@ -313,13 +313,19 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 	}
 
 	// If the "Use recommended keywords" checkbox has been checked, we use the default
-	// included keywords available in the rule (curated by Datadog).
+	// included keywords available in the rule (curated by Datadog), if not included keywords
+	// exist, fallback on using the default excluded keywords.
 	// Otherwise:
 	//   If some included keywords have been manually filled by the user, we use them
 	//   Else we start using the default excluded keywords.
 	if userRule.IncludedKeywords.UseRecommendedKeywords {
-		// default included keywords
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
+		// default included keywords if any
+		if len(defToUse.DefaultIncludedKeywords) > 0 {
+			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
+		} else if len(defaults.ExcludedKeywords) > 0 && defaults.ExcludedKeywordsCharCount > 0 {
+			// otherwise fallback on default excluded keywords
+			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.ExcludedKeywordsCharCount, nil, defaults.ExcludedKeywords)
+		}
 	} else {
 		if len(userRule.IncludedKeywords.Keywords) > 0 && userRule.IncludedKeywords.CharacterCount > 0 {
 			// user provided included keywords

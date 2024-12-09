@@ -8,7 +8,6 @@
 package uprobes
 
 import (
-	"debug/elf"
 	"errors"
 	"fmt"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // BinaryInspector implementors are responsible for extracting the metadata required to attach from a binary.
@@ -54,7 +54,7 @@ var _ BinaryInspector = &NativeBinaryInspector{}
 // Inspect extracts the metadata required to attach to a binary from the ELF file at the given path.
 func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
 	path := fpath.HostPath
-	elfFile, err := elf.Open(path)
+	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 	symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, bestEffortSymbols)
 
 	funcMap := make(map[string]bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
-	for _, symMap := range []map[string]elf.Symbol{symbolMap, symbolMapBestEffort} {
+	for _, symMap := range []map[string]safeelf.Symbol{symbolMap, symbolMapBestEffort} {
 		for symbolName, symbol := range symMap {
 			m, err := p.symbolToFuncMetadata(elfFile, symbol)
 			if err != nil {
@@ -115,8 +115,8 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 	return funcMap, nil
 }
 
-func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *elf.File, sym elf.Symbol) (*bininspect.FunctionMetadata, error) {
-	manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *safeelf.File, sym safeelf.Symbol) (*bininspect.FunctionMetadata, error) {
+	manager.SanitizeUprobeAddresses(elfFile.File, []safeelf.Symbol{sym})
 	offset, err := bininspect.SymbolToOffset(elfFile, sym)
 	if err != nil {
 		return nil, err

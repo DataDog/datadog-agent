@@ -41,7 +41,7 @@ func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLe
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
 			Pid:  ev.PIDContext.Pid,
@@ -160,6 +160,11 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroup
 	return ""
 }
 
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.CGroupContext) int {
+	return 0
+}
+
 // ResolveCGroupManager resolves the manager of the cgroup
 func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
 	return ""
@@ -178,7 +183,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *mode
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 		}
 	}
@@ -198,7 +203,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *m
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ContainerID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(string(e.ContainerID))
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
 	}
 	return e.Tags
 }

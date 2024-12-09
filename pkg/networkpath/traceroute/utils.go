@@ -11,6 +11,12 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	reverseDNSTimeouts = telemetry.NewStatCounterWrapper("traceroute", "reverse_dns_timeouts", []string{}, "Counter measuring the number of traceroute reverse DNS timeouts")
 )
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
@@ -30,7 +36,7 @@ func GetHostname(ipAddr string) string {
 	defer cancel()
 	currHostList, err := lookupAddrFn(ctx, ipAddr)
 	if errors.Is(err, context.Canceled) {
-		tracerouteRunnerTelemetry.reverseDNSTimetouts.Inc()
+		reverseDNSTimeouts.Inc()
 	}
 
 	if len(currHostList) > 0 {
