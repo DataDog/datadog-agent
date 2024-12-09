@@ -26,7 +26,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
-const namespace = "e2e-operator"
+const namespace = "datadog"
 
 type localKindOperatorSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
@@ -65,7 +65,7 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			return err
 		}
 
-		// Setup operator options
+		// Setup default operator options
 		operatorOpts := make([]operatorparams.Option, 0)
 		operatorOpts = append(
 			operatorOpts,
@@ -85,6 +85,9 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 apiVersion: datadoghq.com/v2alpha1
 kind: DatadogAgent
 spec:
+  global:
+    kubelet:
+      tlsVerify: false
   features:
     apm:
       enabled: true
@@ -95,9 +98,8 @@ spec:
 		ddaOptions := make([]agentwithoperatorparams.Option, 0)
 		ddaOptions = append(
 			ddaOptions,
-			agentwithoperatorparams.WithNamespace(namespace),
-			agentwithoperatorparams.WithTLSKubeletVerify(false),
 			agentwithoperatorparams.WithDDAConfig(customDDA),
+			agentwithoperatorparams.WithNamespace(namespace),
 			agentwithoperatorparams.WithFakeIntake(fakeIntake),
 		)
 
@@ -117,7 +119,7 @@ spec:
 }
 
 func TestOperatorKindSuite(t *testing.T) {
-	e2e.Run(t, &localKindOperatorSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil), e2e.WithDevMode(), e2e.WithSkipDeleteOnFailure())
+	e2e.Run(t, &localKindOperatorSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil))
 }
 
 func (k *localKindOperatorSuite) TestClusterAgentInstalled() {

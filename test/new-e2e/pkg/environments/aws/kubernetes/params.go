@@ -188,6 +188,7 @@ func WithOperator() ProvisionerOption {
 	}
 }
 
+// WithOperatorOptions Configures the Datadog Operator
 func WithOperatorOptions(opts ...operatorparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.operatorOptions = opts
@@ -195,9 +196,19 @@ func WithOperatorOptions(opts ...operatorparams.Option) ProvisionerOption {
 	}
 }
 
+// WithOperatorDDAOptions Configures the DatadogAgent custom resource
 func WithOperatorDDAOptions(opts ...agentwithoperatorparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.operatorDDAOptions = opts
+		return nil
+	}
+}
+
+// WithoutDDA removes the DatadogAgent custom resource
+func WithoutDDA() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.operatorDDAOptions = nil
+		params.agentOptions = nil
 		return nil
 	}
 }
