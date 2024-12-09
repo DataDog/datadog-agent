@@ -8,9 +8,12 @@
 package fetchonlyimpl
 
 import (
+	"crypto/tls"
+
+	"go.uber.org/fx"
+
 	authtokeninterface "github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -26,6 +29,18 @@ type MockFetchOnly struct{}
 // Get is a mock of the fetchonly Get function
 func (fc *MockFetchOnly) Get() string {
 	return "a string"
+}
+
+// GetTLSClientConfig is a mock of the fetchonly GetTLSClientConfig function
+func (fc *MockFetchOnly) GetTLSClientConfig() *tls.Config {
+	return &tls.Config{
+		InsecureSkipVerify: true,
+	}
+}
+
+// GetTLSServerConfig is a mock of the fetchonly GetTLSServerConfig function
+func (fc *MockFetchOnly) GetTLSServerConfig() *tls.Config {
+	return &tls.Config{}
 }
 
 // NewMock returns a new fetch only authtoken mock

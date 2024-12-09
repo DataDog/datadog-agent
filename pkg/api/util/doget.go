@@ -7,7 +7,6 @@ package util
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"io"
 	"net/http"
@@ -43,18 +42,15 @@ func GetClient(verify bool) *http.Client {
 // Arguments correspond to the request timeout duration, and a boolean to
 // verify the server TLS client (false should only be used on localhost
 // trusted endpoints).
-func GetClientWithTimeout(to time.Duration, verify bool) *http.Client {
-	if verify {
-		return &http.Client{
-			Timeout: to,
-		}
+func GetClientWithTimeout(to time.Duration, _ bool) *http.Client {
+	transport := http.Transport{
+		TLSClientConfig: GetTLSClientConfig(),
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	return &http.Client{
+		Transport: &transport,
+		Timeout:   to,
 	}
-
-	return &http.Client{Transport: tr}
 }
 
 // DoGet is a wrapper around performing HTTP GET requests
