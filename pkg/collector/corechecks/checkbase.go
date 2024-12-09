@@ -49,6 +49,7 @@ type CheckBase struct {
 	checkInterval  time.Duration
 	source         string
 	telemetry      bool
+	haCheck        bool
 	initConfig     string
 	instanceConfig string
 }
@@ -150,6 +151,10 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 			s.SetNoIndex(commonOptions.NoIndex)
 		}
 
+		if commonOptions.HACheck {
+			c.haCheck = true
+		}
+
 		c.source = source
 		return nil
 	}
@@ -236,6 +241,11 @@ func (c *CheckBase) ID() checkid.ID {
 // IsTelemetryEnabled returns if the telemetry is enabled for this check.
 func (c *CheckBase) IsTelemetryEnabled() bool {
 	return c.telemetry
+}
+
+// IsHACheck returns if the check is an HA Check
+func (c *CheckBase) IsHACheck() bool {
+	return c.haCheck
 }
 
 // GetWarnings grabs the latest integration warnings for the check.
