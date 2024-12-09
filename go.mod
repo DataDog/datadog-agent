@@ -289,12 +289,12 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.15.1
 	go.opentelemetry.io/collector v0.114.0 // indirect
-	go.opentelemetry.io/collector/component v0.114.0
+	go.opentelemetry.io/collector/component v0.115.0
 	go.opentelemetry.io/collector/confmap v1.20.0
 	go.opentelemetry.io/collector/exporter v0.114.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.114.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.114.0
-	go.opentelemetry.io/collector/pdata v1.20.0
+	go.opentelemetry.io/collector/pdata v1.21.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.114.0
 	go.opentelemetry.io/collector/receiver v0.114.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.114.0
@@ -612,10 +612,10 @@ require (
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.114.0
-	go.opentelemetry.io/collector/config/configtelemetry v0.114.0
+	go.opentelemetry.io/collector/config/configtelemetry v0.115.0
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.114.0
+require go.opentelemetry.io/collector/component/componenttest v0.115.0
 
 require (
 	go.opentelemetry.io/collector/extension/extensiontest v0.114.0 // indirect
