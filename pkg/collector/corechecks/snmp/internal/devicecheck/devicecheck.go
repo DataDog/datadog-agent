@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -284,7 +283,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
 	} else {
 		deviceReachable = true
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("check device reachable: success: %v", gosnmplib.PacketAsString(getNextValue))
 		}
 	}
@@ -298,7 +297,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	tags = append(tags, d.config.ProfileTags...)
 
 	valuesStore, err := fetch.Fetch(d.session, d.config)
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}
 
@@ -352,7 +351,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
 	root := common.BuildOidTrie(fetchedOIDs)
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		root.DebugPrint()
 	}
 

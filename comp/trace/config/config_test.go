@@ -23,7 +23,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -136,9 +135,8 @@ func TestSplitTagRegex(t *testing.T) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
+		logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 		assert.Nil(t, err)
-		seelog.ReplaceLogger(logger) //nolint:errcheck
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()

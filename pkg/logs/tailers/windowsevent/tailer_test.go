@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
-
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cenkalti/backoff"
@@ -61,7 +59,7 @@ func TestReadEventsSuite(t *testing.T) {
 func (s *ReadEventsSuite) SetupSuite() {
 	// Enable logger
 	if false {
-		pkglog.SetupLogger(seelog.Default, "debug")
+		pkglog.SetupLogger(pkglog.Default(), "debug")
 	}
 
 	s.ti = eventlog_test.GetAPITesterByName(s.testAPI, s.T())

@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -34,7 +33,7 @@ func TestStart(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
@@ -58,7 +57,7 @@ func TestPrioritySampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -89,7 +88,7 @@ func TestErrorsSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -120,7 +119,7 @@ func TestRareSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -151,7 +150,7 @@ func TestEnvPrecedence(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -193,7 +192,7 @@ func TestLogLevel(t *testing.T) {
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)

@@ -13,8 +13,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -138,7 +136,7 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 
 // IsTracing is used to check if TraceF would actually log
 func (l *PatternLogger) IsTracing() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.TraceLvl {
 		return false
 	}
 	return true

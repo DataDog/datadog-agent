@@ -9,9 +9,10 @@ import (
 	"errors"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
-	log "github.com/cihub/seelog"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getUnameProcessor is similar to `uname -p`

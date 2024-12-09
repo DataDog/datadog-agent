@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -399,7 +398,7 @@ func getEventFromFile(filename string) string {
 func BenchmarkStartEndInvocation(b *testing.B) {
 	// Set the logger up, so that it does not buffer all entries forever (some of these are BIG as they include the
 	// JSON payload). We're not interested in any output here, so we send it all to `io.Discard`.
-	l, err := seelog.LoggerFromWriterWithMinLevel(io.Discard, seelog.ErrorLvl)
+	l, err := log.LoggerFromWriterWithMinLevel(io.Discard, log.ErrorLvl)
 	assert.Nil(b, err)
 	log.SetupLogger(l, "error")
 
