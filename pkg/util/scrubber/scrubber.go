@@ -43,8 +43,8 @@ type Replacer struct {
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
 
-	// ImplementVersion is the version of the implementation of the replacer.
-	ImplementVersion *version.Version
+	// LastUpdated is the version of the implementation of the replacer.
+	LastUpdated *version.Version
 }
 
 func parseVersion(versionString string) *version.Version {
