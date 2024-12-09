@@ -852,7 +852,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 	if c.Viper.GetBool("fips.enabled") {
 		return nil
 	}
-	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+	if c.Viper.GetString("proxy.http") == "" && c.Viper.GetString("proxy.https") == "" && len(c.Viper.GetStringSlice("proxy.no_proxy")) == 0 {
 		return nil
 	}
 	p := &Proxy{
