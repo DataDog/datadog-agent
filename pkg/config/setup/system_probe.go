@@ -196,7 +196,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
 	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
 	cfg.BindEnv(join(netNS, "closed_connection_flush_threshold"))
-	cfg.BindEnvAndSetDefault(join(netNS, "closed_buffer_wakeup_count"), 5)
+	cfg.BindEnvAndSetDefault(join(netNS, "closed_buffer_wakeup_count"), 4)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_dns_inspection"), false, "DD_DISABLE_DNS_INSPECTION")
