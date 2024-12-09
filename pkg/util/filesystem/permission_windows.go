@@ -35,7 +35,7 @@ func NewPermission() (*Permission, error) {
 
 	ddUserSid, err := getDatadogUserSid()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to get datadog user sid %v", err)
+		return nil, fmt.Errorf("unable to get datadog user sid %v", err)
 	}
 	return &Permission{
 		ddUserSid:        ddUserSid,
