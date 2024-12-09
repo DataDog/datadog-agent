@@ -231,7 +231,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 // GetStats returns a map of Postgres stats.
 func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
-	p.kernelTelemetry.DebugLog()
+	p.kernelTelemetry.Log()
 
 	return &protocols.ProtocolStats{
 		Type:  protocols.Postgres,

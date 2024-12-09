@@ -218,8 +218,8 @@ func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS 
 	}
 }
 
-// DebugLog logs summary of telemetry
-func (t *kernelTelemetry) DebugLog() {
+// Log logs summary of telemetry
+func (t *kernelTelemetry) Log() {
 	if log.ShouldLog(seelog.DebugLvl) {
 		s := t.metricGroup.Summary()
 		log.Debugf("postgres kernel telemetry, summary: %s", s)
