@@ -10,8 +10,8 @@ require (
 
 require (
 	github.com/DataDog/appsec-internal-go v1.0.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-devel.0.20230725154044-2549ba9058df // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.63.0-devel.0.20230725154044-2549ba9058df // indirect
 	github.com/DataDog/datadog-go/v5 v5.2.0 // indirect
 	github.com/DataDog/go-libddwaf v1.4.2 // indirect
 	github.com/DataDog/go-tuf v1.0.1-0.5.2 // indirect
