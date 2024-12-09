@@ -19,13 +19,10 @@ import (
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
@@ -56,14 +53,7 @@ func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
-		utils.SetCachedHostname("test-hostname")
-		eventmonitortestutil.StartEventMonitor(t, func(t *testing.T, evm *eventmonitor.EventMonitor) {
-			// Can't use the implementation in procmontestutil due to import cycles
-			procmonconsumer, err := NewProcessMonitorEventConsumer(evm)
-			require.NoError(t, err)
-			evm.RegisterEventConsumer(procmonconsumer)
-			log.Info("process monitoring test consumer initialized")
-		})
+		InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	}
 	waitForProcessMonitor(t, pm)
 }
