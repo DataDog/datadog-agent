@@ -5,7 +5,6 @@ go 1.22.0
 require (
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1
 	github.com/stretchr/testify v1.10.0
-	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
