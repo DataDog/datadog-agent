@@ -63,7 +63,7 @@ def remove_env(ctx):
 def is_worktree():
     """Will return True if the current environment is a worktree environment."""
 
-    return Path.cwd() == WORKTREE_DIRECTORY
+    return Path.cwd().resolve() == WORKTREE_DIRECTORY.resolve()
 
 
 def enter_env(ctx, branch: str | None, skip_checkout=False):

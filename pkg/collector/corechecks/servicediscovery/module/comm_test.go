@@ -51,9 +51,9 @@ func TestIgnoreComm(t *testing.T) {
 	badPid := badCmd.Process.Pid
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(t, url)
+		svcMap := getServicesMap(collect, url)
 		assert.Contains(collect, svcMap, goodPid)
-		require.NotContains(t, svcMap, badPid)
+		assert.NotContains(collect, svcMap, badPid)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 

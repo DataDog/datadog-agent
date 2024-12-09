@@ -7,6 +7,7 @@ ARG WITH_JMX="false"
 ARG VARIANT="unknown"
 ARG INSTALL_INFO="unknown"
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
+ARG WITH_FIPS="false"
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 

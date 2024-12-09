@@ -15,6 +15,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
+from tasks.libs.common.utils import TestsNotSupportedError
 from tasks.libs.releasing.version import load_release_versions
 
 # constants
@@ -87,12 +88,12 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for cluster-agent
     """
     if sys.platform == 'win32':
-        raise Exit(message='cluster-agent integration tests are not supported on Windows', code=0)
+        raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
 
     # We need docker for the kubeapiserver integration tests
     tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]

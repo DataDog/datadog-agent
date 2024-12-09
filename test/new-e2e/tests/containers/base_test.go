@@ -14,6 +14,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -22,21 +23,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
-type baseSuite[Env any] struct {
-	e2e.BaseSuite[Env]
+type baseSuite struct {
+	suite.Suite
 
-	Fakeintake  *fakeintake.Client
-	clusterName string
+	startTime     time.Time
+	endTime       time.Time
+	datadogClient *datadog.Client
+	Fakeintake    *fakeintake.Client
+	clusterName   string
 }
 
-func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
+func (suite *baseSuite) SetupSuite() {
+	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	suite.Require().NoError(err)
+	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
+	suite.Require().NoError(err)
+	suite.datadogClient = datadog.NewClient(apiKey, appKey)
+
+	suite.startTime = time.Now()
+}
+
+func (suite *baseSuite) TearDownSuite() {
+	suite.endTime = time.Now()
+}
+
+func (suite *baseSuite) BeforeTest(suiteName, testName string) {
 	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
 }
 
-func (suite *baseSuite[Env]) AfterTest(suiteName, testName string) {
+func (suite *baseSuite) AfterTest(suiteName, testName string) {
 	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
 }
 
@@ -79,7 +98,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 	mc.CollectT.Errorf(format, args...)
 }
 
-func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
+func (suite *baseSuite) testMetric(args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("metric   "+prettyMetricQuery, func() {
@@ -88,7 +107,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
-		optionalTags := []*regexp.Regexp{regexp.MustCompile("stackid:.*")} // The stackid tag is added by the framework itself to allow filtering on the stack id
+		var optionalTags []*regexp.Regexp
 		if args.Optional.Tags != nil {
 			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
@@ -101,7 +120,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 				return "filter_tag_" + tag
 			})
 
-			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testMetric %s", prettyMetricQuery)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
@@ -208,7 +227,7 @@ type testLogExpectArgs struct {
 	Message string
 }
 
-func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
+func (suite *baseSuite) testLog(args *testLogArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("log   "+prettyLogQuery, func() {
@@ -230,7 +249,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 				return "filter_tag_" + tag
 			})
 
-			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testLog %s", prettyLogQuery)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
@@ -337,7 +356,7 @@ type testCheckRunExpectArgs struct {
 	AcceptUnexpectedTags bool
 }
 
-func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
+func (suite *baseSuite) testCheckRun(args *testCheckRunArgs) {
 	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
@@ -359,7 +378,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 				return "filter_tag_" + tag
 			})
 
-			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testCheckRun %s", prettyCheckRunQuery)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
