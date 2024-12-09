@@ -53,7 +53,6 @@
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx-loops
 /.github/dependabot.yaml                             @DataDog/agent-devx-infra
-/.github/scripts/otel-collector-update-generate.sh   @DataDog/opentelemetry
 /.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/serverless-integration.yml        @DataDog/serverless @Datadog/serverless-aws
