@@ -85,13 +85,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 
 	netconfig := netconfig.New()
 	if netconfig.EnableUSMEventStream {
-		procmonconsumer, err := createProcessMonitorConsumer(evm, netconfig)
-		if err != nil {
+		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
 			return nil, err
-		}
-		if procmonconsumer != nil {
-			evm.RegisterEventConsumer(procmonconsumer)
-			log.Info("USM process monitoring consumer initialized")
 		}
 	}
 

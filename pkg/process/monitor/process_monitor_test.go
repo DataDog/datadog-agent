@@ -19,13 +19,10 @@ import (
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
@@ -40,12 +37,12 @@ func getProcessMonitor(t *testing.T) *ProcessMonitor {
 func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 	execCounter := atomic.NewInt32(0)
 	execCallback := func(_ uint32) { execCounter.Inc() }
-	registerCallback(t, pm, true, (*ProcessCallback)(&execCallback))
+	registerCallback(t, pm, true, &execCallback)
 
 	exitCounter := atomic.NewInt32(0)
 	// Sanity subscribing a callback.
 	exitCallback := func(_ uint32) { exitCounter.Inc() }
-	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+	registerCallback(t, pm, false, &exitCallback)
 
 	require.Eventually(t, func() bool {
 		_ = exec.Command("/bin/echo").Run()
@@ -56,14 +53,7 @@ func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
-		utils.SetCachedHostname("test-hostname")
-		eventmonitortestutil.StartEventMonitor(t, func(t *testing.T, evm *eventmonitor.EventMonitor) {
-			// Can't use the implementation in procmontestutil due to import cycles
-			procmonconsumer, err := NewProcessMonitorEventConsumer(evm)
-			require.NoError(t, err)
-			evm.RegisterEventConsumer(procmonconsumer)
-			log.Info("process monitoring test consumer initialized")
-		})
+		InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	}
 	waitForProcessMonitor(t, pm)
 }
@@ -113,7 +103,7 @@ func (s *processMonitorSuite) TestProcessMonitorSanity() {
 		defer execsMutex.Unlock()
 		execs[pid] = struct{}{}
 	}
-	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
+	registerCallback(t, pm, true, &callback)
 
 	exitMutex := sync.RWMutex{}
 	exits := make(map[uint32]struct{})
@@ -122,7 +112,7 @@ func (s *processMonitorSuite) TestProcessMonitorSanity() {
 		defer exitMutex.Unlock()
 		exits[pid] = struct{}{}
 	}
-	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+	registerCallback(t, pm, false, &exitCallback)
 
 	initializePM(t, pm, s.useEventStream)
 	cmd := exec.Command(testBinaryPath, "test")
@@ -182,7 +172,7 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 			defer execCountersMutexes[i].Unlock()
 			c[pid] = struct{}{}
 		}
-		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
+		registerCallback(t, pm, true, &callback)
 
 		exitCountersMutexes[i] = sync.RWMutex{}
 		exitCounters[i] = make(map[uint32]struct{})
@@ -193,7 +183,7 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 			defer exitCountersMutexes[i].Unlock()
 			exitc[pid] = struct{}{}
 		}
-		registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+		registerCallback(t, pm, false, &exitCallback)
 	}
 
 	initializePM(t, pm, s.useEventStream)
@@ -252,10 +242,10 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	pm := getProcessMonitor(t)
 
 	callback := func(pid uint32) { execSet.Store(pid, struct{}{}) }
-	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
+	registerCallback(t, pm, true, &callback)
 
 	exitCallback := func(pid uint32) { exitSet.Store(pid, struct{}{}) }
-	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+	registerCallback(t, pm, false, &exitCallback)
 
 	monNs, err := netns.New()
 	require.NoError(t, err, "could not create network namespace for process monitor")
