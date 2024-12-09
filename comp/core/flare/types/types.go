@@ -20,6 +20,9 @@ import (
 // see the aliased type for the full description
 type FlareBuilder = flarebuilder.FlareBuilder
 
+// FlareBuilderFactory creates an instance of FlareBuilder
+type FlareBuilderFactory func(localFlare bool, flareArgs FlareArgs) (FlareBuilder, error)
+
 // FlareArgs contains the args passed in by the caller to the flare generation process
 // see the aliased type for the full description
 type FlareArgs = flarebuilder.FlareArgs
