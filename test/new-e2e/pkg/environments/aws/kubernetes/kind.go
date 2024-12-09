@@ -196,7 +196,7 @@ agents:
 				return err
 			}
 
-			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress", utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
+			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress"); err != nil {
 				return err
 			}
 		}
