@@ -168,7 +168,11 @@ func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
-	r := resource.(*corev1.Pod)
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
 	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
