@@ -198,19 +198,15 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 	expectedWebhookName := "datadog-webhook"
 
 	suite.Run("agent registered mutating webhook configuration", func() {
-		suite.EventuallyWithT(func(c *assert.CollectT) {
-			mutatingConfig, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
-			assert.NoError(c, err, "Unexpected error while getting mutating webhook configuration")
-			assert.NotNilf(c, mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
-		}, 2*time.Minute, 10*time.Second)
+		mutatingConfig, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
+		suite.Require().NoError(err)
+		suite.NotNilf(mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 
 	suite.Run("agent registered validating webhook configuration", func() {
-		suite.EventuallyWithT(func(c *assert.CollectT) {
-			validatingConfig, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
-			assert.NoError(c, err, "Unexpected error while getting validating webhook configuration")
-			assert.NotNilf(c, validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
-		}, 2*time.Minute, 10*time.Second)
+		validatingConfig, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
+		suite.Require().NoError(err)
+		suite.NotNilf(validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 }
 
