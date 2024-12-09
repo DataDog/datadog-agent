@@ -8,14 +8,12 @@
 package server
 
 import (
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"go.uber.org/fx"
 
@@ -77,10 +75,6 @@ func fulfillDeps(t testing.TB) serverDeps {
 }
 
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
-	// TODO: https://datadoghq.atlassian.net/browse/AMLII-1948
-	if runtime.GOOS == "darwin" {
-		flake.Mark(t)
-	}
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle(),
 		serverdebugimpl.MockModule(),
