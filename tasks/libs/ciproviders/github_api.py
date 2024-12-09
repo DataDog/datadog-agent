@@ -64,13 +64,11 @@ class GithubAPI:
                 return None
             raise e
 
-    def create_pr(self, pr_title, pr_body, base_branch, target_branch, draft=False):
+    def create_pr(self, pr_title, pr_body, base_branch, target_branch):
         """
         Creates a PR in the given Github repository.
         """
-        return self._repository.create_pull(
-            title=pr_title, body=pr_body, base=base_branch, head=target_branch, draft=draft
-        )
+        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, head=target_branch)
 
     def update_pr(self, pull_number, milestone_number, labels):
         """

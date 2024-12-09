@@ -14,7 +14,6 @@ from invoke.tasks import task
 from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import check_uncommitted_changes
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -499,27 +498,3 @@ def update(ctx):
     updater = CollectorVersionUpdater()
     updater.update()
     print("Update complete.")
-
-
-@task()
-def pull_request(ctx):
-    ctx.run('git config --global user.name "github-actions[bot]"')
-    ctx.run('git config --global user.email "github-actions[bot]@users.noreply.github.com"')
-    ctx.run('git add .')
-    if check_uncommitted_changes(ctx):
-        branch_name = f"update-otel-collector-dependencies-{OCB_VERSION}"
-        ctx.run(f'git switch -c {branch_name}')
-        ctx.run(
-            f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
-        )
-        ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
-        gh = GithubAPI()
-        gh.create_pr(
-            pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
-            pr_body=f"This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.",
-            target_branch=branch_name,
-            base_branch="main",
-            draft=True,
-        )
-    else:
-        print("No changes detected, skipping PR creation.")
