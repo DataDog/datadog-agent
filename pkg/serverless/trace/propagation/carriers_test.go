@@ -816,11 +816,60 @@ func TestHeadersCarrier(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			tm, err := headersCarrier(tc.event)
-			t.Logf("rawPayloadCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			t.Logf("headersCarrier returned TextMapReader=%#v error=%#v", tm, err)
 			assert.Equal(t, tc.expErr != nil, err != nil)
 			if tc.expErr != nil && err != nil {
 				assert.Equal(t, tc.expErr.Error(), err.Error())
 			}
+			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
+		})
+	}
+}
+
+func TestHeadersOrMultiheadersCarrier(t *testing.T) {
+	testcases := []struct {
+		name      string
+		hdrs      map[string]string
+		multiHdrs map[string][]string
+		expMap    map[string]string
+	}{
+		{
+			name:      "nil-map",
+			hdrs:      headersMapNone,
+			multiHdrs: toMultiValueHeaders(headersMapNone),
+			expMap:    headersMapEmpty,
+		},
+		{
+			name:      "empty-map",
+			hdrs:      headersMapEmpty,
+			multiHdrs: toMultiValueHeaders(headersMapEmpty),
+			expMap:    headersMapEmpty,
+		},
+		{
+			name:      "headers-and-multiheaders",
+			hdrs:      headersMapDD,
+			multiHdrs: toMultiValueHeaders(headersMapW3C),
+			expMap:    headersMapDD,
+		},
+		{
+			name:      "just-headers",
+			hdrs:      headersMapDD,
+			multiHdrs: toMultiValueHeaders(headersMapEmpty),
+			expMap:    headersMapDD,
+		},
+		{
+			name:      "just-multiheaders",
+			hdrs:      headersMapEmpty,
+			multiHdrs: toMultiValueHeaders(headersMapW3C),
+			expMap:    headersMapW3C,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tm, err := headersOrMultiheadersCarrier(tc.hdrs, tc.multiHdrs)
+			t.Logf("headersOrMultiheadersCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			assert.Nil(t, err)
 			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
 		})
 	}

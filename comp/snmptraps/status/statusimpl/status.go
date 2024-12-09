@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	trapsStatus "github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

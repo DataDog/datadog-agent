@@ -196,10 +196,15 @@ func (t *ebpfLessTracer) processConnection(
 		conn.Duration = time.Duration(time.Now().UnixNano())
 	}
 
+	var ts int64
+	var err error
+	if ts, err = ddebpf.NowNanoseconds(); err != nil {
+		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
+	}
+
 	if ip4 == nil && ip6 == nil {
 		return nil
 	}
-	var err error
 	switch conn.Type {
 	case network.UDP:
 		if (ip4 != nil && !t.config.CollectUDPv4Conns) || (ip6 != nil && !t.config.CollectUDPv6Conns) {
@@ -210,7 +215,7 @@ func (t *ebpfLessTracer) processConnection(
 		if (ip4 != nil && !t.config.CollectTCPv4Conns) || (ip6 != nil && !t.config.CollectTCPv6Conns) {
 			return nil
 		}
-		err = t.tcp.Process(conn, pktType, ip4, ip6, tcp)
+		err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -220,10 +225,6 @@ func (t *ebpfLessTracer) processConnection(
 	}
 
 	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
-		var ts int64
-		if ts, err = ddebpf.NowNanoseconds(); err != nil {
-			return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
-		}
 		conn.LastUpdateEpoch = uint64(ts)
 		t.conns[t.scratchConn.ConnectionTuple] = conn
 	}

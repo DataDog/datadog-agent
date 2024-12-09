@@ -7,12 +7,12 @@
 package forwarder
 
 import (
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 )
 
 // team: ndm-core
 
 // Component is the component type.
 type Component interface {
-	eventplatform.Component
+	eventplatform.Forwarder
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"google.golang.org/protobuf/proto"
 
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 

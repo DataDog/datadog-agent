@@ -64,13 +64,13 @@ secret_backend_command: ./my_secret_fetcher.sh
 		{
 			description:  "nested setting from env var works",
 			setting:      "network_path.collector.input_chan_size",
-			expectValue:  "23456",
+			expectValue:  23456,
 			expectSource: model.SourceEnvVar,
 		},
 		{
 			description:  "top-level setting from env var works",
 			setting:      "secret_backend_timeout",
-			expectValue:  "60", // TODO: cfg.Get returns string because this is an env var
+			expectValue:  60,
 			expectSource: model.SourceEnvVar,
 		},
 		{
@@ -326,13 +326,21 @@ func TestIsSet(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
+	cfg.SetKnown("c")
 	cfg.BuildSchema()
 
 	cfg.Set("b", 123, model.SourceAgentRuntime)
 
-	assert.True(t, cfg.IsSet("b"))
 	assert.True(t, cfg.IsSet("a"))
+	assert.True(t, cfg.IsSet("b"))
+	assert.False(t, cfg.IsSet("c"))
+
+	assert.True(t, cfg.IsKnown("a"))
+	assert.True(t, cfg.IsKnown("b"))
+	assert.True(t, cfg.IsKnown("c"))
+
 	assert.False(t, cfg.IsSet("unknown"))
+	assert.False(t, cfg.IsKnown("unknown"))
 }
 
 func TestAllKeysLowercased(t *testing.T) {
@@ -346,4 +354,82 @@ func TestAllKeysLowercased(t *testing.T) {
 	keys := cfg.AllKeysLowercased()
 	sort.Strings(keys)
 	assert.Equal(t, []string{"a", "b"}, keys)
+}
+
+func TestStringify(t *testing.T) {
+	configData := `network_path:
+  collector:
+    workers: 6
+secret_backend_command: ./my_secret_fetcher.sh
+`
+	os.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
+	os.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
+
+	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	cfg.BindEnvAndSetDefault("secret_backend_command", "")
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("server_timeout", 30)
+
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	txt := cfg.(*ntmConfig).Stringify("none")
+	expect := "Stringify error: invalid source: none"
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify(model.SourceDefault)
+	expect = `network_path
+  collector
+    input_chan_size
+      val:100000, source:default
+    processing_chan_size
+      val:100000, source:default
+    workers
+      val:4, source:default
+secret_backend_command
+  val:, source:default
+secret_backend_timeout
+  val:0, source:default
+server_timeout
+  val:30, source:default`
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify(model.SourceFile)
+	expect = `network_path
+  collector
+    workers
+      val:6, source:file
+secret_backend_command
+  val:./my_secret_fetcher.sh, source:file`
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify(model.SourceEnvVar)
+	expect = `network_path
+  collector
+    input_chan_size
+      val:23456, source:environment-variable
+secret_backend_timeout
+  val:60, source:environment-variable`
+	assert.Equal(t, expect, txt)
+
+	txt = cfg.(*ntmConfig).Stringify("root")
+	expect = `network_path
+  collector
+    input_chan_size
+      val:23456, source:environment-variable
+    processing_chan_size
+      val:100000, source:default
+    workers
+      val:6, source:file
+secret_backend_command
+  val:./my_secret_fetcher.sh, source:file
+secret_backend_timeout
+  val:60, source:environment-variable
+server_timeout
+  val:30, source:default`
+	assert.Equal(t, expect, txt)
 }

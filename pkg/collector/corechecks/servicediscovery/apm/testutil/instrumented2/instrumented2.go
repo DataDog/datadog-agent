@@ -9,7 +9,9 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
@@ -20,5 +22,19 @@ func main() {
 		fmt.Println(err)
 	}
 
-	time.Sleep(time.Second * 20)
+	// Create a channel to listen for OS signals
+	signalChan := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		<-signalChan
+		done <- true
+	}()
+
+	fmt.Println("Running... Press Ctrl+C to exit.")
+
+	<-done // Block until a signal is received
+	fmt.Println("Gracefully shutting down.")
 }
