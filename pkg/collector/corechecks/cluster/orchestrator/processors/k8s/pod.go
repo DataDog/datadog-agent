@@ -164,6 +164,23 @@ func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
 }
 
+// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
+	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+		return nil
+	}
+	return tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //
