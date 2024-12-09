@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -141,7 +142,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
