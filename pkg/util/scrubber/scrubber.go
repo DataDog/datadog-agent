@@ -50,7 +50,7 @@ type Replacer struct {
 func parseVersion(versionString string) *version.Version {
 	v, err := version.New(versionString, "")
 	if err != nil {
-		return nil
+		panic(err)
 	}
 	return &v
 }
@@ -85,9 +85,9 @@ type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
 
-	// CondFunction is a function that can be used to conditionally apply a replacer.
+	// ShouldApply is a function that can be used to conditionally apply a replacer.
 	// If the function returns false, the replacer will not be applied.
-	CondFunction func(repl Replacer) bool
+	ShouldApply func(repl Replacer) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -194,7 +194,7 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 			continue
 		}
 
-		if c.CondFunction != nil && !c.CondFunction(repl) {
+		if c.ShouldApply != nil && !c.ShouldApply(repl) {
 			continue
 		}
 
