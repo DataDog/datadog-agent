@@ -64,13 +64,13 @@ secret_backend_command: ./my_secret_fetcher.sh
 		{
 			description:  "nested setting from env var works",
 			setting:      "network_path.collector.input_chan_size",
-			expectValue:  "23456",
+			expectValue:  23456,
 			expectSource: model.SourceEnvVar,
 		},
 		{
 			description:  "top-level setting from env var works",
 			setting:      "secret_backend_timeout",
-			expectValue:  "60", // TODO: cfg.Get returns string because this is an env var
+			expectValue:  60,
 			expectSource: model.SourceEnvVar,
 		},
 		{
