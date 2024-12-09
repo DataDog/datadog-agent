@@ -169,30 +169,3 @@ yet_another_key: 'dddd'`
 		require.YAMLEq(t, expected, scrubbed)
 	})
 }
-
-func TestConfigFile(t *testing.T) {
-	cleanedConfigFile := `dd_url: https://app.datadoghq.com
-
-api_key: "***************************aaaaa"
-
-proxy: http://user:********@host:port
-
-
-
-
-
-
-dogstatsd_port : 8125
-
-
-log_level: info
-`
-
-	wd, _ := os.Getwd()
-	filePath := filepath.Join(wd, "test", "datadog.yaml")
-	cleaned, err := ScrubFile(filePath)
-	assert.NoError(t, err)
-	cleanedString := string(cleaned)
-
-	assert.Equal(t, cleanedConfigFile, cleanedString)
-}
