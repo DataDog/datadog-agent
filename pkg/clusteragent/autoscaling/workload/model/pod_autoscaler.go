@@ -116,9 +116,8 @@ type PodAutoscalerInternal struct {
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
 func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace:                      podAutoscaler.Namespace,
-		name:                           podAutoscaler.Name,
-		customRecommenderConfiguration: parseCustomConfigurationAnnotation(podAutoscaler.Annotations),
+		namespace: podAutoscaler.Namespace,
+		name:      podAutoscaler.Name,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
@@ -145,13 +144,14 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
-	p.customRecommenderConfiguration = parseCustomConfigurationAnnotation(podAutoscaler.Annotations)
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.Policy has changed
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscaler.Spec.Policy, longestScalingRulePeriodAllowed)
+	// Compute recommender configuration again in case .Annotations has changed
+	p.customRecommenderConfiguration = parseCustomConfigurationAnnotation(podAutoscaler.Annotations)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
