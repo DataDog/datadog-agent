@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -373,7 +374,7 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
+func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compressionFactory compression.Factory, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
@@ -412,9 +413,10 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
-	encoder := sender.IdentityContentType
+	var encoder compression.Component
+	encoder = compressionFactory.NewNoopCompressor()
 	if endpoints.Main.UseCompression {
-		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
 	}
 
 	var strategy sender.Strategy
@@ -471,12 +473,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compressionFactory compression.Factory) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range passthroughPipelineDescs {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, desc, destinationsCtx, i)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compressionFactory, desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -496,6 +498,7 @@ type dependencies struct {
 	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
+	CompressionFactory    compression.Factory
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
@@ -503,9 +506,9 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 	var forwarder *defaultEventPlatformForwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = newNoopEventPlatformForwarder(deps.Hostname)
+		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory)
 	} else if deps.Params.UseEventPlatformForwarder {
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver)
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.CompressionFactory)
 	}
 	if forwarder == nil {
 		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
@@ -525,12 +528,12 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
-	return newNoopEventPlatformForwarder(hostname)
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compressionFactory compression.Factory) eventplatform.Forwarder {
+	return newNoopEventPlatformForwarder(hostname, compressionFactory)
 }
 
-func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp)
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compressionFactory compression.Factory) *defaultEventPlatformForwarder {
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compressionFactory)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

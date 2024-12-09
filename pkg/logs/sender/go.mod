@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/sender
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
@@ -13,6 +14,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
@@ -31,6 +33,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../util/testutils
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../util/backoff
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
@@ -51,6 +54,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3
@@ -65,6 +69,9 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect

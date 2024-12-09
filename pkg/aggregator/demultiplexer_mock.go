@@ -24,16 +24,18 @@ import (
 // TestDeps contains dependencies for InitAndStartAgentDemultiplexerForTest
 type TestDeps struct {
 	fx.In
-	Log             log.Component
-	Hostname        hostname.Component
-	SharedForwarder defaultforwarder.Component
-	Compressor      compression.Component
-	HaAgent         haagent.Component
+	Log                log.Component
+	Hostname           hostname.Component
+	SharedForwarder    defaultforwarder.Component
+	CompressionFactory compression.Factory
+	HaAgent            haagent.Component
 }
 
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	compressor := deps.CompressionFactory.NewNoopCompressor()
+
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), hostname)
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.HaAgent, compressor, nooptagger.NewComponent(), hostname)
 }
