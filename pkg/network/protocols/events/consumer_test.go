@@ -8,14 +8,9 @@
 package events
 
 import (
-	"bytes"
-	"encoding/binary"
-	"encoding/gob"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +18,8 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,14 +63,14 @@ func TestConsumer(t *testing.T) {
 	// generate test events
 	generator := newEventGenerator(program, t)
 	for i := 0; i < numEvents; i++ {
-		require.NoError(t, generator.Generate(uint64(i)))
+		generator.Generate(uint64(i))
 	}
 	generator.Stop()
 	time.Sleep(100 * time.Millisecond)
 
 	// this ensures that any incomplete batch left in eBPF is fully processed
 	consumer.Sync()
-	require.NoError(t, program.Stop(manager.CleanAll))
+	program.Stop(manager.CleanAll)
 	consumer.Stop()
 
 	// ensure that we have received each event exactly once
@@ -83,12 +80,55 @@ func TestConsumer(t *testing.T) {
 	}
 }
 
+func TestInvalidBatchCountMetric(t *testing.T) {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+		t.Skipf("package not supported by kernels < %s", minVersion)
+	}
+
+	c := config.New()
+	program, err := newEBPFProgram(c)
+	require.NoError(t, err)
+	t.Cleanup(func() { program.Stop(manager.CleanAll) })
+
+	consumer, err := NewConsumer("test", program, func([]uint64) {})
+	require.NoError(t, err)
+
+	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
+	// and would be considered an invalid batch.
+	recordSample(c, consumer, []byte("test"))
+
+	consumer.Start()
+	t.Cleanup(func() { consumer.Stop() })
+	require.Eventually(t, func() bool {
+		// Wait for the consumer to process the invalid batch.
+		return consumer.invalidBatchCount.Get() == 1
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 type eventGenerator struct {
 	// map used for coordinating test with eBPF program space
 	testMap *ebpf.Map
 
 	// file used for triggering write(2) syscalls
 	testFile *os.File
+}
+
+// recordSample records a sample using the consumer handler.
+func recordSample(c *config.Config, consumer *Consumer[uint64], sampleData []byte) {
+	// Ring buffers require kernel version 5.8.0 or higher, therefore, the handler is chosen based on the kernel version.
+	if c.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil {
+		handler := consumer.handler.(*ddebpf.RingBufferHandler)
+		handler.RecordHandler(&ringbuf.Record{
+			RawSample: sampleData,
+		}, nil, nil)
+	} else {
+		handler := consumer.handler.(*ddebpf.PerfHandler)
+		handler.RecordHandler(&perf.Record{
+			RawSample: sampleData,
+		}, nil, nil)
+	}
 }
 
 func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
@@ -124,8 +164,8 @@ func (e *eventGenerator) Generate(eventID uint64) error {
 		return err
 	}
 
-	_, err = e.testFile.Write([]byte("whatever"))
-	return err
+	e.testFile.Write([]byte("whatever"))
+	return nil
 }
 
 func (e *eventGenerator) Stop() {
@@ -175,174 +215,4 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 
 	return m, nil
-}
-
-func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
-		t.Skipf("package not supported by kernels < %s", minVersion)
-	}
-
-	program, err := newEBPFProgram(config.New())
-	require.NoError(t, err)
-
-	ringBufferHandler := ddebpf.NewRingBufferHandler(1)
-	ringBufferHandler.RecordHandler(&ringbuf.Record{
-		RawSample: []byte("test"),
-	}, nil, nil)
-
-	consumer, err := NewConsumer("test", program, func(_ []uint64) {})
-	require.NoError(t, err)
-	consumer.handler = ringBufferHandler
-
-	consumer.Start()
-	program.Stop(manager.CleanAll)
-	consumer.Stop()
-
-	require.Equalf(t, int(consumer.invalidBatchCount.Get()), 1, "invalidBatchCount should be greater than 0")
-}
-
-func EncodeToBytes(p interface{}) []byte {
-	buf := bytes.Buffer{}
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(p)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("uncompressed size (bytes): ", len(buf.Bytes()))
-	return buf.Bytes()
-}
-
-// Serialize a struct to a [4096]int8 array with specified endianness
-func structToBytes(data EbpfEvent, littleEndian bool) ([4096]int8, error) {
-	var result [4096]int8
-	var buffer bytes.Buffer
-
-	// Set the binary encoding order based on the littleEndian flag
-	var order binary.ByteOrder
-	if littleEndian {
-		order = binary.LittleEndian
-	} else {
-		order = binary.BigEndian
-	}
-
-	// Serialize the struct manually field by field
-	err := binary.Write(&buffer, order, data)
-	if err != nil {
-		return result, fmt.Errorf("failed to serialize struct: %v", err)
-	}
-
-	// Check if the serialized data fits in the array
-	serializedData := buffer.Bytes()
-	if len(serializedData) > len(result) {
-		return result, fmt.Errorf("serialized data exceeds 4096 bytes")
-	}
-
-	// Convert serialized data to [4096]int8
-	for i, b := range serializedData {
-		result[i] = int8(b)
-	}
-
-	return result, nil
-}
-
-type ConnTuple = struct {
-	Saddr_h  uint64
-	Saddr_l  uint64
-	Daddr_h  uint64
-	Daddr_l  uint64
-	Sport    uint16
-	Dport    uint16
-	Netns    uint32
-	Pid      uint32
-	Metadata uint32
-}
-
-type EbpfEvent struct {
-	Tuple ConnTuple
-	Http  EbpfTx
-}
-type EbpfTx struct {
-	Request_started      uint64
-	Response_last_seen   uint64
-	Tags                 uint64
-	Tcp_seq              uint32
-	Response_status_code uint16
-	Request_method       uint8
-	Pad_cgo_0            [1]byte
-	Request_fragment     [208]byte
-}
-
-// BenchmarkConsumer benchmarks the consumer with a large number of events to measure the performance.
-func BenchmarkConsumer(b *testing.B) {
-	const numOfEvents = 1
-
-	program, err := newEBPFProgram(config.New())
-	require.NoError(b, err)
-
-	httpReq := "GET /etc/os-release HTTP/1.1\nHost: localhost:8001\nUser-Agent: curl/7.81.0\nAccept: */*"
-
-	consumer, err := NewConsumer[EbpfEvent]("test", program, func([]EbpfEvent) {})
-	require.NoError(b, err)
-
-	httpEvent := EbpfEvent{
-		Tuple: ConnTuple{
-			Saddr_h:  0,
-			Saddr_l:  0,
-			Daddr_h:  0,
-			Daddr_l:  0,
-			Sport:    0,
-			Dport:    0,
-			Netns:    0,
-			Pid:      0,
-			Metadata: 0,
-		},
-		Http: EbpfTx{
-			Request_started:      12854883222184,
-			Response_last_seen:   12854883577725,
-			Tags:                 0,
-			Tcp_seq:              4294967295,
-			Response_status_code: 200,
-			Request_method:       1,
-			Pad_cgo_0:            [1]byte{},
-		},
-	}
-	copy(httpEvent.Http.Request_fragment[:], httpReq)
-
-	require.NoError(b, program.Start())
-	dataForBatch, err := structToBytes(httpEvent, true)
-	require.NoError(b, err)
-
-	mockBatch := batch{
-		Idx:        0,
-		Cpu:        1,
-		Len:        uint16(numOfEvents),
-		Cap:        uint16(numOfEvents),
-		Event_size: uint16(unsafe.Sizeof(httpEvent)),
-		Data:       dataForBatch,
-	}
-
-	// Reset the events count as the benchmark will run multiple times.
-	consumer.eventsCount.Reset()
-
-	var buf bytes.Buffer
-	require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
-
-	consumer.handler.(*ddebpf.RingBufferHandler).RecordHandler(&ringbuf.Record{
-		RawSample: buf.Bytes(),
-	}, nil, nil)
-
-	b.ReportAllocs()
-	runtime.GC()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		consumer.Start()
-		require.Eventually(b, func() bool {
-			program.Stop(manager.CleanAll)
-			return true
-		}, 5*time.Second, 100*time.Millisecond)
-		require.Equalf(b, numOfEvents, int(consumer.eventsCount.Get()),
-			"Not all events were processed correctly, expected %d, got %d, iteration: %d", numOfEvents, consumer.eventsCount.Get(), i)
-	}
 }
