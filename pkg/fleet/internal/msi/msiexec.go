@@ -147,15 +147,15 @@ func (m *Msiexec) openAndProcessLogFile() ([]byte, error) {
 func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 	// Compile a list of regular expressions we are interested in extracting from the logs
 	return processLogFile(logFile,
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// Only need one line of context before and after since other regexes will combine
 			return FindAllIndexWithContext(regexp.MustCompile("Datadog[.]CustomActions.*"), bytes, 1, 1)
 		},
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// Only need one line of context before and after since other regexes will combine
 			return FindAllIndexWithContext(regexp.MustCompile("System[.]Exception"), bytes, 1, 1)
 		},
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// typically looks like this:
 			// 	Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.StartDDServices
 			// 	CA: 01:50:49: StartDDServices. Failed to start services: System.InvalidOperationException: Cannot start service datadogagent on computer '.'. ---> System.ComponentModel.Win32Exception: The service did not start due to a logon failure
@@ -166,7 +166,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// Other regexes will pick up on the stack trace, but there's not much information to get before the error
 			return FindAllIndexWithContext(regexp.MustCompile("Cannot start service"), bytes, 1, 2)
 		},
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// Typically looks like this:
 			// 	CA(ddnpm): DriverInstall:  serviceDef::create()
 			// 	CA(ddnpm): DriverInstall:  Failed to CreateService 1073
@@ -175,7 +175,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// So include a bit of context before and after
 			return FindAllIndexWithContext(regexp.MustCompile("Failed to CreateService"), bytes, 5, 5)
 		},
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// Typically looks like this:
 			//  Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.ProcessDdAgentUserCredentials
 			//	CA: 01:49:43: LookupAccountWithExtendedDomainSyntax. User not found, trying again with fixed domain part: \toto
@@ -192,13 +192,13 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// So include lots of context to ensure we get the full picture
 			return FindAllIndexWithContext(regexp.MustCompile("A password was not provided"), bytes, 6, 6)
 		},
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// Typically looks like this:
 			// 	Info 1603. The file C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe is being held in use by the following process: Name: process-agent, Id: 4704, Window Title: '(not determined yet)'. Close that application and retry.
 			// Not much context to be had before and after
 			return FindAllIndexWithContext(regexp.MustCompile("is being held in use by the following process"), bytes, 1, 1)
 		},
-		func(bytes []byte) [][]int {
+		func(bytes []byte) []line {
 			// Typically looks like this:
 			// 	Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.StartDDServices
 			// 	CustomAction WixFailWhenDeferred returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)

@@ -47,7 +47,7 @@ CustomAction WixFailWhenDeferred returned actual error code 1603 (note this may 
 Action ended 2:11:49: InstallFinalize. Return value 3.`,
 	}
 	for i, expectedMatch := range expectedMatches {
-		text := strings.ReplaceAll(string(decodedLogsBytes[matches[i][0]:matches[i][1]]), "\r", "")
+		text := strings.ReplaceAll(string(decodedLogsBytes[matches[i].start:matches[i].end]), "\r", "")
 		require.Equal(t, expectedMatch, text)
 	}
 }
@@ -55,76 +55,76 @@ Action ended 2:11:49: InstallFinalize. Return value 3.`,
 func TestCombineRanges(t *testing.T) {
 	tests := map[string]struct {
 		input    []logFileProcessor
-		expected [][]int
+		expected []line
 	}{
 		"overlap left": {
 			input: []logFileProcessor{
-				func(_ []byte) [][]int {
-					return [][]int{{1, 5}}
+				func(_ []byte) []line {
+					return []line{{1, 5}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{4, 7}}
+				func(_ []byte) []line {
+					return []line{{4, 7}}
 				}},
-			expected: [][]int{{1, 7}},
+			expected: []line{{1, 7}},
 		},
 		"overlap right": {
 			input: []logFileProcessor{
-				func(_ []byte) [][]int {
-					return [][]int{{2, 4}}
+				func(_ []byte) []line {
+					return []line{{2, 4}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{1, 3}}
+				func(_ []byte) []line {
+					return []line{{1, 3}}
 				}},
-			expected: [][]int{{1, 4}},
+			expected: []line{{1, 4}},
 		},
 		"no overlap": {
 			input: []logFileProcessor{
-				func(_ []byte) [][]int {
-					return [][]int{{2, 4}}
+				func(_ []byte) []line {
+					return []line{{2, 4}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{5, 10}}
+				func(_ []byte) []line {
+					return []line{{5, 10}}
 				}},
-			expected: [][]int{{2, 4}, {5, 10}},
+			expected: []line{{2, 4}, {5, 10}},
 		},
 		"full overlap": {
 			input: []logFileProcessor{
-				func(_ []byte) [][]int {
-					return [][]int{{2, 4}}
+				func(_ []byte) []line {
+					return []line{{2, 4}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{1, 10}}
+				func(_ []byte) []line {
+					return []line{{1, 10}}
 				}},
-			expected: [][]int{{1, 10}},
+			expected: []line{{1, 10}},
 		},
 		"full overlap inverted": {
 			input: []logFileProcessor{
-				func(_ []byte) [][]int {
-					return [][]int{{1, 10}}
+				func(_ []byte) []line {
+					return []line{{1, 10}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{2, 4}}
+				func(_ []byte) []line {
+					return []line{{2, 4}}
 				}},
-			expected: [][]int{{1, 10}},
+			expected: []line{{1, 10}},
 		},
 		"test many ranges": {
 			input: []logFileProcessor{
-				func(_ []byte) [][]int {
-					return [][]int{{16067, 16421}}
+				func(_ []byte) []line {
+					return []line{{16067, 16421}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{19659, 20140}}
+				func(_ []byte) []line {
+					return []line{{19659, 20140}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{16002, 16359}}
+				func(_ []byte) []line {
+					return []line{{16002, 16359}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{19559, 19951}}
+				func(_ []byte) []line {
+					return []line{{19559, 19951}}
 				},
-				func(_ []byte) [][]int {
-					return [][]int{{59421, 59556}}
+				func(_ []byte) []line {
+					return []line{{59421, 59556}}
 				}},
-			expected: [][]int{{16002, 16421}, {19559, 20140}, {59421, 59556}},
+			expected: []line{{16002, 16421}, {19559, 20140}, {59421, 59556}},
 		},
 	}
 
@@ -144,19 +144,7 @@ func TestReadLogFile(t *testing.T) {
 	}{
 		"Wix built-in failure mode": {
 			input: "wixfailwhendeferred.log",
-			expected: `--- 16002:16421
-CA: 02:11:30: AddUser. ddagentuser already exists, not creating
-CA: 02:11:30: GetPreviousAgentUser. Could not find previous agent user: System.Exception: Agent user information is not in registry
-   at Datadog.CustomActions.InstallStateCustomActions.GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
-CA: 02:11:30: ConfigureUser. Resetting ddagentuser password.
-
---- 19559:20140
-CA: 02:11:36: ConfigureServiceUsers. Configuring services with account WIN-ST17FJ32SOG\ddagentuser
-CA: 02:11:36: GetPreviousAgentUser. Could not find previous agent user: System.Exception: Agent user information is not in registry
-   at Datadog.CustomActions.InstallStateCustomActions.GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
-CA: 02:11:36: UpdateAndLogAccessControl. datadog-process-agent current ACLs: D:(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)
-
---- 1547:2038
+			expected: `--- 1547:2038
 Action ended 2:10:53: LaunchConditions. Return value 1.
 Action start 2:10:53: ValidateProductID.
 Action ended 2:10:53: ValidateProductID. Return value 1.
@@ -173,6 +161,18 @@ Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomAction
 CA: 02:10:56: PrepareDecompressPythonDistributions. Could not set the progress bar size
 CustomAction PrepareDecompressPythonDistributions returned actual error code 1603 but will be translated to success due to continue marking
 Action ended 2:10:56: PrepareDecompressPythonDistributions. Return value 1.
+
+--- 16002:16421
+CA: 02:11:30: AddUser. ddagentuser already exists, not creating
+CA: 02:11:30: GetPreviousAgentUser. Could not find previous agent user: System.Exception: Agent user information is not in registry
+   at Datadog.CustomActions.InstallStateCustomActions.GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
+CA: 02:11:30: ConfigureUser. Resetting ddagentuser password.
+
+--- 19559:20140
+CA: 02:11:36: ConfigureServiceUsers. Configuring services with account WIN-ST17FJ32SOG\ddagentuser
+CA: 02:11:36: GetPreviousAgentUser. Could not find previous agent user: System.Exception: Agent user information is not in registry
+   at Datadog.CustomActions.InstallStateCustomActions.GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
+CA: 02:11:36: UpdateAndLogAccessControl. datadog-process-agent current ACLs: D:(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)
 
 --- 24843:25383
 CA(ddprocmon): DriverInstall:  Done with create() 0
@@ -210,7 +210,12 @@ Property(S): WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1
 		},
 		"File in use": {
 			input: "file_in_use.log",
-			expected: `--- 5653:5849
+			expected: `--- 3557:3890
+Action start 1:45:18: InstallValidate.
+Info 1603. The file C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe is being held in use by the following process: Name: process-agent, Id: 4704, Window Title: '(not determined yet)'. Close that application and retry.
+Action ended 1:45:21: InstallValidate. Return value 1.
+
+--- 5653:5849
 SFXCA: Binding to CLR version v4.0.30319
 Calling custom action CustomActions!Datadog.CustomActions.PrerequisitesCustomActions.EnsureAdminCaller
 Action ended 1:45:22: RunAsAdmin. Return value 1.
@@ -224,6 +229,11 @@ CA: 01:45:23: RegistryProperty. Found DDAGENTUSER_NAME in registry DDOG-HQ-QA-LA
 SFXCA: Binding to CLR version v4.0.30319
 Calling custom action CustomActions!Datadog.CustomActions.ConfigCustomActions.ReadConfig
 Action ended 1:45:25: ReadConfig. Return value 1.
+
+--- 7627:7960
+Action start 1:45:25: InstallValidate.
+Info 1603. The file C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe is being held in use by the following process: Name: process-agent, Id: 4704, Window Title: '(not determined yet)'. Close that application and retry.
+Action ended 1:45:27: InstallValidate. Return value 1.
 
 --- 12929:13180
 SFXCA: Binding to CLR version v4.0.30319
@@ -240,16 +250,6 @@ SFXCA: Binding to CLR version v4.0.30319
 Calling custom action CustomActions!Datadog.CustomActions.ConfigureUserCustomActions.UninstallUser
 CA: 01:45:42: UninstallUser. Removing file access for DDOG-HQ-QA-LABS\ddGmsa$ (S-1-5-21-3647231507-2031390810-2876811253-1605)
 
---- 3557:3890
-Action start 1:45:18: InstallValidate.
-Info 1603. The file C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe is being held in use by the following process: Name: process-agent, Id: 4704, Window Title: '(not determined yet)'. Close that application and retry.
-Action ended 1:45:21: InstallValidate. Return value 1.
-
---- 7627:7960
-Action start 1:45:25: InstallValidate.
-Info 1603. The file C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe is being held in use by the following process: Name: process-agent, Id: 4704, Window Title: '(not determined yet)'. Close that application and retry.
-Action ended 1:45:27: InstallValidate. Return value 1.
-
 --- 464565:465186
 Action start 1:46:16: PrepareDecompressPythonDistributions.
 SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSI58A1.tmp-\
@@ -263,14 +263,14 @@ Action ended 1:46:17: PrepareDecompressPythonDistributions. Return value 1.
 		},
 		"Invalid credentials": {
 			input: "invalid_credentials.log",
-			expected: `--- 26730:27404
-Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.StartDDServices
-CA: 01:50:49: StartDDServices. Failed to start services: System.InvalidOperationException: Cannot start service datadogagent on computer '.'. ---> System.ComponentModel.Win32Exception: The service did not start due to a logon failure
-   --- End of inner exception stack trace ---
-   at System.ServiceProcess.ServiceController.Start(String args)
-   at Datadog.CustomActions.Native.ServiceController.StartService(String serviceName, TimeSpan timeout)
-   at Datadog.CustomActions.ServiceCustomAction.StartDDServices()
-Action ended 1:50:49: InstallFinalize. Return value 1.
+			expected: `--- 7263:7883
+Action start 1:50:19: PrepareDecompressPythonDistributions.
+SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSID56.tmp-\
+SFXCA: Binding to CLR version v4.0.30319
+Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.PrepareDecompressPythonDistributions
+CA: 01:50:19: PrepareDecompressPythonDistributions. Could not set the progress bar size
+CustomAction PrepareDecompressPythonDistributions returned actual error code 1603 but will be translated to success due to continue marking
+Action ended 1:50:19: PrepareDecompressPythonDistributions. Return value 1.
 
 --- 25259:26729
 CA: 01:50:48: StoreAgentUserInRegistry. Storing installedUser=ddagentuser
@@ -301,14 +301,14 @@ CA(ddprocmon): DriverInstall:  done installing services
 SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSI7FD3.tmp-\
 SFXCA: Binding to CLR version v4.0.30319
 
---- 7263:7883
-Action start 1:50:19: PrepareDecompressPythonDistributions.
-SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSID56.tmp-\
-SFXCA: Binding to CLR version v4.0.30319
-Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.PrepareDecompressPythonDistributions
-CA: 01:50:19: PrepareDecompressPythonDistributions. Could not set the progress bar size
-CustomAction PrepareDecompressPythonDistributions returned actual error code 1603 but will be translated to success due to continue marking
-Action ended 1:50:19: PrepareDecompressPythonDistributions. Return value 1.
+--- 26730:27404
+Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.StartDDServices
+CA: 01:50:49: StartDDServices. Failed to start services: System.InvalidOperationException: Cannot start service datadogagent on computer '.'. ---> System.ComponentModel.Win32Exception: The service did not start due to a logon failure
+   --- End of inner exception stack trace ---
+   at System.ServiceProcess.ServiceController.Start(String args)
+   at Datadog.CustomActions.Native.ServiceController.StartService(String serviceName, TimeSpan timeout)
+   at Datadog.CustomActions.ServiceCustomAction.StartDDServices()
+Action ended 1:50:49: InstallFinalize. Return value 1.
 
 `,
 		},

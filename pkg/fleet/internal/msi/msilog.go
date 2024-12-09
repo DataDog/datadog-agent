@@ -15,12 +15,18 @@ import (
 	"io"
 	"io/fs"
 	"regexp"
+	"sort"
 )
 
+type line struct {
+	start int
+	end   int
+}
+
 // FindAllIndexWithContext is similar to FindAllIndex but expands the matched range for a number of lines
-// before and after the match (called contextBefore and contextAfter).
-func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, contextAfter int) [][]int {
-	var extractedRanges [][]int
+// before and after the line (called contextBefore and contextAfter).
+func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, contextAfter int) []line {
+	var extractedRanges []line
 	results := r.FindAllIndex(input, -1)
 	for _, result := range results {
 		lineCounter := 0
@@ -47,70 +53,62 @@ func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, cont
 		}
 		lineEnd := charCounter
 
-		extractedRanges = append(extractedRanges, []int{lineStart, lineEnd})
+		extractedRanges = append(extractedRanges, line{lineStart, lineEnd})
 	}
 
 	return extractedRanges
 }
 
-func insert(existingRanges, newRanges [][]int) [][]int {
-	for _, newRange := range newRanges {
-		matched := false
-		for _, existingRange := range existingRanges {
-			bnr := newRange[0]
-			enr := newRange[1]
-			ber := existingRange[0]
-			eer := existingRange[1]
-			// [ber, eer]
-			//   [bnr,  enr]
-			if bnr <= eer && eer < enr {
-				existingRange[1] = newRange[1]
-				matched = true
-			}
-			//   [ber, eer]
-			// [bnr,  enr]
-			if bnr <= ber && ber < enr {
-				existingRange[0] = newRange[0]
-				matched = true
-			}
-			//   [ber, eer]
-			// [bnr,      enr]
-			if bnr <= ber && enr >= eer {
-				existingRange[0] = newRange[0]
-				existingRange[1] = newRange[1]
-				matched = true
-			}
-			// [ber,    eer]
-			//   [bnr, enr]
-			if ber <= bnr && enr <= eer {
-				matched = true
-			}
-		}
-		if !matched {
-			existingRanges = append(existingRanges, newRange)
-		}
-	}
-	return existingRanges
-}
+// insert merges newRanges into existingRanges by combining overlapping or adjacent ranges.
+func insert(existingRanges, newRanges []line) []line {
+	// Combine all ranges into a single slice for sorting
+	allRanges := append(existingRanges, newRanges...)
 
-// Combine combines the output of multiple logFileProcessors
-func Combine(input []byte, processors ...logFileProcessor) [][]int {
-	var ranges [][]int
-	for _, processor := range processors {
-		r := processor(input)
-		if ranges == nil {
-			ranges = append(ranges, r[0])
-			if len(r) > 1 {
-				ranges = insert(ranges, r[1:])
-			}
+	// Sort ranges by start value (and end value if starts are equal)
+	sort.Slice(allRanges, func(i, j int) bool {
+		if allRanges[i].start == allRanges[j].start {
+			return allRanges[i].end < allRanges[j].end
+		}
+		return allRanges[i].start < allRanges[j].start
+	})
+
+	// Merge ranges
+	var merged []line
+	for _, current := range allRanges {
+		// If merged is empty or the current range does not overlap with the last merged range
+		if len(merged) == 0 || merged[len(merged)-1].end < current.start {
+			merged = append(merged, current) // Add the current range
 		} else {
-			ranges = insert(ranges, r)
+			// Overlapping or adjacent: Extend the end of the last merged range
+			merged[len(merged)-1].end = max(merged[len(merged)-1].end, current.end)
 		}
 	}
-	return ranges
+
+	return merged
 }
 
-type logFileProcessor func([]byte) [][]int
+// max returns the maximum of two integers.
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// Combine processes input using multiple logFileProcessors and merges their output ranges.
+func Combine(input []byte, processors ...logFileProcessor) []line {
+	var allRanges []line
+
+	// Collect all ranges from each processor
+	for _, processor := range processors {
+		allRanges = append(allRanges, processor(input)...)
+	}
+
+	// Use the improved insert function to merge all collected ranges
+	return insert(nil, allRanges)
+}
+
+type logFileProcessor func([]byte) []line
 
 // processLogFile reads a UTF-16 MSI log file and applies various processors on it
 // to retain only the relevant log lines. It combines the various outputs from the processors and
@@ -129,8 +127,8 @@ func processLogFile(logFile fs.File, processors ...logFileProcessor) ([]byte, er
 	var output []byte
 	rangesToSave := Combine(decodedLogsBytes, processors...)
 	for _, ranges := range rangesToSave {
-		output = append(output, []byte(fmt.Sprintf("--- %d:%d\r\n", ranges[0], ranges[1]))...)
-		output = append(output, decodedLogsBytes[ranges[0]:ranges[1]]...)
+		output = append(output, []byte(fmt.Sprintf("--- %d:%d\r\n", ranges.start, ranges.end))...)
+		output = append(output, decodedLogsBytes[ranges.start:ranges.end]...)
 		output = append(output, '\r', '\n', '\r', '\n')
 	}
 	return output, nil
