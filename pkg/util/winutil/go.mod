@@ -13,7 +13,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.27.0
+	golang.org/x/sys v0.28.0
 )
 
 require (
