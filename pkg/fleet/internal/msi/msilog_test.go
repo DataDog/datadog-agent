@@ -76,76 +76,76 @@ func TestFindAllIndexWithContextOutOfRangeDoesntFail(t *testing.T) {
 func TestCombineRanges(t *testing.T) {
 	tests := map[string]struct {
 		input    []logFileProcessor
-		expected []line
+		expected []TextRange
 	}{
 		"overlap left": {
 			input: []logFileProcessor{
-				func(_ []byte) []line {
-					return []line{{1, 5}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{1, 5}}
 				},
-				func(_ []byte) []line {
-					return []line{{4, 7}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{4, 7}}
 				}},
-			expected: []line{{1, 7}},
+			expected: []TextRange{{1, 7}},
 		},
 		"overlap right": {
 			input: []logFileProcessor{
-				func(_ []byte) []line {
-					return []line{{2, 4}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{2, 4}}
 				},
-				func(_ []byte) []line {
-					return []line{{1, 3}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{1, 3}}
 				}},
-			expected: []line{{1, 4}},
+			expected: []TextRange{{1, 4}},
 		},
 		"no overlap": {
 			input: []logFileProcessor{
-				func(_ []byte) []line {
-					return []line{{2, 4}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{2, 4}}
 				},
-				func(_ []byte) []line {
-					return []line{{5, 10}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{5, 10}}
 				}},
-			expected: []line{{2, 4}, {5, 10}},
+			expected: []TextRange{{2, 4}, {5, 10}},
 		},
 		"full overlap": {
 			input: []logFileProcessor{
-				func(_ []byte) []line {
-					return []line{{2, 4}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{2, 4}}
 				},
-				func(_ []byte) []line {
-					return []line{{1, 10}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{1, 10}}
 				}},
-			expected: []line{{1, 10}},
+			expected: []TextRange{{1, 10}},
 		},
 		"full overlap inverted": {
 			input: []logFileProcessor{
-				func(_ []byte) []line {
-					return []line{{1, 10}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{1, 10}}
 				},
-				func(_ []byte) []line {
-					return []line{{2, 4}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{2, 4}}
 				}},
-			expected: []line{{1, 10}},
+			expected: []TextRange{{1, 10}},
 		},
 		"test many ranges": {
 			input: []logFileProcessor{
-				func(_ []byte) []line {
-					return []line{{16067, 16421}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{16067, 16421}}
 				},
-				func(_ []byte) []line {
-					return []line{{19659, 20140}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{19659, 20140}}
 				},
-				func(_ []byte) []line {
-					return []line{{16002, 16359}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{16002, 16359}}
 				},
-				func(_ []byte) []line {
-					return []line{{19559, 19951}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{19559, 19951}}
 				},
-				func(_ []byte) []line {
-					return []line{{59421, 59556}}
+				func(_ []byte) []TextRange {
+					return []TextRange{{59421, 59556}}
 				}},
-			expected: []line{{16002, 16421}, {19559, 20140}, {59421, 59556}},
+			expected: []TextRange{{16002, 16421}, {19559, 20140}, {59421, 59556}},
 		},
 	}
 

@@ -18,17 +18,18 @@ import (
 	"sort"
 )
 
-type line struct {
+// TextRange is a simple struct to represent a range of text in a file.
+type TextRange struct {
 	start int
 	end   int
 }
 
 // FindAllIndexWithContext is similar to FindAllIndex but expands the matched range for a number of lines
-// before and after the line (called contextBefore and contextAfter).
-func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, contextAfter int) []line {
+// before and after the TextRange (called contextBefore and contextAfter).
+func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, contextAfter int) []TextRange {
 	contextBefore = max(contextBefore, 0)
 	contextAfter = max(contextAfter, 0)
-	var extractedRanges []line
+	var extractedRanges []TextRange
 	results := r.FindAllIndex(input, -1)
 	for _, result := range results {
 		lineCounter := 0
@@ -55,14 +56,14 @@ func FindAllIndexWithContext(r *regexp.Regexp, input []byte, contextBefore, cont
 		}
 		lineEnd := charCounter
 
-		extractedRanges = append(extractedRanges, line{lineStart, lineEnd})
+		extractedRanges = append(extractedRanges, TextRange{lineStart, lineEnd})
 	}
 
 	return extractedRanges
 }
 
 // insert merges newRanges into existingRanges by combining overlapping or adjacent ranges.
-func insert(existingRanges, newRanges []line) []line {
+func insert(existingRanges, newRanges []TextRange) []TextRange {
 	// Combine all ranges into a single slice for sorting
 	allRanges := append(existingRanges, newRanges...)
 
@@ -75,7 +76,7 @@ func insert(existingRanges, newRanges []line) []line {
 	})
 
 	// Merge ranges
-	var merged []line
+	var merged []TextRange
 	for _, current := range allRanges {
 		// If merged is empty or the current range does not overlap with the last merged range
 		if len(merged) == 0 || merged[len(merged)-1].end < current.start {
@@ -90,8 +91,8 @@ func insert(existingRanges, newRanges []line) []line {
 }
 
 // Combine processes input using multiple logFileProcessors and merges their output ranges.
-func Combine(input []byte, processors ...logFileProcessor) []line {
-	var allRanges []line
+func Combine(input []byte, processors ...logFileProcessor) []TextRange {
+	var allRanges []TextRange
 
 	// Collect all ranges from each processor
 	for _, processor := range processors {
@@ -102,7 +103,7 @@ func Combine(input []byte, processors ...logFileProcessor) []line {
 	return insert(nil, allRanges)
 }
 
-type logFileProcessor func([]byte) []line
+type logFileProcessor func([]byte) []TextRange
 
 // processLogFile reads a UTF-16 MSI log file and applies various processors on it
 // to retain only the relevant log lines. It combines the various outputs from the processors and
