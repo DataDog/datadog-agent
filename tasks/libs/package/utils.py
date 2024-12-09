@@ -5,6 +5,7 @@ from invoke import Exit, UnexpectedExit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_common_ancestor, get_current_branch
 from tasks.libs.notify.utils import AWS_S3_CP_CMD
 
 PACKAGE_SIZE_S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/package_size"
@@ -75,6 +76,17 @@ def upload_package_sizes(ctx, package_sizes: dict, package_size_file: str, dista
             f"{AWS_S3_CP_CMD} {package_size_file} {PACKAGE_SIZE_S3_CI_BUCKET_URL}/{package_size_file}",
             hide="stdout",
         )
+
+
+def get_ancestor(ctx, package_sizes, on_main):
+    """
+    Get the common ancestor of the current branch and the default branch
+    Return the most recent commit if the ancestor is not found
+    """
+    ancestor = get_common_ancestor(ctx, get_current_branch(ctx))
+    if not on_main and ancestor not in package_sizes:
+        return min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
+    return ancestor
 
 
 def display_message(ctx, ancestor, rows, decision):

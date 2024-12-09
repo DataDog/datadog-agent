@@ -5,7 +5,7 @@ from datetime import datetime
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.common.git import get_current_branch, get_default_branch
 from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.utils import get_package_path
 
@@ -158,7 +158,7 @@ def compute_package_size_metrics(
     return series
 
 
-def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
+def compare(ctx, package_sizes, ancestor, arch, flavor, os_name, threshold):
     """
     Compare (or update) a package size with the ancestor package size.
     """
@@ -171,11 +171,10 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
         path = f'{dir}/{flavor}{separator}7*{arch}.{os_name}'
     package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
     branch = get_current_branch(ctx)
-    ancestor = get_common_ancestor(ctx, branch)
     if branch == get_default_branch():
         package_sizes[ancestor][arch][flavor][os_name] = package_size
         return
-    previous_size = get_previous_size(package_sizes, ancestor, arch, flavor, os_name)
+    previous_size = package_sizes[ancestor][arch][flavor][os_name]
     diff = package_size - previous_size
 
     message = f"{flavor}-{arch}-{os_name} size {mb(package_size)} is OK: {mb(diff)} diff with previous {mb(previous_size)} (max: {mb(threshold)})"
@@ -191,17 +190,6 @@ def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
 
 def mb(value):
     return f"{value / 1000000:.2f}MB"
-
-
-def get_previous_size(package_sizes, ancestor, arch, flavor, os_name):
-    """
-    Get the size of the package for the given ancestor, or the earliest ancestor if the given ancestor is not found.
-    """
-    if ancestor in package_sizes:
-        commit = ancestor
-    else:
-        commit = min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
-    return package_sizes[commit][arch][flavor][os_name]
 
 
 def _get_uncompressed_size(ctx, package, os_name):

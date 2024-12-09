@@ -5,7 +5,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.common.git import get_current_branch, get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
     _get_deb_uncompressed_size,
@@ -15,6 +15,7 @@ from tasks.libs.package.size import (
 )
 from tasks.libs.package.utils import (
     display_message,
+    get_ancestor,
     get_package_path,
     list_packages,
     retrieve_package_sizes,
@@ -25,8 +26,8 @@ from tasks.libs.package.utils import (
 @task
 def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
     package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
-    ancestor = get_common_ancestor(ctx, get_current_branch(ctx))
     on_main = get_current_branch(ctx) == get_default_branch()
+    ancestor = get_ancestor(ctx, package_sizes, on_main)
     if on_main:
         # Initialize to default values
         if ancestor in package_sizes:
@@ -38,7 +39,7 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
     print(color_message(f"Checking package sizes against {ancestor}", Color.BLUE))
     size_table = ""
     for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        size_table += f"{compare(ctx, package_sizes, *package_info)}\n"
+        size_table += f"{compare(ctx, package_sizes, ancestor, *package_info)}\n"
 
     if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
