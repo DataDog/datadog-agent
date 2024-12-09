@@ -139,22 +139,14 @@ func (r *RequestStat) initSketch() (err error) {
 
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
-	Data         map[uint16]*RequestStat
-	ddsketchPool *ddsync.TypedPool[ddsketch.DDSketch]
+	Data       map[uint16]*RequestStat
+	SketchPool *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
 // NewRequestStats creates a new RequestStats object.
 func NewRequestStats() *RequestStats {
 	return &RequestStats{
 		Data: make(map[uint16]*RequestStat),
-	}
-}
-
-// NewRequestStatsWithPool creates a new RequestStats object.
-func NewRequestStatsWithPool(sketchPool *ddsync.TypedPool[ddsketch.DDSketch]) *RequestStats {
-	return &RequestStats{
-		Data:         make(map[uint16]*RequestStat),
-		ddsketchPool: sketchPool,
 	}
 }
 
@@ -230,8 +222,8 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 		return
 	}
 	if stats.Latencies == nil {
-		if r.ddsketchPool != nil {
-			stats.Latencies = r.ddsketchPool.Get()
+		if r.SketchPool != nil {
+			stats.Latencies = r.SketchPool.Get()
 		} else if err := stats.initSketch(); err != nil {
 			return
 		}
@@ -257,11 +249,11 @@ func (r *RequestStats) HalfAllCounts() {
 	}
 }
 
-// ReleaseSketches adds all obtained sketch objects to the pool.
-func (r *RequestStats) ReleaseSketches() {
-	if r.ddsketchPool != nil {
+// PutSketches adds all obtained sketch objects to the pool.
+func (r *RequestStats) PutSketches() {
+	if r.SketchPool != nil {
 		for _, stats := range r.Data {
-			r.ddsketchPool.Put(stats.Latencies)
+			r.SketchPool.Put(stats.Latencies)
 			stats.Latencies = nil
 		}
 	}

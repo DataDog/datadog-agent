@@ -38,7 +38,7 @@ type StatKeeper struct {
 
 	oversizedLogLimit *log.Limit
 
-	// pool of ddsketch objects
+	// pool of 'DDSketch' objects
 	ddsketchPool *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
@@ -65,7 +65,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		buffer:               make([]byte, getPathBufferSize(c)),
 		telemetry:            telemetry,
 		oversizedLogLimit:    log.NewLogLimit(10, time.Minute*10),
-		ddsketchPool:         NewSketchPool(),
+		ddsketchPool:         newSketchPool(),
 	}
 }
 
@@ -166,6 +166,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		}
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats()
+		stats.SketchPool = h.ddsketchPool
 		h.stats[key] = stats
 	}
 
@@ -227,8 +228,8 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 	}
 }
 
-// NewSketchPool - creates new pool of DDSketch objects
-func NewSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
+// newSketchPool creates new pool of DDSketch objects.
+func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
 	sketchPool := ddsync.NewTypedPool(func() *ddsketch.DDSketch {
 		sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
 		if err != nil {
@@ -239,8 +240,9 @@ func NewSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
 	return sketchPool
 }
 
+// releaseSketchPool put DDSketch objects to pool.
 func (h *StatKeeper) releaseSketchPool() {
 	for _, stats := range h.stats {
-		stats.ReleaseSketches()
+		stats.PutSketches()
 	}
 }
