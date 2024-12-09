@@ -43,7 +43,7 @@ type Replacer struct {
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
 
-	// LastUpdated is the version of the implementation of the replacer.
+	// LastUpdated is the last version when the replacer was updated.
 	LastUpdated *version.Version
 }
 
