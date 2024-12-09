@@ -199,11 +199,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.63.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.63.0-devel.0.20241118141418-5b899217c342 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.63.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.63.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.63.0-devel.0.20240718200853-81bf3b2e412d // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.63.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.63.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.63.0 // indirect
@@ -212,10 +211,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.63.0 // indirect
@@ -252,7 +251,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.63.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.63.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0 // indirect

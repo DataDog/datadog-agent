@@ -38,8 +38,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect

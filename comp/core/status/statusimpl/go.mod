@@ -64,9 +64,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.63.0 // indirect
