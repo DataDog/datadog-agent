@@ -1605,7 +1605,7 @@ def check_omnibus_branches(ctx):
 
 
 @task
-def update_build_links(_ctx, new_version):
+def update_build_links(_, new_version):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
@@ -1619,7 +1619,7 @@ def update_build_links(_ctx, new_version):
     from atlassian import Confluence
     from atlassian.confluence import ApiError
 
-    BUILD_LINKS_PAGE_ID = 2889876360
+    BUILD_LINKS_PAGE_ID = 4463690547
 
     match = RC_VERSION_RE.match(new_version)
     if not match:
