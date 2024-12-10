@@ -91,9 +91,18 @@ type ValueWithSource struct {
 	Value  interface{}
 }
 
-// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterOrEqualThan(x Source) bool {
-	return sourcesPriority[s] >= sourcesPriority[x]
+// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterThan(x Source) bool {
+	return sourcesPriority[s] > sourcesPriority[x]
+}
+
+// PreviousSource returns the source before the current one, or Default (lowest priority) if there isn't one
+func (s Source) PreviousSource() Source {
+	previous := sourcesPriority[s]
+	if previous == 0 {
+		return sources[previous]
+	}
+	return sources[previous-1]
 }
 
 // String casts Source into a string
@@ -312,7 +321,9 @@ func (c *safeConfig) IsSet(key string) bool {
 func (c *safeConfig) AllKeysLowercased() []string {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.AllKeys()
+	res := c.Viper.AllKeys()
+	slices.Sort(res)
+	return res
 }
 
 // Get wraps Viper for concurrent access
@@ -850,7 +861,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 	if c.Viper.GetBool("fips.enabled") {
 		return nil
 	}
-	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+	if c.Viper.GetString("proxy.http") == "" && c.Viper.GetString("proxy.https") == "" && len(c.Viper.GetStringSlice("proxy.no_proxy")) == 0 {
 		return nil
 	}
 	p := &Proxy{

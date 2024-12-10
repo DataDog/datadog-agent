@@ -17,6 +17,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	coreOtlp "github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,7 +63,7 @@ func (o *ServerlessOTLPAgent) Stop() {
 
 // IsEnabled returns true if the OTLP endpoint should be enabled.
 func IsEnabled() bool {
-	return coreOtlp.IsEnabled(pkgconfigsetup.Datadog())
+	return configcheck.IsEnabled(pkgconfigsetup.Datadog())
 }
 
 var (

@@ -7,6 +7,7 @@ Utilities to manage build tags
 # so we only need to check that we don't run this code with old Python versions.
 from __future__ import annotations
 
+import os
 import sys
 
 from invoke import task
@@ -52,6 +53,7 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "test",  # used for unit-tests
+    "goexperiment.systemcrypto",  # used for FIPS mode
 }
 
 ### Tag inclusion lists
@@ -323,7 +325,7 @@ def filter_incompatible_tags(include, platform=sys.platform):
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if platform == "win32":
+    if platform == "win32" or os.getenv("GOOS") == "windows":
         include = include.union(["wmi"])
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 

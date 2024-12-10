@@ -150,8 +150,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	}
 
 	if params.fakeintakeOptions != nil {
-		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
-		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
 		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
 		if err != nil {
 			return err
