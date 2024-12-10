@@ -384,14 +384,14 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
 	if len(filledProc.Uids) >= 4 {
-		entry.Credentials.UID = uint32(filledProc.Uids[0])
-		entry.Credentials.EUID = uint32(filledProc.Uids[1])
-		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
+		entry.Credentials.UID = filledProc.Uids[0]
+		entry.Credentials.EUID = filledProc.Uids[1]
+		entry.Credentials.FSUID = filledProc.Uids[3]
 	}
 	if len(filledProc.Gids) >= 4 {
-		entry.Credentials.GID = uint32(filledProc.Gids[0])
-		entry.Credentials.EGID = uint32(filledProc.Gids[1])
-		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
+		entry.Credentials.GID = filledProc.Gids[0]
+		entry.Credentials.EGID = filledProc.Gids[1]
+		entry.Credentials.FSGID = filledProc.Gids[3]
 	}
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
