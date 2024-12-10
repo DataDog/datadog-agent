@@ -228,6 +228,7 @@ func (c *CheckConfig) GetProfileDef() *profiledefinition.ProfileDefinition {
 		if profile != nil {
 			return &profile.Definition
 		}
+		log.Warnf("profile `%s` not found", c.ProfileName)
 	}
 	return nil
 }
