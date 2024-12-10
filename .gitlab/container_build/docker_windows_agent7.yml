@@ -88,3 +88,4 @@ docker_build_fips_agent7_windows2022_core_jmx:
     VARIANT: ltsc2022
     TAG_SUFFIX: -7-fips-jmx
     WITH_JMX: "true"
+    WITH_JMX_FIPS: "true"
