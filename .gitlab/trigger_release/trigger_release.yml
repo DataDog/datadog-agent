@@ -69,4 +69,4 @@ generate_windows_gitlab_runner_bump_pr:
   script:
     - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    - inv -e github.trigger-build-env "$CI_COMMIT_REF_NAME"
+    - inv -e github.trigger-buildenv "$CI_COMMIT_REF_NAME"
