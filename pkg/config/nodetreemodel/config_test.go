@@ -579,6 +579,8 @@ func TestUnsetForSource(t *testing.T) {
 func TestMergeFleetPolicy(t *testing.T) {
 	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
+	config.SetDefault("foo", "")
+	config.BuildSchema()
 	config.Set("foo", "bar", model.SourceFile)
 
 	file, err := os.CreateTemp("", "datadog.yaml")
