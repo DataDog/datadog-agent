@@ -187,8 +187,6 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
@@ -239,11 +237,13 @@ require (
 )
 
 require (
+	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.115.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
+	github.com/shirou/gopsutil/v4 v4.24.11 // indirect
 	go.opentelemetry.io/collector/client v1.21.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.115.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.21.0 // indirect

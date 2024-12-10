@@ -26,7 +26,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"

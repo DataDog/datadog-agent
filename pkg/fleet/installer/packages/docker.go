@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 

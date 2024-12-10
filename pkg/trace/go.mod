@@ -32,7 +32,6 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.115.0
-	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.4
 	github.com/vmihailenco/msgpack/v4 v4.3.13
@@ -52,7 +51,10 @@ require (
 	k8s.io/apimachinery v0.31.2
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.115.0
+require (
+	github.com/shirou/gopsutil/v4 v4.24.11
+	go.opentelemetry.io/collector/component/componenttest v0.115.0
+)
 
 require go.opentelemetry.io/collector/processor v0.115.0 // indirect
 
@@ -66,6 +68,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -85,8 +88,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/shoenig/test v1.7.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect

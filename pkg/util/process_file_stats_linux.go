@@ -11,7 +11,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 // GetProcessFileStats returns the number of file handles the Agent process has open

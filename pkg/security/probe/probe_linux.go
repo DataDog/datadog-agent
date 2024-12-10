@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	gopsutilProcess "github.com/shirou/gopsutil/v3/process"
+	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 )
 
 const (

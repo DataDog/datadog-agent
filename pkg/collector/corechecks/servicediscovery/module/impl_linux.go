@@ -21,7 +21,7 @@ import (
 	"time"
 
 	agentPayload "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
