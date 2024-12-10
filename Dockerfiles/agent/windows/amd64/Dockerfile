@@ -24,7 +24,7 @@ RUN . ./install.ps1
 COPY bouncycastle-fips /fips-build
 COPY install-fips.ps1 ./
 RUN . ./install-fips.ps1
-ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path='c:\program files\datadog\bouncycastle fips' -Djava.security.properties=='c:\program files\datadog\bouncycastle fips\java.security' -Dpolicy.url.2='file:c:\program files\datadog\bouncycastle fips\bc-fips.policy'}"
+ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=\'c:\\program files\\datadog\\bouncycastle fips\' -Djava.security.properties==\'c:\\program files\\datadog\\bouncycastle fips\\java.security\' -Dpolicy.url.2=\'file:c:\\program files\\datadog\\bouncycastle fips\\bc-fips.policy\'}"
 
 EXPOSE 8125/udp 8126/tcp
 
