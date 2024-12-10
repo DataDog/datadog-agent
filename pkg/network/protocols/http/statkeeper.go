@@ -12,15 +12,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                  sync.Mutex
 	stats                map[Key]*RequestStats
+	prevStats            map[Key]*RequestStats
 	incomplete           IncompleteBuffer
 	maxEntries           int
 	quantizer            *URLQuantizer
@@ -34,6 +38,9 @@ type StatKeeper struct {
 	buffer []byte
 
 	oversizedLogLimit *log.Limit
+
+	// pool of 'DDSketch' objects
+	sketches *ddsync.TypedPool[ddsketch.DDSketch]
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -59,6 +66,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		buffer:               make([]byte, getPathBufferSize(c)),
 		telemetry:            telemetry,
 		oversizedLogLimit:    log.NewLogLimit(10, time.Minute*10),
+		sketches:             newSketchPool(),
 	}
 }
 
@@ -86,8 +94,11 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 			h.add(tx)
 		}
 
+		// put back 'DDSketch' objects to pool
+		h.releasePreviousSketches()
+
 		// Rotate stats
-		stats = h.stats
+		h.prevStats = h.stats
 		h.stats = make(map[Key]*RequestStats)
 
 		// Rotate ConnectionAggregator
@@ -100,13 +111,14 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		h.connectionAggregator = utils.NewConnectionAggregator()
 	}()
 
-	h.clearEphemeralPorts(previousAggregationState, stats)
-	return stats
+	h.clearEphemeralPorts(previousAggregationState, h.prevStats)
+	return h.prevStats
 }
 
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
+	h.releaseAllSketches()
 }
 
 func (h *StatKeeper) add(tx Transaction) {
@@ -157,6 +169,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		}
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats()
+		stats.Sketches = h.sketches
 		h.stats[key] = stats
 	}
 
@@ -215,5 +228,33 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 		delete(stats, key)
 		key.ConnectionKey = newConnKey
 		stats[key] = aggregation
+	}
+}
+
+// newSketchPool creates new pool of 'DDSketch' objects.
+func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
+	sketchPool := ddsync.NewTypedPool(func() *ddsketch.DDSketch {
+		sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+		if err != nil {
+			log.Debugf("http stats, could not create new ddsketch for pool, error: %v", err)
+		}
+		return sketch
+	})
+	return sketchPool
+}
+
+// releasePreviousSketches puts 'DDSketch' objects from previous cycle back to pool.
+func (h *StatKeeper) releasePreviousSketches() {
+	for _, stats := range h.prevStats {
+		stats.PutSketches()
+	}
+	h.prevStats = nil
+}
+
+// releaseAllSketches puts 'DDSketch' objects from previous and current cycle back to pool.
+func (h *StatKeeper) releaseAllSketches() {
+	h.releasePreviousSketches()
+	for _, stats := range h.stats {
+		stats.PutSketches()
 	}
 }

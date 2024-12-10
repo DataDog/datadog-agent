@@ -25,6 +25,9 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+	t.Cleanup(func() {
+		sk.releaseAllSketches()
+	})
 
 	srcString := "1.1.1.1"
 	dstString := "2.2.2.2"
@@ -53,6 +56,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 		for i := 0; i < 5; i++ {
 			s := stats.Data[uint16((i+1)*100)]
 			require.NotNil(t, s)
+			require.NotNil(t, s.Latencies)
 			assert.Equal(t, 2, s.Count)
 			assert.Equal(t, 2.0, s.Latencies.GetCount())
 
@@ -321,4 +325,55 @@ func TestHTTPCorrectness(t *testing.T) {
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
 	})
+}
+
+func makeStatkeeper() *StatKeeper {
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 100000
+	tel := NewTelemetry("http")
+	return NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+}
+
+func benchmarkHTTPStatkeeper(b *testing.B, sk *StatKeeper) {
+	sourceIP := util.AddressFromString("1.1.1.1")
+	sourcePort := 1234
+	destIP := util.AddressFromString("2.2.2.2")
+	destPort := 8080
+
+	const numPaths = 10000
+	const uniqPaths = 50
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sk.GetAndResetAllStats()
+		for p := 0; p < numPaths; p++ {
+			b.StopTimer()
+			//we use subset of unique endpoints, but those will occur over and over again like in regular target application
+			path := "/testpath/blablabla/dsadas/isdaasd/asdasadsadasd" + strconv.Itoa(p%uniqPaths)
+			//we simulate different conn tuples by increasing the port number
+			newSourcePort := sourcePort + (p % 30)
+			statusCode := (i%5 + 1) * 100
+			latency := time.Duration(i%5+1) * time.Millisecond
+			tx := generateIPv4HTTPTransaction(sourceIP, destIP, newSourcePort, destPort, path, statusCode, latency)
+			b.StartTimer()
+			sk.Process(tx)
+		}
+	}
+	b.StopTimer()
+}
+
+// BenchmarkHTTPStatkeeperWithPool benchmark allocations with pool of 'DDSketch' objects
+func BenchmarkHTTPStatkeeperWithPool(b *testing.B) {
+	sk := makeStatkeeper()
+
+	benchmarkHTTPStatkeeper(b, sk)
+}
+
+// BenchmarkHTTPStatkeeperNoPool benchmark allocations without pool of 'DDSketch' objects
+func BenchmarkHTTPStatkeeperNoPool(b *testing.B) {
+	sk := makeStatkeeper()
+	// disable pool of 'DDSketch' objects
+	sk.sketches = nil
+
+	benchmarkHTTPStatkeeper(b, sk)
 }
