@@ -224,6 +224,11 @@ if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
+  # This depends on the agent and must be added after it
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-security-agent-policies'
+  end
+
   # System-probe
   if sysprobe_enabled?
     dependency 'system-probe'
@@ -237,27 +242,6 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
-    if fips_mode?
-      dependency 'openssl-fips-provider'
-    end
-  end
-
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
-  # Additional software
-  if windows_target?
-    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-      dependency 'datadog-windows-filter-driver'
-    end
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      dependency 'datadog-windows-apminject'
-    end
-    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-      dependency 'datadog-windows-procmon-driver'
-      ## this is a duplicate of the above dependency in linux
-      dependency 'datadog-security-agent-policies'
-    end
   end
 
   # this dependency puts few files out of the omnibus install dir and move them

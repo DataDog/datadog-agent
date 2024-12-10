@@ -37,12 +37,12 @@ var statsTelemetry = struct {
 
 const tcpSeqMidpoint = 0x80000000
 
-type ConnStatus uint8 //nolint:revive // TODO
+type connStatus uint8
 
 const (
-	ConnStatClosed      ConnStatus = iota //nolint:revive // TODO
-	ConnStatAttempted                     //nolint:revive // TODO
-	ConnStatEstablished                   //nolint:revive // TODO
+	connStatClosed connStatus = iota
+	connStatAttempted
+	connStatEstablished
 )
 
 var connStatusLabels = []string{
@@ -51,32 +51,32 @@ var connStatusLabels = []string{
 	"Established",
 }
 
-type SynState uint8 //nolint:revive // TODO
+type synState uint8
 
 const (
-	SynStateNone  SynState = iota //nolint:revive // TODO
-	SynStateSent                  //nolint:revive // TODO
-	SynStateAcked                 //nolint:revive // TODO
+	synStateNone synState = iota
+	synStateSent
+	synStateAcked
 )
 
-func (ss *SynState) update(synFlag, ackFlag bool) {
+func (ss *synState) update(synFlag, ackFlag bool) {
 	// for simplicity, this does not consider the sequence number of the SYNs and ACKs.
 	// if these matter in the future, change this to store SYN seq numbers
-	if *ss == SynStateNone && synFlag {
-		*ss = SynStateSent
+	if *ss == synStateNone && synFlag {
+		*ss = synStateSent
 	}
-	if *ss == SynStateSent && ackFlag {
-		*ss = SynStateAcked
+	if *ss == synStateSent && ackFlag {
+		*ss = synStateAcked
 	}
 	// if we see ACK'd traffic but missed the SYN, assume the connection started before
 	// the datadog-agent starts.
-	if *ss == SynStateNone && ackFlag {
+	if *ss == synStateNone && ackFlag {
 		statsTelemetry.missedTCPConnections.Inc()
-		*ss = SynStateAcked
+		*ss = synStateAcked
 	}
 }
 
-func LabelForState(tcpState ConnStatus) string { //nolint:revive // TODO
+func labelForState(tcpState connStatus) string {
 	idx := int(tcpState)
 	if idx < len(connStatusLabels) {
 		return connStatusLabels[idx]
@@ -105,7 +105,7 @@ func debugPacketDir(pktType uint8) string {
 	}
 }
 
-func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
+func debugTCPFlags(tcp *layers.TCP) string {
 	var flags []string
 	if tcp.RST {
 		flags = append(flags, "RST")
@@ -123,5 +123,5 @@ func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
 }
 
 func debugPacketInfo(pktType uint8, tcp *layers.TCP, payloadLen uint16) string {
-	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTcpFlags(tcp))
+	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTCPFlags(tcp))
 }
