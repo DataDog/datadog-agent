@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket/layers"
 )
@@ -49,7 +50,7 @@ func (w *winrawsocket) listenPackets(timeout time.Duration, localIP net.IP, loca
 	wg.Wait()
 
 	if icmpErr != nil {
-		_, icmpCanceled := icmpErr.(canceledError)
+		_, icmpCanceled := icmpErr.(common.CanceledError)
 		if icmpCanceled {
 			log.Trace("timed out waiting for responses")
 			return net.IP{}, 0, 0, time.Time{}, nil
@@ -74,7 +75,7 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, 0, 0, time.Time{}, canceledError("listener canceled")
+			return net.IP{}, 0, 0, time.Time{}, common.CanceledError("listener canceled")
 		default:
 		}
 
@@ -110,12 +111,12 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		// TODO: remove listener constraint and parse all packets
 		// in the same function return a succinct struct here
 		if header.Protocol == windows.IPPROTO_ICMP {
-			icmpResponse, err := parseICMP(header, packet)
+			icmpResponse, err := common.ParseICMP(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse ICMP packet: %s", err.Error())
 				continue
 			}
-			if icmpMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
+			if common.ICMPMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
 				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
 			}
 		} else if header.Protocol == windows.IPPROTO_TCP {
