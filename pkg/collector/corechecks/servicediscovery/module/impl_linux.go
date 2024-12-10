@@ -51,6 +51,7 @@ var _ module.Module = &discovery{}
 type serviceInfo struct {
 	generatedName        string
 	generatedNameSource  string
+	containerServiceName string
 	ddServiceName        string
 	ddServiceInjected    bool
 	checkedContainerData bool
@@ -673,7 +674,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	service.ContainerID = id
 
-	// We got the service name from container tags before, no need to do it again.
+	// We checked the container tags before, no need to do it again.
 	if service.CheckedContainerData {
 		return
 	}
@@ -686,22 +687,18 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	serviceName := getServiceNameFromContainerTags(container.Tags)
 
 	if serviceName != "" {
-		service.GeneratedName = serviceName
+		service.ContainerServiceName = serviceName
 		// Update the legacy name field as well
-		if service.DDService == "" {
+		if service.Name == "" {
 			service.Name = serviceName
 		}
-		service.GeneratedNameSource = string(usm.Container)
 	}
 	service.CheckedContainerData = true
 
 	s.mux.Lock()
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
-		if serviceName != "" {
-			serviceInfo.generatedName = serviceName
-			serviceInfo.generatedNameSource = string(usm.Container)
-		}
+		serviceInfo.containerServiceName = serviceName
 		serviceInfo.checkedContainerData = true
 	}
 	s.mux.Unlock()
