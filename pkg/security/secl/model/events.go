@@ -84,6 +84,8 @@ const (
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
 	// BindEventType Bind event
+	AcceptEventType
+	// BindEventType Bind event
 	BindEventType
 	// ConnectEventType Connect event
 	ConnectEventType
@@ -218,6 +220,8 @@ func (t EventType) String() string {
 	case VethPairEventType:
 		return "veth_pair"
 	case BindEventType:
+		return "bind"
+	case AcceptEventType:
 		return "bind"
 	case ConnectEventType:
 		return "connect"

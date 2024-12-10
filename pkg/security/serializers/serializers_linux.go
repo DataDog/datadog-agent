@@ -423,6 +423,14 @@ type SpliceEventSerializer struct {
 	PipeExitFlag string `json:"pipe_exit_flag"`
 }
 
+// AcceptEventSerializer serializes a bind event to JSON
+// easyjson:json
+type AcceptEventSerializer struct {
+	// Bound address (if any)
+	Addr     IPPortFamilySerializer `json:"addr"`
+	Protocol string                 `json:"protocol"`
+}
+
 // BindEventSerializer serializes a bind event to JSON
 // easyjson:json
 type BindEventSerializer struct {
@@ -633,6 +641,7 @@ type EventSerializer struct {
 	*SpliceEventSerializer    `json:"splice,omitempty"`
 	*DNSEventSerializer       `json:"dns,omitempty"`
 	*IMDSEventSerializer      `json:"imds,omitempty"`
+	*AcceptEventSerializer    `json:"accept,omitempty"`
 	*BindEventSerializer      `json:"bind,omitempty"`
 	*ConnectEventSerializer   `json:"connect,omitempty"`
 	*MountEventSerializer     `json:"mount,omitempty"`
@@ -947,6 +956,15 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 		PipeEntryFlag: model.PipeBufFlag(e.Splice.PipeEntryFlag).String(),
 		PipeExitFlag:  model.PipeBufFlag(e.Splice.PipeExitFlag).String(),
 	}
+}
+
+func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
+	ces := &AcceptEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
+			model.AddressFamily(e.Accept.AddrFamily).String()),
+		Protocol: model.L4Protocol(e.Accept.Protocol).String(),
+	}
+	return ces
 }
 
 func newBindEventSerializer(e *model.Event) *BindEventSerializer {
@@ -1415,6 +1433,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 				FileSerializer: *newFileSerializer(&event.Splice.File, event),
 			}
 		}
+	case model.AcceptEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Accept.Retval)
+		s.AcceptEventSerializer = newAcceptEventSerializer(event)
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)

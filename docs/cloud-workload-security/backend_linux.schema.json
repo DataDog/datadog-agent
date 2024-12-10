@@ -54,6 +54,24 @@
       ],
       "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
     },
+    "AcceptEvent": {
+      "properties": {
+        "addr": {
+          "$ref": "#/$defs/IPPortFamily",
+          "description": "Bound address (if any)"
+        },
+        "protocol": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "addr",
+        "protocol"
+      ],
+      "description": "AcceptEventSerializer serializes a bind event to JSON"
+    },
     "AgentContext": {
       "properties": {
         "rule_id": {
@@ -1748,6 +1766,9 @@
     },
     "imds": {
       "$ref": "#/$defs/IMDSEvent"
+    },
+    "accept": {
+      "$ref": "#/$defs/AcceptEvent"
     },
     "bind": {
       "$ref": "#/$defs/BindEvent"
