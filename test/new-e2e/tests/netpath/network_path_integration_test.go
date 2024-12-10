@@ -8,11 +8,15 @@ package netpath
 
 import (
 	_ "embed"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -49,21 +53,26 @@ instances:
 	))
 }
 
-func (s *networkPathIntegrationTestSuite) TestHaAgentRunningMetrics() {
-	//fakeClient := s.Env().FakeIntake.Client()
+func (s *networkPathIntegrationTestSuite) TestMetrics() {
+	fakeClient := s.Env().FakeIntake.Client()
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.T().Log("try assert datadog.agent.running metric")
-		//metrics, err := fakeClient.FilterMetrics("datadog.agent.running")
-		//require.NoError(c, err)
-		//assert.NotEmpty(c, metrics)
-		//for _, metric := range metrics {
-		//	s.T().Logf("    datadog.agent.running metric tags: %+v", metric.Tags)
-		//}
-		//
-		//tags := []string{"agent_group:test-group01"}
-		//metrics, err = fakeClient.FilterMetrics("datadog.agent.running", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-		//require.NoError(c, err)
-		//assert.NotEmpty(c, metrics)
+		s.T().Log("try assert datadog.network_path.path.monitored metric")
+		metrics, err := fakeClient.FilterMetrics("datadog.network_path.path.monitored")
+		require.NoError(c, err)
+		assert.NotEmpty(c, metrics)
+		for _, metric := range metrics {
+			s.T().Logf("    datadog.network_path.path.monitored metric tags: %+v", metric.Tags)
+		}
+
+		destinationsTagsToAssert := [][]string{
+			{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
+			{"destination_hostname:8.8.8.8", "protocol:UDP"},
+		}
+		for _, tags := range destinationsTagsToAssert {
+			metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
+			require.NoError(c, err)
+			assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+		}
 	}, 5*time.Minute, 3*time.Second)
 }
