@@ -17,7 +17,6 @@ var (
 // Console control signal constants
 //
 // https://learn.microsoft.com/en-us/windows/console/handlerroutine
-
 const (
 	CtrlCEvent     = 0
 	CtrlBreakEvent = 1
