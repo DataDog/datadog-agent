@@ -60,6 +60,9 @@ func applyCaptureDepth(params []ditypes.Parameter, maxDepth int) []ditypes.Param
 func flattenParameters(params []*ditypes.Parameter) []*ditypes.Parameter {
 	flattenedParams := []*ditypes.Parameter{}
 	for i := range params {
+		if params[i] == nil {
+			continue
+		}
 		kind := reflect.Kind(params[i].Kind)
 		if kind == reflect.Slice || kind == reflect.String {
 			// Slices don't get flattened as we need the underlying type.

@@ -226,6 +226,9 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 					//FIXME: Do we need to limit lengths of arrays??
+					if elementParam.ParameterPieces[0] == nil {
+						continue
+					}
 					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
 					for i := 0; i < len(elementParam.ParameterPieces); i++ {
