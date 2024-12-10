@@ -53,6 +53,7 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "test",  # used for unit-tests
+    "goexperiment.systemcrypto",  # used for FIPS mode
 }
 
 ### Tag inclusion lists

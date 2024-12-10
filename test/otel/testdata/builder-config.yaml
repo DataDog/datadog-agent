@@ -1,10 +1,11 @@
-connectors:
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
-    v0.114.0
 dist:
   description: Basic OTel Collector distribution for Developers
   name: otelcol-custom
   output_path: /tmp/otel-ci/otelcol-custom
+connectors:
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
+    v0.114.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.114.0
 exporters:
 - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.114.0
 - gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.114.0
@@ -15,7 +16,7 @@ exporters:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter
     v0.114.0
 extensions:
-- gomod: github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.60.0
+- gomod: github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.61.0
   path: ./comp/otelcol/ddflareextension/impl
 - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.114.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension
@@ -80,3 +81,6 @@ receivers:
     v0.114.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
     v0.114.0
+converters:
+- gomod: github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.61.0
+  path: ./comp/otelcol/converter/impl

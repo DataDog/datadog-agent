@@ -27,4 +27,4 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        inv -e issue.assign-owner --issue ${{ github.event.issue.number }}
+        inv -e issue.assign-owner -i ${{ github.event.issue.number }}

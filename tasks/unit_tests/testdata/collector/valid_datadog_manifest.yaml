@@ -1,6 +1,6 @@
 ---
 dist:
-  module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib
+  module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
   name: otelcol-contrib
   description: Valid (default) datadog converged Agent ocb manifest (should pass collector_tests.py)
   version: 0.114.0
