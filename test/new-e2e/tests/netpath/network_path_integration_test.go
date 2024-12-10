@@ -26,6 +26,12 @@ type networkPathIntegrationTestSuite struct {
 // TestNetworkPathIntegrationSuite runs the Network Path Integration e2e suite
 func TestNetworkPathIntegrationSuite(t *testing.T) {
 	// language=yaml
+	sysProbeConfig := `
+traceroute:
+  enabled: true
+`
+
+	// language=yaml
 	networkPathIntegration := `
 instances:
 - hostname: api.datadoghq.eu
@@ -37,6 +43,7 @@ instances:
 
 	e2e.Run(t, &networkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
+			agentparams.WithSystemProbeConfig(sysProbeConfig),
 			agentparams.WithIntegration("network_path.d", networkPathIntegration),
 		)),
 	))
