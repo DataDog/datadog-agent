@@ -65,7 +65,7 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		return ServiceMetadata{}, false
 	}
 
-	return NewServiceMetadata(string(name)), true
+	return NewServiceMetadata(string(name), Rails), true
 }
 
 // findRailsApplicationName scans the `config/application.rb` file to find the

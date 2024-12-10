@@ -8,6 +8,7 @@
 package tcp
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"runtime"
@@ -27,6 +28,20 @@ var (
 	innerSrcIP = net.ParseIP("10.0.0.1")
 	innerDstIP = net.ParseIP("192.168.1.1")
 )
+
+func Test_reserveLocalPort(t *testing.T) {
+	// WHEN we reserve a local port
+	port, listener, err := reserveLocalPort()
+	require.NoError(t, err)
+	defer listener.Close()
+	require.NotNil(t, listener)
+
+	// THEN we should not be able to get another connection
+	// on the same port
+	conn2, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	assert.Error(t, err)
+	assert.Nil(t, conn2)
+}
 
 func Test_createRawTCPSyn(t *testing.T) {
 	if runtime.GOOS == "darwin" {

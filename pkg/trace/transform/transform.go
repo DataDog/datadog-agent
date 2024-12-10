@@ -25,7 +25,7 @@ import (
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
 func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
-	return !conf.OTLPReceiver.SpanNameAsResourceName && (conf.OTLPReceiver.SpanNameRemappings == nil || len(conf.OTLPReceiver.SpanNameRemappings) == 0) && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
+	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
 }
 
 // OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.

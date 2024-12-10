@@ -28,7 +28,7 @@ from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
 
-RELEASE_BRANCH_PATTERN = re.compile(r"\d+\.\d+\.x")
+RELEASE_BRANCH_PATTERN = re.compile(r"^\d+\.\d+\.x$")
 
 
 class GithubAPI:
@@ -333,6 +333,9 @@ class GithubAPI:
     def latest_release(self) -> str:
         release = self._repository.get_latest_release()
         return release.title
+
+    def get_releases(self):
+        return self._repository.get_releases()
 
     def latest_unreleased_release_branches(self):
         """
