@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/security/seclwin
 
-go 1.22.0
+go 1.23.0
 
 replace github.com/DataDog/datadog-agent/pkg/security/secl => ../secl
 
