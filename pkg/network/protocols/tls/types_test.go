@@ -12,44 +12,19 @@ import (
 	"testing"
 )
 
-func TestFormatTLSVersion(t *testing.T) {
-	tests := []struct {
-		version  uint16
-		expected string
-	}{
-		{tls.VersionTLS10, "tls_1.0"},
-		{tls.VersionTLS11, "tls_1.1"},
-		{tls.VersionTLS12, "tls_1.2"},
-		{tls.VersionTLS13, "tls_1.3"},
-		{0xFFFF, ""}, // Unknown version
-		{0x0000, ""}, // Zero value
-		{0x0305, ""}, // Version just above known versions
-		{0x01FF, ""}, // Random unknown version
-	}
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("Version_0x%04X", test.version), func(t *testing.T) {
-			result := FormatTLSVersion(test.version)
-			if result != test.expected {
-				t.Errorf("FormatTLSVersion(0x%04X) = %q; want %q", test.version, result, test.expected)
-			}
-		})
-	}
-}
-
 func TestParseOfferedVersions(t *testing.T) {
 	tests := []struct {
 		offeredVersions uint8
 		expected        []string
 	}{
 		{0x00, []string{}}, // No versions offered
-		{OfferedTLSVersion10, []string{"tls_1.0"}},
-		{OfferedTLSVersion11, []string{"tls_1.1"}},
-		{OfferedTLSVersion12, []string{"tls_1.2"}},
-		{OfferedTLSVersion13, []string{"tls_1.3"}},
-		{OfferedTLSVersion10 | OfferedTLSVersion12, []string{"tls_1.0", "tls_1.2"}},
-		{OfferedTLSVersion11 | OfferedTLSVersion13, []string{"tls_1.1", "tls_1.3"}},
-		{0xFF, []string{"tls_1.0", "tls_1.1", "tls_1.2", "tls_1.3"}}, // All bits set
+		{OfferedTLSVersion10, []string{"tls.client_version:tls_1.0"}},
+		{OfferedTLSVersion11, []string{"tls.client_version:tls_1.1"}},
+		{OfferedTLSVersion12, []string{"tls.client_version:tls_1.2"}},
+		{OfferedTLSVersion13, []string{"tls.client_version:tls_1.3"}},
+		{OfferedTLSVersion10 | OfferedTLSVersion12, []string{"tls.client_version:tls_1.0", "tls.client_version:tls_1.2"}},
+		{OfferedTLSVersion11 | OfferedTLSVersion13, []string{"tls.client_version:tls_1.1", "tls.client_version:tls_1.3"}},
+		{0xFF, []string{"tls.client_version:tls_1.0", "tls.client_version:tls_1.1", "tls.client_version:tls_1.2", "tls.client_version:tls_1.3"}}, // All bits set
 		{0x40, []string{}}, // Undefined bit set
 		{0x80, []string{}}, // Undefined bit set
 	}

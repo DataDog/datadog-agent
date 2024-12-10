@@ -2695,23 +2695,24 @@ func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) boo
 			}
 
 			// Check that the negotiated version tag is present
-			negotiatedVersionTag := ddtls.TagTLSVersion + ddtls.FormatTLSVersion(scenario)
+			negotiatedVersionTag := ddtls.VersionTags[scenario]
 			if _, ok := tlsTags[negotiatedVersionTag]; !ok {
 				t.Logf("Negotiated version tag '%s' not found", negotiatedVersionTag)
 				return false
 			}
 
 			// Check that the client offered version tag is present
-			clientVersionTag := ddtls.TagTLSClientVersion + ddtls.FormatTLSVersion(scenario)
+			clientVersionTag := ddtls.ClientVersionTags[scenario]
 			if _, ok := tlsTags[clientVersionTag]; !ok {
+				t.Log(tlsTags)
 				t.Logf("Client offered version tag '%s' not found", clientVersionTag)
 				return false
 			}
 
 			if scenario == tls.VersionTLS13 {
 				expectedClientVersions := []string{
-					ddtls.TagTLSClientVersion + ddtls.FormatTLSVersion(tls.VersionTLS12),
-					ddtls.TagTLSClientVersion + ddtls.FormatTLSVersion(tls.VersionTLS13),
+					ddtls.ClientVersionTags[tls.VersionTLS12],
+					ddtls.ClientVersionTags[tls.VersionTLS13],
 				}
 				for _, tag := range expectedClientVersions {
 					if _, ok := tlsTags[tag]; !ok {

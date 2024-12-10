@@ -11,6 +11,17 @@ import (
 	"fmt"
 )
 
+// Constants for tag keys
+const (
+	TagTLSVersion       = "tls.version:"
+	TagTLSCipherSuiteID = "tls.cipher_suite_id:"
+	TagTLSClientVersion = "tls.client_version:"
+	Version10           = "tls_1.0"
+	Version11           = "tls_1.1"
+	Version12           = "tls_1.2"
+	Version13           = "tls_1.3"
+)
+
 // Bitmask constants for Offered_versions matching kernelspace definitions
 const (
 	OfferedTLSVersion10 uint8 = 0x01
@@ -19,12 +30,20 @@ const (
 	OfferedTLSVersion13 uint8 = 0x08
 )
 
-// mapping of version constants to their string representations
-var tlsVersionNames = map[uint16]string{
-	tls.VersionTLS10: "tls_1.0",
-	tls.VersionTLS11: "tls_1.1",
-	tls.VersionTLS12: "tls_1.2",
-	tls.VersionTLS13: "tls_1.3",
+// VersionTags maps TLS versions to tag names for server chosen version (exported for testing)
+var VersionTags = map[uint16]string{
+	tls.VersionTLS10: TagTLSVersion + Version10,
+	tls.VersionTLS11: TagTLSVersion + Version11,
+	tls.VersionTLS12: TagTLSVersion + Version12,
+	tls.VersionTLS13: TagTLSVersion + Version13,
+}
+
+// ClientVersionTags maps TLS versions to tag names for client offered versions (exported for testing)
+var ClientVersionTags = map[uint16]string{
+	tls.VersionTLS10: TagTLSClientVersion + Version10,
+	tls.VersionTLS11: TagTLSClientVersion + Version11,
+	tls.VersionTLS12: TagTLSClientVersion + Version12,
+	tls.VersionTLS13: TagTLSClientVersion + Version13,
 }
 
 // Mapping of offered version bitmasks to version constants
@@ -37,13 +56,6 @@ var offeredVersionBitmask = []struct {
 	{OfferedTLSVersion12, tls.VersionTLS12},
 	{OfferedTLSVersion13, tls.VersionTLS13},
 }
-
-// Constants for tag keys
-const (
-	TagTLSVersion       = "tls.version:"
-	TagTLSCipherSuiteID = "tls.cipher_suite_id:"
-	TagTLSClientVersion = "tls.client_version:"
-)
 
 // Tags holds the TLS tags. It is used to store the TLS version, cipher suite and offered versions.
 // We can't use the struct from eBPF as the definition is shared with windows.
@@ -77,22 +89,32 @@ func (t *Tags) String() string {
 	return fmt.Sprintf("ChosenVersion: %d, CipherSuite: %d, OfferedVersions: %d", t.ChosenVersion, t.CipherSuite, t.OfferedVersions)
 }
 
-// FormatTLSVersion converts a version uint16 to its string representation
-func FormatTLSVersion(version uint16) string {
-	return tlsVersionNames[version]
-}
-
 // parseOfferedVersions parses the Offered_versions bitmask into a slice of version strings
 func parseOfferedVersions(offeredVersions uint8) []string {
-	versions := []string{}
+	versions := make([]string, 0, 4)
 	for _, ov := range offeredVersionBitmask {
 		if (offeredVersions & ov.bitMask) != 0 {
-			if name := tlsVersionNames[ov.version]; name != "" {
+			if name := ClientVersionTags[ov.version]; name != "" {
 				versions = append(versions, name)
 			}
 		}
 	}
 	return versions
+}
+
+func hexCipherSuiteTag(cipherSuite uint16) string {
+	// Preallocate a buffer for "0x" + 4 hex digits = 6 chars
+	var buf [6]byte
+	buf[0] = '0'
+	buf[1] = 'x'
+	hex := "0123456789ABCDEF"
+
+	buf[2] = hex[(cipherSuite>>12)&0xF]
+	buf[3] = hex[(cipherSuite>>8)&0xF]
+	buf[4] = hex[(cipherSuite>>4)&0xF]
+	buf[5] = hex[cipherSuite&0xF]
+
+	return TagTLSCipherSuiteID + string(buf[:])
 }
 
 // GetTLSDynamicTags generates dynamic tags based on TLS information
@@ -103,18 +125,18 @@ func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
 	}
 
 	// Server chosen version
-	if versionName := FormatTLSVersion(tls.ChosenVersion); versionName != "" {
-		tags[TagTLSVersion+versionName] = struct{}{}
-	}
-
-	// Cipher suite ID as hex string
-	if tls.CipherSuite != 0 {
-		tags[TagTLSCipherSuiteID+fmt.Sprintf("0x%04X", tls.CipherSuite)] = struct{}{}
+	if tag, ok := VersionTags[tls.ChosenVersion]; ok {
+		tags[tag] = struct{}{}
 	}
 
 	// Client offered versions
 	for _, versionName := range parseOfferedVersions(tls.OfferedVersions) {
-		tags[TagTLSClientVersion+versionName] = struct{}{}
+		tags[versionName] = struct{}{}
+	}
+
+	// Cipher suite ID as hex string
+	if tls.CipherSuite != 0 {
+		tags[hexCipherSuiteTag(tls.CipherSuite)] = struct{}{}
 	}
 
 	return tags
