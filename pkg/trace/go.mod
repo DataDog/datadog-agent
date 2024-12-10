@@ -34,7 +34,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.114.0
 	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/stretchr/testify v1.10.0
-	github.com/tinylib/msgp v1.2.4
+	github.com/tinylib/msgp v1.2.5
 	github.com/vmihailenco/msgpack/v4 v4.3.13
 	go.opentelemetry.io/collector/component v0.114.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.114.0
