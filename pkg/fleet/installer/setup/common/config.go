@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"gopkg.in/yaml.v2"
 )
 
@@ -220,7 +219,11 @@ func (i *HostInstaller) ConfigureAndInstall(ctx context.Context) error {
 		return fmt.Errorf("failed to write configurations: %w", err)
 	}
 
-	cmd := exec.NewInstallerExec(i.env, paths.StableInstallerPath)
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+	cmd := exec.NewInstallerExec(i.env, exePath)
 
 	if i.injectorVersion != "" {
 		if err := cmd.Install(ctx, oci.PackageURL(i.env, "datadog-apm-inject", i.injectorVersion), nil); err != nil {
