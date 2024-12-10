@@ -9,46 +9,48 @@ package connection
 
 import (
 	"sync"
-	"time"
-	"unsafe"
+	"sync/atomic"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const closeConsumerModuleName = "network_tracer__ebpf"
 
 // Telemetry
 var closeConsumerTelemetry = struct {
-	perfReceived telemetry.Counter
-	perfLost     telemetry.Counter
+	perfReceived  telemetry.Counter
+	flushReceived telemetry.Counter
 }{
 	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
-	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of closed connection batches lost (were transmitted from ebpf but never received)"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_flush_received", []string{}, "Counter measuring the number of closed connections received during flush"),
 }
 
 type tcpCloseConsumer struct {
-	eventHandler ddebpf.EventHandler
-	batchManager *perfBatchManager
-	requests     chan chan struct{}
-	buffer       *network.ConnectionBuffer
-	once         sync.Once
-	closed       chan struct{}
-	ch           *cookieHasher
+	requests chan chan struct{}
+	once     sync.Once
+	closed   chan struct{}
+
+	flusher      perf.Flusher
+	callback     func(*network.ConnectionStats)
+	releaser     ddsync.PoolReleaser[network.ConnectionStats]
+	flushChannel chan chan struct{}
+	flushing     *atomic.Bool
 }
 
-func newTCPCloseConsumer(eventHandler ddebpf.EventHandler, batchManager *perfBatchManager) *tcpCloseConsumer {
+func newTCPCloseConsumer(flusher perf.Flusher, releaser ddsync.PoolReleaser[network.ConnectionStats]) *tcpCloseConsumer {
 	return &tcpCloseConsumer{
-		eventHandler: eventHandler,
-		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
-		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
 		closed:       make(chan struct{}),
-		ch:           newCookieHasher(),
+		flusher:      flusher,
+		releaser:     releaser,
+		callback:     func(*network.ConnectionStats) {},
+		flushChannel: make(chan chan struct{}, 1),
+		flushing:     &atomic.Bool{},
 	}
 }
 
@@ -75,101 +77,52 @@ func (c *tcpCloseConsumer) Stop() {
 	if c == nil {
 		return
 	}
-	c.eventHandler.Stop()
 	c.once.Do(func() {
 		close(c.closed)
 	})
 }
 
-func (c *tcpCloseConsumer) extractConn(data []byte) {
-	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
-	conn := c.buffer.Next()
-	populateConnStats(conn, &ct.Tup, &ct.Conn_stats, c.ch)
-	updateTCPStats(conn, &ct.Tcp_stats)
+func (c *tcpCloseConsumer) Callback(conn *network.ConnectionStats) {
+	// sentinel record post-flush
+	if conn == nil {
+		request := <-c.flushChannel
+		close(request)
+		c.flushing.Store(false)
+		return
+	}
+
+	closeConsumerTelemetry.perfReceived.Inc()
+	if c.flushing.Load() {
+		closeConsumerTelemetry.flushReceived.Inc()
+	}
+	c.callback(conn)
+	c.releaser.Put(conn)
 }
 
 func (c *tcpCloseConsumer) Start(callback func(*network.ConnectionStats)) {
 	if c == nil {
 		return
 	}
-	health := health.RegisterLiveness("network-tracer")
-
-	var (
-		then             = time.Now()
-		closedCount      uint64
-		lostSamplesCount uint64
-	)
+	c.callback = callback
+	liveHealth := health.RegisterLiveness("network-tracer")
 
 	go func() {
 		defer func() {
-			err := health.Deregister()
+			err := liveHealth.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
 		}()
 
-		dataChannel := c.eventHandler.DataChannel()
-		lostChannel := c.eventHandler.LostChannel()
 		for {
 			select {
-
 			case <-c.closed:
 				return
-			case <-health.C:
-			case batchData, ok := <-dataChannel:
-				if !ok {
-					return
-				}
-
-				l := len(batchData.Data)
-				switch {
-				case l >= netebpf.SizeofBatch:
-					batch := netebpf.ToBatch(batchData.Data)
-					c.batchManager.ExtractBatchInto(c.buffer, batch)
-				case l >= netebpf.SizeofConn:
-					c.extractConn(batchData.Data)
-				default:
-					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)
-					continue
-				}
-
-				closeConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
-				closedCount += uint64(c.buffer.Len())
-				conns := c.buffer.Connections()
-				for i := range conns {
-					callback(&conns[i])
-				}
-				c.buffer.Reset()
-				batchData.Done()
-			// lost events only occur when using perf buffers
-			case lc, ok := <-lostChannel:
-				if !ok {
-					return
-				}
-				closeConsumerTelemetry.perfLost.Add(float64(lc))
-				lostSamplesCount += lc
+			case <-liveHealth.C:
 			case request := <-c.requests:
-				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
-				c.batchManager.GetPendingConns(oneTimeBuffer)
-				conns := oneTimeBuffer.Connections()
-				for i := range conns {
-					callback(&conns[i])
-				}
-				close(request)
-
-				closedCount += uint64(oneTimeBuffer.Len())
-				now := time.Now()
-				elapsed := now.Sub(then)
-				then = now
-				log.Debugf(
-					"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_samples_count=%d",
-					closedCount,
-					elapsed,
-					float64(closedCount)/elapsed.Seconds(),
-					lostSamplesCount,
-				)
-				closedCount = 0
-				lostSamplesCount = 0
+				c.flushing.Store(true)
+				c.flushChannel <- request
+				c.flusher.Flush()
 			}
 		}
 	}()
