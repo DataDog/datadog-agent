@@ -156,7 +156,11 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	assertProcessDiscoveryCollected(t, payloads, "stress-ng-cpu [run]")
 }
 
-func (s *K8sSuite) TestProcessCheckInCoreAgent() {
+type K8sCoreAgentSuite struct {
+	e2e.BaseSuite[environments.Kubernetes]
+}
+
+func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
 	helmValues, err := createHelmValues(helmConfig{
@@ -207,7 +211,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 	assertContainersNotCollected(t, payloads, []string{"process-agent"})
 }
 
-func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
+func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgentWithNPM() {
 	t := s.T()
 
 	helmValues, err := createHelmValues(helmConfig{
