@@ -222,11 +222,14 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		Name:              metadata.GetName(),
 		ProtobufVersion:   metadata.GetProtobufVersion(),
 		DifferentiateArgs: metadata.GetDifferentiateArgs(),
-		ContainerID:       metadata.GetContainerID(),
-		Start:             startTime,
-		End:               startTime.Add(timeout),
-		Size:              metadata.GetSize(),
-		Arch:              metadata.GetArch(),
+		ContainerID:       containerutils.ContainerID(metadata.GetContainerID()),
+		CGroupContext: model.CGroupContext{
+			CGroupID: containerutils.CGroupID(metadata.GetCGroupID()),
+		},
+		Start: startTime,
+		End:   startTime.Add(timeout),
+		Size:  metadata.GetSize(),
+		Arch:  metadata.GetArch(),
 	}
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		[]model.EventType{},
@@ -354,7 +357,7 @@ func (ad *ActivityDump) nameMatches(name string) bool {
 }
 
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
-func (ad *ActivityDump) containerIDMatches(containerID string) bool {
+func (ad *ActivityDump) containerIDMatches(containerID containerutils.ContainerID) bool {
 	return ad.Metadata.ContainerID == containerID
 }
 
@@ -365,7 +368,13 @@ func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	}
 
 	if len(ad.Metadata.ContainerID) > 0 {
-		if !ad.containerIDMatches(string(entry.ContainerID)) {
+		if !ad.containerIDMatches(entry.ContainerID) {
+			return false
+		}
+	}
+
+	if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+		if entry.CGroup.CGroupID != ad.Metadata.CGroupContext.CGroupID {
 			return false
 		}
 	}
@@ -395,13 +404,13 @@ func (ad *ActivityDump) enable() error {
 		}
 	}
 
-	if len(ad.Metadata.ContainerID) > 0 {
+	if !ad.Metadata.CGroupContext.CGroupFile.IsNull() {
 		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
-		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.ContainerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
+		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.CGroupContext.CGroupFile, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
 				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
-				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
+				return fmt.Errorf("couldn't push activity dump cgroup ID %s: %w", ad.Metadata.CGroupContext.CGroupID, err)
 			}
 		}
 	}
@@ -448,12 +457,10 @@ func (ad *ActivityDump) disable() error {
 	}
 
 	// remove container ID from kernel space
-	if len(ad.Metadata.ContainerID) > 0 {
-		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, ad.Metadata.ContainerID)
-		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
+	if !ad.Metadata.CGroupContext.CGroupFile.IsNull() {
+		err := ad.adm.tracedCgroupsMap.Delete(ad.Metadata.CGroupContext.CGroupFile)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			return fmt.Errorf("couldn't delete activity dump filter containerID(%s): %v", ad.Metadata.ContainerID, err)
+			return fmt.Errorf("couldn't delete activity dump filter cgroup %s: %v", ad.Metadata.CGroupContext.CGroupID, err)
 		}
 	}
 	return nil
@@ -621,10 +628,11 @@ func (ad *ActivityDump) resolveTags() error {
 		return nil
 	}
 
-	var err error
-	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Metadata.ContainerID))
-	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
+	if len(ad.Metadata.ContainerID) > 0 {
+		var err error
+		if ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Metadata.ContainerID)); err != nil {
+			return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
+		}
 	}
 
 	return nil
@@ -655,7 +663,8 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Name:              ad.Metadata.Name,
 			ProtobufVersion:   ad.Metadata.ProtobufVersion,
 			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
-			ContainerID:       ad.Metadata.ContainerID,
+			ContainerID:       string(ad.Metadata.ContainerID),
+			CGroupID:          string(ad.Metadata.CGroupContext.CGroupID),
 			Start:             ad.Metadata.Start.Format(time.RFC822),
 			Timeout:           ad.LoadConfig.Timeout.String(),
 			Size:              ad.Metadata.Size,

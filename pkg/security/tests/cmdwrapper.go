@@ -11,6 +11,7 @@ package tests
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -78,8 +79,10 @@ type dockerCmdWrapper struct {
 	executable    string
 	mountSrc      string
 	mountDest     string
+	pid           int64
 	containerName string
 	containerID   string
+	cgroupID      string
 	image         string
 }
 
@@ -101,9 +104,32 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
 	cmd := exec.Command(d.executable, "run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
 	out, err := cmd.CombinedOutput()
-	if err == nil {
-		d.containerID = strings.TrimSpace(string(out))
+	if err != nil {
+		return nil, err
 	}
+
+	d.containerID = strings.TrimSpace(string(out))
+
+	cmd = exec.Command(d.executable, "inspect", "--format", "{{ .State.Pid }}", d.containerID)
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+
+	d.pid, _ = strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	cgroups, err := utils.GetProcControlGroups(uint32(d.pid), uint32(d.pid))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cgroups) == 0 {
+		return nil, fmt.Errorf("failed to find cgroup for pid %d", d.pid)
+	}
+
+	for _, cgroup := range cgroups {
+		d.cgroupID = cgroup.Path
+	}
+
 	return out, err
 }
 

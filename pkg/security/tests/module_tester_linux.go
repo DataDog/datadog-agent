@@ -44,6 +44,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -1125,7 +1126,7 @@ func checkNetworkCompatibility(tb testing.TB) {
 	})
 }
 
-func (tm *testModule) StopActivityDump(name, containerID string) error {
+func (tm *testModule) StopActivityDump(name, containerID, cgroupID string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1138,6 +1139,7 @@ func (tm *testModule) StopActivityDump(name, containerID string) error {
 	params := &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: containerID,
+		CGroupID:    cgroupID,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1148,7 +1150,8 @@ func (tm *testModule) StopActivityDump(name, containerID string) error {
 
 type activityDumpIdentifier struct {
 	Name        string
-	ContainerID string
+	ContainerID containerutils.ContainerID
+	CGroupID    containerutils.CGroupID
 	Timeout     string
 	OutputFiles []string
 }
@@ -1183,7 +1186,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 
 		dumps = append(dumps, &activityDumpIdentifier{
 			Name:        dump.Metadata.Name,
-			ContainerID: dump.Metadata.ContainerID,
+			CGroupID:    containerutils.CGroupID(dump.Metadata.CGroupID),
 			Timeout:     dump.Metadata.Timeout,
 			OutputFiles: files,
 		})
@@ -1253,6 +1256,7 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	}
 
 	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
 	return docker, nil
 }
 
@@ -1261,7 +1265,7 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	if err != nil {
 		return nil, err
 	}
-	dump := findLearningContainerID(dumps, dockerInstance.containerID)
+	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
@@ -1282,7 +1286,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 }
 
 //nolint:deadcode,unused
-func findLearningContainerID(dumps []*activityDumpIdentifier, containerID string) *activityDumpIdentifier {
+func findLearningContainerID(dumps []*activityDumpIdentifier, containerID containerutils.ContainerID) *activityDumpIdentifier {
 	for _, dump := range dumps {
 		if dump.ContainerID == containerID {
 			return dump
@@ -1539,7 +1543,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "")
+		_ = tm.StopActivityDump(dump.Name, string(dump.ContainerID), string(dump.CGroupID))
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {
