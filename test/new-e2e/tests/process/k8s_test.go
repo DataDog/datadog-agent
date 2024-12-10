@@ -160,21 +160,28 @@ type K8sCoreAgentSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgent() {
-	t := s.T()
-
+func TestK8sCoreAgentTestSuite(t *testing.T) {
+	t.Parallel()
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection: true,
 		RunInCoreAgent:    true,
 	})
 	require.NoError(t, err)
 
-	s.UpdateEnv(awskubernetes.KindProvisioner(
-		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-		}),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-	))
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awskubernetes.KindProvisioner(
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+			}),
+			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+		)),
+	}
+
+	e2e.Run(t, &K8sCoreAgentSuite{}, options...)
+}
+
+func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgent() {
+	t := s.T()
 
 	var status AgentStatus
 	defer func() {
