@@ -24,11 +24,22 @@ type vmUpdaterSuite struct {
 
 func (s *vmUpdaterSuite) TestInstallScript() {
 	url := fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install-databricks.sh", s.commitHash)
+
+	// worker
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -L %s > install_script; export DD_API_KEY=test; export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com; sudo -E bash install_script", url))
+	s.Env().RemoteHost.MustExecute("sudo test -d /opt/datadog-packages/datadog-agent/7.57.2-1")
+
+	// driver
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -L %s > install_script; export DB_IS_DRIVER=true; export DD_API_KEY=test; export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com; sudo -E bash install_script", url))
+	s.Env().RemoteHost.MustExecute("sudo test -d /opt/datadog-packages/datadog-agent/7.57.2-1")
+	s.Env().RemoteHost.MustExecute("sudo test -d /opt/datadog-packages/datadog-apm-inject/0.21.0")
+	s.Env().RemoteHost.MustExecute("sudo test -d /opt/datadog-packages/datadog-apm-library-java/1.41.1")
 }
 
 func TestUpdaterSuite(t *testing.T) {
-	e2e.Run(t, &vmUpdaterSuite{commitHash: os.Getenv("CI_COMMIT_SHA")}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOSArch(osdesc.UbuntuDefault, osdesc.ARM64Arch)),
-	)))
+	for _, arch := range []osdesc.Architecture{osdesc.AMD64Arch, osdesc.ARM64Arch} {
+		e2e.Run(t, &vmUpdaterSuite{commitHash: os.Getenv("CI_COMMIT_SHA")}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+			awshost.WithEC2InstanceOptions(ec2.WithOSArch(osdesc.UbuntuDefault, arch)),
+		)))
+	}
 }
