@@ -26,7 +26,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
@@ -67,7 +66,6 @@ type DeviceCheck struct {
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
 	savedDynamicTags        []string
-	nextAutodetectMetrics   time.Time
 	diagnoses               *diagnoses.Diagnoses
 	interfaceBandwidthState report.InterfaceBandwidthState
 	cacheKey                string
@@ -96,7 +94,6 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		sessionFactory:          sessionFactory,
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
-		nextAutodetectMetrics:   timeNow(),
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
@@ -314,16 +311,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 }
 
 func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
-	if d.config.DetectMetricsEnabled {
-		if d.nextAutodetectMetrics.After(timeNow()) {
-			return nil
-		}
-		d.nextAutodetectMetrics = d.nextAutodetectMetrics.Add(time.Duration(d.config.DetectMetricsRefreshInterval) * time.Second)
-
-		detectedMetrics, metricTagConfigs := d.detectAvailableMetrics()
-		log.Debugf("detected metrics: %v", detectedMetrics)
-		d.config.SetAutodetectProfile(detectedMetrics, metricTagConfigs)
-	} else if d.config.AutodetectProfile {
+	if d.config.AutodetectProfile {
 		// detect using sysObjectID
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
@@ -343,77 +331,6 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		}
 	}
 	return nil
-}
-
-func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfig, []profiledefinition.MetricTagConfig) {
-	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
-	log.Debugf("fetched OIDs: %v", fetchedOIDs)
-
-	root := common.BuildOidTrie(fetchedOIDs)
-	if log.ShouldLog(log.DebugLvl) {
-		root.DebugPrint()
-	}
-
-	var metricConfigs []profiledefinition.MetricsConfig
-	var metricTagConfigs []profiledefinition.MetricTagConfig
-
-	// If a metric name has already been encountered, we won't try to add it again.
-	alreadySeenMetrics := make(map[string]bool)
-	// If a global tag has already been encountered, we won't try to add it again.
-	alreadyGlobalTags := make(map[string]bool)
-	for _, profileConfig := range d.config.Profiles.GetAllProfiles() {
-		for _, metricConfig := range profileConfig.Definition.Metrics {
-			newMetricConfig := metricConfig
-			if metricConfig.IsScalar() {
-				metricName := metricConfig.Symbol.Name
-				if metricConfig.Options.MetricSuffix != "" {
-					metricName = metricName + "." + metricConfig.Options.MetricSuffix
-				}
-				if !alreadySeenMetrics[metricName] && root.LeafExist(metricConfig.Symbol.OID) {
-					alreadySeenMetrics[metricName] = true
-					metricConfigs = append(metricConfigs, newMetricConfig)
-				}
-			} else if metricConfig.IsColumn() {
-				newMetricConfig.Symbols = []profiledefinition.SymbolConfig{}
-				for _, symbol := range metricConfig.Symbols {
-					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
-						alreadySeenMetrics[symbol.Name] = true
-						newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
-					}
-				}
-				if len(newMetricConfig.Symbols) > 0 {
-					metricConfigs = append(metricConfigs, newMetricConfig)
-				}
-			}
-		}
-		for _, metricTag := range profileConfig.Definition.MetricTags {
-			if root.LeafExist(metricTag.Symbol.OID) {
-				if metricTag.Tag != "" {
-					if alreadyGlobalTags[metricTag.Tag] {
-						continue
-					}
-					alreadyGlobalTags[metricTag.Tag] = true
-				} else {
-					// We don't add `metricTag` if any of the `metricTag.Tags` has already been encountered.
-					alreadyPresent := false
-					for tagKey := range metricTag.Tags {
-						if alreadyGlobalTags[tagKey] {
-							alreadyPresent = true
-							break
-						}
-					}
-					if alreadyPresent {
-						continue
-					}
-					for tagKey := range metricTag.Tags {
-						alreadyGlobalTags[tagKey] = true
-					}
-				}
-				metricTagConfigs = append(metricTagConfigs, metricTag)
-			}
-		}
-	}
-	return metricConfigs, metricTagConfigs
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {

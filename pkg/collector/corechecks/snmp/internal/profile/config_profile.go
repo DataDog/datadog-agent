@@ -17,8 +17,6 @@ type Provider interface {
 	GetProfile(profileName string) *ProfileConfig
 	// GetProfileNameForSysObjectID returns the best matching profile for this sysObjectID, or nil if there isn't one.
 	GetProfileNameForSysObjectID(sysObjectID string) (string, error)
-	// GetAllProfiles returns a map from names to profiles.
-	GetAllProfiles() ProfileConfigMap
 }
 
 // staticProvider is a static implementation of Provider
@@ -40,10 +38,6 @@ func (s *staticProvider) HasProfile(profileName string) bool {
 
 func (s *staticProvider) GetProfileNameForSysObjectID(sysObjectID string) (string, error) {
 	return getProfileForSysObjectID(s.configMap, sysObjectID)
-}
-
-func (s *staticProvider) GetAllProfiles() ProfileConfigMap {
-	return s.configMap
 }
 
 // StaticProvider makes a provider that serves the static data from this config map.
