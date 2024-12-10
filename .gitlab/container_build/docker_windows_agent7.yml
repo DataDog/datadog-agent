@@ -21,7 +21,6 @@ docker_build_agent7_windows2022_jmx:
   extends:
     - .docker_build_agent7_windows_common
   tags: ["runner:windows-docker", "windowsversion:2022"]
-  needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     VARIANT: ltsc2022
     TAG_SUFFIX: -7-jmx
@@ -67,8 +66,25 @@ docker_build_agent7_windows2022_core_jmx:
   extends:
     - .docker_build_agent7_windows_servercore_common
   tags: ["runner:windows-docker", "windowsversion:2022"]
-  needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     VARIANT: ltsc2022
     TAG_SUFFIX: -7-jmx
+    WITH_JMX: "true"
+
+docker_build_fips_agent7_windows2022_core:
+  extends:
+    - .docker_build_fips_agent7_windows_servercore_common
+  tags: ["runner:windows-docker", "windowsversion:2022"]
+  variables:
+    VARIANT: ltsc2022
+    TAG_SUFFIX: "-7-fips"
+    WITH_JMX: "false"
+
+docker_build_fips_agent7_windows2022_core_jmx:
+  extends:
+    - .docker_build_fips_agent7_windows_servercore_common
+  tags: ["runner:windows-docker", "windowsversion:2022"]
+  variables:
+    VARIANT: ltsc2022
+    TAG_SUFFIX: -7-fips-jmx
     WITH_JMX: "true"

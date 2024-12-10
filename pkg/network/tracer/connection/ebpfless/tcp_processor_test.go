@@ -21,14 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-var localhost net.IP = net.ParseIP("127.0.0.1")  //nolint:revive // TODO
-var remoteIP net.IP = net.ParseIP("12.34.56.78") //nolint:revive // TODO
+var localhost = net.ParseIP("127.0.0.1")
+var remoteIP = net.ParseIP("12.34.56.78")
 
 const (
 	minIhl            = 5
 	defaultLocalPort  = 12345
 	defaultRemotePort = 8080
-	defaultNsId       = 123 //nolint:revive // TODO
+	defaultNsID       = 123
 )
 
 const (
@@ -79,7 +79,7 @@ type testCapture struct {
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
-func makeTcpStates(synPkt testCapture) *network.ConnectionStats { //nolint:revive // TODO
+func makeTCPStates(synPkt testCapture) *network.ConnectionStats {
 	var family network.ConnectionFamily
 	var srcIP, dstIP net.IP
 	if synPkt.ipv4 != nil && synPkt.ipv6 != nil {
@@ -109,8 +109,8 @@ func makeTcpStates(synPkt testCapture) *network.ConnectionStats { //nolint:reviv
 		ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromNetIP(srcIP),
 			Dest:   util.AddressFromNetIP(dstIP),
-			Pid:    0, // @stu we can't know this right
-			NetNS:  defaultNsId,
+			Pid:    0, // packet capture does not have PID information.
+			NetNS:  defaultNsID,
 			SPort:  uint16(synPkt.tcp.SrcPort),
 			DPort:  uint16(synPkt.tcp.DstPort),
 			Type:   network.TCP,
@@ -165,7 +165,7 @@ func (pb packetBuilder) outgoing(payloadLen uint16, relSeq, relAck uint32, flags
 	}
 }
 
-func newTcpTestFixture(t *testing.T) *tcpTestFixture { //nolint:revive // TODO
+func newTCPTestFixture(t *testing.T) *tcpTestFixture {
 	return &tcpTestFixture{
 		t:    t,
 		tcp:  NewTCPProcessor(),
@@ -175,7 +175,7 @@ func newTcpTestFixture(t *testing.T) *tcpTestFixture { //nolint:revive // TODO
 
 func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
 	if fixture.conn == nil {
-		fixture.conn = makeTcpStates(pkt)
+		fixture.conn = makeTCPStates(pkt)
 	}
 	err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
 	require.NoError(fixture.t, err)
@@ -187,18 +187,18 @@ func (fixture *tcpTestFixture) runPkts(packets []testCapture) { //nolint:unused 
 	}
 }
 
-func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected []ConnStatus) {
+func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected []connStatus) {
 	require.Equal(fixture.t, len(packets), len(expected), "packet length didn't match expected states length")
 	var expectedStrs []string
 	var actualStrs []string
 
 	for i, pkt := range packets {
-		expectedStrs = append(expectedStrs, LabelForState(expected[i]))
+		expectedStrs = append(expectedStrs, labelForState(expected[i]))
 
 		fixture.runPkt(pkt)
 		connTuple := fixture.conn.ConnectionTuple
 		actual := fixture.tcp.conns[connTuple].tcpState
-		actualStrs = append(actualStrs, LabelForState(actual))
+		actualStrs = append(actualStrs, labelForState(actual))
 	}
 	require.Equal(fixture.t, expectedStrs, actualStrs)
 }
@@ -223,23 +223,23 @@ func testBasicHandshake(t *testing.T, pb packetBuilder) {
 		pb.incoming(0, 347, 125, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
 		// three-way handshake finishes here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
 		// passive close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
 		// final FIN was ack'd
-		ConnStatClosed,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -292,22 +292,22 @@ func testReversedBasicHandshake(t *testing.T, pb packetBuilder) {
 		pb.outgoing(0, 347, 125, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
 		// three-way handshake finishes here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
 		// active close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -359,21 +359,21 @@ func testCloseWaitState(t *testing.T, pb packetBuilder) {
 		pb.incoming(0, 347, 224+42+1, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
 		// three-way handshake finishes here
-		ConnStatEstablished,
-		ConnStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
 		// passive close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -427,23 +427,23 @@ func testFinWait2State(t *testing.T, pb packetBuilder) {
 		pb.outgoing(0, 347, 225, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
 		// three-way handshake finishes here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
 		// active close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -486,17 +486,17 @@ func TestImmediateFin(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
 		// active close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -520,12 +520,12 @@ func TestConnRefusedSyn(t *testing.T) {
 		pb.outgoing(0, 0, 0, RST|ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatClosed,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Equal(t, map[uint16]uint32{
@@ -552,13 +552,13 @@ func TestConnRefusedSynAck(t *testing.T) {
 		pb.outgoing(0, 0, 0, RST|ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatClosed,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Equal(t, map[uint16]uint32{
@@ -587,15 +587,15 @@ func TestConnReset(t *testing.T) {
 		pb.outgoing(0, 1, 1, RST|ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
 		// reset
-		ConnStatClosed,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Equal(t, map[uint16]uint32{
@@ -628,23 +628,23 @@ func TestConnectTwice(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
 		// active close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	state := f.tcp.conns[f.conn.ConnectionTuple]
 	// make sure the TCP state was erased after the connection was closed
 	require.Equal(t, connectionState{
-		tcpState: ConnStatClosed,
+		tcpState: connStatClosed,
 	}, state)
 
 	// second connection here
@@ -677,18 +677,18 @@ func TestSimultaneousClose(t *testing.T) {
 		pb.incoming(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
 		// active close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -720,18 +720,18 @@ func TestUnusualAckSyn(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
 		// active close begins here
-		ConnStatEstablished,
-		ConnStatEstablished,
-		ConnStatClosed,
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
 	}
 
-	f := newTcpTestFixture(t)
+	f := newTCPTestFixture(t)
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	require.Empty(t, f.conn.TCPFailures)
@@ -746,4 +746,32 @@ func TestUnusualAckSyn(t *testing.T) {
 		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
+
+// TestOpenCloseConn checks whether IsClosed is set correctly in ConnectionStats
+func TestOpenCloseConn(t *testing.T) {
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+
+	f := newTCPTestFixture(t)
+
+	// send a SYN packet to kick things off
+	f.runPkt(pb.incoming(0, 0, 0, SYN))
+	require.False(t, f.conn.IsClosed)
+
+	// finish up the connection handshake and close it
+	remainingPkts := []testCapture{
+		pb.outgoing(0, 0, 1, SYN|ACK),
+		pb.incoming(0, 1, 1, ACK),
+		// active close after sending no data
+		pb.outgoing(0, 1, 1, FIN|ACK),
+		pb.incoming(0, 1, 2, FIN|ACK),
+		pb.outgoing(0, 2, 2, ACK),
+	}
+	f.runPkts(remainingPkts)
+	// should be closed now
+	require.True(t, f.conn.IsClosed)
+
+	// open it up again, it should not be marked closed afterward
+	f.runPkt(pb.incoming(0, 0, 0, SYN))
+	require.False(t, f.conn.IsClosed)
 }
