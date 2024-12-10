@@ -18,7 +18,6 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
     """
     Trigger a workflow to bump windows gitlab runner
     """
-    datadog_agent_ref = datadog_agent_ref or get_default_branch()
     inputs = {}
     if new_version is not None:
         inputs["new-version"] = new_version
@@ -36,6 +35,10 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
 
     gh = GithubAPI('DataDog/buildenv')
     result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
+
+    if not result:
+        print("Couldn't trigger workflow run.")
+        raise Exit(code=1)
 
     might_be_waiting = set()
 
@@ -58,9 +61,6 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
         sleep(10)
     if len(might_be_waiting) != 0:
         print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
-        print(
-            f"This is maybe due to a concurrency issue, retrying ({i + 1}/{MAX_WAITING_CONCURRENCY_RETRIES}) in 30 min"
-        )
         sleep(1800)
 
     # Something went wrong :(

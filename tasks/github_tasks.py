@@ -16,6 +16,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
+    trigger_buildenv_workflow,
     trigger_macos_workflow,
 )
 from tasks.libs.common.color import Color, color_message
@@ -27,10 +28,8 @@ from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
-from tasks.release import _get_release_json_value
 from tasks.libs.releasing.version import current_version
-from tasks.release import get_version_major
-
+from tasks.release import _get_release_json_value, get_version_major
 
 ALL_TEAMS = '@datadog/agent-all'
 
