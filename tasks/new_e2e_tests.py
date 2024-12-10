@@ -168,20 +168,24 @@ def run(
         )
 
     if logs_post_processing:
-        post_processed_output = post_process_output(
-            test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
-        )
+        if len(test_res) == 1:
+            post_processed_output = post_process_output(
+                test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
+            )
 
-        os.makedirs(logs_folder, exist_ok=True)
-        write_result_to_log_files(post_processed_output, logs_folder)
-        try:
-            pretty_print_logs(post_processed_output)
-        except TooManyLogsError:
-            print(
-                color_message(
-                    "Too many logs to print, skipping pretty print. You can still find them properly organized in the job artifacts",
-                    "yellow",
+            os.makedirs(logs_folder, exist_ok=True)
+            write_result_to_log_files(post_processed_output, logs_folder)
+            try:
+                pretty_print_logs(post_processed_output)
+            except TooManyLogsError:
+                print(
+                    color_message("WARNING", "yellow")
+                    + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
                 )
+        else:
+            print(
+                color_message("WARNING", "yellow")
+                + f": Logs post processing expect only test result for test/new-e2e module. Skipping because result contains test for {len(test_res)} modules."
             )
 
     if not success:
@@ -335,7 +339,9 @@ def post_process_output(path: str, test_depth: int = 1):
 def write_result_to_log_files(logs_per_test, log_folder):
     for package, tests in logs_per_test.items():
         for test, logs in tests.items():
-            with open(f"{log_folder}/{package.replace('/', '-')}.{test.replace('/', '-')}.log", "w") as f:
+            sanitized_package_name = re.sub(r"[^\w_. -]", "_", package)
+            sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
+            with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
                 f.write("".join(logs))
 
 
@@ -350,7 +356,7 @@ def pretty_print_logs(logs_per_test, max_size=250000):
     for _, tests in logs_per_test.items():
         for _, logs in tests.items():
             size += len("".join(logs).encode())
-    if size > max_size:
+    if size > max_size and running_in_ci():
         raise TooManyLogsError
     for package, tests in logs_per_test.items():
         for test, logs in tests.items():
