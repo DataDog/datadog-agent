@@ -133,10 +133,7 @@ Auto-discovery IDs:
 		msg := <-outputChan
 		parsedMessage := processor.JSONPayload
 		err := json.Unmarshal(msg.GetContent(), &parsedMessage)
-		if err != nil {
-			fmt.Printf("Failed to parse message: %v\n", err)
-			continue
-		}
+		assert.NoError(t, err)
 
 		assert.Equal(t, parsedMessage.Message, expectedOutput[i])
 	}
