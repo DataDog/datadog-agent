@@ -11,7 +11,7 @@ exporters:
       span_name_as_resource_name: true
     metrics:
       resource_attributes_as_tags: true
-    hostname: "otelcol-test-olivierg"
+    hostname: "otelcol-test-olivierg2"
     api:
       key: ${DD_API_KEY}
 processors:
