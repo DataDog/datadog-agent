@@ -463,12 +463,12 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
-        if not yes_no_question(
-            f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
-            color="bold",
-            default=False,
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
+        # if not yes_no_question(
+        #     f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
+        #     color="bold",
+        #     default=False,
+        # ):
+        #     raise Exit(color_message("Aborting.", "red"), code=1)
 
         update_release_json(new_version, new_final_version)
 
