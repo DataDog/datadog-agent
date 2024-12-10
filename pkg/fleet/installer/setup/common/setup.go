@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -46,13 +47,20 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 			},
 			IntegrationConfigs: make(map[string]IntegrationConfig),
 		},
-		Packages: make(Packages),
+		Packages: Packages{
+			install:          make(map[string]string),
+			versionOverrides: env.DefaultPackagesVersionOverride,
+		},
 	}
 	return s, nil
 }
 
-// Run installs the packages and writes the configurations
-func (i *Setup) Run(ctx context.Context) error {
-
+// Exec installs the packages and writes the configurations
+func (s *Setup) Exec(ctx context.Context, installer installer.Installer) (err error) {
+	defer func() { s.Span.Finish(tracer.WithError(err)) }()
+	err = s.Config.write(configDir)
+	if err != nil {
+		return fmt.Errorf("failed to write configuration: %w", err)
+	}
 	return nil
 }

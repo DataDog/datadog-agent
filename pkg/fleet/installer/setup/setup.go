@@ -10,25 +10,41 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/agent"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 const (
+	// FlavorManagedAgent is the flavor for the managed agent setup.
+	FlavorManagedAgent = "managed-agent"
 	// FlavorDatabricks is the flavor for the Data Jobs Monitoring databricks setup.
 	FlavorDatabricks = "databricks"
 )
 
 // Setup installs Datadog.
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
+	i, err := installer.NewInstaller(env)
+	if err != nil {
+		return err
+	}
+	s, err := common.NewSetup(ctx, env, flavor)
+	if err != nil {
+		return err
+	}
 	switch flavor {
+	case FlavorManagedAgent:
+		agent.Setup(s)
 	case FlavorDatabricks:
-		return djm.SetupDatabricks(ctx, env)
+		djm.SetupDatabricks(s)
 	default:
 		return fmt.Errorf("unknown setup flavor %s", flavor)
 	}
+	return s.Exec(ctx, i)
 }
 
 // Agent7InstallScript is the setup used by the agent7 install script.

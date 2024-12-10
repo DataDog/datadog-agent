@@ -7,27 +7,10 @@
 package agent
 
 import (
-	"context"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 )
 
-type agentSetup struct {
-	*common.Setup
-}
+func Setup(s *common.Setup) {
+	s.Packages.Install(common.DatadogAgentPackage, "latest")
 
-func Setup(ctx context.Context, env *env.Env) error {
-	s, err := common.NewSetup(env)
-	if err != nil {
-		return err
-	}
-	setup := &agentSetup{
-		Setup: s,
-	}
-	return nil
-}
-
-func (as *agentSetup) setup() error {
-	return nil
 }
