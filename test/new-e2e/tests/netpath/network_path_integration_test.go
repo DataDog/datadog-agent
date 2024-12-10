@@ -70,9 +70,19 @@ func (s *networkPathIntegrationTestSuite) TestMetrics() {
 			{"destination_hostname:8.8.8.8", "protocol:UDP"},
 		}
 		for _, tags := range destinationsTagsToAssert {
+			// assert destination is monitored
 			metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-			require.NoError(c, err)
+			assert.NoError(c, err)
 			assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+
+			// assert hops
+			metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.hops",
+				fakeintakeclient.WithTags[*aggregator.MetricSeries](tags),
+				fakeintakeclient.WithMetricValueHigherThan(0),
+			)
+			assert.NoError(c, err)
+			assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+
 		}
 	}, 5*time.Minute, 3*time.Second)
 }
