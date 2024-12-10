@@ -1097,7 +1097,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				} else {
 					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, event.PTrace.NSPID)
 					if err != nil {
-						seclog.Infof("PTrace err: %v", err)
+						seclog.Debugf("PTrace err: %v", err)
 						return
 					}
 					pidToResolve = pid
