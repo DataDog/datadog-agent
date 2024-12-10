@@ -28,7 +28,7 @@ def build(
     ctx,
     build_tags=None,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     major_version='7',
     go_mod="readonly",
     static=False,
@@ -59,7 +59,7 @@ def build(
     build_tags.append("osusergo")
 
     race_opt = "-race" if race else ""
-    build_type = "" if incremental_build else "-a"
+    build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
 

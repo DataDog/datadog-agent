@@ -9,6 +9,7 @@ on:
       - 'pkg/serverless/**'
       - 'test/integration/serverless/**'
       - '.github/workflows/serverless-integration.yml'
+      - 'go.mod'
   schedule:
     - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
@@ -67,6 +68,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+          GOWORK: off
         with:
           timeout_minutes: 60
           max_attempts: 2
