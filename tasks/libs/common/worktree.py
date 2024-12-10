@@ -17,7 +17,7 @@ WORKTREE_DIRECTORY = Path.cwd().parent / "datadog-agent-worktree"
 LOCAL_DIRECTORY = Path.cwd().resolve()
 
 
-def init_env(ctx, branch: str | None = None):
+def init_env(ctx, branch: str | None = None, commit: str | None = None):
     """Will prepare the environment for commands applying to a worktree.
 
     To be used before each worktree section.
@@ -51,7 +51,15 @@ def init_env(ctx, branch: str | None = None):
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{branch}'", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
+            # TODO A
+            print(branch)
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
+
+    if commit:
+        if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
+
+        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{commit}'", hide=True)
 
 
 def remove_env(ctx):
@@ -66,14 +74,14 @@ def is_worktree():
     return Path.cwd().resolve() == WORKTREE_DIRECTORY.resolve()
 
 
-def enter_env(ctx, branch: str | None, skip_checkout=False):
+def enter_env(ctx, branch: str | None, skip_checkout=False, commit: str | None = None):
     """Enters the worktree environment."""
 
-    if not branch:
+    if not (branch or commit):
         assert skip_checkout, 'skip_checkout must be set to True if branch is None'
 
     if not skip_checkout:
-        init_env(ctx, branch)
+        init_env(ctx, branch, commit=commit)
     else:
         assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and skip_checkout is set to True"
 
@@ -92,12 +100,13 @@ def exit_env():
 
 
 @contextmanager
-def agent_context(ctx, branch: str | None, skip_checkout=False):
+def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: str | None = None):
     """Applies code to the worktree environment if the branch is not None.
 
     Args:
         branch: The branch to switch to. If None, will enter the worktree environment without switching branch (ensures that skip_checkout is True).
         skip_checkout: If True, the branch will not be checked out (no pull will be performed too).
+        commit: The commit to checkout. Is used instead of branch if provided.
 
     Usage:
         > with agent_context(ctx, branch):
@@ -111,7 +120,7 @@ def agent_context(ctx, branch: str | None, skip_checkout=False):
 
     try:
         # Enter
-        enter_env(ctx, branch, skip_checkout=skip_checkout)
+        enter_env(ctx, branch, skip_checkout=skip_checkout, commit=commit)
 
         yield
     finally:

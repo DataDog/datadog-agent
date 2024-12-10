@@ -3,8 +3,10 @@ Diffing tasks
 """
 
 import datetime
+import json
 import os
 import tempfile
+from datetime import timedelta
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -12,9 +14,10 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
+from tasks.libs.common.worktree import agent_context
 from tasks.release import _get_release_json_value
 
 BINARIES: dict[str, dict] = {
@@ -230,3 +233,54 @@ def patch_summary(diff):
         elif line.startswith("-"):
             remove_count += 1
     return add_count, remove_count
+
+
+@task
+def invoke_tasks(ctx, diff_date: str | None = None):
+    """Shows the added / removed invoke tasks since diff_date with their description.
+
+    Args:
+        diff_date: The date to compare the tasks to ('YY/MM/DD' format). Will be the last 30 days if not provided.
+    """
+
+    if not diff_date:
+        diff_date = (datetime.datetime.now() - timedelta(days=30)).strftime('%Y/%m/%d')
+
+    def get_tasks() -> dict[str, str]:
+        tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
+
+        def get_tasks_rec(collection, prefix='', res=None):
+            res = res or {}
+
+            if isinstance(collection, dict):
+                newpref = prefix + collection['name']
+
+                for task in collection['tasks']:
+                    res[newpref + '.' + task['name']] = task['help']
+
+                for subtask in collection['collections']:
+                    get_tasks_rec(subtask, newpref + '.', res)
+
+            return res
+
+        # Remove 'tasks.' prefix
+        return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in get_tasks_rec(tasks).items()}
+
+    old_commit = ctx.run(f"git rev-list -n 1 --before='{diff_date} 23:59' HEAD", hide=True).stdout.strip()
+    with agent_context(ctx, commit=old_commit):
+        old_tasks = get_tasks()
+    current_tasks = get_tasks()
+
+    all_tasks = set(old_tasks.keys()).union(current_tasks.keys())
+    removed_tasks = {task for task in all_tasks if task not in current_tasks}
+    added_tasks = {task for task in all_tasks if task not in old_tasks}
+
+    print(f'* {color_message("Removed tasks", Color.BOLD)}:')
+    print('\n'.join(sorted(f'- {name}' for name in removed_tasks)))
+
+    print(f'\n* {color_message("Added tasks", Color.BOLD)}:')
+    for name, description in sorted((name, current_tasks[name]) for name in added_tasks):
+        line = '+ ' + name
+        if description:
+            line += ': ' + description
+        print(line)
