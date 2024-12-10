@@ -137,6 +137,7 @@ Auto-discovery IDs:
 
 		assert.Equal(t, parsedMessage.Message, expectedOutput[i])
 	}
+
 	launcher.Stop()
 	pipelineProvider.Stop()
 }
