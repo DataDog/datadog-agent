@@ -79,7 +79,7 @@ type ECSFargateCoreAgentSuite struct {
 
 func TestECSFargateCoreAgentTestSuite(t *testing.T) {
 	t.Parallel()
-	s := ECSFargateSuite{}
+	s := ECSFargateCoreAgentSuite{}
 
 	extraConfig := runner.ConfigMap{
 		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=true"},
