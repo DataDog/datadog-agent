@@ -685,14 +685,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	}
 
 	serviceName := getServiceNameFromContainerTags(container.Tags)
-
-	if serviceName != "" {
-		service.ContainerServiceName = serviceName
-		// Update the legacy name field as well
-		if service.Name == "" {
-			service.Name = serviceName
-		}
-	}
+	service.ContainerServiceName = serviceName
 	service.CheckedContainerData = true
 
 	s.mux.Lock()
