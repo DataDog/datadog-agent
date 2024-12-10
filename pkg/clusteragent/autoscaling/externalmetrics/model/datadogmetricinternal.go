@@ -317,7 +317,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		return
 	}
 	if resolvedQuery != "" {
-		log.Infof("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
+		log.Debugf("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
 		d.resolvedQuery = &resolvedQuery
 		return
 	}

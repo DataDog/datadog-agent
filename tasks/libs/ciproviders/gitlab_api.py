@@ -119,6 +119,13 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
+@retry_function('cancel pipeline #{0.id}', retry_delay=5)
+def cancel_pipeline(pipeline: ProjectPipeline):
+    """Cancels a pipeline, retries if there is an error."""
+
+    pipeline.cancel()
+
+
 class GitlabCIDiff:
     def __init__(
         self,
@@ -176,7 +183,7 @@ class GitlabCIDiff:
             added=set(data['added']),
             removed=set(data['removed']),
             modified=set(data['modified']),
-            renamed=set(data['renamed']),
+            renamed=data['renamed'],
             modified_diffs=data['modied_diffs'],
             added_contents=data['added_contents'],
         )

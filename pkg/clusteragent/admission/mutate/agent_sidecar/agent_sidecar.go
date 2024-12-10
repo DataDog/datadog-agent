@@ -16,6 +16,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -177,12 +178,25 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
+			if isOwnedByJob(pod.OwnerReferences) {
+				updated, err = withEnvOverrides(&pod.Spec.Containers[i], corev1.EnvVar{
+					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
+					Value: "true",
+				})
+			}
+			if err != nil {
+				log.Errorf("Failed to apply env overrides: %v", err)
+				return podUpdated, errors.New(metrics.InternalError)
+			}
+			podUpdated = podUpdated || updated
+
 			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profilesJSON)
 			if err != nil {
 				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
 			}
 			podUpdated = podUpdated || updated
+
 			break
 		}
 	}
@@ -319,4 +333,14 @@ func labelSelectors(datadogConfig config.Component) (namespaceSelector, objectSe
 	}
 
 	return namespaceSelector, objectSelector
+}
+
+// isOwnedByJob returns true if the pod is owned by a Job
+func isOwnedByJob(ownerReferences []metav1.OwnerReference) bool {
+	for _, owner := range ownerReferences {
+		if strings.HasPrefix(owner.APIVersion, "batch/") && owner.Kind == "Job" {
+			return true
+		}
+	}
+	return false
 }
