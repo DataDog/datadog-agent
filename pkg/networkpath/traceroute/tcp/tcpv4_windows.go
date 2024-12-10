@@ -17,19 +17,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	SO_EXCLUSIVEADDRUSE = 5
+)
+
 var (
 	sendTo = windows.Sendto
 )
 
 type winrawsocket struct {
-	s windows.Handle
+	s          windows.Handle
+	streamSock windows.Handle // used to hold a TCP port, not used for communication
+	port       uint16
 }
 
 func (w *winrawsocket) close() {
 	if w.s != windows.InvalidHandle {
 		windows.Closesocket(w.s) // nolint: errcheck
 	}
+	if w.streamSock != windows.InvalidHandle {
+		windows.Closesocket(w.streamSock) // nolint: errcheck
+	}
 	w.s = windows.InvalidHandle
+	w.streamSock = windows.InvalidHandle
 }
 
 func (t *TCPv4) sendRawPacket(w *winrawsocket, payload []byte) error {
@@ -62,7 +72,50 @@ func createRawSocket() (*winrawsocket, error) {
 		windows.Closesocket(s) // nolint: errcheck
 		return nil, fmt.Errorf("failed to set SO_RCVTIMEO: %w", err)
 	}
-	return &winrawsocket{s: s}, nil
+
+	port, streamSock, err := reserveTCPPort()
+	if err != nil {
+		windows.Closesocket(s) // nolint: errcheck
+		return nil, fmt.Errorf("failed to reserve TCP port: %w", err)
+	}
+
+	return &winrawsocket{s: s, streamSock: streamSock, port: uint16(port)}, nil
+}
+
+func reserveTCPPort() (int, windows.Handle, error) {
+	streamSock, err := windows.Socket(windows.AF_INET, windows.SOCK_STREAM, windows.IPPROTO_TCP)
+	if err != nil {
+		return -1, windows.InvalidHandle, fmt.Errorf("failed to create stream sockets: %w", err)
+	}
+
+	off := int(0)
+	err = windows.SetsockoptInt(streamSock, windows.SOL_SOCKET, windows.SO_REUSEADDR, off)
+	if err != nil {
+		windows.Closesocket(streamSock)
+		return -1, windows.InvalidHandle, fmt.Errorf("failed to set SO_REUSEADDR: %w", err)
+	}
+
+	err = windows.Bind(streamSock, &windows.SockaddrInet4{})
+	if err != nil {
+		windows.Closesocket(streamSock) // nolint: errcheck
+		return -1, windows.InvalidHandle, fmt.Errorf("failed to bind to ephemeral port: %w", err)
+	}
+
+	sockaddr, err := windows.Getsockname(streamSock)
+	if err != nil {
+		windows.Closesocket(streamSock) // nolint: errcheck
+		return -1, windows.InvalidHandle, fmt.Errorf("failed to get socket name: %w", err)
+	}
+
+	sa4, ok := sockaddr.(*windows.SockaddrInet4)
+	if !ok {
+		windows.Closesocket(streamSock) // nolint: errcheck
+		return -1, windows.InvalidHandle, fmt.Errorf("failed to get port from socket")
+	}
+
+	log.Warnf("WINDOWS RAW SOCKET PORT IS: %d", sa4.Port)
+
+	return sa4.Port, streamSock, nil
 }
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
@@ -79,13 +132,13 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
 	t.srcIP = addr.IP
-	t.srcPort = addr.AddrPort().Port()
 
 	rs, err := createRawSocket()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw socket: %w", err)
 	}
 	defer rs.close()
+	t.srcPort = rs.port
 
 	hops := make([]*Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
 

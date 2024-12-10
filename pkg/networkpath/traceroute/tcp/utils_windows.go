@@ -95,10 +95,12 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		log.Tracef("Got packet %+v", buf[:n])
 
 		if n < 20 { // min size of ipv4 header
+			log.Trace("Less than 20 header!!!")
 			continue
 		}
 		header, err := ipv4.ParseHeader(buf[:n])
 		if err != nil {
+			log.Tracef("COULD NOT PARSE HEADER: %s", err.Error())
 			continue
 		}
 		packet := buf[header.Len:header.TotalLen]
@@ -117,6 +119,8 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 			}
 			if icmpMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
 				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
+			} else {
+				log.Tracef("got an ICMP message, but it's not a match? %+v", icmpResponse)
 			}
 		} else if header.Protocol == windows.IPPROTO_TCP {
 			// don't even bother parsing the packet if the src/dst ip don't match
