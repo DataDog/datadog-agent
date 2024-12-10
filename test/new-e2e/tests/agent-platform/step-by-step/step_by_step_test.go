@@ -39,6 +39,7 @@ var (
 type stepByStepSuite struct {
 	e2e.BaseSuite[environments.Host]
 
+	osName       string
 	osVersion    float64
 	cwsSupported bool
 }
@@ -105,7 +106,7 @@ func TestStepByStepScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
-				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version},
+				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, osName: osVers},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -240,7 +241,7 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
-	if *platform == "centos" {
+	if strings.HasPrefix(is.osName, "centos") {
 		// Centos 7 EOLed on July 1st, 2024. We need to switch to vault.centos.org to get the packages
 		is.T().Run("update centos mirrorlist", func(t *testing.T) {
 			ExecuteWithoutError(t, VMclient, "sudo sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo")
@@ -291,6 +292,7 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
+		ExecuteWithoutError(t, VMclient, "sudo registercloudguest --force-new")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
 	})
 }
