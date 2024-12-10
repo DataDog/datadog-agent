@@ -76,8 +76,8 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
-	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto mulitline aggregator.
-	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto mulitline aggregator")
+	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
+	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")
 
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
@@ -88,9 +88,14 @@ var (
 	TlmUtilizationRatio = telemetry.NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component")
 	// TlmUtilizationItems is the capacity of a component by number of elements
 	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
-	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and it's bufferes")
+	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and it's buffers")
 	// TlmUtilizationBytes is the capacity of a component by number of bytes
-	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and it's bufferes")
+	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and it's buffers")
+
+	// TlmNumSenders is the number of senders in use
+	TlmNumSenders = telemetry.NewGauge("logs_destination", "senders", []string{"instance"}, "")
+	// TlmVirtualLatency is the amount of time a payload spends waiting for a worker.
+	TlmVirtualLatency = telemetry.NewGauge("logs_destination", "virtual_latency", []string{"instance"}, "")
 )
 
 func init() {
