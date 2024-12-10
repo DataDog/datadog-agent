@@ -142,7 +142,7 @@ def _trigger_buildenv_workflow(new_version=None, datadog_agent_ref="master"):
         new_version=new_version,
     )
 
-    workflow_conclusion, workflow_url = follow_workflow_run(run)
+    workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv")
 
     if workflow_conclusion == "failure":
         print_failed_jobs_logs(run)
