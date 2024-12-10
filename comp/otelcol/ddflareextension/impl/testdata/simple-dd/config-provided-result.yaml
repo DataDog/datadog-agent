@@ -14,6 +14,7 @@ exporters:
     host_metadata:
       enabled: false
       hostname_source: config_or_system
+      reporter_period: 30m0s
       tags: []
     hostname: ""
     http2_ping_timeout: 0s
