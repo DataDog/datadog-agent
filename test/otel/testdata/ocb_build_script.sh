@@ -4,17 +4,15 @@ OTELCOL_PID=0
 
 mkdir -p /tmp/otel-ci
 trap 'rm -rf /tmp/otel-ci && kill $OTELCOL_PID' EXIT
+
 current_dir=$(pwd)
-replaces="/tmp/otel-ci/replaces"
+cp ./test/otel/testdata/builder-config.yaml /tmp/otel-ci/
 # Get path of all datadog modules, in sorted order, without the initial dot
 dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//')
-echo "replaces:" >> "$replaces"
+echo "replaces:" >> "/tmp/otel-ci/builder-config.yaml"
 for mod in $dd_mods; do
-  echo "- github.com/DataDog/datadog-agent$mod => $current_dir$mod" >> "$replaces"
+  echo "- github.com/DataDog/datadog-agent$mod => $current_dir$mod" >> /tmp/otel-ci/builder-config.yaml
 done
-
-cp ./test/otel/testdata/builder-config.yaml /tmp/otel-ci/
-cat "$replaces" >> /tmp/otel-ci/builder-config.yaml
 echo "added all datadog-agent modules to ocb builder-config replacements"
 
 cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
