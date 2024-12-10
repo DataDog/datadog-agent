@@ -240,11 +240,8 @@ def invoke_tasks(ctx, diff_date: str | None = None):
     """Shows the added / removed invoke tasks since diff_date with their description.
 
     Args:
-        diff_date: The date to compare the tasks to ('YY/MM/DD' format). Will be the last 30 days if not provided.
+        diff_date: The date to compare the tasks to ('YYYY-MM-DD' format). Will be the last 30 days if not provided.
     """
-
-    if not diff_date:
-        diff_date = (datetime.datetime.now() - timedelta(days=30)).strftime('%Y/%m/%d')
 
     def get_tasks() -> dict[str, str]:
         tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
@@ -266,7 +263,17 @@ def invoke_tasks(ctx, diff_date: str | None = None):
         # Remove 'tasks.' prefix
         return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in get_tasks_rec(tasks).items()}
 
+    if not diff_date:
+        diff_date = (datetime.datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    else:
+        try:
+            datetime.datetime.strptime(diff_date, '%Y-%m-%d')
+        except ValueError as e:
+            raise Exit('Invalid date format. Please use the format "YYYY-MM-DD".') from e
+
     old_commit = ctx.run(f"git rev-list -n 1 --before='{diff_date} 23:59' HEAD", hide=True).stdout.strip()
+    assert old_commit, f"No commit found before {diff_date}"
+
     with agent_context(ctx, commit=old_commit):
         old_tasks = get_tasks()
     current_tasks = get_tasks()
