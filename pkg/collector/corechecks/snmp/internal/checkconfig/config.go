@@ -48,7 +48,6 @@ const defaultWorkers = 5
 const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
-const defaultDetectMetricsRefreshInterval = 3600
 
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
