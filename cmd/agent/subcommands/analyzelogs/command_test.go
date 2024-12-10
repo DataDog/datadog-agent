@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,9 +114,6 @@ Auto-discovery IDs:
 
 	outputChan, launcher, pipelineProvider := runAnalyzeLogsHelper(cliParams, config)
 
-	inactivityTimeout := 1 * time.Second
-	idleTimer := time.NewTimer(inactivityTimeout)
-
 	expectedOutput := []string{
 		"=== apm check ===",
 		"Configuration provider: file",
@@ -132,29 +128,18 @@ Auto-discovery IDs:
 		"* _container_image",
 		"===",
 	}
-	i := 0
-	for {
-		select {
-		case msg := <-outputChan:
-			parsedMessage := processor.JSONPayload
-			err := json.Unmarshal(msg.GetContent(), &parsedMessage)
-			if err != nil {
-				fmt.Printf("Failed to parse message: %v\n", err)
-				continue
-			}
 
-			assert.Equal(t, parsedMessage.Message, expectedOutput[i])
-			i = i + 1
-			// Reset the inactivity timer every time a message is processed
-			if !idleTimer.Stop() {
-				<-idleTimer.C
-			}
-			idleTimer.Reset(inactivityTimeout)
-		case <-idleTimer.C:
-			launcher.Stop()
-			pipelineProvider.Stop()
-			return
+	for i := 0; i < len(expectedOutput); i++ {
+		msg := <-outputChan
+		parsedMessage := processor.JSONPayload
+		err := json.Unmarshal(msg.GetContent(), &parsedMessage)
+		if err != nil {
+			fmt.Printf("Failed to parse message: %v\n", err)
+			continue
 		}
-	}
 
+		assert.Equal(t, parsedMessage.Message, expectedOutput[i])
+	}
+	launcher.Stop()
+	pipelineProvider.Stop()
 }
