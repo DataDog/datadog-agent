@@ -98,7 +98,7 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		if !kindIsSupported(reflect.Kind(current.Kind)) {
+		if current == nil || !kindIsSupported(reflect.Kind(current.Kind)) {
 			continue
 		}
 		if len(current.ParameterPieces) != 0 {
@@ -223,6 +223,10 @@ func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Loc
 // correctStructLocations field offsets for structs
 func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[bininspect.FieldIdentifier]uint64) {
 	for i := range structParam.ParameterPieces {
+		if structParam.ParameterPieces[i] == nil {
+			continue
+		}
+
 		fieldID := bininspect.FieldIdentifier{
 			StructName: structParam.Type,
 			FieldName:  structParam.ParameterPieces[i].Name,

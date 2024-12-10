@@ -494,11 +494,11 @@ func correctStructSizes(params []*ditypes.Parameter) {
 
 // correctStructSize sets the size of structs to the number of fields in the struct
 func correctStructSize(param *ditypes.Parameter) {
+	if param == nil || len(param.ParameterPieces) == 0 {
+		return
+	}
 	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
 		param.TotalSize = int64(len(param.ParameterPieces))
-	}
-	if len(param.ParameterPieces) == 0 {
-		return
 	}
 	for i := range param.ParameterPieces {
 		correctStructSize(param.ParameterPieces[i])
@@ -512,6 +512,10 @@ func copyTree(dst, src *[]*ditypes.Parameter) {
 	*dst = make([]*ditypes.Parameter, len(*src))
 	copy(*dst, *src)
 	for i := range *src {
+
+		if (*dst)[i] == nil || (*src)[i] == nil {
+			return
+		}
 		copyTree(&((*dst)[i].ParameterPieces), &((*src)[i].ParameterPieces))
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/kr/pretty"
 )
 
 var (
@@ -54,7 +53,6 @@ func ParseEvent(procs ditypes.DIProcs, record []byte, ratelimiters *ratelimiter.
 	}
 
 	event.Argdata = readParamsForProbe(probe, record[ditypes.SizeofBaseEvent:])
-	pretty.Log(event)
 	return &event, nil
 }
 

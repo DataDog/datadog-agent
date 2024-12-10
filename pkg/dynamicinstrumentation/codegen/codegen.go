@@ -126,6 +126,10 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 		}
 		top = queue[0]
 		queue = queue[1:]
+
+		if top == nil {
+			continue
+		}
 		for i := range top.ParameterPieces {
 			queue = append(queue, top.ParameterPieces[i])
 		}

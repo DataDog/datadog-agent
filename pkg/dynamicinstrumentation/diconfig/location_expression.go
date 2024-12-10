@@ -152,28 +152,32 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 					sliceIdentifier := randomLabel()
-					ptr := elementParam.ParameterPieces[0]
-					len := elementParam.ParameterPieces[1]
-					if len.Location != nil {
-						len.LocationExpressions = append(len.LocationExpressions,
-							ditypes.DirectReadLocationExpression(len),
+					slicePointer := elementParam.ParameterPieces[0]
+					sliceLength := elementParam.ParameterPieces[1]
+					if sliceLength.Location != nil {
+						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
+							ditypes.DirectReadLocationExpression(sliceLength),
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
-						len.LocationExpressions = append(targetExpressions,
-							ditypes.ApplyOffsetLocationExpression(uint(len.FieldOffset)),
+						sliceLength.LocationExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(sliceLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
 
+					if len(slicePointer.ParameterPieces) == 0 {
+						continue
+					}
+
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
-					sliceElementType := ptr.ParameterPieces[0]
+					sliceElementType := slicePointer.ParameterPieces[0]
 
-					if ptr.Location != nil && len.Location != nil {
+					if slicePointer.Location != nil && sliceLength.Location != nil {
 						// Fields of the slice are directly assigned
 						targetExpressions = append(targetExpressions,
-							ditypes.DirectReadLocationExpression(len),
+							ditypes.DirectReadLocationExpression(sliceLength),
 							ditypes.SetLimitEntry(sliceIdentifier, uint(ditypes.SliceMaxLength)),
 						)
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
@@ -182,7 +186,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
-								ditypes.DirectReadLocationExpression(ptr),
+								ditypes.DirectReadLocationExpression(slicePointer),
 								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
@@ -267,6 +271,9 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 
 	var visit func(param *ditypes.Parameter, path string)
 	visit = func(param *ditypes.Parameter, path string) {
+		if param == nil {
+			return
+		}
 		trieKeys = append(trieKeys, ExpressionParamTuple{path + param.Type, param})
 
 		if (len(param.ParameterPieces) == 0 ||
