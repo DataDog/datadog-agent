@@ -130,9 +130,11 @@ func TestRunProviders(t *testing.T) {
 
 	start := time.Now()
 	f.Comp.(*flare).runProviders(fb, cliProviderTimeout)
+	// ensure that providers are actually started
 	<-firstStarted
 	elapsed := time.Since(start)
 
+	// ensure that we're not blocking for the slow provider
 	assert.Less(t, elapsed, 5*time.Second)
 	assert.False(t, secondDone.Load())
 }
