@@ -128,12 +128,6 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
-func (c *ntmConfig) logErrorNotImplemented(method string) error {
-	err := fmt.Errorf("not implemented: %s", method)
-	log.Error(err)
-	return err
-}
-
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
