@@ -16,6 +16,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -204,12 +205,25 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
+			if isOwnedByJob(pod.OwnerReferences) {
+				updated, err = withEnvOverrides(&pod.Spec.Containers[i], corev1.EnvVar{
+					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
+					Value: "true",
+				})
+			}
+			if err != nil {
+				log.Errorf("Failed to apply env overrides: %v", err)
+				return podUpdated, errors.New(metrics.InternalError)
+			}
+			podUpdated = podUpdated || updated
+
 			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profileOverrides)
 			if err != nil {
 				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
 			}
 			podUpdated = podUpdated || updated
+
 			break
 		}
 	}
@@ -222,15 +236,11 @@ func (w *Webhook) getSecurityInitTemplate() *corev1.Container {
 		Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Name:            "init-copy-agent-config",
-		Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/", "sh", "-c", "cp -R /opt/datadog-agent/run/ /agent-options/"},
+		Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/"},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      agentConfigVolumeName,
 				MountPath: "/agent-config",
-			},
-			{
-				Name:      agentOptionsVolumeName,
-				MountPath: "/agent-options",
 			},
 		},
 	}
@@ -419,4 +429,14 @@ func labelSelectors(datadogConfig config.Component, profileOverrides []ProfileOv
 	}
 
 	return namespaceSelector, objectSelector
+}
+
+// isOwnedByJob returns true if the pod is owned by a Job
+func isOwnedByJob(ownerReferences []metav1.OwnerReference) bool {
+	for _, owner := range ownerReferences {
+		if strings.HasPrefix(owner.APIVersion, "batch/") && owner.Kind == "Job" {
+			return true
+		}
+	}
+	return false
 }

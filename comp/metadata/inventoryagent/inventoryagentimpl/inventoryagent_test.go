@@ -484,7 +484,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.True(t, ia.data["feature_cws_remote_config_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))

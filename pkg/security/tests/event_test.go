@@ -104,15 +104,19 @@ func TestEventRaleLimiters(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:               "test_unique_id",
-			Expression:       `open.file.path == "{{.Root}}/test-unique-id"`,
-			Every:            5 * time.Second,
+			ID:         "test_unique_id",
+			Expression: `open.file.path == "{{.Root}}/test-unique-id"`,
+			Every: &rules.HumanReadableDuration{
+				Duration: 5 * time.Second,
+			},
 			RateLimiterToken: []string{"process.file.name"},
 		},
 		{
 			ID:         "test_std",
 			Expression: `open.file.path == "{{.Root}}/test-std"`,
-			Every:      5 * time.Second,
+			Every: &rules.HumanReadableDuration{
+				Duration: 5 * time.Second,
+			},
 		},
 	}
 

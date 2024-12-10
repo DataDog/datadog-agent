@@ -610,6 +610,19 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		SourceTypeName: "System",
 	})
 
+	if agg.haAgent.Enabled() {
+		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
+		// Send along a metric to show if HA Agent is running with agent_state tag.
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(haAgentTags),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),

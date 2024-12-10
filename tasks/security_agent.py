@@ -52,10 +52,10 @@ def build(
     ctx,
     build_tags,
     race=False,
-    incremental_build=True,
+    rebuild=False,
     install_path=None,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     skip_assets=False,
     static=False,
     fips_mode=False,
@@ -100,7 +100,7 @@ def build(
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "" if incremental_build else "-a",
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
@@ -375,7 +375,7 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=readonly -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/{src_path}'
 
     args = {
@@ -663,7 +663,7 @@ def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
         [generate_cws_documentation],
-        # [gen_mocks], TODO: re-enable this when go is bumped to 1.23 and mocker is updated to >2.46.1
+        [gen_mocks],
         [sync_secl_win_pkg],
     ]
     failing_tasks = []
