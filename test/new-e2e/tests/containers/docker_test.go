@@ -33,9 +33,8 @@ func (suite *DockerSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":       auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":   auto.ConfigValue{Value: "true"},
-		"ddagent:dualshipping": auto.ConfigValue{Value: "true"},
+		"ddagent:deploy":     auto.ConfigValue{Value: "true"},
+		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "dockerstack", stackConfig, ec2.VMRunWithDocker, false)
