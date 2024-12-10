@@ -125,7 +125,7 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
 	assert.ElementsMatch(s.T(), tagsOrch.Get(), []string{"low1", "low2", "orchestrator1"})
 	assert.ElementsMatch(s.T(), tagsHigh.Get(), []string{"low1", "low2", "orchestrator1", "high1"})
-	assert.Nil(s.T(), tagsNone)
+	assert.ElementsMatch(s.T(), tagsNone.Get(), []string{})
 }
 
 func (s *StoreTestSuite) TestLookupStandard() {
