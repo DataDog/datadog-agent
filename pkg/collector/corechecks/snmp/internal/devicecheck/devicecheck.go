@@ -317,12 +317,12 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		profile, err := d.config.Profiles.GetProfileNameForSysObjectID(sysObjectID)
+		profile, err := d.config.ProfileProvider.GetProfileNameForSysObjectID(sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
-		if profile != d.config.Profile {
-			log.Debugf("detected profile change: %s -> %s", d.config.Profile, profile)
+		if profile != d.config.ProfileName {
+			log.Debugf("detected profile change: %s -> %s", d.config.ProfileName, profile)
 			err = d.config.SetProfile(profile)
 			if err != nil {
 				// Should not happen since the profile is one of those we matched in GetProfileNameForSysObjectID

@@ -223,7 +223,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		IPAddress:      config.IPAddress,
 		SysObjectID:    sysObjectID,
 		Location:       location,
-		Profile:        config.Profile,
+		Profile:        config.ProfileName,
 		ProfileVersion: getProfileVersion(config),
 		Vendor:         vendor,
 		Tags:           tags,

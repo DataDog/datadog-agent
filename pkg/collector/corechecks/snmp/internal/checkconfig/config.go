@@ -177,9 +177,9 @@ type CheckConfig struct {
 	MetricTags            []profiledefinition.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profile.Provider
+	ProfileProvider       profile.Provider
 	ProfileTags           []string
-	Profile               string
+	ProfileName           string
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
@@ -206,12 +206,12 @@ type CheckConfig struct {
 
 // SetProfile refreshes config based on profile
 func (c *CheckConfig) SetProfile(profileName string) error {
-	profileConf := c.Profiles.GetProfile(profileName)
+	profileConf := c.ProfileProvider.GetProfile(profileName)
 	if profileConf == nil {
 		return fmt.Errorf("unknown profile `%s`", profileName)
 	}
 	log.Debugf("Refreshing with profile `%s`", profileName)
-	c.Profile = profileName
+	c.ProfileName = profileName
 
 	if log.ShouldLog(log.DebugLvl) {
 		profileDefJSON, _ := json.Marshal(profileConf.Definition)
@@ -224,8 +224,8 @@ func (c *CheckConfig) SetProfile(profileName string) error {
 // GetProfileDef returns the autodetected profile definition if there is one,
 // the active profile if it exists, or nil if neither is true.
 func (c *CheckConfig) GetProfileDef() *profiledefinition.ProfileDefinition {
-	if c.Profile != "" {
-		profile := c.Profiles.GetProfile(c.Profile)
+	if c.ProfileName != "" {
+		profile := c.ProfileProvider.GetProfile(c.ProfileName)
 		if profile != nil {
 			return &profile.Definition
 		}
@@ -242,7 +242,7 @@ func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
 	c.ProfileTags = nil
 	profileDef := c.GetProfileDef()
 	if profileDef != nil {
-		c.ProfileTags = append(c.ProfileTags, "snmp_profile:"+c.Profile)
+		c.ProfileTags = append(c.ProfileTags, "snmp_profile:"+c.ProfileName)
 		if profileDef.Device.Vendor != "" {
 			c.ProfileTags = append(c.ProfileTags, "device_vendor:"+profileDef.Device.Vendor)
 		}
@@ -492,11 +492,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	profiles, err := profile.GetProfiles(initConfig.Profiles)
+	profiles, err := profile.GetProfileProvider(initConfig.Profiles)
 	if err != nil {
 		return nil, err
 	}
-	c.Profiles = profiles
+	c.ProfileProvider = profiles
 
 	// profile configs
 	profileName := instance.Profile
@@ -661,9 +661,9 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	copy(newConfig.MetricTags, c.MetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
-	newConfig.Profiles = c.Profiles
+	newConfig.ProfileProvider = c.ProfileProvider
 	newConfig.ProfileTags = netutils.CopyStrings(c.ProfileTags)
-	newConfig.Profile = c.Profile
+	newConfig.ProfileName = c.ProfileName
 	newConfig.ExtraTags = netutils.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata

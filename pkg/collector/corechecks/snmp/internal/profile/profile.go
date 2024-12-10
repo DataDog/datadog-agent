@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// GetProfiles returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
-func GetProfiles(initConfigProfiles ProfileConfigMap) (Provider, error) {
+// GetProfileProvider returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
+func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
 	profiles, err := loadProfiles(initConfigProfiles)
 	if err != nil {
 		return nil, err
