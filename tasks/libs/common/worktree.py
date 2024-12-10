@@ -51,8 +51,6 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{branch}'", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            # TODO A
-            print(branch)
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
 
     if commit:
