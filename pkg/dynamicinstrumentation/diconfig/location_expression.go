@@ -116,27 +116,30 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if len(instrumentationTarget.ParameterPieces) != 2 {
 						continue
 					}
-					str := instrumentationTarget.ParameterPieces[0]
-					len := instrumentationTarget.ParameterPieces[1]
+					stringCharArray := instrumentationTarget.ParameterPieces[0]
+					stringLength := instrumentationTarget.ParameterPieces[1]
+					if stringCharArray == nil || stringLength == nil {
+						continue
+					}
 
-					if len.Location != nil {
-						len.LocationExpressions = append(len.LocationExpressions,
-							ditypes.DirectReadLocationExpression(len),
+					if stringLength.Location != nil {
+						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
+							ditypes.DirectReadLocationExpression(stringLength),
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
-						len.LocationExpressions = append(targetExpressions,
-							ditypes.ApplyOffsetLocationExpression(uint(len.FieldOffset)),
+						stringLength.LocationExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(stringLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
 
-					if str.Location != nil && len.Location != nil {
+					if stringCharArray.Location != nil && stringLength.Location != nil {
 						// Fields of the string are directly assigned
 						targetExpressions = append(targetExpressions,
 							// Read string dynamically:
-							ditypes.DirectReadLocationExpression(str),
-							ditypes.DirectReadLocationExpression(len),
+							ditypes.DirectReadLocationExpression(stringCharArray),
+							ditypes.DirectReadLocationExpression(stringLength),
 							ditypes.DereferenceDynamicToOutputLocationExpression(uint(limitsInfo.InstrumentationOptions.StringMaxSize)),
 						)
 					} else {

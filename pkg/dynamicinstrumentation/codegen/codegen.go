@@ -271,7 +271,9 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	stringParam.ParameterPieces[1].LocationExpressions = []ditypes.LocationExpression{}
+	if stringParam.ParameterPieces[1] != nil {
+		stringParam.ParameterPieces[1].LocationExpressions = []ditypes.LocationExpression{}
+	}
 	return nil
 }
 

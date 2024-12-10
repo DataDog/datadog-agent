@@ -242,7 +242,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	fmt.Printf("Applying config update: %v", probe)
+	fmt.Printf("Applying config update: %v\n", probe)
 	err := AnalyzeBinary(procInfo)
 	if err != nil {
 		log.Errorf("couldn't inspect binary: %v\n", err)
