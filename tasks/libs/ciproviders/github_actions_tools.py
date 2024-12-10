@@ -14,6 +14,60 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_default_branch
 
 
+def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref="master", new_version=None):
+    """
+    Trigger a workflow to bump windows gitlab runner
+    """
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
+    inputs = {}
+    if new_version is not None:
+        inputs["new-version"] = new_version
+
+    workflow_id = str(uuid.uuid1())
+    inputs["id"] = workflow_id
+
+    print(
+        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
+            github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
+        )
+    )
+    # Hack: get current time to only fetch workflows that started after now
+    now = datetime.utcnow()
+
+    gh = GithubAPI('DataDog/buildenv')
+    result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
+
+    might_be_waiting = set()
+
+    MAX_RETRIES = 30  # Retry for up to 5 minutes
+    for j in range(MAX_RETRIES):
+        print(f"Fetching triggered workflow (try {j + 1}/{MAX_RETRIES})")
+        recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+        for recent_run in recent_runs:
+            jobs = recent_run.jobs()
+            if jobs.totalCount >= 2:
+                if recent_run.id in might_be_waiting:
+                    might_be_waiting.remove(recent_run.id)
+                for job in jobs:
+                    if any(step.name == workflow_id for step in job.steps):
+                        return recent_run
+            else:
+                might_be_waiting.add(recent_run.id)
+                print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
+                sleep(5)
+        sleep(10)
+    if len(might_be_waiting) != 0:
+        print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
+        print(
+            f"This is maybe due to a concurrency issue, retrying ({i + 1}/{MAX_WAITING_CONCURRENCY_RETRIES}) in 30 min"
+        )
+        sleep(1800)
+
+    # Something went wrong :(
+    print("Couldn't fetch workflow run that was triggered.")
+    raise Exit(code=1)
+
+
 def trigger_macos_workflow(
     workflow_name="macos.yaml",
     github_action_ref="master",
@@ -130,7 +184,7 @@ def trigger_macos_workflow(
     raise Exit(code=1)
 
 
-def follow_workflow_run(run):
+def follow_workflow_run(run, repository="DataDog/datadog-agent-macos-build"):
     """
     Follow the workflow run until completion and return its conclusion.
     """
@@ -147,7 +201,7 @@ def follow_workflow_run(run):
     while True:
         # Do not fail outright for temporary failures
         try:
-            github = GithubAPI('DataDog/datadog-agent-macos-build')
+            github = GithubAPI(repository)
             run = github.workflow_run(run.id)
         except GithubException as e:
             failures += 1

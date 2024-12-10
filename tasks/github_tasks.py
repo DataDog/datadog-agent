@@ -28,6 +28,9 @@ from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packag
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
+from tasks.libs.releasing.version import current_version
+from tasks.release import get_version_major
+
 
 ALL_TEAMS = '@datadog/agent-all'
 
@@ -127,6 +130,42 @@ def trigger_macos(
             datadog_agent_ref=datadog_agent_ref,
             version_cache_file_content=version_cache,
         )
+    if conclusion != "success":
+        raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
+
+
+def _trigger_buildenv_workflow(new_version=None, datadog_agent_ref="master"):
+    if new_version is None:
+        raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
+
+    run = trigger_buildenv_workflow(
+        github_action_ref=datadog_agent_ref,
+        new_version=new_version,
+    )
+
+    workflow_conclusion, workflow_url = follow_workflow_run(run)
+
+    if workflow_conclusion == "failure":
+        print_failed_jobs_logs(run)
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    return workflow_conclusion
+
+
+@task
+def trigger_buildenv(
+    ctx,
+    release_branch,
+    workflow_type="build",
+    datadog_agent_ref="master",
+    new_version=None,
+):
+    if new_version is None:
+        major_version = get_version_major(release_branch)
+        new_version = current_version(ctx, major_version)
+
+    conclusion = _trigger_buildenv_workflow(new_version, datadog_agent_ref)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
