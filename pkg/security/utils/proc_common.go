@@ -7,7 +7,7 @@
 package utils
 
 import (
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 // GetProcesses returns list of active processes
