@@ -13,7 +13,7 @@ include:
     - !reference [.manual]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  script: &deploy_packages_script
+  script:
     - set +x
     - !reference [.retrieve_linux_go_tools_deps]
     - VERSION="$(inv agent.version --url-safe)-1" || exit $?
