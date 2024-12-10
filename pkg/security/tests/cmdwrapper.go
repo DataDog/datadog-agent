@@ -117,17 +117,9 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 	}
 
 	d.pid, _ = strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
-	cgroups, err := utils.GetProcControlGroups(uint32(d.pid), uint32(d.pid))
-	if err != nil {
+
+	if d.cgroupID, err = getPIDCGroup(uint32(d.pid)); err != nil {
 		return nil, err
-	}
-
-	if len(cgroups) == 0 {
-		return nil, fmt.Errorf("failed to find cgroup for pid %d", d.pid)
-	}
-
-	for _, cgroup := range cgroups {
-		d.cgroupID = cgroup.Path
 	}
 
 	return out, err
