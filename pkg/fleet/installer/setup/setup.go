@@ -27,7 +27,7 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	case FlavorDatabricks:
 		// temporary until the whole e2e test pipeline is setup
 		if err := djm.SetupDatabricks(ctx, env); err != nil {
-			fmt.Printf("This is a normal message. Error: %v\n", err)
+			fmt.Printf("Databricks setup failed: %v\n", err)
 		} else {
 			fmt.Println("Databricks setup completed")
 		}

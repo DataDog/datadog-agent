@@ -32,6 +32,11 @@ deploy_agent_oci:
   needs: [ "agent_oci", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
+  script:
+    - *deploy_packages_script
+    # Used for install scripts e2e tests
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 installtesting.datad0g.com agent-package ${VERSION}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 installtesting.datad0g.com agent-package ${CI_COMMIT_SHA}
 
 deploy_installer_oci:
   extends: ".deploy_packages_oci"
