@@ -30,7 +30,7 @@ build do
     command "#{prefix} ./Configure enable-fips"
 
     command "make V=1"
-    command "make install V=1"
+    command "make install_fips V=1"
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
 
     mkdir "#{install_dir}/embedded/ssl"
