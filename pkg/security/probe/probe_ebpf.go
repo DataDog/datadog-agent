@@ -2338,6 +2338,10 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 2
 	}
 
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9_4Kernel() {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
