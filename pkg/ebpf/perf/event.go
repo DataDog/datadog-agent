@@ -96,10 +96,18 @@ func SendTelemetry(enabled bool) EventHandlerOption {
 	}
 }
 
-// RingBufferConstantName provides a constant name that will be set whether ring buffers are in use
-func RingBufferConstantName(name string) EventHandlerOption {
+// RingBufferEnabledConstantName provides a constant name that will be set whether ring buffers are in use
+func RingBufferEnabledConstantName(name string) EventHandlerOption {
 	return func(e *EventHandler) {
-		e.opts.ringBufferConstantName = name
+		e.opts.ringBufferEnabledConstantName = name
+	}
+}
+
+// RingBufferWakeupSize sets a constant for eBPF to use, that determines when to wakeup userspace
+func RingBufferWakeupSize(name string, size uint64) EventHandlerOption {
+	return func(e *EventHandler) {
+		e.opts.ringBufferWakeupConstantName = name
+		e.opts.ringBufferWakeupSize = size
 	}
 }
 
@@ -113,8 +121,11 @@ type eventHandlerOptions struct {
 	perfBufferSize int
 	perfOptions    perfBufferOptions
 
-	ringBufferSize         int
-	ringBufferConstantName string
+	ringBufferSize                int
+	ringBufferEnabledConstantName string
+
+	ringBufferWakeupConstantName string
+	ringBufferWakeupSize         uint64
 }
 
 // PerfBufferMode is a mode for the perf buffer
@@ -172,7 +183,8 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 	if ms == nil {
 		return fmt.Errorf("unable to find map spec %q", e.mapName)
 	}
-	defer e.setupConstant(mgrOpts)
+	defer e.setupEnabledConstant(mgrOpts)
+	defer e.setupRingbufferWakeupConstant(mgrOpts)
 
 	ringBufErr := features.HaveMapType(ebpf.RingBuf)
 	if e.opts.mode == ringBufferOnly {
@@ -224,11 +236,11 @@ func (e *EventHandler) removeRingBufferHelperCalls(mgr *manager.Manager, moduleN
 		return
 	}
 	// add helper call remover because ring buffers are not available
-	_ = ddebpf.NewHelperCallRemover(asm.FnRingbufOutput).BeforeInit(mgr, moduleName, mgrOpts)
+	_ = ddebpf.NewHelperCallRemover(asm.FnRingbufOutput, asm.FnRingbufQuery, asm.FnRingbufReserve, asm.FnRingbufSubmit, asm.FnRingbufDiscard).BeforeInit(mgr, moduleName, mgrOpts)
 }
 
-func (e *EventHandler) setupConstant(mgrOpts *manager.Options) {
-	if e.opts.ringBufferConstantName == "" || e.f == nil {
+func (e *EventHandler) setupEnabledConstant(mgrOpts *manager.Options) {
+	if e.opts.ringBufferEnabledConstantName == "" || e.f == nil {
 		return
 	}
 
@@ -240,9 +252,25 @@ func (e *EventHandler) setupConstant(mgrOpts *manager.Options) {
 		val = uint64(0)
 	}
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, manager.ConstantEditor{
-		Name:  e.opts.ringBufferConstantName,
+		Name:  e.opts.ringBufferEnabledConstantName,
 		Value: val,
 	})
+}
+
+func (e *EventHandler) setupRingbufferWakeupConstant(mgrOpts *manager.Options) {
+	if e.opts.ringBufferWakeupSize == 0 || e.opts.ringBufferWakeupConstantName == "" || e.f == nil {
+		return
+	}
+
+	switch e.f.(type) {
+	case *manager.RingBuffer:
+		mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, manager.ConstantEditor{
+			Name:  e.opts.ringBufferWakeupConstantName,
+			Value: e.opts.ringBufferWakeupSize,
+		})
+	default:
+		// do nothing
+	}
 }
 
 // AfterInit implements the Modifier interface

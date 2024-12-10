@@ -34,20 +34,35 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-__maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, int cpu, void *event_data, size_t data_size) {
-    __u64 ringbuffers_enabled = 0;
-    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
-    if (ringbuffers_enabled > 0) {
-        bpf_ringbuf_output(&conn_close_event, event_data, data_size, 0);
-    } else {
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, event_data, data_size);
-    }
-}
-
 static __always_inline bool is_batching_enabled() {
     __u64 batching_enabled = 0;
     LOAD_CONSTANT("batching_enabled", batching_enabled);
     return batching_enabled != 0;
+}
+
+__maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
+    if (is_batching_enabled()) {
+        return 0;
+    }
+
+    __u64 ringbuffer_wakeup_size = 0;
+    LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
+    if (ringbuffer_wakeup_size == 0) {
+        return 0;
+    }
+
+    __u64 sz = bpf_ringbuf_query(&conn_close_event, DD_BPF_RB_AVAIL_DATA);
+    return (sz + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
+}
+
+__maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, int cpu, void *event_data, size_t data_size) {
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+    if (ringbuffers_enabled > 0) {
+        bpf_ringbuf_output(&conn_close_event, event_data, data_size, get_ringbuf_flags(data_size));
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, event_data, data_size);
+    }
 }
 
 static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
