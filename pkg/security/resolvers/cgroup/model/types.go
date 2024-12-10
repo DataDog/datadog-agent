@@ -64,8 +64,5 @@ func (ws WorkloadSelector) ToTags() []string {
 
 // Copy returns a copy of the selector
 func (ws WorkloadSelector) Copy() *WorkloadSelector {
-	return &WorkloadSelector{
-		Image: ws.Image,
-		Tag:   ws.Tag,
-	}
+	return &ws
 }
