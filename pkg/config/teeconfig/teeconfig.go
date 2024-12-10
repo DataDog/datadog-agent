@@ -138,6 +138,16 @@ func (t *teeConfig) IsSet(key string) bool {
 	return base
 }
 
+// IsConfigured returns true if a settings is configured by the user (ie: the value doesn't comes from the defaults)
+func (t *teeConfig) IsConfigured(key string) bool {
+	base := t.baseline.IsConfigured(key)
+	compare := t.compare.IsConfigured(key)
+	if base != compare {
+		log.Warnf("difference in config: IsConfigured(%s) -> base[%s]: %v | compare[%s]: %v | from %s", key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
+	}
+	return base
+}
+
 func (t *teeConfig) AllKeysLowercased() []string {
 	base := t.baseline.AllKeysLowercased()
 	compare := t.compare.AllKeysLowercased()
