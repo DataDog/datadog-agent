@@ -53,7 +53,7 @@ instances:
 	))
 }
 
-func (s *networkPathIntegrationTestSuite) TestMetrics() {
+func (s *networkPathIntegrationTestSuite) TestNetworkPathIntegrationMetrics() {
 	fakeClient := s.Env().FakeIntake.Client()
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
