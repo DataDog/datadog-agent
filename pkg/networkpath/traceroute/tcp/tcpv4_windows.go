@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,14 +68,14 @@ func createRawSocket() (*winrawsocket, error) {
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
-func (t *TCPv4) TracerouteSequential() (*Results, error) {
+func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	log.Debugf("Running traceroute to %+v", t)
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
 	//
 	// TODO: do this once for the probe and hang on to the
 	// listener until we decide to close the probe
-	addr, err := localAddrForHost(t.Target, t.DestPort)
+	addr, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
@@ -87,7 +88,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}
 	defer rs.close()
 
-	hops := make([]*Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
+	hops := make([]*common.Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
@@ -104,7 +105,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		}
 	}
 
-	return &Results{
+	return &common.Results{
 		Source:     t.srcIP,
 		SourcePort: t.srcPort,
 		Target:     t.Target,
@@ -113,7 +114,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
+func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
 	_, buffer, _, err := createRawTCPSynBuffer(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
@@ -138,7 +139,7 @@ func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout
 		rtt = end.Sub(start)
 	}
 
-	return &Hop{
+	return &common.Hop{
 		IP:       hopIP,
 		Port:     hopPort,
 		ICMPType: icmpType,

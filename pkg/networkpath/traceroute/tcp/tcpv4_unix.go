@@ -16,15 +16,16 @@ import (
 
 	"golang.org/x/net/ipv4"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
-func (t *TCPv4) TracerouteSequential() (*Results, error) {
+func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	addr, err := localAddrForHost(t.Target, t.DestPort)
+	addr, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
@@ -71,7 +72,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}
 
 	// hops should be of length # of hops
-	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
+	hops := make([]*common.Hop, 0, t.MaxTTL-t.MinTTL)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
@@ -88,7 +89,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		}
 	}
 
-	return &Results{
+	return &common.Results{
 		Source:     t.srcIP,
 		SourcePort: t.srcPort,
 		Target:     t.Target,
@@ -97,7 +98,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
+func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
 	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
@@ -122,7 +123,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 		rtt = end.Sub(start)
 	}
 
-	return &Hop{
+	return &common.Hop{
 		IP:       hopIP,
 		Port:     hopPort,
 		ICMPType: icmpType,
