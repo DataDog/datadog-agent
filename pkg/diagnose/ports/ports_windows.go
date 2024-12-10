@@ -32,5 +32,9 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 	if ret != nil {
 		return "", ret
 	}
-	return strings.TrimSuffix(windows.UTF16PtrToString((*uint16)(unsafe.Pointer(processInfo.ImageName.Buffer))), ".exe"), nil
+
+	// Convert UTF-16 string and handle trailing nulls
+	processName := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(processInfo.ImageName.Buffer)))
+	processName = strings.TrimRight(processName, "\x00")
+	return strings.TrimSuffix(processName, ".exe"), nil
 }
