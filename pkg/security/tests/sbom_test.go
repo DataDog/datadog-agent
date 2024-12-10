@@ -10,7 +10,6 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"testing"
 
@@ -28,8 +27,6 @@ func TestSBOM(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
-
-	os.Chdir("/")
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
