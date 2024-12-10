@@ -26,10 +26,18 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/kr/pretty"
 
 	"github.com/stretchr/testify/require"
 )
+
+type testResult struct {
+	testName          string
+	successTally      []bool
+	expectation       ditypes.CapturedValueMap
+	unexpectedResults []ditypes.CapturedValueMap
+}
+
+var eventsTally = make(map[string]*testResult)
 
 func TestGoDI(t *testing.T) {
 	flake.Mark(t)
@@ -107,9 +115,14 @@ func TestGoDI(t *testing.T) {
 		buf = bytes.NewBuffer(b)
 		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
 		t.Log("Instrumenting ", functionWithoutPackagePrefix)
+		eventsTally[function] = &testResult{
+			testName:          functionWithoutPackagePrefix,
+			expectation:       expectedCaptureValue,
+			successTally:      []bool{},
+			unexpectedResults: []ditypes.CapturedValueMap{},
+		}
 		err = cfgTemplate.Execute(buf, configDataType{functionWithoutPackagePrefix})
 		require.NoError(t, err)
-		eventOutputWriter.doCompare = false
 		eventOutputWriter.expectedResult = expectedCaptureValue
 
 		// Read the configuration via the config manager
@@ -122,11 +135,23 @@ func TestGoDI(t *testing.T) {
 		time.Sleep(time.Second * 2)
 		doCapture = false
 	}
+
+probeLoop:
+	for i := range eventsTally {
+		for _, ok := range eventsTally[i].successTally {
+			if !ok {
+				t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
+					eventsTally[i].testName,
+					eventsTally[i].unexpectedResults,
+					eventsTally[i].expectation)
+				continue probeLoop
+			}
+		}
+	}
 }
 
 type eventOutputTestWriter struct {
 	t              *testing.T
-	doCompare      bool
 	expectedResult map[string]*ditypes.CapturedValue
 }
 
@@ -141,12 +166,20 @@ func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 		e.t.Error("failed to unmarshal snapshot", err)
 	}
 
-	funcName := snapshot.Debugger.ProbeInSnapshot.Type + "." + snapshot.Debugger.ProbeInSnapshot.Method
+	funcName := snapshot.Debugger.ProbeInSnapshot.Method
 	actual := snapshot.Debugger.Captures.Entry.Arguments
 	scrubPointerValues(actual)
+	b, ok := eventsTally[funcName]
+	if !ok {
+		e.t.Errorf("received event from unexpected probe: %s", funcName)
+		return
+	}
 	if !reflect.DeepEqual(e.expectedResult, actual) {
-		e.t.Error("Unexpected ", funcName, pretty.Sprint(actual))
-		e.t.Log("Expected: ", pretty.Sprint(e.expectedResult))
+		b.successTally = append(b.successTally, false)
+		b.unexpectedResults = append(b.unexpectedResults, actual)
+		e.t.Error("received unexpected value")
+	} else {
+		b.successTally = append(b.successTally, true)
 	}
 
 	return len(p), nil
