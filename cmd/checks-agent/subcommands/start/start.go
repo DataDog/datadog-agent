@@ -172,6 +172,7 @@ func start(
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	}
 	ctx, StreamCancel := context.WithCancel(metadata.NewOutgoingContext(ctx, md))
+	defer StreamCancel()
 
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no

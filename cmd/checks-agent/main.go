@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package main starts the checks agent
 package main
 
 import (
