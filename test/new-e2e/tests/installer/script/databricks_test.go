@@ -24,7 +24,7 @@ type vmUpdaterSuite struct {
 
 func (s *vmUpdaterSuite) TestInstallScript() {
 	url := fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install-databricks.sh", s.commitHash)
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -L %s > install_script; export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com; sudo -E bash install_script", url))
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -L %s > install_script; export DD_API_KEY=test; export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com; sudo -E bash install_script", url))
 }
 
 func TestUpdaterSuite(t *testing.T) {
