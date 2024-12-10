@@ -1,0 +1,143 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package tls contains definitions and methods related to tags parsed from the TLS handshake
+package tls
+
+import (
+	"crypto/tls"
+	"fmt"
+)
+
+// Constants for tag keys
+const (
+	TagTLSVersion       = "tls.version:"
+	TagTLSCipherSuiteID = "tls.cipher_suite_id:"
+	TagTLSClientVersion = "tls.client_version:"
+	Version10           = "tls_1.0"
+	Version11           = "tls_1.1"
+	Version12           = "tls_1.2"
+	Version13           = "tls_1.3"
+)
+
+// Bitmask constants for Offered_versions matching kernelspace definitions
+const (
+	OfferedTLSVersion10 uint8 = 0x01
+	OfferedTLSVersion11 uint8 = 0x02
+	OfferedTLSVersion12 uint8 = 0x04
+	OfferedTLSVersion13 uint8 = 0x08
+)
+
+// VersionTags maps TLS versions to tag names for server chosen version (exported for testing)
+var VersionTags = map[uint16]string{
+	tls.VersionTLS10: TagTLSVersion + Version10,
+	tls.VersionTLS11: TagTLSVersion + Version11,
+	tls.VersionTLS12: TagTLSVersion + Version12,
+	tls.VersionTLS13: TagTLSVersion + Version13,
+}
+
+// ClientVersionTags maps TLS versions to tag names for client offered versions (exported for testing)
+var ClientVersionTags = map[uint16]string{
+	tls.VersionTLS10: TagTLSClientVersion + Version10,
+	tls.VersionTLS11: TagTLSClientVersion + Version11,
+	tls.VersionTLS12: TagTLSClientVersion + Version12,
+	tls.VersionTLS13: TagTLSClientVersion + Version13,
+}
+
+// Mapping of offered version bitmasks to version constants
+var offeredVersionBitmask = []struct {
+	bitMask uint8
+	version uint16
+}{
+	{OfferedTLSVersion10, tls.VersionTLS10},
+	{OfferedTLSVersion11, tls.VersionTLS11},
+	{OfferedTLSVersion12, tls.VersionTLS12},
+	{OfferedTLSVersion13, tls.VersionTLS13},
+}
+
+// Tags holds the TLS tags. It is used to store the TLS version, cipher suite and offered versions.
+// We can't use the struct from eBPF as the definition is shared with windows.
+type Tags struct {
+	ChosenVersion   uint16
+	CipherSuite     uint16
+	OfferedVersions uint8
+}
+
+// MergeWith merges the tags from another Tags struct into this one
+func (t *Tags) MergeWith(that Tags) {
+	if t.ChosenVersion == 0 {
+		t.ChosenVersion = that.ChosenVersion
+	}
+	if t.CipherSuite == 0 {
+		t.CipherSuite = that.CipherSuite
+	}
+	if t.OfferedVersions == 0 {
+		t.OfferedVersions = that.OfferedVersions
+	}
+
+}
+
+// IsEmpty returns true if all fields are zero
+func (t *Tags) IsEmpty() bool {
+	return t.ChosenVersion == 0 && t.CipherSuite == 0 && t.OfferedVersions == 0
+}
+
+// String returns a string representation of the Tags struct
+func (t *Tags) String() string {
+	return fmt.Sprintf("ChosenVersion: %d, CipherSuite: %d, OfferedVersions: %d", t.ChosenVersion, t.CipherSuite, t.OfferedVersions)
+}
+
+// parseOfferedVersions parses the Offered_versions bitmask into a slice of version strings
+func parseOfferedVersions(offeredVersions uint8) []string {
+	versions := make([]string, 0, 4)
+	for _, ov := range offeredVersionBitmask {
+		if (offeredVersions & ov.bitMask) != 0 {
+			if name := ClientVersionTags[ov.version]; name != "" {
+				versions = append(versions, name)
+			}
+		}
+	}
+	return versions
+}
+
+func hexCipherSuiteTag(cipherSuite uint16) string {
+	// Preallocate a buffer for "0x" + 4 hex digits = 6 chars
+	var buf [6]byte
+	buf[0] = '0'
+	buf[1] = 'x'
+	hex := "0123456789ABCDEF"
+
+	buf[2] = hex[(cipherSuite>>12)&0xF]
+	buf[3] = hex[(cipherSuite>>8)&0xF]
+	buf[4] = hex[(cipherSuite>>4)&0xF]
+	buf[5] = hex[cipherSuite&0xF]
+
+	return TagTLSCipherSuiteID + string(buf[:])
+}
+
+// GetTLSDynamicTags generates dynamic tags based on TLS information
+func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
+	tags := make(map[string]struct{})
+	if tls == nil {
+		return tags
+	}
+
+	// Server chosen version
+	if tag, ok := VersionTags[tls.ChosenVersion]; ok {
+		tags[tag] = struct{}{}
+	}
+
+	// Client offered versions
+	for _, versionName := range parseOfferedVersions(tls.OfferedVersions) {
+		tags[versionName] = struct{}{}
+	}
+
+	// Cipher suite ID as hex string
+	if tls.CipherSuite != 0 {
+		tags[hexCipherSuiteTag(tls.CipherSuite)] = struct{}{}
+	}
+
+	return tags
+}

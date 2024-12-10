@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -50,8 +51,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	ddtls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
@@ -2569,6 +2574,182 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	}
 	testutil.RunCommands(tb, cmds, false)
 	return
+}
+
+func (s *TracerSuite) TestTLSClassification() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+	port, err := tracertestutil.GetFreePort()
+	require.NoError(t, err)
+	portAsString := strconv.Itoa(int(port))
+
+	tr := setupTracer(t, cfg)
+
+	type tlsTest struct {
+		name            string
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
+	}
+	tests := make([]tlsTest, 0)
+	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+		scenario := scenario
+		tests = append(tests, tlsTest{
+			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
+			postTracerSetup: func(t *testing.T) {
+				srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
+					defer conn.Close()
+					_, err := io.Copy(conn, conn)
+					if err != nil {
+						fmt.Printf("Failed to echo data: %v\n", err)
+						return
+					}
+				}, scenario)
+				done := make(chan struct{})
+				require.NoError(t, srv.Run(done))
+				t.Cleanup(func() { close(done) })
+				tlsConfig := &tls.Config{
+					MinVersion:             scenario,
+					MaxVersion:             scenario,
+					InsecureSkipVerify:     true,
+					SessionTicketsDisabled: true,
+					ClientSessionCache:     nil,
+				}
+				conn, err := net.Dial("tcp", "localhost:"+portAsString)
+				require.NoError(t, err)
+				defer conn.Close()
+
+				// Wrap the TCP connection with TLS
+				tlsConn := tls.Client(conn, tlsConfig)
+
+				require.NoError(t, tlsConn.Handshake())
+			},
+			validation: func(t *testing.T, tr *Tracer) {
+				require.Eventuallyf(t, func() bool {
+					return validateTLSTags(t, tr, port, scenario)
+				}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
+			},
+		})
+	}
+	tests = append(tests, tlsTest{
+		name: "Invalid-TLS-Handshake",
+		postTracerSetup: func(t *testing.T) {
+			// server that accepts connections but does not perform TLS handshake
+			listener, err := net.Listen("tcp", "localhost:"+portAsString)
+			require.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+
+			go func() {
+				for {
+					conn, err := listener.Accept()
+					if err != nil {
+						return
+					}
+					go func(c net.Conn) {
+						defer c.Close()
+						buf := make([]byte, 1024)
+						_, _ = c.Read(buf)
+						// Do nothing
+					}(conn)
+				}
+			}()
+
+			// Client connects to the server
+			conn, err := net.Dial("tcp", "localhost:"+portAsString)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// Send invalid TLS handshake data
+			_, err = conn.Write([]byte("invalid TLS data"))
+			require.NoError(t, err)
+		},
+		validation: func(t *testing.T, tr *Tracer) {
+			// Verify that no TLS tags are set for this connection
+			require.Eventually(t, func() bool {
+				payload := getConnections(t, tr)
+				for _, c := range payload.Conns {
+					if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
+						t.Log("Unexpected TLS protocol detected for invalid handshake")
+						return false
+					}
+				}
+				return true
+			}, 3*time.Second, 100*time.Millisecond)
+		},
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if ebpftest.GetBuildMode() == ebpftest.Fentry {
+				t.Skip("protocol classification not supported for fentry tracer")
+			}
+			t.Cleanup(func() { tr.RemoveClient(clientID) })
+			t.Cleanup(func() { _ = tr.Pause() })
+
+			tr.RemoveClient(clientID)
+			require.NoError(t, tr.RegisterClient(clientID))
+			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
+			tt.postTracerSetup(t)
+			require.NoError(t, tr.Pause(), "disable probes - after post tracer")
+			tt.validation(t, tr)
+		})
+	}
+}
+
+func validateTLSTags(t *testing.T, tr *Tracer, port uint16, scenario uint16) bool {
+	payload := getConnections(t, tr)
+	for _, c := range payload.Conns {
+		if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
+			tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
+
+			// Check that the cipher suite ID tag is present
+			cipherSuiteTagFound := false
+			for key := range tlsTags {
+				if strings.HasPrefix(key, ddtls.TagTLSCipherSuiteID) {
+					cipherSuiteTagFound = true
+					break
+				}
+			}
+			if !cipherSuiteTagFound {
+				t.Log("Cipher suite ID tag missing")
+				return false
+			}
+
+			// Check that the negotiated version tag is present
+			negotiatedVersionTag := ddtls.VersionTags[scenario]
+			if _, ok := tlsTags[negotiatedVersionTag]; !ok {
+				t.Logf("Negotiated version tag '%s' not found", negotiatedVersionTag)
+				return false
+			}
+
+			// Check that the client offered version tag is present
+			clientVersionTag := ddtls.ClientVersionTags[scenario]
+			if _, ok := tlsTags[clientVersionTag]; !ok {
+				t.Log(tlsTags)
+				t.Logf("Client offered version tag '%s' not found", clientVersionTag)
+				return false
+			}
+
+			if scenario == tls.VersionTLS13 {
+				expectedClientVersions := []string{
+					ddtls.ClientVersionTags[tls.VersionTLS12],
+					ddtls.ClientVersionTags[tls.VersionTLS13],
+				}
+				for _, tag := range expectedClientVersions {
+					if _, ok := tlsTags[tag]; !ok {
+						t.Logf("Expected client offered version tag '%s' not found", tag)
+						return false
+					}
+				}
+			}
+
+			return true
+		}
+	}
+	return false
 }
 
 func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
