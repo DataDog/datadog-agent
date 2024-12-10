@@ -18,14 +18,10 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-	"github.com/cilium/ebpf/perf"
-	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -97,7 +93,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 
 	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch
 	// and would be considered an invalid batch.
-	recordSample(c, consumer, []byte("test"))
+	RecordSample(c, consumer, []byte("test"))
 
 	consumer.Start()
 	t.Cleanup(func() { consumer.Stop() })
@@ -113,22 +109,6 @@ type eventGenerator struct {
 
 	// file used for triggering write(2) syscalls
 	testFile *os.File
-}
-
-// recordSample records a sample using the consumer handler.
-func recordSample(c *config.Config, consumer *Consumer[uint64], sampleData []byte) {
-	// Ring buffers require kernel version 5.8.0 or higher, therefore, the handler is chosen based on the kernel version.
-	if c.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil {
-		handler := consumer.handler.(*ddebpf.RingBufferHandler)
-		handler.RecordHandler(&ringbuf.Record{
-			RawSample: sampleData,
-		}, nil, nil)
-	} else {
-		handler := consumer.handler.(*ddebpf.PerfHandler)
-		handler.RecordHandler(&perf.Record{
-			RawSample: sampleData,
-		}, nil, nil)
-	}
 }
 
 func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
