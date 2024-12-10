@@ -207,6 +207,14 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 	return errChan, nil
 }
 
+// Re-register the ctrl handler because Go uses SetConsoleCtrlHandler and Python uses posix signal calls.
+// This is only needed when using the embedded Python module.
+// When Python imports the signal module, it overrides the ctrl handler set by Go and installs the Windows posix signal handler.
+// Linux uses the POSIX signal handler for both Go and Python, so this is not an issue on Linux.
+// As Python checks if the signal handler is not the default handler before overwritting it.
+// If CPython adds a way to avoid overriding the ctrl handler, we can remove this workaround.
+// If Go adds support to use the posix signal handler on Windows, we can remove this workaround.
+// All calls to signal.Notify will no longer work after the Python module is started.
 func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 	log.Info("Re-registering Ctrl+C handler")
 	err := winutil.SetConsoleCtrlHandler(func(ctrlType uint32) bool {

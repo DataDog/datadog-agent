@@ -8,16 +8,18 @@
 // Package winutil contains Windows OS utilities
 package winutil
 
-import "syscall"
+import "golang.org/x/sys/windows"
 
 var (
 	setConsoleCtrlHandler = k32.NewProc("SetConsoleCtrlHandler")
 )
 
+// Console control signal constants
+//
+// https://learn.microsoft.com/en-us/windows/console/handlerroutine
+
 const (
-	// CtrlCEvent is code for Cntrl+C event
-	CtrlCEvent = 0
-	// CtrlBreakEvent is code for Cntrl+Break event
+	CtrlCEvent     = 0
 	CtrlBreakEvent = 1
 )
 
@@ -29,9 +31,11 @@ func boolToInt(b bool) int {
 }
 
 // SetConsoleCtrlHandler sets the handler function for console control events.
+//
+// https://learn.microsoft.com/en-us/windows/console/setconsolectrlhandler
 func SetConsoleCtrlHandler(handler func(uint32) bool, add bool) error {
 	ret, _, err := setConsoleCtrlHandler.Call(
-		uintptr(syscall.NewCallbackCDecl(func(sig uint32) uintptr {
+		uintptr(windows.NewCallback(func(sig uint32) uintptr {
 			if handler(sig) {
 				return 1
 			}
