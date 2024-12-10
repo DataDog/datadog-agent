@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -50,7 +51,6 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -435,10 +435,7 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
-		// collectorimpl.Module(),
-		fx.Provide(func() optional.Option[collector.Component] {
-			return optional.NewNoneOption[collector.Component]()
-		}),
+		collectorimpl.Module(),
 		process.Bundle(),
 		guiimpl.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),

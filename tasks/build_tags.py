@@ -80,7 +80,6 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "process",
-    "python",
     "systemd",
     "trivy",
     "zk",
