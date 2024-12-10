@@ -160,7 +160,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 // This will always activate unless a profile is provided with a securityContext that has readOnlyRootFilesystem set to false
 // We want to default to true to ensure that the agent sidecar has the least amount of permissions as possible
 func (w *Webhook) isReadOnlyRootFilesystem() bool {
-	if w.profileOverrides == nil || len(w.profileOverrides) == 0 {
+	if len(w.profileOverrides) == 0 {
 		return true
 	}
 	securityContext := w.profileOverrides[0].SecurityContext
