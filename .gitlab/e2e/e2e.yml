@@ -480,6 +480,15 @@ new-e2e-ha-agent:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
 
+new-e2e-netpath:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: network-performance-monitoring
+
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template
   rules:
