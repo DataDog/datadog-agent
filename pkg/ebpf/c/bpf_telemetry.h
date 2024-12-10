@@ -117,12 +117,12 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
     (__APPLY_OPx(x, __NEQ, __AND, __VA_ARGS__))
 
 #define __nth(_, _1, _2, _3, N, ...) N
-#define __nargs(...) __nth(_, ##__VA_ARGS__, 3, 2, 1, 0)
+#define nargs(...) __nth(_, ##__VA_ARGS__, 3, 2, 1, 0)
 
 #define bpf_map_update_with_telemetry(map, key, val, flags,...)        \
     ({                                                                                          \
         long errno_ret = bpf_map_update_elem(&map, key, val, flags);            \
-        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret,  __VA_ARGS__)) {                         \
+        if ((errno_ret < 0) && __SKIP_ERRS(nargs(__VA_ARGS__), errno_ret,  __VA_ARGS__)) {                         \
             __record_map_telemetry(map, errno_ret);                                              \
         }                                                                                       \
         errno_ret;                                                                             \
