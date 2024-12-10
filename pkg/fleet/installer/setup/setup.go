@@ -25,7 +25,13 @@ const (
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	switch flavor {
 	case FlavorDatabricks:
-		return djm.SetupDatabricks(ctx, env)
+		// temporary until the whole e2e test pipeline is setup
+		if err := djm.SetupDatabricks(ctx, env); err != nil {
+			fmt.Printf("Databricks setup failed: %v\n", err)
+		} else {
+			fmt.Println("Databricks setup completed")
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown setup flavor %s", flavor)
 	}
