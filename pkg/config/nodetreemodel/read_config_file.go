@@ -67,7 +67,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if err := c.readConfigurationContent(c.file, content); err != nil {
+	if err := c.readConfigurationContent(c.file, model.SourceFile, content); err != nil {
 		return err
 	}
 	return c.mergeAllLayers()
@@ -78,10 +78,10 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	if err != nil {
 		return err
 	}
-	return c.readConfigurationContent(c.file, content)
+	return c.readConfigurationContent(c.file, model.SourceFile, content)
 }
 
-func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) error {
+func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Source, content []byte) error {
 	var inData map[string]interface{}
 
 	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
@@ -90,7 +90,7 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) e
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, model.SourceFile, inData, "", c.schema)...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema)...)
 	return nil
 }
 
@@ -142,7 +142,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			} else {
-				dest.InsertChildNode(key, newLeafNode(value, model.SourceFile))
+				dest.InsertChildNode(key, newLeafNode(value, source))
 			}
 			continue
 		}

@@ -575,3 +575,18 @@ func TestUnsetForSource(t *testing.T) {
       val:4, source:default`
 	assert.Equal(t, expect, txt)
 }
+
+func TestMergeFleetPolicy(t *testing.T) {
+	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetConfigType("yaml")
+	config.Set("foo", "bar", model.SourceFile)
+
+	file, err := os.CreateTemp("", "datadog.yaml")
+	assert.NoError(t, err, "failed to create temporary file: %w", err)
+	file.Write([]byte("foo: baz"))
+	err = config.MergeFleetPolicy(file.Name())
+	assert.NoError(t, err)
+
+	assert.Equal(t, "baz", config.Get("foo"))
+	assert.Equal(t, model.SourceFleetPolicies, config.GetSource("foo"))
+}
