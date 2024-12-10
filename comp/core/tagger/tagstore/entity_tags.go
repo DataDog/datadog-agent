@@ -307,7 +307,7 @@ func (e *EntityTagsWithSingleSource) getHashedTags(cardinality types.TagCardinal
 	case types.OrchestratorCardinality:
 		return e.cachedOrchestrator
 	case types.NoneCardinality:
-		return tagset.HashedTags{} // NOTE: TOOD: INVESTIGATE THIS MORE
+		return tagset.HashedTags{}
 	default:
 		return e.cachedLow
 	}
