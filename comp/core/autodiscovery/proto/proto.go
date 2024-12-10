@@ -13,6 +13,10 @@ import (
 
 // ProtobufConfigFromAutodiscoveryConfig converts an autodiscovery config to a protobuf config
 func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Config {
+	if config == nil {
+		return nil
+	}
+
 	instances := [][]byte{}
 
 	for _, instance := range config.Instances {
@@ -55,6 +59,10 @@ func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Con
 
 // AutodiscoveryConfigFromProtobufConfig converts a protobuf config to an autodiscovery config
 func AutodiscoveryConfigFromProtobufConfig(config *core.Config) integration.Config {
+	if config == nil {
+		return integration.Config{}
+	}
+
 	instances := []integration.Data{}
 
 	for _, instance := range config.Instances {
