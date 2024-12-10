@@ -249,8 +249,8 @@ func (r *RequestStats) HalfAllCounts() {
 	}
 }
 
-// PutSketches adds all obtained sketch objects to the pool.
-func (r *RequestStats) PutSketches() {
+// putSketches returns all obtained 'DDSketch' objects to the pool.
+func (r *RequestStats) putSketches() {
 	if r.SketchPool != nil {
 		for _, stats := range r.Data {
 			r.SketchPool.Put(stats.Latencies)

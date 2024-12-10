@@ -93,9 +93,11 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 			h.add(tx)
 		}
 
+		// put back 'DDSketch' objects to pool
+		h.releaseSketchPool()
+
 		// Rotate stats
 		stats = h.stats
-		h.releaseSketchPool()
 		h.stats = make(map[Key]*RequestStats)
 
 		// Rotate ConnectionAggregator
@@ -228,7 +230,7 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 	}
 }
 
-// newSketchPool creates new pool of DDSketch objects.
+// newSketchPool creates new pool of 'DDSketch' objects.
 func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
 	sketchPool := ddsync.NewTypedPool(func() *ddsketch.DDSketch {
 		sketch, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
@@ -240,9 +242,9 @@ func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
 	return sketchPool
 }
 
-// releaseSketchPool put DDSketch objects to pool.
+// releaseSketchPool puts 'DDSketch' objects back to pool.
 func (h *StatKeeper) releaseSketchPool() {
 	for _, stats := range h.stats {
-		stats.PutSketches()
+		stats.putSketches()
 	}
 }
