@@ -131,8 +131,7 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 }
 
 // SendDNSQueriesOnPort makes a DNS query for every domain provided, on the given serverIP, port, and protocol.
-func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
-	t.Helper()
+func SendDNSQueriesOnPort(domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
 	dnsClient := dns.Client{Net: protocol, Timeout: 3 * time.Second}
 	dnsHost := net.JoinHostPort(serverIP.String(), port)
 	conn, err := dnsClient.Dial(dnsHost)
@@ -168,24 +167,21 @@ func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 
 // SendDNSQueriesAndCheckError is a simple helper that requires no errors to be present when calling SendDNSQueries
 func SendDNSQueriesAndCheckError(
-	t *testing.T,
+	t require.TestingT,
 	domains []string,
 	serverIP net.IP,
 	protocol string,
 ) (string, int, []*dns.Msg) {
-	t.Helper()
-	ip, port, resp, err := SendDNSQueries(t, domains, serverIP, protocol)
+	ip, port, resp, err := SendDNSQueries(domains, serverIP, protocol)
 	require.NoError(t, err)
 	return ip, port, resp
 }
 
 // SendDNSQueries is a simple helper that calls SendDNSQueriesOnPort with port 53
 func SendDNSQueries(
-	t *testing.T,
 	domains []string,
 	serverIP net.IP,
 	protocol string,
 ) (string, int, []*dns.Msg, error) {
-	t.Helper()
-	return SendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
+	return SendDNSQueriesOnPort(domains, serverIP, "53", protocol)
 }
