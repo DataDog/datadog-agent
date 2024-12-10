@@ -91,7 +91,7 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 // This is duplicated as the tests have been flaky. This may be due to how pulumi is handling the provisioning of
 // ecs tasks.
 type ECSEC2CoreAgentSuite struct {
-	ECSEC2Suite
+	e2e.BaseSuite[ecsCPUStressEnv]
 }
 
 func TestECSEC2CoreAgentSuite(t *testing.T) {

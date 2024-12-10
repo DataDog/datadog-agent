@@ -43,14 +43,14 @@ type PatternScanner struct {
 
 // NewScanner returns a new instance of PatternScanner.
 // at least one of the startPattern/finishPattern should be provided.
-func NewScanner(startPattern, finishPattern *regexp.Regexp, doneChan chan struct{}) (*PatternScanner, error) {
+func NewScanner(startPattern, finishPattern *regexp.Regexp) (*PatternScanner, error) {
 	if startPattern == nil && finishPattern == nil {
 		return nil, errors.New("at least one pattern should be provided")
 	}
 	return &PatternScanner{
 		startPattern:  startPattern,
 		finishPattern: finishPattern,
-		DoneChan:      doneChan,
+		DoneChan:      make(chan struct{}, 1),
 		stopOnce:      sync.Once{},
 		// skip looking for start pattern if not provided
 		startPatternFound: startPattern == nil,

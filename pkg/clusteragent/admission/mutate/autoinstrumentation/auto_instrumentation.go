@@ -157,7 +157,6 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 	if pod.Namespace == "" {
 		pod.Namespace = ns
 	}
-	injectApmTelemetryConfig(pod)
 
 	if !w.isPodEligible(pod) {
 		return false, nil
@@ -371,6 +370,9 @@ func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: s.injectionType(),
 	})
+
+	injectApmTelemetryConfig(pod)
+
 	return nil
 }
 

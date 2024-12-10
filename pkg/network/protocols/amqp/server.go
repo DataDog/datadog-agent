@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package amqp
 
 import (
@@ -16,6 +18,7 @@ import (
 
 	httpUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
@@ -46,10 +49,12 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 
 	dir, _ := httpUtils.CurDir()
 
+	scanner, err := globalutils.NewScanner(startupRegexp, globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("amqp",
 		dockerutils.DefaultTimeout,
 		dockerutils.DefaultRetries,
-		startupRegexp,
+		scanner,
 		env,
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)

@@ -77,9 +77,15 @@ def _get_env(ctx, major_version='7', release_version='nightly'):
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
-    env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
+    env['AGENT_FLAVOR'] = os.getenv("AGENT_FLAVOR", "")
+    env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
+    env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
+
     return env
+
+
+def _is_fips_mode(env):
+    return env['AGENT_FLAVOR'] == "fips"
 
 
 def _msbuild_configuration(debug=False):
@@ -264,6 +270,13 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
+def _msi_output_name(env):
+    if _is_fips_mode(env):
+        return f"datadog-fips-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+    else:
+        return f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+
+
 @task
 def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
@@ -301,7 +314,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version
 
     # Run WiX to turn the WXS into an MSI
     with timed("Building MSI"):
-        msi_name = f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+        msi_name = _msi_output_name(env)
         _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
 
         # And copy it to the final output path as a build artifact
