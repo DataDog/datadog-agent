@@ -478,6 +478,7 @@ class CollectorVersionUpdater:
             "./comp/otelcol/collector/impl/collector.go",
             "./tasks/collector.py",
             "./.gitlab/integration_test/otel.yml",
+            "./test/otel/testdata/ocb_build_script.sh",
         ]
         for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
             for file in files:
