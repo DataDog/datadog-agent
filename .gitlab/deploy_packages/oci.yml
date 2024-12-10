@@ -13,7 +13,7 @@ include:
     - !reference [.manual]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  script:
+  script: &deploy_packages_script
     - set +x
     - !reference [.retrieve_linux_go_tools_deps]
     - VERSION="$(inv agent.version --url-safe)-1" || exit $?
@@ -39,6 +39,7 @@ deploy_installer_oci:
   variables:
     OCI_PRODUCT: "datadog-installer"
   script:
+    - *deploy_packages_script
     # Used for install scripts e2e tests
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 installtesting.datad0g.com installer-package ${VERSION}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 installtesting.datad0g.com installer-package ${CI_COMMIT_SHA}
