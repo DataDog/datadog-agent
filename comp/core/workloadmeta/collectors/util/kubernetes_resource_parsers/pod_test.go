@@ -8,6 +8,7 @@
 package kubernetesresourceparsers
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -124,5 +125,6 @@ func TestPodParser_Parse(t *testing.T) {
 		QOSClass:                   "Guaranteed",
 	}
 
-	assert.Equal(t, expected, parsed)
+	assert.True(t, reflect.DeepEqual(expected, parsed),
+		"Expected: %v, Actual: %v", expected, parsed)
 }
