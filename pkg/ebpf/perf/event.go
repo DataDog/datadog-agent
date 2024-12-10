@@ -46,6 +46,10 @@ type EventHandler struct {
 	mapName string
 	// handler is the callback for data received from the perf/ring buffer
 	handler func([]byte)
+
+	readLoop func()
+	perfChan chan *perf.Record
+	ringChan chan *ringbuf.Record
 }
 
 type mapMode uint8
@@ -60,18 +64,20 @@ const (
 type EventHandlerMode func(*EventHandler)
 
 // UsePerfBuffers will only use perf buffers and will not attempt any upgrades to ring buffers.
-func UsePerfBuffers(bufferSize int, perfMode PerfBufferMode) EventHandlerMode {
+func UsePerfBuffers(bufferSize int, channelSize int, perfMode PerfBufferMode) EventHandlerMode {
 	return func(e *EventHandler) {
 		e.opts.mode = perfBufferOnly
+		e.opts.channelSize = channelSize
 		e.opts.perfBufferSize = bufferSize
 		perfMode(&e.opts.perfOptions)
 	}
 }
 
 // UpgradePerfBuffers will upgrade to ring buffers if available, but will fall back to perf buffers if not.
-func UpgradePerfBuffers(perfBufferSize int, perfMode PerfBufferMode, ringBufferSize int) EventHandlerMode {
+func UpgradePerfBuffers(perfBufferSize int, channelSize int, perfMode PerfBufferMode, ringBufferSize int) EventHandlerMode {
 	return func(e *EventHandler) {
 		e.opts.mode = upgradePerfBuffer
+		e.opts.channelSize = channelSize
 		e.opts.perfBufferSize = perfBufferSize
 		e.opts.ringBufferSize = ringBufferSize
 		perfMode(&e.opts.perfOptions)
@@ -79,9 +85,10 @@ func UpgradePerfBuffers(perfBufferSize int, perfMode PerfBufferMode, ringBufferS
 }
 
 // UseRingBuffers will only use ring buffers.
-func UseRingBuffers(bufferSize int) EventHandlerMode {
+func UseRingBuffers(bufferSize int, channelSize int) EventHandlerMode {
 	return func(e *EventHandler) {
 		e.opts.mode = ringBufferOnly
+		e.opts.channelSize = channelSize
 		e.opts.ringBufferSize = bufferSize
 	}
 }
@@ -116,7 +123,8 @@ type eventHandlerOptions struct {
 	// telemetryEnabled specifies whether to collect usage telemetry from the perf/ring buffer.
 	telemetryEnabled bool
 
-	mode mapMode
+	mode        mapMode
+	channelSize int
 
 	perfBufferSize int
 	perfOptions    perfBufferOptions
@@ -278,6 +286,23 @@ func (e *EventHandler) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *mana
 	return nil
 }
 
+// PreStart implements the Modifier interface
+func (e *EventHandler) PreStart() error {
+	go e.readLoop()
+	return nil
+}
+
+// AfterStop implements the Modifier interface
+func (e *EventHandler) AfterStop(_ manager.MapCleanupType) error {
+	if e.perfChan != nil {
+		close(e.perfChan)
+	}
+	if e.ringChan != nil {
+		close(e.ringChan)
+	}
+	return nil
+}
+
 func (e *EventHandler) String() string {
 	return "EventHandler"
 }
@@ -299,6 +324,13 @@ func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) 
 }
 
 func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
+	e.perfChan = make(chan *perf.Record, e.opts.channelSize)
+	e.readLoop = func() {
+		for record := range e.perfChan {
+			e.perfLoopHandler(record)
+		}
+	}
+
 	// remove any existing perf buffers from manager
 	mgr.PerfMaps = slices.DeleteFunc(mgr.PerfMaps, func(perfMap *manager.PerfMap) bool {
 		return perfMap.Name == e.mapName
@@ -321,12 +353,23 @@ func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
 }
 
 func (e *EventHandler) perfRecordHandler(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
+	e.perfChan <- record
+}
+
+func (e *EventHandler) perfLoopHandler(record *perf.Record) {
 	// record is only allowed to live for the duration of the callback. Put it back into the sync.Pool once done.
 	defer perfPool.Put(record)
 	e.handler(record.RawSample)
 }
 
 func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
+	e.ringChan = make(chan *ringbuf.Record, e.opts.channelSize)
+	e.readLoop = func() {
+		for record := range e.ringChan {
+			e.ringLoopHandler(record)
+		}
+	}
+
 	// remove any existing matching ring buffers from manager
 	mgr.RingBuffers = slices.DeleteFunc(mgr.RingBuffers, func(ringBuf *manager.RingBuffer) bool {
 		return ringBuf.Name == e.mapName
@@ -345,6 +388,10 @@ func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
 }
 
 func (e *EventHandler) ringRecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
+	e.ringChan <- record
+}
+
+func (e *EventHandler) ringLoopHandler(record *ringbuf.Record) {
 	// record is only allowed to live for the duration of the callback. Put it back into the sync.Pool once done.
 	defer ringbufPool.Put(record)
 	e.handler(record.RawSample)

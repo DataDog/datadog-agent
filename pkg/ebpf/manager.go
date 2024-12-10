@@ -100,3 +100,40 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 	}
 	return nil
 }
+
+type modifierPreStart interface {
+	PreStart() error
+}
+
+// Start is a wrapper around ebpf-manager.Manager.Start
+func (m *Manager) Start() error {
+	for _, mod := range m.EnabledModifiers {
+		if ps, ok := mod.(modifierPreStart); ok {
+			if err := ps.PreStart(); err != nil {
+				return fmt.Errorf("prestart %s manager modifier: %w", mod, err)
+			}
+		}
+	}
+	return m.Manager.Start()
+}
+
+type modifierAfterStop interface {
+	AfterStop(manager.MapCleanupType) error
+}
+
+// Stop is a wrapper around ebpf-manager.Manager.Stop
+func (m *Manager) Stop(ct manager.MapCleanupType) error {
+	if err := m.Manager.Stop(ct); err != nil {
+		return err
+	}
+
+	for _, mod := range m.EnabledModifiers {
+		if as, ok := mod.(modifierAfterStop); ok {
+			if err := as.AfterStop(ct); err != nil {
+				return fmt.Errorf("afterstop %s manager modifier: %w", mod, err)
+			}
+		}
+	}
+
+	return nil
+}

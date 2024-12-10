@@ -195,7 +195,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
 	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
+	cfg.BindEnv(join(spNS, "closed_connection_flush_threshold"))
 	cfg.BindEnv(join(netNS, "closed_connection_flush_threshold"))
+	cfg.BindEnv(join(spNS, "closed_channel_size"))
+	cfg.BindEnv(join(netNS, "closed_channel_size"))
 	cfg.BindEnvAndSetDefault(join(netNS, "closed_buffer_wakeup_count"), 4)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 

@@ -29,7 +29,7 @@ const probeUID = "net"
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate") //nolint:revive // TODO
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
@@ -46,7 +46,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, err
 	}
 
-	return m.Manager, nil, nil
+	return m, nil, nil
 }
 
 // Use a function so someone doesn't accidentally use mgrOpts from the outer scope in LoadTracer
