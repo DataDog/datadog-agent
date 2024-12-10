@@ -161,7 +161,7 @@ def check_base_branch(branch, release_version):
     return branch == get_default_branch() or branch == release_version.branch()
 
 
-def try_git_command(ctx, git_command):
+def try_git_command(ctx, git_command, github_action=False):
     """
     Try a git command that should be retried (after user confirmation) if it fails.
     Primarily useful for commands which can fail if commit signing fails: we don't want the
@@ -172,6 +172,8 @@ def try_git_command(ctx, git_command):
 
     while do_retry:
         res = ctx.run(git_command, warn=True)
+        print(res.stdout)
+        print(res.stderr)
         if res.exited is None or res.exited > 0:
             print(
                 color_message(
@@ -179,7 +181,7 @@ def try_git_command(ctx, git_command):
                     "orange",
                 )
             )
-            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True, github_action=github_action)
             continue
 
         return True

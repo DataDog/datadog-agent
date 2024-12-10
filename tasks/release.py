@@ -391,7 +391,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None):
+def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None, github_action=False):
     """Updates the release entries in release.json to prepare the next RC build.
 
     If the previous version of the Agent (determined as the latest tag on the
@@ -463,12 +463,13 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
-        # if not yes_no_question(
-        #     f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
-        #     color="bold",
-        #     default=False,
-        # ):
-        #     raise Exit(color_message("Aborting.", "red"), code=1)
+        if not yes_no_question(
+            f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
+            color="bold",
+            default=False,
+            github_action=github_action,
+        ):
+            raise Exit(color_message("Aborting.", "red"), code=1)
 
         update_release_json(new_version, new_final_version)
 
@@ -492,7 +493,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
         ok = try_git_command(
-            ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+            ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'", github_action
         )
         if not ok:
             raise Exit(
