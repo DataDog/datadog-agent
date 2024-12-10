@@ -27,9 +27,8 @@ type ProfileDefinition struct {
 	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 
-	// Used previously to pass device vendor field (has been replaced by Metadata).
-	// Used in RC for passing device vendor field.
-	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"device,omitempty"` // DEPRECATED
+	// DEPRECATED: Use metadata directly
+	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"device,omitempty"`
 
 	// Version is the profile version.
 	// It is currently used only with downloaded/RC profiles.
@@ -46,4 +45,24 @@ func NewProfileDefinition() *ProfileDefinition {
 	p := &ProfileDefinition{}
 	p.Metadata = make(MetadataConfig)
 	return p
+}
+
+func (p *ProfileDefinition) Clone() *ProfileDefinition {
+	if p == nil {
+		return nil
+	}
+	return &ProfileDefinition{
+		Name:         p.Name,
+		Description:  p.Description,
+		SysObjectIDs: CopySlice(p.SysObjectIDs),
+		Extends:      CopySlice(p.Extends),
+		Metadata:     CloneMap(p.Metadata),
+		MetricTags:   CloneSlice(p.MetricTags),
+		StaticTags:   CopySlice(p.StaticTags),
+		Metrics:      CopySlice(p.Metrics),
+		Device: DeviceMeta{
+			Vendor: p.Device.Vendor,
+		},
+		Version: p.Version,
+	}
 }

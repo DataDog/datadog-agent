@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -354,7 +355,7 @@ collect_topology: false
 		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{
 			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-			Match:  "(\\w)(\\w+)",
+			Match:  regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"prefix":   "\\1",
 				"suffix":   "\\2",
@@ -963,7 +964,7 @@ community_string: public
 	expectedMetricsTagConfigs := []profiledefinition.MetricTagConfig{
 		{
 			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-			Match:  "(\\w)(\\w+)",
+			Match:  regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",

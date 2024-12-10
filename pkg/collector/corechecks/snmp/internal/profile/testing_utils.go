@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/mohae/deepcopy"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -20,7 +18,7 @@ import (
 
 // CopyProfileDefinition copies a profile, it's used for testing
 func CopyProfileDefinition(profileDef profiledefinition.ProfileDefinition) profiledefinition.ProfileDefinition {
-	return deepcopy.Copy(profileDef).(profiledefinition.ProfileDefinition)
+	return *profileDef.Clone()
 }
 
 // SetConfdPathAndCleanProfiles is used for testing only
@@ -71,9 +69,8 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{
-						Symbol:  profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-						Match:   "(\\w)(\\w+)",
-						Pattern: regexp.MustCompile(`(\w)(\w+)`),
+						Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+						Match:  regexp.MustCompile(`(\w)(\w+)`),
 						Tags: map[string]string{
 							"some_tag": "some_tag_value",
 							"prefix":   "\\1",
@@ -134,10 +131,9 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 							},
 							"description": {
 								Symbol: profiledefinition.SymbolConfig{
-									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
-									Name:                 "ifName",
-									ExtractValue:         "(Row\\d)",
-									ExtractValueCompiled: regexp.MustCompile(`(Row\d)`),
+									OID:          "1.3.6.1.2.1.31.1.1.1.1",
+									Name:         "ifName",
+									ExtractValue: regexp.MustCompile(`(Row\d)`),
 								},
 							},
 							"mac_address": {

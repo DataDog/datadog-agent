@@ -114,6 +114,21 @@
         },
         "metric_type": {
           "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/MetricsConfigOption"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MetricsConfigOption": {
+      "properties": {
+        "placement": {
+          "type": "integer"
+        },
+        "metric_suffix": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -168,6 +183,11 @@
         "version"
       ]
     },
+    "Regexp": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
     "StringArray": {
       "items": {
         "type": "string"
@@ -183,6 +203,12 @@
           "type": "string"
         },
         "extract_value": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_pattern": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {
@@ -210,6 +236,12 @@
           "type": "string"
         },
         "extract_value": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_pattern": {
+          "$ref": "#/$defs/Regexp"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {

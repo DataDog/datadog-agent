@@ -7,6 +7,7 @@ package profile
 
 import (
 	"path/filepath"
+	"regexp"
 	"sort"
 	"testing"
 
@@ -66,7 +67,7 @@ func Test_getProfiles(t *testing.T) {
 						Name: "my-init-config-profile",
 						MetricTags: profiledefinition.MetricTagConfigList{
 							{
-								Match: "invalidRegex({[",
+								Match: regexp.MustCompile("foo"), // invalid bcs tags must be provided
 							},
 						},
 					},

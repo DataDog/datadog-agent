@@ -10,11 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mohae/deepcopy"
-
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 )
@@ -41,7 +39,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 			continue
 		}
 
-		newProfileConfig := deepcopy.Copy(pConfig[name]).(ProfileConfig)
+		newProfileConfig := pConfig[name].Clone()
 		err := recursivelyExpandBaseProfiles(name, &newProfileConfig.Definition, newProfileConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile %q: %v", name, err)
