@@ -196,7 +196,7 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 func formatText(c *probe.WinCrashStatus) string {
 	baseString := `A system crash was detected.
 	The crash occurred at %s.
-	The offending moudule is %s.
+	The offending module is %s.
 	The bugcheck code is %s`
 	return fmt.Sprintf(baseString, c.DateString, c.Offender, c.BugCheck)
 }
