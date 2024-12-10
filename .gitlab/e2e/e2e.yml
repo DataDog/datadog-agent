@@ -376,7 +376,7 @@ new-e2e-installer-script:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_installer_oci
+    - deploy_installer_oci
     - qa_installer_script
   variables:
     TARGETS: ./tests/installer/script
