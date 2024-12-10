@@ -25,7 +25,7 @@
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
-/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/container-ecosystems
 
 /*.md                                   @DataDog/agent-devx-infra @DataDog/documentation
 /NOTICE                                 @DataDog/agent-delivery @DataDog/documentation
@@ -91,7 +91,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx-infra
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx-infra @DataDog/agent-delivery
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx-infra
-/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery
+/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery @DataDog/container-ecosystems
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx-infra @DataDog/agent-metrics-logs
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx-infra
 /.gitlab/integration_test/linux.yml                  @DataDog/agent-devx-infra
