@@ -18,9 +18,7 @@ import (
 )
 
 func TestCertCommunication(t *testing.T) {
-	bits := 2048
-
-	certPEM, keyPEM, err := generateCertKeyPair(bits)
+	certPEM, keyPEM, err := generateCertKeyPair()
 	assert.NoError(t, err)
 
 	// Load server certificate

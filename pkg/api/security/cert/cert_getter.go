@@ -59,7 +59,7 @@ func fetchAgentIPCCert(config configModel.Reader, certCreationAllowed bool) ([]b
 			log.Infof("[%s:%d] Creating a new IPC certificate", file, line)
 		}
 
-		cert, key, err := generateCertKeyPair(2048)
+		cert, key, err := generateCertKeyPair()
 
 		if err != nil {
 			return nil, nil, err

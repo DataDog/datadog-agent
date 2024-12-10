@@ -7,8 +7,9 @@
 package cert
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -17,15 +18,6 @@ import (
 	"net"
 	"time"
 )
-
-func generateKeyPair(bits int) (*rsa.PrivateKey, error) {
-	privKey, err := rsa.GenerateKey(rand.Reader, bits)
-	if err != nil {
-		return nil, fmt.Errorf("generating random key: %v", err)
-	}
-
-	return privKey, nil
-}
 
 func certTemplate() (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
@@ -48,21 +40,22 @@ func certTemplate() (*x509.Certificate, error) {
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature | x509.KeyUsageCRLSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		IsCA:                  true,
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+		DNSNames:              []string{"localhost"},
 	}
 
 	return &template, nil
 }
 
-func generateCertKeyPair(bits int) ([]byte, []byte, error) {
+func generateCertKeyPair() ([]byte, []byte, error) {
 	rootCertTmpl, err := certTemplate()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	rootKey, err := generateKeyPair(bits)
+	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("Unable to generate IPC private key: %v", err)
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, rootCertTmpl, rootCertTmpl, &rootKey.PublicKey, rootKey)
@@ -71,7 +64,12 @@ func generateCertKeyPair(bits int) ([]byte, []byte, error) {
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey)})
+	rawKey, err := x509.MarshalECPrivateKey(rootKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Unable to marshall private key: %v", err)
+	}
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: rawKey})
 
 	return certPEM, keyPEM, nil
 }
