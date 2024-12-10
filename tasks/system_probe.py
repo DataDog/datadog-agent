@@ -740,7 +740,7 @@ def build_sysprobe_binary(
     binary=BIN_PATH,
     install_path=None,
     bundle_ebpf=False,
-    strip_binary=False,
+    strip=False,
     fips_mode=False,
     static=False,
 ) -> None:
@@ -752,14 +752,13 @@ def build_sysprobe_binary(
         major_version=major_version,
         arch=arch_obj,
         static=static,
+        strip=strip_binary,
     )
 
     build_tags = get_default_build_tags(build="system-probe")
     build_tags = add_fips_tags(build_tags, fips_mode)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if strip_binary:
-        ldflags += ' -s -w'
 
     if static:
         build_tags.extend(["osusergo", "netgo"])

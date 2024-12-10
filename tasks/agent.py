@@ -135,6 +135,7 @@ def build(
     windows_sysprobe=False,
     cmake_options='',
     agent_bin=None,
+    strip=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -165,6 +166,7 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
         major_version=major_version,
+        strip=strip,
     )
 
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":

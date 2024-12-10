@@ -207,6 +207,7 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     headless_mode=False,
+    strip=False,
     arch: Arch | None = None,
 ):
     """
@@ -275,10 +276,13 @@ def get_build_flags(
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
-        ldflags += "-s -w -linkmode=external "
+        ldflags += "-linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
         ldflags += f"-r {':'.join(rtloader_lib)} "
+
+    if strip:
+        ldflags += "-s -w "
 
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
