@@ -383,7 +383,11 @@ func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
+func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
+	proc := &process.Process{
+		Pid: pid,
+	}
+
 	cmdline, err := proc.CmdlineSlice()
 	if err != nil {
 		return nil, err
@@ -432,39 +436,17 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}, nil
 }
 
-// customNewProcess is the same implementation as process.NewProcess but without calling CreateTimeWithContext, which
-// is not needed and costly for the discovery module.
-func customNewProcess(pid int32) (*process.Process, error) {
-	p := &process.Process{
-		Pid: pid,
-	}
-
-	exists, err := process.PidExists(pid)
-	if err != nil {
-		return p, err
-	}
-	if !exists {
-		return p, process.ErrorProcessNotRunning
-	}
-	return p, nil
-}
-
 // maxNumberOfPorts is the maximum number of listening ports which we report per
 // service.
 const maxNumberOfPorts = 50
 
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	proc, err := customNewProcess(pid)
-	if err != nil {
+	if s.shouldIgnorePid(pid) {
 		return nil
 	}
-
-	if s.shouldIgnorePid(proc.Pid) {
-		return nil
-	}
-	if s.shouldIgnoreComm(proc) {
-		s.addIgnoredPid(proc.Pid)
+	if s.shouldIgnoreComm(pid) {
+		s.addIgnoredPid(pid)
 		return nil
 	}
 
@@ -523,7 +505,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		ports = ports[:maxNumberOfPorts]
 	}
 
-	rss, err := getRSS(proc)
+	rss, err := getRSS(pid)
 	if err != nil {
 		return nil
 	}
@@ -535,7 +517,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if ok {
 		info = cached
 	} else {
-		info, err = s.getServiceInfo(proc)
+		info, err = s.getServiceInfo(pid)
 		if err != nil {
 			return nil
 		}
@@ -550,7 +532,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		name = info.generatedName
 	}
 	if s.shouldIgnoreService(name) {
-		s.addIgnoredPid(proc.Pid)
+		s.addIgnoredPid(pid)
 		return nil
 	}
 
