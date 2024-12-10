@@ -111,7 +111,7 @@ def build_linux_script(
         build_downloader(ctx, flavor=flavor, version=version, os='linux', arch=arch)
         with open(DOWNLOADER_BIN, 'rb') as f:
             encoded_bin = base64.encodebytes(f.read()).decode('utf-8')
-        install_script = install_script.replace(f'DOWNLOADER_BIN_{arch.upper()}', encoded_bin)
+        install_script = install_script.replace(f'DOWNLOADER_BIN_LINUX_{arch.upper()}', encoded_bin)
 
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
