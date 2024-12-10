@@ -630,6 +630,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.Memcached.KeepCommand)
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
+	assert.True(t, o.Cache.Enabled)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -950,6 +951,19 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 12.3, cfg.OTLPReceiver.ProbabilisticSampling)
+	})
+
+	env = "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
+		}))
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, true, cfg.ErrorTrackingStandalone)
 	})
 
 	for _, envKey := range []string{
@@ -1750,6 +1764,20 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, expected, actualParsed)
 	})
 
+	env = "DD_APM_OBFUSCATION_CACHE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
+		assert.False(t, cfg.Obfuscation.Cache.Enabled)
+	})
+
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
@@ -2204,6 +2232,38 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	err := yaml.Unmarshal(resp.Body.Bytes(), &conf)
 	assert.NoError(t, err, "Error loading YAML configuration from the API")
 	assert.Contains(t, conf, "apm_config")
+}
+
+func TestSetConfigHandler(t *testing.T) {
+	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
+
+	handler := config.SetHandler().ServeHTTP
+
+	// Refuse non POST query
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+
+	// Refuse missing auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+
+	// Refuse invalid auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer ABCDE")
+	handler(resp, req)
+	assert.Equal(t, http.StatusForbidden, resp.Code)
+
+	// Accept valid auth token return OK
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	handler(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
 func TestDisableReceiverConfig(t *testing.T) {

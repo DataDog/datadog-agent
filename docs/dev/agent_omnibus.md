@@ -90,7 +90,7 @@ Start a Powershell prompt and navigate to your local clone of the `datadog-agent
  Run the following command:
 
 ```powershell
-docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly-a7 -e MAJOR_VERSION=7 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
 ```
 
 Downloading the Docker image may take some time in the first run.
@@ -100,7 +100,7 @@ Alternatively here's a small Powershell script to facilitate using the docker im
 param (
    [int]$MAJOR_VERSION=7,
    $TARGET_ARCH="x64",
-   $RELEASE_VERSION="nightly",
+   $RELEASE_VERSION="nightly-a7",
    [bool]$RM_CONTAINER=$true,
    [bool]$DEBUG=$false
 )
@@ -113,7 +113,7 @@ $opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VER
 if ($DEBUG) {
     $opts += " -e DEBUG_CUSTOMACTION=yes "
 }
-$cmd += " -m 8192M -v ""$(Get-Location):c:\mnt"" $opts datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat"
+$cmd += " -m 8192M -v ""$(Get-Location):c:\mnt"" $opts datadog/agent-buildimages-windows_x64:1809 powershell -C ""c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"""
 Write-Host $cmd
 Invoke-Expression -Command $cmd
 ```

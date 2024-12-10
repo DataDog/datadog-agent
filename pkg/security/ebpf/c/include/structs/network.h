@@ -64,7 +64,7 @@ struct packet_t {
     struct namespaced_flow_t translated_ns_flow;
 
     u32 offset;
-    u32 pid;
+    s64 pid;
     u32 payload_len;
     u16 l4_protocol;
 };

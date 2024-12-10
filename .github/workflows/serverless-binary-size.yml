@@ -2,6 +2,10 @@ name: "Serverless Binary Size"
 
 on:
   pull_request:
+    paths:
+      - 'cmd/serverless/**'
+      - 'cmd/serverless-init/**'
+      - 'pkg/serverless/**'
 
 env:
   SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB

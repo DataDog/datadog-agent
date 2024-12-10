@@ -25,20 +25,24 @@ var statsTelemetry = struct {
 	missedTCPConnections telemetry.Counter
 	missingTCPFlags      telemetry.Counter
 	tcpSynAndFin         telemetry.Counter
+	tcpRstAndSyn         telemetry.Counter
+	tcpRstAndFin         telemetry.Counter
 }{
 	telemetry.NewCounter(ebpflessModuleName, "missed_tcp_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
 	telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", []string{}, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
 	telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", []string{}, "Counter measuring packets encountered with SYN+FIN together"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", []string{}, "Counter measuring packets encountered with RST+SYN together"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", []string{}, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
 
-type ConnStatus uint8 //nolint:revive // TODO
+type connStatus uint8
 
 const (
-	ConnStatClosed      ConnStatus = iota //nolint:revive // TODO
-	ConnStatAttempted                     //nolint:revive // TODO
-	ConnStatEstablished                   //nolint:revive // TODO
+	connStatClosed connStatus = iota
+	connStatAttempted
+	connStatEstablished
 )
 
 var connStatusLabels = []string{
@@ -47,32 +51,32 @@ var connStatusLabels = []string{
 	"Established",
 }
 
-type SynState uint8 //nolint:revive // TODO
+type synState uint8
 
 const (
-	SynStateNone  SynState = iota //nolint:revive // TODO
-	SynStateSent                  //nolint:revive // TODO
-	SynStateAcked                 //nolint:revive // TODO
+	synStateNone synState = iota
+	synStateSent
+	synStateAcked
 )
 
-func (ss *SynState) update(synFlag, ackFlag bool) {
+func (ss *synState) update(synFlag, ackFlag bool) {
 	// for simplicity, this does not consider the sequence number of the SYNs and ACKs.
 	// if these matter in the future, change this to store SYN seq numbers
-	if *ss == SynStateNone && synFlag {
-		*ss = SynStateSent
+	if *ss == synStateNone && synFlag {
+		*ss = synStateSent
 	}
-	if *ss == SynStateSent && ackFlag {
-		*ss = SynStateAcked
+	if *ss == synStateSent && ackFlag {
+		*ss = synStateAcked
 	}
 	// if we see ACK'd traffic but missed the SYN, assume the connection started before
 	// the datadog-agent starts.
-	if *ss == SynStateNone && ackFlag {
+	if *ss == synStateNone && ackFlag {
 		statsTelemetry.missedTCPConnections.Inc()
-		*ss = SynStateAcked
+		*ss = synStateAcked
 	}
 }
 
-func LabelForState(tcpState ConnStatus) string { //nolint:revive // TODO
+func labelForState(tcpState connStatus) string {
 	idx := int(tcpState)
 	if idx < len(connStatusLabels) {
 		return connStatusLabels[idx]
@@ -86,6 +90,9 @@ func isSeqBefore(prev, cur uint32) bool {
 	// constrain the maximum difference to half the number space
 	return diff > 0 && diff < tcpSeqMidpoint
 }
+func isSeqBeforeEq(prev, cur uint32) bool {
+	return prev == cur || isSeqBefore(prev, cur)
+}
 
 func debugPacketDir(pktType uint8) string {
 	switch pktType {
@@ -98,7 +105,7 @@ func debugPacketDir(pktType uint8) string {
 	}
 }
 
-func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
+func debugTCPFlags(tcp *layers.TCP) string {
 	var flags []string
 	if tcp.RST {
 		flags = append(flags, "RST")
@@ -116,5 +123,5 @@ func debugTcpFlags(tcp *layers.TCP) string { //nolint:revive // TODO
 }
 
 func debugPacketInfo(pktType uint8, tcp *layers.TCP, payloadLen uint16) string {
-	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTcpFlags(tcp))
+	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTCPFlags(tcp))
 }
