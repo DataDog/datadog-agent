@@ -68,7 +68,6 @@ func (suite *k8sSuite) SetupSuite() {
 	stackConfig := runner.ConfigMap{
 		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
 		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
-		"ddagent:dualshipping":  auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
