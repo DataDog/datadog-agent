@@ -26,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 var clcListener net.Listener
@@ -56,12 +57,12 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 
 	// CLC Runner token
 	// Use the Cluster Agent token
-	err = util.InitDCAAuthToken(config.Datadog())
+	err = util.InitDCAAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	hosts := []string{"127.0.0.1", "localhost", config.Datadog().GetString("clc_runner_host")}
+	hosts := []string{"127.0.0.1", "localhost", pkgconfigsetup.Datadog().GetString("clc_runner_host")}
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {
 		return fmt.Errorf("unable to start TLS server: %v", err)
@@ -84,14 +85,14 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(4, seelog.WarnLvl)
 
 	srv := &http.Server{
 		Handler:           r,
 		ErrorLog:          stdLog.New(logWriter, "Error from the clc runner http API server: ", 0), // log errors to seelog,
 		TLSConfig:         &tlsConfig,
-		WriteTimeout:      config.Datadog().GetDuration("clc_runner_server_write_timeout") * time.Second,
-		ReadHeaderTimeout: config.Datadog().GetDuration("clc_runner_server_readheader_timeout") * time.Second,
+		WriteTimeout:      pkgconfigsetup.Datadog().GetDuration("clc_runner_server_write_timeout") * time.Second,
+		ReadHeaderTimeout: pkgconfigsetup.Datadog().GetDuration("clc_runner_server_readheader_timeout") * time.Second,
 	}
 	tlsListener := tls.NewListener(clcListener, &tlsConfig)
 

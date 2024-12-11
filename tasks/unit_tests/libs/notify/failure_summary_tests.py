@@ -10,7 +10,7 @@ from invoke.context import Context, MockContext
 
 from tasks.libs.notify import failure_summary
 from tasks.libs.notify.failure_summary import SummaryData, SummaryStats
-from tasks.libs.notify.utils import CHANNEL_PIPELINES
+from tasks.libs.notify.utils import PIPELINES_CHANNEL
 from tasks.libs.pipeline.notifications import load_and_validate
 
 TEST_DIR = '/tmp/summary'
@@ -200,13 +200,13 @@ class TestSummaryStats(TestFailureSummary):
                 '#channel-a',
                 '#channel-b',
                 ALL_TEAMS_CHANNEL,
-                CHANNEL_PIPELINES,
+                PIPELINES_CHANNEL,
             },
         )
         self.assertEqual(len(results['#channel-a']), 2)
         self.assertEqual(len(results['#channel-b']), 2)
         self.assertEqual(len(results[ALL_TEAMS_CHANNEL]), 1)
-        self.assertEqual(len(results[CHANNEL_PIPELINES]), 4)
+        self.assertEqual(len(results[PIPELINES_CHANNEL]), 4)
 
 
 class TestModule(TestFailureSummary):
@@ -253,7 +253,7 @@ class TestModule(TestFailureSummary):
     @patch("tasks.libs.notify.failure_summary.send_summary_slack_notification")
     def test_send_summary_messages(self, mock_slack: MagicMock = None):
         # Verify that we send the right number of jobs per channel
-        expected_team_njobs = {'#channel-a': 2, '#channel-b': 3, ALL_TEAMS_CHANNEL: 1, CHANNEL_PIPELINES: 5}
+        expected_team_njobs = {'#channel-a': 2, '#channel-b': 3, ALL_TEAMS_CHANNEL: 1, PIPELINES_CHANNEL: 5}
 
         summary = SummaryData(
             MagicMock(),

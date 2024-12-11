@@ -100,6 +100,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\AgentCustomActions\AgentCustomActions.csproj">
+      <Project>{1e5b725c-f738-4141-8dae-a8cb2fb1f10e}</Project>
+      <Name>AgentCustomActions</Name>
+    </ProjectReference>
     <ProjectReference Include="..\CustomActions\CustomActions.csproj">
       <Project>{461CE844-4B07-47BA-B2D2-5415ABD36792}</Project>
       <Name>CustomActions</Name>

@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
@@ -20,142 +22,156 @@ type telemetryResults struct {
 	queryLength               [bucketLength]int64
 	failedTableNameExtraction int64
 	failedOperationExtraction int64
+	counterState              counterStateEnum
 }
 
 func Test_getBucketIndex(t *testing.T) {
-	for i := 0; i <= 34; i++ {
-		require.Equal(t, 0, getBucketIndex(i))
+	// We want to validate that the bucket index is calculated correctly, given the BufferSize and the bucketLength.
+	testCases := []struct {
+		start, end, expected int
+	}{
+		{0, ebpf.BufferSize - 2*bucketLength, 0},
+		{ebpf.BufferSize - 2*bucketLength + 1, ebpf.BufferSize - bucketLength, 1},
+		{ebpf.BufferSize - bucketLength + 1, ebpf.BufferSize, 2},
+		{ebpf.BufferSize + 1, ebpf.BufferSize + bucketLength, 3},
+		{ebpf.BufferSize + bucketLength + 1, ebpf.BufferSize + 2*bucketLength, 4},
+		{ebpf.BufferSize + 2*bucketLength + 1, ebpf.BufferSize + 3*bucketLength, 5},
+		{ebpf.BufferSize + 3*bucketLength + 1, ebpf.BufferSize + 4*bucketLength, 6},
+		{ebpf.BufferSize + 4*bucketLength + 1, ebpf.BufferSize + 5*bucketLength, 7},
+		{ebpf.BufferSize + 5*bucketLength + 1, ebpf.BufferSize + 6*bucketLength, 8},
+		{ebpf.BufferSize + 6*bucketLength + 1, ebpf.BufferSize + 7*bucketLength, 9},
 	}
-	for i := 35; i <= 49; i++ {
-		require.Equal(t, 1, getBucketIndex(i))
-	}
-	for i := 50; i <= 64; i++ {
-		require.Equal(t, 2, getBucketIndex(i))
-	}
-	for i := 65; i <= 79; i++ {
-		require.Equal(t, 3, getBucketIndex(i))
-	}
-	for i := 80; i <= 94; i++ {
-		require.Equal(t, 4, getBucketIndex(i))
-	}
-	for i := 95; i <= 109; i++ {
-		require.Equal(t, 5, getBucketIndex(i))
-	}
-	for i := 110; i <= 124; i++ {
-		require.Equal(t, 6, getBucketIndex(i))
-	}
-	for i := 125; i <= 139; i++ {
-		require.Equal(t, 7, getBucketIndex(i))
-	}
-	for i := 140; i <= 154; i++ {
-		require.Equal(t, 8, getBucketIndex(i))
-	}
-	for i := 155; i <= 1000; i++ {
-		require.Equal(t, 9, getBucketIndex(i))
+
+	cfg := config.New()
+	telemetry := NewTelemetry(cfg)
+
+	for _, tc := range testCases {
+		for i := tc.start; i <= tc.end; i++ {
+			require.Equal(t, tc.expected, telemetry.getBucketIndex(i), "query length %d should be in bucket %d", i, tc.expected)
+		}
 	}
 }
+
+// telemetryTestBufferSize serves as example configuration for the telemetry buffer size.
+const telemetryTestBufferSize = 2 * ebpf.BufferSize
 
 func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
 		name              string
 		query             string
-		tx                []*EbpfEvent
+		maxBufferSize     int
+		tx                []*ebpf.EbpfEvent
 		expectedTelemetry telemetryResults
 	}{
 		{
 			name: "exceeded query length bucket for each bucket ones",
-			tx: []*EbpfEvent{
-				{
-					Tx: EbpfTx{
-						Original_query_size: 19,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 35,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 64,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 65,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 80,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 95,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 110,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 125,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 140,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 200,
-					},
-				},
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(ebpf.BufferSize - 2*bucketLength),
+				createEbpfEvent(ebpf.BufferSize - bucketLength),
+				createEbpfEvent(ebpf.BufferSize),
+				createEbpfEvent(ebpf.BufferSize + 1),
+				createEbpfEvent(ebpf.BufferSize + bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 6*bucketLength + 1),
 			},
 
 			expectedTelemetry: telemetryResults{
 				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 				failedOperationExtraction: 10,
 				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
+			},
+		},
+		{
+			name: "exceeded query length bucket for each bucket ones with telemetry config",
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(telemetryTestBufferSize - 2*bucketLength),
+				createEbpfEvent(telemetryTestBufferSize - bucketLength),
+				createEbpfEvent(telemetryTestBufferSize),
+				createEbpfEvent(telemetryTestBufferSize + 1),
+				createEbpfEvent(telemetryTestBufferSize + bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 2*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 3*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 4*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 5*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 6*bucketLength + 1),
+			},
+			maxBufferSize: telemetryTestBufferSize,
+
+			expectedTelemetry: telemetryResults{
+				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
+			},
+		},
+		{
+			name: "validating max buffer size which creates negative first bucket lower boundary",
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(ebpf.BufferSize - 2*bucketLength),
+				createEbpfEvent(ebpf.BufferSize - bucketLength),
+				createEbpfEvent(ebpf.BufferSize),
+				createEbpfEvent(ebpf.BufferSize + 1),
+				createEbpfEvent(ebpf.BufferSize + bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 6*bucketLength + 1),
+			},
+			maxBufferSize: 1,
+
+			expectedTelemetry: telemetryResults{
+				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
 			},
 		},
 		{
 			name:  "failed operation extraction",
-			tx:    []*EbpfEvent{{}},
+			tx:    []*ebpf.EbpfEvent{{}},
 			query: "CREA TABLE dummy",
 			expectedTelemetry: telemetryResults{
 				failedOperationExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              operationNotFound,
 			},
 		},
 		{
 			name:  "failed table name extraction",
-			tx:    []*EbpfEvent{{}},
+			tx:    []*ebpf.EbpfEvent{{}},
 			query: "CREATE TABLE",
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              tableNameNotFound,
 			},
 		},
 		{
 			name:  "failed table name and operation extraction",
-			tx:    []*EbpfEvent{{}},
+			tx:    []*ebpf.EbpfEvent{{}},
 			query: "CRE TABLE",
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
 				failedOperationExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              tableAndOpNotFound,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetry.Clear()
-			tel := NewTelemetry()
+
+			cfg := config.New()
+			if tt.maxBufferSize > 0 {
+				cfg.MaxPostgresTelemetryBuffer = tt.maxBufferSize
+			}
+			tel := NewTelemetry(cfg)
 			if tt.query != "" {
 				tt.tx[0].Tx.Original_query_size = uint32(len(tt.query))
 				copy(tt.tx[0].Tx.Request_fragment[:], tt.query)
@@ -169,9 +185,25 @@ func TestTelemetry_Count(t *testing.T) {
 	}
 }
 
+func createEbpfEvent(querySize int) *ebpf.EbpfEvent {
+	return &ebpf.EbpfEvent{
+		Tx: ebpf.EbpfTx{
+			Original_query_size: uint32(querySize),
+		},
+	}
+}
+
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
 	for i := 0; i < len(tel.queryLengthBuckets); i++ {
-		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].Get(), "queryLength for bucket %d count is incorrect", i)
+		expState := expected.counterState
+		expCount := expected.queryLength[i]
+		curCount := tel.queryLengthBuckets[i].get(expState)
+
+		assert.Equal(t,
+			expCount,
+			curCount,
+			"queryLength bucket '%d': expected state '%v', expected counter '%d', actual counter '%d'",
+			i, expState, expCount, curCount)
 	}
 	assert.Equal(t, expected.failedTableNameExtraction, tel.failedTableNameExtraction.Get(), "failedTableNameExtraction count is incorrect")
 	assert.Equal(t, expected.failedOperationExtraction, tel.failedOperationExtraction.Get(), "failedOperationExtraction count is incorrect")

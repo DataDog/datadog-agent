@@ -54,7 +54,7 @@ func TestGetToken(t *testing.T) {
 }
 
 func TestGetTokenError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		io.WriteString(w, "{}")
 	}))
@@ -68,7 +68,7 @@ func TestGetTokenError(t *testing.T) {
 }
 
 func TestGetTokenErrorParsingDate(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		io.WriteString(w, tokenPayloadExpireError)
 	}))

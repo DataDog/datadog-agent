@@ -1,0 +1,6 @@
+apm_config:
+  enabled: false
+  log_file: abc
+  apm_dd_url: https://datadog.unittests
+  env: test
+  receiver_enabled: false

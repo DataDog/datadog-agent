@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -234,6 +235,12 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	r.telemetryForwarder.start()
+
+	if !r.conf.ReceiverEnabled {
+		log.Debug("HTTP Server is off: HTTPReceiver is disabled.")
+		return
+	}
 	if r.conf.ReceiverPort == 0 &&
 		r.conf.ReceiverSocket == "" &&
 		r.conf.WindowsPipeName == "" {
@@ -271,19 +278,24 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
-		ln, err := r.listenUnix(path)
-		if err != nil {
-			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-			killProcess("Error creating UDS listener: %v", err)
-		}
-		go func() {
-			defer watchdog.LogOnPanic(r.statsd)
-			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+			ln, err := r.listenUnix(path)
+			if err != nil {
+				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+			} else {
+				go func() {
+					defer watchdog.LogOnPanic(r.statsd)
+					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+						log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+						r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+					}
+				}()
+				log.Infof("Listening for traces at unix://%s", path)
 			}
-		}()
-		log.Infof("Listening for traces at unix://%s", path)
+		} else {
+			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
+		}
 	}
 
 	if path := r.conf.WindowsPipeName; path != "" {
@@ -352,7 +364,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
-	if r.conf.ReceiverPort == 0 {
+	if !r.conf.ReceiverEnabled || r.conf.ReceiverPort == 0 {
 		return nil
 	}
 	r.exit <- struct{}{}
@@ -368,6 +380,16 @@ func (r *HTTPReceiver) Stop() error {
 	close(r.out)
 	r.telemetryForwarder.Stop()
 	return nil
+}
+
+// UpdateAPIKey rebuilds the server handler to update API Keys in all endpoints
+func (r *HTTPReceiver) UpdateAPIKey() {
+	if r.server == nil {
+		return
+	}
+	log.Debug("API Key updated. Rebuilding API handler.")
+	handler := r.buildMux()
+	r.server.Handler = handler
 }
 
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
@@ -432,12 +454,12 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service strin
 // - tp is the decoded payload
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, ranHook bool, err error) {
+func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
 	switch v {
 	case v01:
 		var spans []*pb.Span
 		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		return &pb.TracerPayload{
 			LanguageName:    lang,
@@ -445,12 +467,12 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   tracerVersion,
-		}, false, nil
+		}, nil
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
 		if _, err = copyRequestBody(buf, req); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		var traces pb.Traces
 		err = traces.UnmarshalMsgDictionary(buf.Bytes())
@@ -460,20 +482,20 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   tracerVersion,
-		}, true, err
+		}, err
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
 		if _, err = copyRequestBody(buf, req); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		var tracerPayload pb.TracerPayload
 		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
-		return &tracerPayload, true, err
+		return &tracerPayload, err
 	default:
 		var traces pb.Traces
-		if ranHook, err = decodeRequest(req, &traces); err != nil {
-			return nil, false, err
+		if err = decodeRequest(req, &traces); err != nil {
+			return nil, err
 		}
 		return &pb.TracerPayload{
 			LanguageName:    lang,
@@ -481,7 +503,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   tracerVersion,
-		}, ranHook, nil
+		}, nil
 	}
 }
 
@@ -502,7 +524,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
-	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string)
+	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string)
 }
 
 // handleStats handles incoming stats payloads.
@@ -530,7 +552,11 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	r.statsProcessor.ProcessStats(in, req.Header.Get(header.Lang), req.Header.Get(header.TracerVersion))
+	// Resolve ContainerID baased on HTTP headers
+	lang := req.Header.Get(header.Lang)
+	tracerVersion := req.Header.Get(header.TracerVersion)
+	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID)
 }
 
 // handleTraces knows how to handle a bunch of traces
@@ -573,7 +599,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	start := time.Now()
-	tp, ranHook, err := decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
+	tp, err := decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
 	ts := r.tagStats(v, req.Header, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
@@ -597,16 +623,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
-	}
-	if !ranHook {
-		// The decoder of this request did not run the pb.MetaHook. The user is either using
-		// a deprecated endpoint or Content-Type, or, a new decoder was implemented and the
-		// the hook was not added.
-		log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
-		if _, ok := pb.MetaHook(); ok {
-			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
-			runMetaHook(tp.Chunks)
-		}
 	}
 	if n, ok := r.replyOK(req, v, w); ok {
 		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
@@ -632,23 +648,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 	r.out <- payload
-}
-
-// runMetaHook runs the pb.MetaHook on all spans from traces.
-func runMetaHook(chunks []*pb.TraceChunk) {
-	hook, ok := pb.MetaHook()
-	if !ok {
-		return
-	}
-	for _, chunk := range chunks {
-		for _, span := range chunk.Spans {
-			for k, v := range span.Meta {
-				if newv := hook(k, v); newv != v {
-					span.Meta[k] = newv
-				}
-			}
-		}
-	}
 }
 
 func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
@@ -780,24 +779,23 @@ func (r *HTTPReceiver) Languages() string {
 // It handles only v02, v03, v04 requests.
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error) {
+func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err = copyRequestBody(buf, req)
+		_, err := copyRequestBody(buf, req)
 		if err != nil {
-			return false, err
+			return err
 		}
 		_, err = dest.UnmarshalMsg(buf.Bytes())
-		return true, err
+		return err
 	case "application/json":
 		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
-		err = json.NewDecoder(req.Body).Decode(&dest)
-		return false, err
+		return json.NewDecoder(req.Body).Decode(&dest)
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
@@ -805,12 +803,12 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 			defer putBuffer(buf)
 			_, err2 := copyRequestBody(buf, req)
 			if err2 != nil {
-				return false, err2
+				return err2
 			}
 			_, err2 = dest.UnmarshalMsg(buf.Bytes())
-			return true, err2
+			return err2
 		}
-		return false, nil
+		return nil
 	}
 }
 
@@ -871,4 +869,13 @@ func getMediaType(req *http.Request) string {
 		return "application/json"
 	}
 	return mt
+}
+
+// normalizeHTTPHeader takes a raw string and normalizes the value to be compatible
+// with an HTTP header value.
+func normalizeHTTPHeader(val string) string {
+	val = strings.ReplaceAll(val, "\r\n", "_")
+	val = strings.ReplaceAll(val, "\r", "_")
+	val = strings.ReplaceAll(val, "\n", "_")
+	return val
 }

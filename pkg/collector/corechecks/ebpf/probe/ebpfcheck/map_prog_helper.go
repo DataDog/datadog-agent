@@ -11,11 +11,12 @@ package ebpfcheck
 import (
 	"sync"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mapProgHelperCache struct {
@@ -23,7 +24,7 @@ type mapProgHelperCache struct {
 
 	cache map[ebpf.MapID]helperProgData
 
-	liveMapIds map[ebpf.MapID]struct{}
+	liveMapIDs map[ebpf.MapID]struct{}
 
 	entryBtf    *btf.Func
 	callbackBtf *btf.Func
@@ -74,7 +75,7 @@ func newMapProgHelperCache() *mapProgHelperCache {
 
 	return &mapProgHelperCache{
 		cache:      make(map[ebpf.MapID]helperProgData),
-		liveMapIds: make(map[ebpf.MapID]struct{}),
+		liveMapIDs: make(map[ebpf.MapID]struct{}),
 
 		entryBtf:    entryBtf,
 		callbackBtf: callbackBtf,
@@ -199,7 +200,7 @@ func (c *mapProgHelperCache) clearLiveMapIDs() {
 	c.Lock()
 	defer c.Unlock()
 
-	clear(c.liveMapIds)
+	clear(c.liveMapIDs)
 }
 
 func (c *mapProgHelperCache) addLiveMapID(id ebpf.MapID) {
@@ -210,7 +211,7 @@ func (c *mapProgHelperCache) addLiveMapID(id ebpf.MapID) {
 	c.Lock()
 	defer c.Unlock()
 
-	c.liveMapIds[id] = struct{}{}
+	c.liveMapIDs[id] = struct{}{}
 }
 
 func (c *mapProgHelperCache) closeUnusedPrograms() {
@@ -222,7 +223,7 @@ func (c *mapProgHelperCache) closeUnusedPrograms() {
 	defer c.Unlock()
 
 	for id, data := range c.cache {
-		if _, alive := c.liveMapIds[id]; !alive {
+		if _, alive := c.liveMapIDs[id]; !alive {
 			// the mapping is no longer existent so we can safely remove the program
 			if err := data.prog.Close(); err != nil {
 				log.Warnf("failed to close helper program: %v", err)

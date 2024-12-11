@@ -25,22 +25,22 @@ func TestGetFargateHost(t *testing.T) {
 	}{
 		{
 			ECS,
-			func(ctx context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
-			func(ctx context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
 			"fargate_task:arn-xxx",
 			false,
 		},
 		{
 			EKS,
-			func(ctx context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
-			func(ctx context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
 			"fargate-ip-xxx",
 			false,
 		},
 		{
 			Unknown,
-			func(ctx context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
-			func(ctx context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
 			"",
 			true,
 		},

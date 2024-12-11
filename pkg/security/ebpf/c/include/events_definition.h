@@ -21,6 +21,20 @@ struct bind_event_t {
     u64 addr[2];
     u16 family;
     u16 port;
+    u16 protocol;
+};
+
+struct connect_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+
+    u64 addr[2];
+    u16 family;
+    u16 port;
+    u16 protocol;
 };
 
 struct bpf_event_t {
@@ -66,6 +80,14 @@ struct exit_event_t {
     u32 exit_code;
 };
 
+struct login_uid_write_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    u32 auid;
+};
+
 struct setuid_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -100,6 +122,13 @@ struct cgroup_tracing_event_t {
     struct container_context_t container;
     struct activity_dump_config config;
     u64 cookie;
+};
+
+struct cgroup_write_event_t {
+    struct kevent_t event;
+    struct file_t file;
+    u32 pid; // pid of the process added to the cgroup
+    u32 cgroup_flags;
 };
 
 struct utimes_event_t {
@@ -295,6 +324,7 @@ struct ptrace_event_t {
     u32 request;
     u32 pid;
     u64 addr;
+    u32 ns_pid;
 };
 
 struct syscall_monitor_event_t {
@@ -303,10 +333,8 @@ struct syscall_monitor_event_t {
     struct span_context_t span;
     struct container_context_t container;
 
-    union {
-        struct syscall_monitor_entry_t syscalls;
-        long syscall_id;
-    } syscall_data;
+    u64 event_reason;
+    char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
 };
 
 struct rename_event_t {

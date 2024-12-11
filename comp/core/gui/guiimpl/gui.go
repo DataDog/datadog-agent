@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+
 	"path/filepath"
 	"strconv"
 	"time"
@@ -26,18 +27,22 @@ import (
 	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
 
+	securejoin "github.com/cyphar/filepath-securejoin"
+
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // Module defines the fx options for this component.
@@ -50,7 +55,7 @@ func Module() fxutil.Module {
 type gui struct {
 	logger log.Component
 
-	port     string
+	address  string
 	listener net.Listener
 	router   *mux.Router
 
@@ -61,8 +66,8 @@ type gui struct {
 	startTimestamp int64
 }
 
-//go:embed views
-var viewsFS embed.FS
+//go:embed views/templates
+var templatesFS embed.FS
 
 // Payload struct is for the JSON messages received from a client POST request
 type Payload struct {
@@ -105,8 +110,14 @@ func newGui(deps dependencies) provides {
 		return p
 	}
 
+	guiHost, err := system.IsLocalAddress(deps.Config.GetString("GUI_host"))
+	if err != nil {
+		deps.Log.Errorf("GUI server host is not a local address: %s", err)
+		return p
+	}
+
 	g := gui{
-		port:         guiPort,
+		address:      net.JoinHostPort(guiHost, guiPort),
 		logger:       deps.Log,
 		intentTokens: make(map[string]bool),
 	}
@@ -160,13 +171,13 @@ func (g *gui) start(_ context.Context) error {
 	// Set start time...
 	g.startTimestamp = time.Now().Unix()
 
-	g.listener, e = net.Listen("tcp", "127.0.0.1:"+g.port)
+	g.listener, e = net.Listen("tcp", g.address)
 	if e != nil {
 		g.logger.Errorf("GUI server didn't achieved to start: ", e)
 		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
-	g.logger.Infof("GUI server is listening at 127.0.0.1:" + g.port)
+	g.logger.Info("GUI server is listening at " + g.address)
 	return nil
 }
 
@@ -191,7 +202,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 }
 
 func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
-	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
+	data, err := templatesFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -222,8 +233,15 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	path := path.Join("views", "private", req.URL.Path)
-	data, err := viewsFS.ReadFile(path)
+	staticFilePath := path.Join(setup.InstallPath, "bin", "agent", "dist", "views")
+
+	// checking against path traversal
+	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)

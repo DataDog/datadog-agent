@@ -65,21 +65,18 @@ func NewHorizontalPodAutoscalerV2Beta2Factory(client *apiserver.APIClient) custo
 }
 
 type hpav2Factory struct {
-	client interface{}
+	client kubernetes.Interface
 }
 
 func (f *hpav2Factory) Name() string {
 	return "horizontalpodautoscalers"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *hpav2Factory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
-func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_info",
@@ -311,7 +308,7 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", a.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -330,7 +327,7 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", a.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -369,20 +366,27 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 		),
 	}
 }
+
 func (f *hpav2Factory) ExpectedType() interface{} {
-	return &autoscaling.HorizontalPodAutoscaler{}
+	return &autoscaling.HorizontalPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "HorizontalPodAutoscaler",
+			APIVersion: autoscaling.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func (f *hpav2Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).List(context.TODO(), opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).Watch(context.TODO(), opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).Watch(ctx, opts)
 		},
 	}
 }

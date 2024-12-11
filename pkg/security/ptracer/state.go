@@ -26,11 +26,6 @@ func NewSyscallStateTracker() *SyscallStateTracker {
 	}
 }
 
-// IsSyscallEntry returns true is the pid is at a syscall entry
-func (st *SyscallStateTracker) IsSyscallEntry(pid int) bool {
-	return st.states[pid].Entry
-}
-
 // NextStop update the state for the given pid
 func (st *SyscallStateTracker) NextStop(pid int) *SyscallState {
 	state, exists := st.states[pid]

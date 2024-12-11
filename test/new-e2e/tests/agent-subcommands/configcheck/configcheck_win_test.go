@@ -24,6 +24,7 @@ type windowsConfigCheckSuite struct {
 }
 
 func TestWindowsConfigCheckSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 

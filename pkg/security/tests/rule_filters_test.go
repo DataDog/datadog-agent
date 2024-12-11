@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +29,7 @@ func TestSECLRuleFilter(t *testing.T) {
 		Code:         kernel.Kernel5_9,
 	}
 
-	m, err := rulesmodule.NewRuleFilterModel("")
+	m, err := filtermodel.NewRuleFilterModel(nil, "")
 	assert.NoError(t, err)
 	m.Version = kv
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
@@ -55,11 +55,7 @@ func TestSECLRuleFilter(t *testing.T) {
 			},
 		)
 		assert.NoError(t, err)
-		if runtime.GOOS == "windows" {
-			assert.False(t, result)
-		} else {
-			assert.True(t, result)
-		}
+		assert.True(t, result)
 	})
 
 	for _, os := range []string{"windows", "linux"} {

@@ -6,25 +6,21 @@
 package sender
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
-
-func getNewConfig() pkgconfigmodel.ReaderWriter {
-	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-}
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
 	return &message.Payload{
@@ -49,8 +45,8 @@ func TestSender(t *testing.T) {
 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx, statusinterface.NewStatusProviderMock())
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
-	cfg := getNewConfig()
-	sender := NewSender(cfg, input, output, destinations, 0, nil, nil)
+	cfg := configmock.New(t)
+	sender := NewSender(cfg, input, output, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -68,7 +64,7 @@ func TestSender(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderSingleDestination(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -78,7 +74,7 @@ func TestSenderSingleDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -96,7 +92,7 @@ func TestSenderSingleDestination(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderDualReliableDestination(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -108,7 +104,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -131,7 +127,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderUnreliableAdditionalDestination(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -143,7 +139,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -163,7 +159,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 }
 
 func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -175,7 +171,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -212,7 +208,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -224,7 +220,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -258,7 +254,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
-	cfg := getNewConfig()
+	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
@@ -270,7 +266,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}

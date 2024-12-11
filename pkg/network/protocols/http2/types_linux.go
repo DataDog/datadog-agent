@@ -7,7 +7,7 @@ const (
 	maxHTTP2Path     = 0xa0
 	http2PathBuckets = 0x7
 
-	HTTP2TerminatedBatchSize = 0x50
+	HTTP2TerminatedBatchSize = 0x55
 
 	http2RawStatusCodeMaxLength = 0x3
 

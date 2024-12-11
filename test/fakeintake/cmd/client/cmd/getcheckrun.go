@@ -21,7 +21,7 @@ func NewGetCheckRunCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "check-run",
 		Short: "Get check-run",
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(*cobra.Command, []string) (err error) {
 			checkRun, err := (*cl).GetCheckRun(name)
 			if err != nil {
 				return err

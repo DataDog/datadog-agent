@@ -12,7 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"

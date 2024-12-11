@@ -4,13 +4,13 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
+from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
@@ -23,6 +23,13 @@ SSH_OPTIONS = {
     # and print out scary warnings if the key doesn't match.
     "StrictHostKeyChecking": "accept-new",
     "UserKnownHostsFile": "/dev/null",
+}
+
+# SSH options to use when we want to use the SSH multiplexer, to avoid reauthentication
+SSH_MULTIPLEX_OPTIONS = {
+    "ControlMaster": "auto",
+    "ControlPersist": "10m",
+    "ControlPath": "/tmp/ssh_mux_%h_%p_%r",
 }
 
 
@@ -93,7 +100,9 @@ class LibvirtDomain:
         tag: str,
         vmset_tags: list[str],
         ssh_key_path: str | None,
+        arch: KMTArchNameOrLocal | None,
         instance: HostInstance,
+        user: str = "root",
     ):
         self.ip = ip
         self.name = domain_id
@@ -101,22 +110,28 @@ class LibvirtDomain:
         self.vmset_tags = vmset_tags
         self.ssh_key = ssh_key_path
         self.instance = instance
+        self.arch = arch
+        self.user = user
 
     def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
         if timeout_sec is not None:
-            extra_opts = {"ConnectTimeout": str(timeout_sec)}
+            extra_opts = {"ConnectTimeout": str(timeout_sec)} | SSH_MULTIPLEX_OPTIONS
         else:
-            extra_opts = None
+            extra_opts = SSH_MULTIPLEX_OPTIONS
 
-        run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
+        cmd = f"sudo bash -c \"{cmd}\"" if self.user != "root" else cmd
+        run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} {self.user}@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def _get_rsync_base(self, exclude: PathOrStr | None) -> str:
+    def _get_rsync_base(self, exclude: PathOrStr | None, verbose=False) -> str:
         exclude_arg = ""
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"
 
-        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+        verbose_arg = "-vP" if verbose else ""
+        sudo = "--rsync-path=\"sudo rsync\"" if self.user != "root" else ""
+
+        return f"rsync {sudo} {verbose_arg} -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'} | SSH_MULTIPLEX_OPTIONS)} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
 
     def copy(
         self,
@@ -129,8 +144,16 @@ class LibvirtDomain:
         # Always ensure that the parent directory exists, rsync creates the rest
         self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
 
-        run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        info(f"[+] Copying (HOST: {source}) => (VM: {target})...")
+
+        run = (
+            self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {source} {self.user}@{self.ip}:{target}"
+        )
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] Copied (HOST: {source}) => (VM: {target})")
+
+        return res
 
     def download(
         self,
@@ -140,8 +163,13 @@ class LibvirtDomain:
         exclude: PathOrStr | None = None,
         verbose: bool = False,
     ):
-        run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        run = (
+            self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {self.user}@{self.ip}:{source} {target}"
+        )
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (VM: {source}) => (HOST: {target})")
+        return res
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
@@ -174,7 +202,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
         try:
             infra_map: StackOutput = json.load(f)
         except json.decoder.JSONDecodeError as e:
-            raise Exit(f"{stack_output} file is not a valid json file") from e
+            raise RuntimeError(f"{stack_output} file is not a valid json file") from e
 
     infra: dict[KMTArchNameOrLocal, HostInstance] = {}
     for arch in infra_map:
@@ -186,7 +214,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
             # location in the local machine.
             instance.add_microvm(
                 LibvirtDomain(
-                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), instance
+                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), arch, instance
                 )
             )
 
@@ -195,13 +223,41 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
     return infra
 
 
-def ask_for_ssh() -> bool:
-    return (
-        ask(
-            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue without a ssh key?[Y/n]"
+class AlienVMInfo(TypedDict):
+    ip: str
+    ssh_key_path: str
+    name: str
+    arch: str
+
+
+AlienInfrastructure = list[AlienVMInfo]
+
+
+def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, HostInstance]:
+    with open(alien_vms) as f:
+        profile: AlienInfrastructure = json.load(f)
+
+    # lets pretend all VMs are present locally even if they are not, because we just
+    # want to bypass the ssh proxying stuff when running commands and copying things
+    instance = HostInstance("local", "local", None)
+    for vm in profile:
+        ssh_user = "root"
+        if "ssh_user" in vm:
+            ssh_user = vm["ssh_user"]
+        instance.add_microvm(
+            LibvirtDomain(
+                vm["ip"],
+                "",
+                "",
+                [],
+                vm["ssh_key_path"],
+                vm["arch"],
+                instance,
+                ssh_user,
+            )
         )
-        != "y"
-    )
+
+    return {"local": instance}
 
 
 def get_ssh_key_name(pubkey: Path) -> str | None:

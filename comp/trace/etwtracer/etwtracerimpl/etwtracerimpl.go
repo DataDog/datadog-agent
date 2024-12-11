@@ -28,7 +28,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -275,7 +275,7 @@ func (a *etwtracerimpl) start(_ context.Context) error {
 	a.log.Infof("Starting Datadog APM ETW tracer component")
 	var err error
 	etwSessionName := "Datadog APM ETW tracer"
-	a.session, err = a.etw.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {})
+	a.session, err = a.etw.NewSession(etwSessionName, func(_ *etw.SessionConfiguration) {})
 	if err != nil {
 		a.log.Errorf("Failed to create the ETW session '%s': %v", etwSessionName, err)
 		// Don't fail the Agent startup

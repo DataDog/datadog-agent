@@ -85,14 +85,6 @@ func (o *offsetManager) NextBatchID(cpu int) int {
 	return o.stateByCPU[cpu].nextBatchID
 }
 
-func max(a, b int) int {
-	if a >= b {
-		return a
-	}
-
-	return b
-}
-
 func batchComplete(b *batch) bool {
 	return b.Cap > 0 && b.Len == b.Cap
 }

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix OOM error with cluster agent auto instrumentation by increasing default memory request from 20Mi to 100Mi.

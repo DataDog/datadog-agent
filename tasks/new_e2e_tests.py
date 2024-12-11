@@ -5,8 +5,10 @@ Running E2E Tests with infra based on Pulumi
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import os.path
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -19,8 +21,10 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
-from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
-from tasks.modules import DEFAULT_MODULES
+from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.gomodules import get_default_modules
+from tasks.libs.common.utils import REPO_PATH, color_message, gitlab_section, running_in_ci
+from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
 @task(
@@ -33,6 +37,8 @@ from tasks.modules import DEFAULT_MODULES
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
         'run': 'Only run tests matching the regular expression',
         'skip': 'Only run tests not matching the regular expression',
+        'agent_image': 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
+        'cluster_agent_image': 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
     },
 )
 def run(
@@ -58,6 +64,11 @@ def run(
     junit_tar="",
     test_run_name="",
     test_washer=False,
+    agent_image="",
+    cluster_agent_image="",
+    logs_post_processing=False,
+    logs_post_processing_test_depth=1,
+    logs_folder="e2e_logs",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -68,24 +79,30 @@ def run(
             1,
         )
 
-    e2e_module = DEFAULT_MODULES["test/new-e2e"]
-    e2e_module.condition = lambda: True
+    e2e_module = get_default_modules()["test/new-e2e"]
+    e2e_module.should_test_condition = 'always'
     if targets:
-        e2e_module.targets = targets
+        e2e_module.test_targets = targets
 
-    envVars = {}
+    env_vars = {}
     if profile:
-        envVars["E2E_PROFILE"] = profile
+        env_vars["E2E_PROFILE"] = profile
 
-    parsedParams = {}
+    parsed_params = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
             raise Exit(message=f"wrong format given for config parameter, expects key=value, actual: {param}", code=1)
-        parsedParams[parts[0]] = parts[1]
+        parsed_params[parts[0]] = parts[1]
 
-    if parsedParams:
-        envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
+    if agent_image:
+        parsed_params["ddagent:fullImagePath"] = agent_image
+
+    if cluster_agent_image:
+        parsed_params["ddagent:clusterAgentFullImagePath"] = cluster_agent_image
+
+    if parsed_params:
+        env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
@@ -94,10 +111,17 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    scrubber_raw_command = ""
+    # Scrub the test output to avoid leaking API or APP keys when running in the CI
+    if running_in_ci():
+        scrubber_raw_command = (
+            # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
+            f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
+        )
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     args = {
-        "go_mod": "mod",
+        "go_mod": "readonly",
         "timeout": "4h",
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
@@ -127,7 +151,7 @@ def run(
         modules=[e2e_module],
         args=args,
         cmd=cmd,
-        env=envVars,
+        env=env_vars,
         junit_tar=junit_tar,
         save_result_json="",
         test_profiler=None,
@@ -138,20 +162,38 @@ def run(
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
         params = [f'--targets {t}' for t in targets]
-        pre_command = (
-            f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} aws-vault exec sso-agent-sandbox-account-admin"
-        )
 
         param_keys = ('osversion', 'platform', 'arch')
         for param_key in param_keys:
             if args.get(param_key):
                 params.append(f'-{args[param_key]}')
 
-        command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} inv -e new-e2e-tests.run {' '.join(params)}"
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
         )
+
+    if logs_post_processing:
+        if len(test_res) == 1:
+            post_processed_output = post_process_output(
+                test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
+            )
+
+            os.makedirs(logs_folder, exist_ok=True)
+            write_result_to_log_files(post_processed_output, logs_folder)
+            try:
+                pretty_print_logs(post_processed_output)
+            except TooManyLogsError:
+                print(
+                    color_message("WARNING", "yellow")
+                    + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+                )
+        else:
+            print(
+                color_message("WARNING", "yellow")
+                + f": Logs post processing expect only test result for test/new-e2e module. Skipping because result contains test for {len(test_res)} modules."
+            )
 
     if not success:
         raise Exit(code=1)
@@ -162,9 +204,10 @@ def run(
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
         'output': 'Cleans up local test output directory, default False',
+        'skip_destroy': 'Skip stack\'s resources removal. Use it only if your resources are already removed by other means, default False',
     },
 )
-def clean(ctx, locks=True, stacks=False, output=False):
+def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -179,10 +222,162 @@ def clean(ctx, locks=True, stacks=False, output=False):
             print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
-        _clean_stacks(ctx)
+        _clean_stacks(ctx, skip_destroy)
 
     if output:
         _clean_output()
+
+
+@task
+def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
+    """
+    Clean up remote stacks created by the pipeline
+    """
+    if not running_in_ci():
+        raise Exit("This task should be run in CI only", 1)
+
+    stack_regex = re.compile(stack_regex)
+
+    # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
+    # Once the bucket is cleaned up we can switch to the pulumi CLI
+    res = ctx.run(
+        "pulumi stack ls --all --json",
+        hide=True,
+        warn=True,
+    )
+    if res.exited != 0:
+        print(f"Failed to list stacks in {pulumi_backend}:", res.stdout, res.stderr)
+        return
+    to_delete_stacks = set()
+    stacks = json.loads(res.stdout)
+    print(stacks)
+    for stack in stacks:
+        stack_id = (
+            stack.get("name", "")
+            .split("/")[-1]
+            .replace(".json.bak", "")
+            .replace(".json", "")
+            .replace(".pulumi/stacks/e2eci", "")
+        )
+        if stack_regex.match(stack_id):
+            to_delete_stacks.add(f"organization/e2eci/{stack_id}")
+
+    if len(to_delete_stacks) == 0:
+        print("No stacks to delete")
+        return
+
+    print("About to delete the following stacks:", to_delete_stacks)
+    with multiprocessing.Pool(len(to_delete_stacks)) as pool:
+        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        destroyed_stack = set()
+        failed_stack = set()
+        for r, stack in res:
+            if r.returncode != 0:
+                failed_stack.add(stack)
+            else:
+                destroyed_stack.add(stack)
+            print(f"Stack {stack}: {r.stdout} {r.stderr}")
+
+    for stack in destroyed_stack:
+        print(f"Stack {stack} destroyed successfully")
+    for stack in failed_stack:
+        print(f"Failed to destroy stack {stack}")
+
+
+def post_process_output(path: str, test_depth: int = 1):
+    """
+    Post process the test results to add the test run name
+    path: path to the test result json file
+    test_depth: depth of the test name to consider
+
+    By default the test_depth is set to 1, which means that the logs will be splitted depending on the test suite name.
+    If we use a single test suite to run multiple tests we can increase the test_depth to split the logs per test.
+    For example with:
+    TestPackages/run_ubuntu
+    TestPackages/run_centos
+    TestPackages/run_debian
+    We should set test_depth to 2 to avoid mixing all the logs of the different tested platform
+    """
+
+    def is_parent(parent: list[str], child: list[str]) -> bool:
+        for i in range(len(parent)):
+            if parent[i] != child[i]:
+                return False
+        return True
+
+    logs_per_test = {}
+    with open(path) as f:
+        all_lines = f.readlines()
+
+        # Initalize logs_per_test with all test names
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+            splitted_test = json_line["Test"].split("/")
+            if len(splitted_test) < test_depth:
+                continue
+            if json_line["Package"] not in logs_per_test:
+                logs_per_test[json_line["Package"]] = {}
+
+            test_name = splitted_test[: min(test_depth, len(splitted_test))]
+            logs_per_test[json_line["Package"]]["/".join(test_name)] = []
+
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+
+            if "===" in json_line["Output"]:  # Ignore these lines that are produced when running test concurrently
+                continue
+
+            splitted_test = json_line["Test"].split("/")
+
+            if len(splitted_test) < test_depth:  # Append logs to all children tests
+                for test_name in logs_per_test[json_line["Package"]]:
+                    if is_parent(splitted_test, test_name.split("/")):
+                        logs_per_test[json_line["Package"]][test_name].append(json_line["Output"])
+                continue
+
+            logs_per_test[json_line["Package"]]["/".join(splitted_test[:test_depth])].append(json_line["Output"])
+    return logs_per_test
+
+
+def write_result_to_log_files(logs_per_test, log_folder):
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            sanitized_package_name = re.sub(r"[^\w_. -]", "_", package)
+            sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
+            with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
+                f.write("".join(logs))
+
+
+class TooManyLogsError(Exception):
+    pass
+
+
+def pretty_print_logs(logs_per_test, max_size=250000):
+    # Compute size in bytes of what we are about to print. If it exceeds max_size, we skip printing because it will make the Gitlab logs almost completely collapsed.
+    # By default Gitlab has a limit of 500KB per job log, so we want to avoid printing too much.
+    size = 0
+    for _, tests in logs_per_test.items():
+        for _, logs in tests.items():
+            size += len("".join(logs).encode())
+    if size > max_size and running_in_ci():
+        raise TooManyLogsError
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
+                print("Complete logs for " + package + "." + test)
+                print("".join(logs))
+
+
+@task
+def deps(ctx, verbose=False):
+    """
+    Setup Go dependencies
+    """
+    download_go_dependencies(ctx, paths=["test/new-e2e"], verbose=verbose, max_retry=3)
 
 
 def _get_default_env():
@@ -246,17 +441,19 @@ def _clean_locks():
             print(f"🗑️  Deleted lock: {path}")
 
 
-def _clean_stacks(ctx: Context):
+def _clean_stacks(ctx: Context, skip_destroy: bool):
     print("🧹 Clean up stack")
-    stacks = _get_existing_stacks(ctx)
 
-    for stack in stacks:
-        print(f"🗑️  Destroying stack {stack}")
-        _destroy_stack(ctx, stack)
+    if not skip_destroy:
+        stacks = _get_existing_stacks(ctx)
+        for stack in stacks:
+            print(f"🔥 Destroying stack {stack}")
+            _destroy_stack(ctx, stack)
 
+    # get stacks again as they may have changed after destroy
     stacks = _get_existing_stacks(ctx)
     for stack in stacks:
-        print(f"🗑️ Cleaning up stack {stack}")
+        print(f"🗑️ Removing stack {stack}")
         _remove_stack(ctx, stack)
 
 
@@ -289,10 +486,13 @@ def _destroy_stack(ctx: Context, stack: str):
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
-                print("No valid credentials sources found, you need to set the `AWS_PROFILE` env variable")
+                print(
+                    "No valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid"
+                )
+                print(ret.stdout)
                 raise Exit(
                     color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to set the `AWS_PROFILE` env variable",
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid",
                         "red",
                     ),
                     1,
@@ -305,7 +505,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 env=_get_default_env(),
             )
         if ret is not None and ret.exited != 0:
-            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout}", "red"), 1)
+            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"), 1)
 
 
 def _remove_stack(ctx: Context, stack: str):

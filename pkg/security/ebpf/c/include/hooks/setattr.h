@@ -63,20 +63,23 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     u64 event_type = 0;
     switch (syscall->type) {
     case EVENT_UTIME:
-        if (filter_syscall(syscall, utime_approvers)) {
-            return discard_syscall(syscall);
+        if (approve_syscall(syscall, utime_approvers) == DISCARDED) {
+            pop_syscall(EVENT_UTIME);
+            return 0;
         }
         event_type = EVENT_UTIME;
         break;
     case EVENT_CHMOD:
-        if (filter_syscall(syscall, chmod_approvers)) {
-            return discard_syscall(syscall);
+        if (approve_syscall(syscall, chmod_approvers) == DISCARDED) {
+            pop_syscall(EVENT_CHMOD);
+            return 0;
         }
         event_type = EVENT_CHMOD;
         break;
     case EVENT_CHOWN:
-        if (filter_syscall(syscall, chown_approvers)) {
-            return discard_syscall(syscall);
+        if (approve_syscall(syscall, chown_approvers) == DISCARDED) {
+            pop_syscall(EVENT_CHOWN);
+            return 0;
         }
         event_type = EVENT_CHOWN;
         break;
@@ -84,7 +87,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
 
     syscall->resolver.dentry = syscall->setattr.dentry;
     syscall->resolver.key = syscall->setattr.file.path_key;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? event_type : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_SETATTR_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -106,7 +109,7 @@ int tail_call_target_dr_setattr_callback(ctx_t *ctx) {
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
         monitor_discarded(syscall->type);
-        return discard_syscall(syscall);
+        pop_syscall(syscall->resolver.discarder_event_type);
     }
 
     return 0;

@@ -28,7 +28,6 @@ repos:
         - types-requests==2.30.0
         - types-tabulate==0.9.0.20240106
         - types-toml==0.10.8.20240310
-      exclude: ^tasks/unit_tests/.*$
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
@@ -44,6 +43,11 @@ repos:
     hooks:
       - id: end-of-file-fixer
         files: release.json
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.3
+  hooks:
+    - id: actionlint
+      args: [ "-ignore", "shellcheck" ]
 - repo: local
   hooks:
     - id: protected-branches
@@ -53,14 +57,6 @@ repos:
       language: system
       pass_filenames: false
       stages: [pre-commit, pre-push]
-    - id: govet
-      name: govet
-      description: go vet
-      entry: 'inv linter.go-vet'
-      language: system
-      require_serial: true
-      files: \.go$
-      pass_filenames: false
     - id: copyright
       name: copyright
       description: copyright headers
@@ -74,17 +70,16 @@ repos:
       description: clang-format
       entry: 'inv pre-commit.check-winclang-format'
       language: system
-      types_or: [c, c++, c#]
+      types_or: [c, c++]
       pass_filenames: false
-    - id: clang-format
-      name: clang-format
-      description: clang-format
-      entry: 'inv pre-commit.check-clang-format'
+    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
+      id: dotnet-format-installer
+      name: dotnet-format-installer
+      description: Format .net file of the MSI installer
       language: system
-      require_serial: true
-      pass_filenames: false
-      files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
-      exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
+      # The dotnet format tool requires a solution file to operate.
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
+      types: [c#]
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
@@ -129,6 +124,14 @@ repos:
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
+    - id: gitlab-lint-jobs-codeowners
+      name: gitlab-lint-jobs-codeowners
+      description: lint the gitlab configuration to verify jobs codeowners
+      entry: 'inv linter.gitlab-ci-jobs-codeowners'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
     - id: update-go
       name: update-go
       description: test formatting of files will allow go update
@@ -138,7 +141,7 @@ repos:
     - id: check-go-modules-in-python
       name: check-go-modules-in-python
       description: Validate all go modules are declared in Invoke tasks
-      entry: 'inv modules.validate'
+      entry: 'inv modules.validate --fix-format'
       language: system
       pass_filenames: false
-      files: .*go\.mod$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$

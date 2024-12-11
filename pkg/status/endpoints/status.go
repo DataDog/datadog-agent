@@ -11,13 +11,13 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // PopulateStatus populates the status stats
 func PopulateStatus(stats map[string]interface{}) {
-	endpoints, err := utils.GetMultipleEndpoints(config.Datadog())
+	endpoints, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
 	if err != nil {
 		stats["endpointsInfos"] = nil
 		return

@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -59,7 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dogstatsd-replay",
 		Short: "Replay dogstatsd traffic",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dogstatsdReplay,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -76,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliParams) error {
+func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -113,7 +113,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 
 	apiconn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
@@ -133,7 +133,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 		return err
 	}
 
-	s := pkgconfig.Datadog().GetString("dogstatsd_socket")
+	s := pkgconfigsetup.Datadog().GetString("dogstatsd_socket")
 	if s == "" {
 		return fmt.Errorf("Dogstatsd UNIX socket disabled")
 	}
@@ -150,7 +150,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	defer syscall.Close(sk)
 
 	err = syscall.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF,
-		pkgconfig.Datadog().GetInt("dogstatsd_buffer_size"))
+		pkgconfigsetup.Datadog().GetInt("dogstatsd_buffer_size"))
 	if err != nil {
 		return err
 	}

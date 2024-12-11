@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -151,6 +152,13 @@ type vmPlusDockerEnvSuite struct {
 
 func TestLighttpdOnDockerFromHost(t *testing.T) {
 	e2e.Run(t, &vmPlusDockerEnvSuite{}, e2e.WithPulumiProvisioner(vmPlusDockerEnvProvisioner(), nil))
+}
+
+func (v *vmPlusDockerEnvSuite) TestListContainers() {
+	containers, err := v.Env().Docker.Client.ListContainers()
+	require.NoError(v.T(), err)
+	assert.NotEmpty(v.T(), containers)
+	assert.Contains(v.T(), containers, "lighttpd")
 }
 
 func (v *vmPlusDockerEnvSuite) TestAgentMonitorsLighttpd() {

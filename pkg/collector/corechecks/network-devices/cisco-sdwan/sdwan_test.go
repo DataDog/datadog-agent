@@ -70,6 +70,8 @@ namespace: test
 min_collection_interval: 180
 collect_bfd_session_status: true
 collect_hardware_status: true
+collect_cloud_applications_metrics: true
+collect_bgp_neighbor_states: true
 `)
 
 	// Use ID to ensure the mock sender gets registered
@@ -171,6 +173,28 @@ collect_hardware_status: true
 	// Assert hardware status metrics
 	sender.AssertMetric(t, "Gauge", "cisco_sdwan.hardware.status_ok", 1, "", []string{"system_ip:10.10.1.11", "status:OK", "class:Fans", "item:Tray 0 fan", "dev_index:1"})
 
+	// Assert cloud applications metrics
+	ts = float64(1721819993833) / 1000
+	tags = []string{
+		"system_ip:10.10.1.13",
+		"gateway_system_ip:10.10.1.11",
+		"local_color:mpls",
+		"remote_color:mpls",
+		"interface:-",
+		"exit_type:Remote",
+		"application_group:amazon-group",
+		"application:amazon_aws",
+		"best_path:FALSE",
+		"vpn_id:1",
+	}
+
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.application.latency", 404, "", tags, ts)
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.application.loss", 0, "", tags, ts)
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.application.qoe", 5, "", tags, ts)
+
+	// Assert BGP neighbor metrics
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.bgp.neighbor", 1, "", []string{"system_ip:10.10.1.11", "peer_state:established", "remote_as:2024", "neighbor:10.60.1.1", "vpn_id:1", "afi:ipv4-unicast"})
+
 	// Assert metadata
 	// language=json
 	event := []byte(`
@@ -235,7 +259,8 @@ collect_hardware_status: true
   "ip_addresses": [
     {
       "interface_id": "test:10.10.1.17:4",
-      "ip_address": "0.0.0.0"
+      "ip_address": "10.0.0.1",
+	  "prefixlen": 24
     }
   ],
   "collect_timestamp": 1708942920
@@ -248,7 +273,7 @@ collect_hardware_status: true
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
-func TestBFDMetricConfig(t *testing.T) {
+func TestDefaultNotSentConfig(t *testing.T) {
 	payload.TimeNow = mockTimeNow
 	report.TimeNow = mockTimeNow
 
@@ -287,10 +312,19 @@ namespace: test
 	err = chk.Run()
 	require.NoError(t, err)
 
-	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bfd_session.status", mock.Anything, mock.Anything, mock.Anything)
+	// BFD sessions not enabled by default
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bfd_session.status", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Hardware status not enabled by default
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.hardware.status_ok", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Cloud applications not enabled by default
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.latency", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.loss", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-func TestHardwareStatusConfig(t *testing.T) {
+func TestNoMetricsAndMetadataCollection(t *testing.T) {
 	payload.TimeNow = mockTimeNow
 	report.TimeNow = mockTimeNow
 
@@ -310,6 +344,16 @@ username: admin
 password: 'test-password'
 use_http: true
 namespace: test
+send_ndm_metadata: false
+collect_hardware_metrics: false
+collect_interface_metrics: false
+collect_tunnel_metrics: false
+collect_control_connection_metrics: false
+collect_omp_peer_metrics: false
+collect_device_counters_metrics: false
+collect_bfd_session_status: false
+collect_hardware_status: false
+collect_cloud_applications_metrics: false
 `)
 
 	// Use ID to ensure the mock sender gets registered
@@ -329,5 +373,63 @@ namespace: test
 	err = chk.Run()
 	require.NoError(t, err)
 
-	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.hardware.status", mock.Anything, mock.Anything, mock.Anything)
+	// Assert hardware metrics not sent
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.cpu.usage", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.memory.usage", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.disk.usage", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert interface metrics not sent
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_bits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_bits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bps", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bps", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bandwidth_usage", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bandwidth_usage", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_errors", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_errors", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_drops", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_drops", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert uptime metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.device.uptime", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert application aware routing metrics not sent
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.status", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.latency", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.jitter", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.loss", 0, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.rx_bits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.tx_bits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.rx_packets", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.tx_packets", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert control-connection metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.control_connection.status", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert OMP Peer metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.omp_peer.status", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert BFD Session metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bfd_session.status", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert device counters metrics not sent
+	sender.AssertNotCalled(t, "MonotonicCount", "cisco_sdwan.crash.count", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "MonotonicCount", "cisco_sdwan.reboot.count", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert device status metrics
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.device.reachable", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert hardware status metrics
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.hardware.status_ok", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert cloud application metrics
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.latency", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.loss", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert BGP peer metrics
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bgp.neighbor", mock.Anything, mock.Anything, mock.Anything)
+
+	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }

@@ -75,14 +75,25 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 	if len(data) < ContainerIDLen {
 		return 0, ErrNotEnoughSpace
 	}
-	copy(data[0:ContainerIDLen], e.ContainerID)
-	written := ContainerIDLen
 
-	toAdd, err := MarshalBinary(data[written:], &e.FileEvent)
+	copy(data[0:ContainerIDLen], []byte(e.ContainerID))
+	binary.NativeEndian.PutUint64(data[ContainerIDLen:ContainerIDLen+8], uint64(e.CGroup.CGroupFlags))
+
+	written := ContainerIDLen + 8
+
+	toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
 	if err != nil {
 		return 0, err
 	}
-	written += toAdd
+
+	copy(data[written:written+len(toAdd)], toAdd)
+	written += len(toAdd)
+
+	added, err := MarshalBinary(data[written:], &e.FileEvent)
+	if err != nil {
+		return 0, err
+	}
+	written += added
 
 	if len(data[written:]) < 88 {
 		return 0, ErrNotEnoughSpace
@@ -105,7 +116,7 @@ func marshalTime(data []byte, t time.Duration) {
 
 // MarshalBinary marshalls a binary representation of itself
 func (e *Credentials) MarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughSpace
 	}
 
@@ -115,15 +126,17 @@ func (e *Credentials) MarshalBinary(data []byte) (int, error) {
 	binary.NativeEndian.PutUint32(data[12:16], e.EGID)
 	binary.NativeEndian.PutUint32(data[16:20], e.FSUID)
 	binary.NativeEndian.PutUint32(data[20:24], e.FSGID)
-	binary.NativeEndian.PutUint64(data[24:32], e.CapEffective)
-	binary.NativeEndian.PutUint64(data[32:40], e.CapPermitted)
-	return 40, nil
+	binary.NativeEndian.PutUint32(data[24:28], e.AUID)
+	binary.NativeEndian.PutUint32(data[28:32], 1)
+	binary.NativeEndian.PutUint64(data[32:40], e.CapEffective)
+	binary.NativeEndian.PutUint64(data[40:48], e.CapPermitted)
+	return 48, nil
 }
 
 // MarshalPidCache marshals a binary representation of itself
 func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal pid_cache_t
-	if len(data) < 80 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughSpace
 	}
 	binary.NativeEndian.PutUint64(data[0:8], e.Cookie)

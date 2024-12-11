@@ -67,7 +67,7 @@ type DBMAuroraService struct {
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
-func NewDBMAuroraListener(Config) (ServiceListener, error) {
+func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
@@ -236,6 +236,11 @@ func (d *DBMAuroraService) GetPorts(context.Context) ([]ContainerPort, error) {
 // GetTags returns the list of container tags - currently always empty
 func (d *DBMAuroraService) GetTags() ([]string, error) {
 	return []string{}, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in DBMAuroraService
+func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return d.GetTags()
 }
 
 // GetPid returns nil and an error because pids are currently not supported

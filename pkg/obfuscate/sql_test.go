@@ -61,7 +61,7 @@ func TestCanObfuscateAutoVacuum(t *testing.T) {
 			out: "autovacuum : VACUUM fake.big_table ( to prevent wraparound )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -373,7 +373,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 			},
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -430,7 +430,7 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT ( ? )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -756,6 +756,10 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 
 func TestSQLQuantizer(t *testing.T) {
 	cases := []sqlTestCase{
+		{
+			`SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+			`SELECT table . field FROM table WHERE table . otherfield = ? AND table . thirdfield = ?`,
+		},
 		{
 			"select * from users where id = 42",
 			"select * from users where id = ?",
@@ -1266,7 +1270,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?& array [ ? ]",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					DBMS: DBMSPostgres,
@@ -1311,7 +1315,7 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+		t.Run(tt.cfg.DBMS, func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -2073,6 +2077,11 @@ func TestSQLLexerObfuscation(t *testing.T) {
 			expected: "SELECT * FROM users WHERE id = ?",
 		},
 		{
+			name:     "dollar question paramerer",
+			query:    `SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+			expected: `SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+		},
+		{
 			name:          "simple query obfuscation with replace digits",
 			query:         "SELECT * FROM users123 WHERE id = 1",
 			expected:      "SELECT * FROM users? WHERE id = ?",
@@ -2136,6 +2145,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		keepPositionalParameter       bool
 		keepTrailingSemicolon         bool
 		keepIdentifierQuotation       bool
+		KeepJSONPath                  bool
 		metadata                      SQLMetadata
 	}{
 		{
@@ -2389,6 +2399,78 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:     "PostgreSQL Select Only",
+			query:    `SELECT * FROM ONLY users WHERE id = 1`,
+			expected: `SELECT * FROM ONLY users WHERE id = ?`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with cte",
+			query:    "WITH users AS (SELECT * FROM people) SELECT * FROM users where id = 1",
+			expected: "WITH users AS ( SELECT * FROM people ) SELECT * FROM users where id = ?",
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "people",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with json path not keep",
+			query:    "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
+			expected: "SELECT * FROM users WHERE id = ? AND name -> ? = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:         "select with json path ->",
+			query:        "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
+			expected:     "SELECT * FROM users WHERE id = ? AND name -> 'first' = ?",
+			KeepJSONPath: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:         "select with json path ->>",
+			query:        "SELECT * FROM users WHERE id = 1 AND name->>2 = 'test'",
+			expected:     "SELECT * FROM users WHERE id = ? AND name ->> 2 = ?",
+			KeepJSONPath: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2409,6 +2491,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
 					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
 					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
+					KeepJSONPath:                  tt.KeepJSONPath,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)
@@ -2568,6 +2651,20 @@ func TestSQLLexerNormalization(t *testing.T) {
 			metadata: SQLMetadata{
 				Size:      11,
 				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with cte",
+			query:    "WITH users AS (SELECT * FROM people) SELECT * FROM users",
+			expected: "WITH users AS ( SELECT * FROM people ) SELECT * FROM users",
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "people",
 				Commands: []string{
 					"SELECT",
 				},

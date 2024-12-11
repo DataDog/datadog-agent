@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -42,11 +42,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "remote-config",
 		Short: "Remote configuration state command",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(state,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath))}),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))}),
 				core.Bundle(),
 			)
 		},
@@ -57,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func state(_ *cliParams, config config.Component) error {
-	if !pkgconfig.IsRemoteConfigEnabled(config) {
+	if !pkgconfigsetup.IsRemoteConfigEnabled(config) {
 		return errors.New("remote configuration is not enabled")
 	}
 	fmt.Println("Fetching the configuration and director repos state..")
@@ -75,12 +75,12 @@ func state(_ *cliParams, config config.Component) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfig.GetIPCPort())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func state(_ *cliParams, config config.Component) error {
 	}
 
 	var stateHA *pbgo.GetStateConfigResponse
-	if pkgconfig.Datadog().GetBool("multi_region_failover.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
 		stateHA, err = cli.GetConfigStateHA(ctx, in)
 		if err != nil {
 			return fmt.Errorf("couldn't get the HA repositories state: %w", err)

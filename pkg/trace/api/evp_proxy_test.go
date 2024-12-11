@@ -161,6 +161,27 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "", logs)
 	})
 
+	t.Run("normalizedContainerTags", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.ContainerTags = func(cid string) ([]string, error) {
+			return []string{"container:" + cid, "key:\nval"}, nil
+		}
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set(header.ContainerID, "myid")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		require.Len(t, proxyreqs, 1)
+		assert.Equal(t, "container:myid,key:_val", proxyreqs[0].Header.Get("X-Datadog-Container-Tags"))
+		assert.Equal(t, "myid", proxyreqs[0].Header.Get(header.ContainerID))
+		assert.Equal(t, "", logs)
+	})
+
 	t.Run("dual-shipping", func(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
@@ -449,7 +470,7 @@ func TestE2E(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`OK`))
 		}))
 
@@ -471,7 +492,7 @@ func TestE2E(t *testing.T) {
 		conf.Endpoints[0].APIKey = "test_api_key"
 		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(2 * time.Second)
 			w.Write([]byte(`OK`))
 		}))
@@ -483,5 +504,31 @@ func TestE2E(t *testing.T) {
 		resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		assert.Equal(t, "http: proxy error: context deadline exceeded\n", logs)
+	})
+
+	t.Run("chunked-response", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Transfer-Encoding", "chunked")
+			w.Write([]byte(`Hello`))
+			w.(http.Flusher).Flush()
+			time.Sleep(200 * time.Millisecond)
+			w.Write([]byte(`World`)) // this will be discarded if the context was cancelled
+		}))
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		resp, logs := sendRequestThroughForwarderAgainstDummyServer(conf, req, stats, strings.TrimPrefix(server.URL, "http://"))
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		assert.Equal(t, "", logs)
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "HelloWorld", string(body))
 	})
 }

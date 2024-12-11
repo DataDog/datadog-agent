@@ -11,13 +11,17 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
@@ -35,12 +39,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	serverlessRemoteConfig "github.com/DataDog/datadog-agent/pkg/serverless/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // AWS Lambda is writing the Lambda function files in /var/task, we want the
@@ -48,12 +53,12 @@ import (
 var datadogConfigPath = "/var/task/datadog.yaml"
 
 const (
-	loggerName                   config.LoggerName = "DD_EXTENSION"
-	logLevelEnvVar                                 = "DD_LOG_LEVEL"
-	flushStrategyEnvVar                            = "DD_SERVERLESS_FLUSH_STRATEGY"
-	logsLogsTypeSubscribed                         = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
-	extensionRegistrationRoute                     = "/2020-01-01/extension/register"
-	extensionRegistrationTimeout                   = 5 * time.Second
+	loggerName                   pkglogsetup.LoggerName = "DD_EXTENSION"
+	logLevelEnvVar                                      = "DD_LOG_LEVEL"
+	flushStrategyEnvVar                                 = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed                              = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	extensionRegistrationRoute                          = "/2020-01-01/extension/register"
+	extensionRegistrationTimeout                        = 5 * time.Second
 
 	// httpServerAddr will be the default addr used to run the HTTP server listening
 	// to calls from the client libraries and to logs from the AWS environment.
@@ -70,7 +75,10 @@ const (
 
 func main() {
 	// run the agent
-	err := fxutil.OneShot(runAgent)
+	err := fxutil.OneShot(
+		runAgent,
+		taggernoop.Module(),
+	)
 
 	if err != nil {
 		log.Error(err)
@@ -78,7 +86,7 @@ func main() {
 	}
 }
 
-func runAgent() {
+func runAgent(tagger tagger.Component) {
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
@@ -106,15 +114,18 @@ func runAgent() {
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan)
+	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
+
+	// Start RC service if remote configuration is enabled
+	rcService := serverlessRemoteConfig.StartRCService(serverlessDaemon.ExecutionContext.GetCurrentState().ARN)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon)
-	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
-	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon)
+	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
+	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
+	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
 
 	// start appsec
 	appsecProxyProcessor := startAppSec(serverlessDaemon)
@@ -123,7 +134,7 @@ func runAgent() {
 
 	startColdStartSpanCreator(lambdaSpanChan, lambdaInitMetricChan, serverlessDaemon, coldStartSpanId)
 
-	ta := serverlessDaemon.TraceAgent.Get()
+	ta := serverlessDaemon.TraceAgent
 	if ta == nil {
 		log.Error("Unexpected nil instance of the trace-agent")
 		return
@@ -140,7 +151,7 @@ func runAgent() {
 
 	setupProxy(appsecProxyProcessor, ta, serverlessDaemon)
 
-	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog(), true))
+	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true))
 
 	stopCh := startInvocationLoop(serverlessDaemon, serverlessID)
 
@@ -170,19 +181,19 @@ func startInvocationLoop(serverlessDaemon *daemon.Daemon, serverlessID registrat
 	return stopCh
 }
 
-func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta *agent.Agent, serverlessDaemon *daemon.Daemon) {
+func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.ServerlessTraceAgent, serverlessDaemon *daemon.Daemon) {
 	if appsecProxyProcessor != nil {
 		// AppSec runs as a Runtime API proxy. The reverse proxy was already
 		// started by appsec.New(). A span modifier needs to be added in order
 		// to detect the finished request spans and run the complete AppSec
 		// monitoring logic, and ultimately adding the AppSec events to them.
-		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
+		ta.SetSpanModifier(appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.GetSpanModifier()))
 		// Set the default rate limiting to approach 1 trace/min in live circumstances to limit non ASM related traces as much as possible.
 		// This limit is decided in the Standalone ASM Billing RFC and ensures reducing non ASM-related trace throughput
 		// while keeping billing and service catalog running correctly.
 		// In case of ASM event, the trace priority will be set to manual keep
 		if appsecConfig.IsStandalone() {
-			ta.PrioritySampler.UpdateTargetTPS(1. / 120)
+			ta.SetTargetTPS(1. / 120)
 		}
 	}
 	if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
@@ -200,13 +211,14 @@ func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta *agent
 	}
 }
 
-func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric) *metrics.ServerlessMetricAgent {
+func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, tagger tagger.Component) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               tagger,
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog().GetBool("serverless.logs_enabled"), config.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, pkgconfigsetup.Datadog().GetBool("serverless.logs_enabled"), pkgconfigsetup.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 	return metricAgent
 }
 
@@ -252,11 +264,15 @@ func startCommunicationServer(startTime time.Time) *daemon.Daemon {
 
 func setupLambdaAgentOverrides() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 
-	// Disable remote configuration for now as it just spams the debug logs
-	// and provides no value.
-	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	// TODO(duncanista): figure out how this is used and if it's necessary for Serverless
+	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+
+	// Disable remote configuration unless explicitly enabled
+	if strings.ToLower(os.Getenv("DD_REMOTE_CONFIGURATION_ENABLED")) != "true" {
+		os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	}
 }
 
 func startColdStartSpanCreator(lambdaSpanChan chan *pb.Span, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
@@ -282,7 +298,7 @@ func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcess
 	return appsecProxyProcessor
 }
 
-func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon) {
+func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
@@ -306,7 +322,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}
@@ -314,22 +330,27 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	}
 }
 
-func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon) {
+func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	if !otlp.IsEnabled() {
 		log.Debug("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 	serverlessDaemon.SetOTLPAgent(otlpAgent)
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
-	traceAgent := &trace.ServerlessTraceAgent{}
-	traceAgent.Start(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         configUtils.IsAPMEnabled(pkgconfigsetup.Datadog()),
+		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		LambdaSpanChan:  lambdaSpanChan,
+		ColdStartSpanID: coldStartSpanId,
+		RCService:       rcService,
+	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 
@@ -366,9 +387,9 @@ func setupApiKey() bool {
 }
 
 func loadConfig() {
-	config.Datadog().SetConfigFile(datadogConfigPath)
+	pkgconfigsetup.Datadog().SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := config.LoadWithoutSecret(); err != nil {
+	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }
@@ -385,22 +406,26 @@ func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struc
 }
 
 func setupLogger() {
-	// init the logger configuring it to not log in a file (the first empty string)
-	if err := config.SetupLogger(
-		loggerName,
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
-	); err != nil {
-		log.Errorf("Unable to setup logger: %s", err)
+	logLevel := "error"
+	if userLogLevel := os.Getenv(logLevelEnvVar); len(userLogLevel) > 0 {
+		if seelogLogLevel, err := log.ValidateLogLevel(userLogLevel); err == nil {
+			logLevel = seelogLogLevel
+		} else {
+			log.Errorf("Invalid log level '%s', using default log level '%s'", userLogLevel, logLevel)
+		}
 	}
 
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("While changing the loglevel: %s", err)
-		}
+	// init the logger configuring it to not log in a file (the first empty string)
+	if err := pkglogsetup.SetupLogger(
+		loggerName,
+		logLevel,
+		"",    // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",    // syslog URI
+		false, // syslog_rfc
+		true,  // log_to_console
+		false, // log_format_json
+		pkgconfigsetup.Datadog(),
+	); err != nil {
+		log.Errorf("Unable to setup logger: %s", err)
 	}
 }

@@ -41,7 +41,7 @@ func TestStreamStrategy(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
+func TestStreamStrategyShouldNotBlockWhenForceStopping(_ *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 

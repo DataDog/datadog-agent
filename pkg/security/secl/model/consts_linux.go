@@ -983,6 +983,15 @@ func initBPFMapNamesConstants() {
 	seclConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
 }
 
+func initAUIDConstants() {
+	seclConstants["AUDIT_AUID_UNSET"] = &eval.IntEvaluator{Value: AuditUIDUnset}
+}
+
+const (
+	// AuditUIDUnset is used to specify that a login uid is not set
+	AuditUIDUnset = math.MaxUint32
+)
+
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string
 	var result int

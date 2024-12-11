@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -28,8 +28,7 @@ func TestAdjustConnectionRollup(t *testing.T) {
 
 	for _, te := range tests {
 		t.Run(fmt.Sprintf("npm_enabled_%t_usm_enabled_%t", te.npmEnabled, te.usmEnabled), func(t *testing.T) {
-			config.ResetSystemProbeConfig(t)
-			cfg := config.SystemProbe
+			cfg := mock.NewSystemProbe(t)
 			cfg.Set(netNS("enable_connection_rollup"), te.npmEnabled, model.SourceUnknown)
 			cfg.Set(smNS("enable_connection_rollup"), te.usmEnabled, model.SourceUnknown)
 			Adjust(cfg)

@@ -7,15 +7,8 @@
 package eval
 
 import (
-	"fmt"
 	"regexp"
 )
-
-type registerInfo struct {
-	iterator  Iterator
-	field     Field
-	subFields map[Field]bool
-}
 
 // StateRegexpCache is used to cache regexps used in the rule compilation process
 type StateRegexpCache struct {
@@ -25,21 +18,12 @@ type StateRegexpCache struct {
 
 // State defines the current state of the rule compilation
 type State struct {
-	model           Model
-	field           Field
-	events          map[EventType]bool
-	fieldValues     map[Field][]FieldValue
-	macros          map[MacroID]*MacroEvaluator
-	registersInfo   map[RegisterID]*registerInfo
-	registerCounter int
-	regexpCache     StateRegexpCache
-}
-
-func (s *State) newAnonymousRegID() string {
-	id := s.registerCounter
-	s.registerCounter++
-	// @ is not a valid register name from the parser, this guarantees unicity
-	return fmt.Sprintf("@anon_%d", id)
+	model       Model
+	field       Field
+	fieldValues map[Field][]FieldValue
+	macros      map[MacroID]*MacroEvaluator
+	regexpCache StateRegexpCache
+	registers   []Register
 }
 
 // UpdateFields updates the fields used in the rule
@@ -55,7 +39,7 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	for _, v := range values {
 		// compare only comparable
 		switch v.Value.(type) {
-		case int, uint, int64, uint64, string:
+		case int, uint, int64, uint64, string, bool:
 			if v == value {
 				return nil
 			}
@@ -73,11 +57,9 @@ func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *Sta
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
 	return &State{
-		field:         field,
-		macros:        macros,
-		model:         model,
-		events:        make(map[EventType]bool),
-		fieldValues:   make(map[Field][]FieldValue),
-		registersInfo: make(map[RegisterID]*registerInfo),
+		field:       field,
+		macros:      macros,
+		model:       model,
+		fieldValues: make(map[Field][]FieldValue),
 	}
 }

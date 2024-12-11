@@ -73,7 +73,7 @@ func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig conf
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.
 func debuggerErrorHandler(err error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		msg := fmt.Sprintf("Debugger Proxy is OFF: %v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})

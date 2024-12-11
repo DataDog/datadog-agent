@@ -15,11 +15,14 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -90,7 +93,7 @@ func (s *fakeSender) Flush() []process.MessageBody {
 }
 
 func TestNotECS(t *testing.T) {
-	check, _, sender := prepareTest(false, "notECS")
+	check, _, sender := prepareTest(t, false, "notECS")
 	err := check.Run()
 	require.NoError(t, err)
 	require.Len(t, sender.messages, 0)
@@ -106,7 +109,7 @@ func TestECSV4Disabled(t *testing.T) {
 }
 
 func testECS(v4 bool, t *testing.T) {
-	check, store, sender := prepareTest(v4, "ecs")
+	check, store, sender := prepareTest(t, v4, "ecs")
 
 	// add 2 tasks to fake workloadmetaStore
 	task1Id := "123"
@@ -150,21 +153,28 @@ func testECS(v4 bool, t *testing.T) {
 }
 
 // prepareTest returns a check, a fake workloadmeta store and a fake sender
-func prepareTest(v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
+func prepareTest(t *testing.T, v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
+	t.Helper()
+
 	orchConfig := oconfig.NewDefaultOrchestratorConfig()
 	orchConfig.OrchestrationCollectionEnabled = true
-	orchConfig.OrchestrationECSCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{
 		EnableV4: v4,
 	}
 	sender := &fakeSender{}
 
+	systemInfo, _ := checks.CollectSystemInfo()
+
+	tagger := nooptagger.NewComponent()
+
 	c := &Check{
 		sender:            sender,
 		workloadmetaStore: store,
+		tagger:            tagger,
 		config:            orchConfig,
 		groupID:           atomic.NewInt32(0),
+		systemInfo:        systemInfo,
 	}
 
 	c.isECSCollectionEnabledFunc = func() bool { return false }
@@ -338,6 +348,8 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		tasks = append(tasks, newTask)
 	}
 
+	systemInfo, _ := checks.CollectSystemInfo()
+
 	return &process.CollectorECSTask{
 		AwsAccountID: 123456789012,
 		ClusterName:  "ecs-cluster",
@@ -346,5 +358,6 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		GroupId:      groupID,
 		GroupSize:    1,
 		Tasks:        tasks,
+		Info:         systemInfo,
 	}
 }

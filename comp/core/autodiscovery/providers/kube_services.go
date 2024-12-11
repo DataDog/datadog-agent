@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,14 +34,15 @@ const (
 
 // KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeServiceConfigProvider struct {
-	lister       listersv1.ServiceLister
-	upToDate     bool
-	configErrors map[string]ErrorMsgSet
+	lister         listersv1.ServiceLister
+	upToDate       bool
+	configErrors   map[string]ErrorMsgSet
+	telemetryStore *telemetry.Store
 }
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -53,8 +55,9 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 	}
 
 	p := &KubeServiceConfigProvider{
-		lister:       servicesInformer.Lister(),
-		configErrors: make(map[string]ErrorMsgSet),
+		lister:         servicesInformer.Lister(),
+		configErrors:   make(map[string]ErrorMsgSet),
+		telemetryStore: telemetryStore,
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -65,7 +68,7 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
 	}
 
-	if config.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
 		log.Warnf("The `cluster_checks.support_hybrid_ignore_ad_tags` flag is" +
 			" deprecated and will be removed in a future version. Please replace " +
 			"`ad.datadoghq.com/service.ignore_autodiscovery_tags` in your service annotations" +
@@ -90,7 +93,7 @@ func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.
 	}
 	k.upToDate = true
 
-	return k.parseServiceAnnotations(services, config.Datadog())
+	return k.parseServiceAnnotations(services, pkgconfigsetup.Datadog())
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
@@ -160,7 +163,7 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 	return matchingInFirst != matchingInSecond
 }
 
-func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service, ddConf config.Config) ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service, ddConf model.Config) ([]integration.Config, error) {
 	var configs []integration.Config
 
 	setServiceIDs := map[string]struct{}{}
@@ -201,7 +204,9 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 
 	k.cleanErrorsOfDeletedServices(setServiceIDs)
 
-	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
+	if k.telemetryStore != nil {
+		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
+	}
 
 	return configs, nil
 }

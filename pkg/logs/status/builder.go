@@ -23,7 +23,7 @@ import (
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning   *atomic.Bool
+	isRunning   *atomic.Uint32
 	endpoints   *config.Endpoints
 	sources     *sourcesPkg.LogSources
 	tailers     *tailers.TailerTracker
@@ -33,7 +33,7 @@ type Builder struct {
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
@@ -52,15 +52,16 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		tailers = b.getTailers()
 	}
 	return Status{
-		IsRunning:        b.getIsRunning(),
-		Endpoints:        b.getEndpoints(),
-		Integrations:     b.getIntegrations(),
-		Tailers:          tailers,
-		StatusMetrics:    b.getMetricsStatus(),
-		ProcessFileStats: b.getProcessFileStats(),
-		Warnings:         b.getWarnings(),
-		Errors:           b.getErrors(),
-		UseHTTP:          b.getUseHTTP(),
+		IsRunning:           b.getIsRunning(),
+		WaitingForSDSConfig: b.getWaitingForSDSConfig(),
+		Endpoints:           b.getEndpoints(),
+		Integrations:        b.getIntegrations(),
+		Tailers:             tailers,
+		StatusMetrics:       b.getMetricsStatus(),
+		ProcessFileStats:    b.getProcessFileStats(),
+		Warnings:            b.getWarnings(),
+		Errors:              b.getErrors(),
+		UseHTTP:             b.getUseHTTP(),
 	}
 }
 
@@ -68,7 +69,11 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 // this needs to be thread safe as it can be accessed
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
-	return b.isRunning.Load()
+	return b.isRunning.Load() == StatusRunning
+}
+
+func (b *Builder) getWaitingForSDSConfig() bool {
+	return b.isRunning.Load() == StatusCollectionNotStarted
 }
 
 func (b *Builder) getUseHTTP() bool {

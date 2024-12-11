@@ -9,19 +9,20 @@
 package mode
 
 import (
-	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/spf13/afero"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/afero"
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
-func RunInit(logConfig *serverlessLog.Config) {
+func RunInit(logConfig *serverlessLog.Config) error {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
@@ -32,7 +33,9 @@ func RunInit(logConfig *serverlessLog.Config) {
 	err := execute(logConfig, args)
 	if err != nil {
 		log.Debugf("Error exiting: %v\n", err)
+		return err
 	}
+	return nil
 }
 
 func execute(logConfig *serverlessLog.Config, args []string) error {

@@ -18,6 +18,11 @@
           "property_doc_link": "container-id-doc"
         },
         {
+          "name": "container.runtime",
+          "definition": "Runtime managing the container",
+          "property_doc_link": "container-runtime-doc"
+        },
+        {
           "name": "container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "container-tags-doc"
@@ -79,7 +84,7 @@
         },
         {
           "name": "process.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -89,7 +94,12 @@
         },
         {
           "name": "process.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.length",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -144,7 +154,7 @@
         },
         {
           "name": "process.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -154,7 +164,7 @@
         },
         {
           "name": "process.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -189,7 +199,7 @@
         },
         {
           "name": "process.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -199,7 +209,7 @@
         },
         {
           "name": "process.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -297,7 +307,7 @@
         },
         {
           "name": "create.file.device_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -307,7 +317,7 @@
         },
         {
           "name": "create.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -317,7 +327,7 @@
         },
         {
           "name": "create.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -336,7 +346,7 @@
         },
         {
           "name": "create.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -346,7 +356,7 @@
         },
         {
           "name": "create.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -356,7 +366,7 @@
         },
         {
           "name": "create_key.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -366,7 +376,7 @@
         },
         {
           "name": "create_key.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -385,7 +395,7 @@
         },
         {
           "name": "delete.file.device_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -395,7 +405,7 @@
         },
         {
           "name": "delete.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -405,7 +415,7 @@
         },
         {
           "name": "delete.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -424,7 +434,7 @@
         },
         {
           "name": "delete.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -434,7 +444,7 @@
         },
         {
           "name": "delete.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -444,7 +454,7 @@
         },
         {
           "name": "delete_key.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -454,7 +464,7 @@
         },
         {
           "name": "delete_key.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -498,7 +508,7 @@
         },
         {
           "name": "exec.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -508,7 +518,7 @@
         },
         {
           "name": "exec.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -582,7 +592,7 @@
         },
         {
           "name": "exit.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -592,7 +602,7 @@
         },
         {
           "name": "exit.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -631,7 +641,7 @@
         },
         {
           "name": "open.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -641,7 +651,7 @@
         },
         {
           "name": "open.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -651,7 +661,7 @@
         },
         {
           "name": "open_key.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -661,7 +671,7 @@
         },
         {
           "name": "open_key.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -680,7 +690,7 @@
         },
         {
           "name": "rename.file.destination.device_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -690,7 +700,7 @@
         },
         {
           "name": "rename.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -700,7 +710,7 @@
         },
         {
           "name": "rename.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -710,7 +720,7 @@
         },
         {
           "name": "rename.file.device_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -720,7 +730,7 @@
         },
         {
           "name": "rename.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -730,7 +740,7 @@
         },
         {
           "name": "rename.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -749,7 +759,7 @@
         },
         {
           "name": "set.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -759,7 +769,7 @@
         },
         {
           "name": "set.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -769,7 +779,7 @@
         },
         {
           "name": "set.registry.value_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -784,7 +794,7 @@
         },
         {
           "name": "set_key_value.registry.key_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -794,7 +804,7 @@
         },
         {
           "name": "set_key_value.registry.key_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -804,7 +814,7 @@
         },
         {
           "name": "set_key_value.registry.value_name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -828,7 +838,7 @@
         },
         {
           "name": "write.file.device_path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -838,7 +848,7 @@
         },
         {
           "name": "write.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -848,7 +858,7 @@
         },
         {
           "name": "write.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         }
       ]
@@ -1007,7 +1017,7 @@
       "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
-      "definition": "Length of the corresponding string",
+      "definition": "Length of the corresponding element",
       "prefixes": [
         "create.file.device_path",
         "create.file.name",
@@ -1031,6 +1041,7 @@
         "open.registry.key_path",
         "open_key.registry.key_name",
         "open_key.registry.key_path",
+        "process.ancestors",
         "process.ancestors.file.name",
         "process.ancestors.file.path",
         "process.file.name",
@@ -1320,6 +1331,18 @@
       "link": "container-id-doc",
       "type": "string",
       "definition": "ID of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.runtime",
+      "link": "container-runtime-doc",
+      "type": "string",
+      "definition": "Runtime managing the container",
       "prefixes": [
         "container"
       ],

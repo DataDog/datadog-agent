@@ -26,6 +26,9 @@ var (
 
 	// ErrIncorrectDataSize is returned when the data read size doesn't correspond to the expected one
 	ErrIncorrectDataSize = errors.New("incorrect data size")
+
+	// ErrNoUsefulData returned when there is no useful data
+	ErrNoUsefulData = errors.New("no useful data")
 )
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid

@@ -8,14 +8,25 @@ package common
 import (
 	"encoding/binary"
 	"hash/fnv"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
+
+// PathtestMetadata contains metadata used to annotate the result of a traceroute.
+// This data is not used by the traceroute itself.
+type PathtestMetadata struct {
+	// ReverseDNSHostname is an optional hostname which will be used in place of rDNS querying for
+	// the destination address.
+	ReverseDNSHostname string
+}
 
 // Pathtest details of information necessary to run a traceroute (pathtrace)
 type Pathtest struct {
 	Hostname          string
 	Port              uint16
-	Protocol          string
+	Protocol          payload.Protocol
 	SourceContainerID string
+	Metadata          PathtestMetadata
 }
 
 // GetHash returns the hash of the Pathtest

@@ -207,7 +207,7 @@ func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]inter
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (l *LambdaLogAPIMessage) handlePlatformInitStart(objectRecord map[string]interface{}) {
+func (l *LambdaLogAPIMessage) handlePlatformInitStart(_ map[string]interface{}) {
 	l.objectRecord.reportLogItem.initStartTime = l.time
 }
 

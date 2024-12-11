@@ -37,7 +37,7 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 
 	key := Key{
 		Operation:     tx.Operation(),
-		TableName:     tx.TableName(),
+		Parameters:    tx.Parameters(),
 		ConnectionKey: tx.ConnTuple(),
 	}
 	requestStats, ok := s.stats[key]

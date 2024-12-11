@@ -26,6 +26,9 @@ const (
 	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
 
+	// tmp directory path
+	tmpPath = "/tmp/"
+
 	// Enhanced metrics
 	maxMemoryUsedMetric       = "aws.lambda.enhanced.max_memory_used"
 	memorySizeMetric          = "aws.lambda.enhanced.memorysize"
@@ -56,6 +59,12 @@ const (
 	rxBytesMetric                = "aws.lambda.enhanced.rx_bytes"
 	txBytesMetric                = "aws.lambda.enhanced.tx_bytes"
 	totalNetworkMetric           = "aws.lambda.enhanced.total_network"
+	tmpUsedMetric                = "aws.lambda.enhanced.tmp_used"
+	tmpMaxMetric                 = "aws.lambda.enhanced.tmp_max"
+	fdMaxMetric                  = "aws.lambda.enhanced.fd_max"
+	fdUseMetric                  = "aws.lambda.enhanced.fd_use"
+	threadsMaxMetric             = "aws.lambda.enhanced.threads_max"
+	threadsUseMetric             = "aws.lambda.enhanced.threads_use"
 	enhancedMetricsEnvVar        = "DD_ENHANCED_METRICS"
 
 	// Bottlecap
@@ -134,6 +143,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 func ContainsOutOfMemoryLog(logString string) bool {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
+			log.Debug("Found out of memory substring in function log line")
 			return true
 		}
 	}
@@ -488,6 +498,208 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 		SampleRate: 1,
 		Timestamp:  args.Time,
 	})
+}
+
+type generateTmpEnhancedMetricsArgs struct {
+	TmpMax  float64
+	TmpUsed float64
+	Tags    []string
+	Demux   aggregator.Demultiplexer
+	Time    float64
+}
+
+// generateTmpEnhancedMetrics generates enhanced metrics for space used and available in the /tmp directory
+func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpUsedMetric,
+		Value:      args.TmpUsed,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpMaxMetric,
+		Value:      args.TmpMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	bsize, blocks, bavail, err := statfs(tmpPath)
+	if err != nil {
+		log.Debugf("Could not emit tmp enhanced metrics. %v", err)
+		return
+	}
+	tmpMax := blocks * bsize
+	tmpUsed := bsize * (blocks - bavail)
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case _, open := <-sendMetrics:
+			if !open {
+				generateTmpEnhancedMetrics(generateTmpEnhancedMetricsArgs{
+					TmpMax:  tmpMax,
+					TmpUsed: tmpUsed,
+					Tags:    tags,
+					Demux:   metricAgent.Demux,
+					Time:    float64(time.Now().UnixNano()) / float64(time.Second),
+				})
+				return
+			}
+		case <-ticker.C:
+			bsize, blocks, bavail, err = statfs(tmpPath)
+			if err != nil {
+				log.Debugf("Could not emit tmp enhanced metrics. %v", err)
+				return
+			}
+			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
+		}
+	}
+
+}
+
+type generateFdEnhancedMetricsArgs struct {
+	FdMax float64
+	FdUse float64
+	Tags  []string
+	Demux aggregator.Demultiplexer
+	Time  float64
+}
+
+type generateThreadEnhancedMetricsArgs struct {
+	ThreadsMax float64
+	ThreadsUse float64
+	Tags       []string
+	Demux      aggregator.Demultiplexer
+	Time       float64
+}
+
+// generateFdEnhancedMetrics generates enhanced metrics for the maximum number of file descriptors available and in use
+func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       fdMaxMetric,
+		Value:      args.FdMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       fdUseMetric,
+		Value:      args.FdUse,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+// generateThreadEnhancedMetrics generates enhanced metrics for the maximum number of threads available and in use
+func generateThreadEnhancedMetrics(args generateThreadEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       threadsMaxMetric,
+		Value:      args.ThreadsMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       threadsUseMetric,
+		Value:      args.ThreadsUse,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	pids := proc.GetPidList(proc.ProcPath)
+
+	fdMaxData, err := proc.GetFileDescriptorMaxData(pids)
+	if err != nil {
+		log.Debug("Could not emit file descriptor enhanced metrics. %v", err)
+		return
+	}
+
+	fdUseData, err := proc.GetFileDescriptorUseData(pids)
+	if err != nil {
+		log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
+		return
+	}
+
+	threadsMaxData, err := proc.GetThreadsMaxData(pids)
+	if err != nil {
+		log.Debugf("Could not emit thread enhanced metrics. %v", err)
+		return
+	}
+
+	threadsUseData, err := proc.GetThreadsUseData(pids)
+	if err != nil {
+		log.Debugf("Could not emit thread enhanced metrics. %v", err)
+		return
+	}
+
+	fdMax := fdMaxData.MaximumFileHandles
+	fdUse := fdUseData.UseFileHandles
+	threadsMax := threadsMaxData.ThreadsMax
+	threadsUse := threadsUseData.ThreadsUse
+
+	ticker := time.NewTicker(1 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case _, open := <-sendMetrics:
+			if !open {
+				generateFdEnhancedMetrics(generateFdEnhancedMetricsArgs{
+					FdMax: fdMax,
+					FdUse: fdUse,
+					Tags:  tags,
+					Demux: metricAgent.Demux,
+					Time:  float64(time.Now().UnixNano()) / float64(time.Second),
+				})
+				generateThreadEnhancedMetrics(generateThreadEnhancedMetricsArgs{
+					ThreadsMax: threadsMax,
+					ThreadsUse: threadsUse,
+					Tags:       tags,
+					Demux:      metricAgent.Demux,
+					Time:       float64(time.Now().UnixNano()) / float64(time.Second),
+				})
+				return
+			}
+		case <-ticker.C:
+			pids := proc.GetPidList(proc.ProcPath)
+
+			fdUseData, err := proc.GetFileDescriptorUseData(pids)
+			if err == nil {
+				fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
+			} else {
+				log.Debugf("Could not update file descriptor use enhanced metric. %v", err)
+			}
+
+			threadsUseData, err := proc.GetThreadsUseData(pids)
+			if err == nil {
+				threadsUse = math.Max(threadsUse, threadsUseData.ThreadsUse)
+			} else {
+				log.Debugf("Could not update thread use enhanced metric. %v", err)
+			}
+		}
+	}
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel

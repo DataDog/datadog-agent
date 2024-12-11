@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -144,6 +144,7 @@ func (w *AutoscalerWatcher) Run(stopCh <-chan struct{}) {
 	log.Infof("AutoscalerWatcher started (cache sync finished)")
 
 	tickerRefreshProcess := time.NewTicker(time.Duration(w.refreshPeriod) * time.Second)
+	defer tickerRefreshProcess.Stop()
 	for {
 		select {
 		case <-tickerRefreshProcess.C:

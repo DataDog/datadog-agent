@@ -8,10 +8,7 @@
 package system
 
 import (
-	"os"
 	"path/filepath"
-	"sync"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -23,40 +20,15 @@ const (
 	hostUTSNamespecInode = 0xEFFFFFFE
 )
 
-var (
-	netNSPid1     uint64
-	syncNetNSPid1 sync.Once
-)
-
 // GetProcessNamespaceInode performs a stat() call on /proc/<pid>/ns/<namespace>
+// When targeting PID different than self, requires CAP_SYS_PTRACE to be able to read /proc/<pid>/ns/<namespace> in the first place
 func GetProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
 	nsPath := filepath.Join(procPath, pid, "ns", namespace)
-	fi, err := os.Stat(nsPath)
-	if err != nil {
-		return 0, err
-	}
-
-	// We are on linux, casting in safe
-	return fi.Sys().(*syscall.Stat_t).Ino, nil
-}
-
-// IsProcessHostNetwork compares namespaceID (inode behind /proc/<pid>/ns/net returned by GetProcessNamespaceInode)
-// to  PID 1 namespace id, which we assume runs in host network namespace
-func IsProcessHostNetwork(procPath string, namespaceID uint64) *bool {
-	syncNetNSPid1.Do(func() {
-		netNSPid1, _ = GetProcessNamespaceInode(procPath, "1", "net")
-	})
-
-	if netNSPid1 == 0 {
-		return nil
-	}
-
-	res := netNSPid1 == namespaceID
-	return &res
+	return GetFileInode(nsPath)
 }
 
 // IsProcessHostUTSNamespace compares namespaceID with known, harcoded host PID Namespace inode
 // Keeps same signature as `IsProcessHostNetwork` as we may need to change implementation depending on Kernel evolution
-func IsProcessHostUTSNamespace(procPath string, namespaceID uint64) *bool { //nolint:revive // TODO fix revive unused-parameter
+func IsProcessHostUTSNamespace(_ string, namespaceID uint64) *bool {
 	return pointer.Ptr(namespaceID == hostUTSNamespecInode)
 }

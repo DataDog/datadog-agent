@@ -6,36 +6,54 @@
 package defaultforwarder
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	UseNoopForwarder bool
-	// TODO: (components) When the code of the forwarder will be
-	// in /comp/forwarder move the content of forwarder.Options inside this struct.
-	Options *Options
+	useNoopForwarder bool
+	withResolver     bool
+
+	// Use optional to override Options.DisableAPIKeyChecking only if WithFeatures was called
+	disableAPIKeyCheckingOverride optional.Option[bool]
+	features                      []Features
 }
+
+type option = func(*Params)
 
 // NewParams initializes a new Params struct
-func NewParams(config config.Component, log log.Component) Params {
-	return Params{Options: NewOptions(config, log, getMultipleEndpoints(config, log))}
-}
-
-// NewParamsWithResolvers initializes a new Params struct with resolvers
-func NewParamsWithResolvers(config config.Component, log log.Component) Params {
-	keysPerDomain := getMultipleEndpoints(config, log)
-	return Params{Options: NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))}
-}
-
-func getMultipleEndpoints(config config.Component, log log.Component) map[string][]string {
-	// Inject the config to make sure we can call GetMultipleEndpoints.
-	keysPerDomain, err := utils.GetMultipleEndpoints(config)
-	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
+func NewParams(options ...option) Params {
+	p := Params{}
+	for _, option := range options {
+		option(&p)
 	}
-	return keysPerDomain
+	return p
+}
+
+// WithResolvers enables the forwarder to use resolvers
+func WithResolvers() option {
+	return func(p *Params) {
+		p.withResolver = true
+	}
+}
+
+// WithDisableAPIKeyChecking disables the API key checking
+func WithDisableAPIKeyChecking() option {
+	return func(p *Params) {
+		p.disableAPIKeyCheckingOverride.Set(true)
+	}
+}
+
+// WithFeatures sets a features to the forwarder
+func WithFeatures(features ...Features) option {
+	return func(p *Params) {
+		p.features = features
+	}
+}
+
+// WithNoopForwarder sets the forwarder to use the noop forwarder
+func WithNoopForwarder() option {
+	return func(p *Params) {
+		p.useNoopForwarder = true
+	}
 }

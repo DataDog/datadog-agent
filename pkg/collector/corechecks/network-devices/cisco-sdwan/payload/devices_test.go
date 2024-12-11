@@ -107,6 +107,7 @@ func TestProcessDevicesTags(t *testing.T) {
 			"device_ip:10.0.0.1",
 			"device_hostname:test-1",
 			"device_id:test-ns:10.0.0.1",
+			"dd.internal.resource:ndm_device_user_tags:test-ns:10.0.0.1",
 		},
 		"10.0.0.2": {
 			"device_vendor:cisco",
@@ -118,6 +119,7 @@ func TestProcessDevicesTags(t *testing.T) {
 			"device_ip:10.0.0.2",
 			"device_hostname:test-2",
 			"device_id:test-ns:10.0.0.2",
+			"dd.internal.resource:ndm_device_user_tags:test-ns:10.0.0.2",
 		},
 	}, tags)
 }

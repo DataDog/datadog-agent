@@ -23,7 +23,7 @@ import (
 
 // Example usage of the eventlog utility library to get event records from the Windows Event Log
 // while using a channel to be notified when new events are available.
-func testSubscriptionExample(t testing.TB, ti eventlog_test.APITester, stop chan struct{}, done chan struct{}, channelPath string, numEvents uint) { //nolint:revive // TODO fix revive unused-parameter
+func testSubscriptionExample(t testing.TB, ti eventlog_test.APITester, stop chan struct{}, done chan struct{}, channelPath string, _ uint) {
 	defer close(done)
 
 	// Choose the Windows Event Log API implementation

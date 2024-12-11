@@ -46,16 +46,9 @@ func (s *DiskUsageLimit) computeAvailableSpace(currentSize int64) (int64, error)
 	diskReserved := float64(usage.Total) * (1 - s.maxDiskRatio)
 	availableDiskUsage := int64(usage.Available) - int64(math.Ceil(diskReserved))
 
-	return minInt64(s.maxSizeInBytes, currentSize+availableDiskUsage), nil
+	return min(s.maxSizeInBytes, currentSize+availableDiskUsage), nil
 }
 
 func (s *DiskUsageLimit) getMaxSizeInBytes() int64 {
 	return s.maxSizeInBytes
-}
-
-func minInt64(v1, v2 int64) int64 {
-	if v1 < v2 {
-		return v1
-	}
-	return v2
 }

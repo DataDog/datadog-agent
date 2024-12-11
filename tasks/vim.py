@@ -6,12 +6,7 @@ Helpers for getting Vim set up nicely
 
 from invoke import task
 
-from tasks.build_tags import (
-    build_tags,
-    filter_incompatible_tags,
-    get_build_tags,
-    get_default_build_tags,
-)
+from tasks.build_tags import build_tags, compute_config_build_tags
 from tasks.flavor import AgentFlavor
 
 
@@ -31,26 +26,12 @@ def set_buildtags(
     """
     Create .vimrc settings file for this project to include correct build tags
     """
-    flavor = AgentFlavor[flavor]
-
-    if targets == "all":
-        targets = build_tags[flavor].keys()
-    else:
-        targets = targets.split(",")
-        if not set(targets).issubset(build_tags[flavor]):
-            print("Must choose valid targets. Valid targets are:")
-            print(f'{", ".join(build_tags[flavor].keys())}')
-            return
-
-    if build_include is None:
-        build_include = []
-        for target in targets:
-            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
-    else:
-        build_include = filter_incompatible_tags(build_include.split(","))
-
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    use_tags = get_build_tags(build_include, build_exclude)
+    use_tags = compute_config_build_tags(
+        targets=targets,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        flavor=flavor,
+    )
 
     with open(".vimrc", "w") as f:
         f.write(f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(sorted(use_tags))}']}}\n")

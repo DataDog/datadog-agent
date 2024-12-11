@@ -23,10 +23,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -77,9 +78,6 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
-
-	// Update current replicas
-	autoscalerInternal.SetCurrentReplicas(scale.Status.Replicas)
 
 	return hr.performScaling(ctx, podAutoscaler, autoscalerInternal, gr, scale)
 }
@@ -134,8 +132,20 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		err = fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err)
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
+
+		telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "error", le.JoinLeaderValue)
 		return autoscaling.Requeue, err
 	}
+
+	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
+	telemetryHorizontalScaleAppliedRecommendations.Set(
+		float64(horizontalAction.ToReplicas),
+		scale.Namespace,
+		scale.Name,
+		podAutoscaler.Name,
+		string(scalingValues.Horizontal.Source),
+		le.JoinLeaderValue,
+	)
 
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -x /opt/datadog-agent/embedded/bin/otel-agent ]]; then
 exec /opt/datadog-agent/embedded/bin/otel-agent --config /etc/datadog-agent/otel-config.yaml
+fi

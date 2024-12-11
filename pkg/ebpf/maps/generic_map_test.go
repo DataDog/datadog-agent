@@ -531,3 +531,44 @@ func TestBatchUpdate(t *testing.T) {
 		require.True(t, foundElements[i])
 	}
 }
+
+type keyWithPointer struct {
+	Pointer *uint32
+	Value   uint32
+}
+
+func TestIterateWithPointerKey(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	m, err := NewGenericMap[keyWithPointer, uint32](&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		MaxEntries: 100,
+	})
+	require.NoError(t, err)
+
+	numsToPut := uint32(50)
+	theNumber := uint32(42)
+	expectedNumbers := make([]uint32, numsToPut)
+	for i := uint32(0); i < numsToPut; i++ {
+		require.NoError(t, m.Put(&keyWithPointer{Pointer: &theNumber, Value: i}, &i))
+		expectedNumbers[i] = i
+	}
+
+	var k keyWithPointer
+	var v uint32
+	actualNumbers := make([]uint32, numsToPut)
+
+	// Should automatically revert to the single item iterator, as we cannot use pointers
+	// in batch iterators
+	it := m.IterateWithBatchSize(10)
+	require.NotNil(t, it)
+	for it.Next(&k, &v) {
+		actualNumbers[k.Value] = v
+		require.Equal(t, theNumber, *k.Pointer)
+		require.Equal(t, &theNumber, k.Pointer)
+		require.Equal(t, k.Value, v)
+	}
+
+	require.NoError(t, it.Err())
+	require.Equal(t, expectedNumbers, actualNumbers)
+}

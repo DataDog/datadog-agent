@@ -8,18 +8,17 @@ package listeners
 import (
 	"errors"
 	"fmt"
-	"net"
 	"strconv"
 	"time"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -41,7 +40,7 @@ func getUDSAncillarySize() int {
 
 // enableUDSPassCred enables credential passing from the kernel for origin detection.
 // That flag can be ignored if origin dection is disabled.
-func enableUDSPassCred(conn *net.UnixConn) error {
+func enableUDSPassCred(conn netUnixConn) error {
 	rawconn, err := conn.SyscallConn()
 	if err != nil {
 		return err
@@ -137,5 +136,5 @@ func entityForPID(pid int32, capture bool, wmeta optional.Option[workloadmeta.Co
 		return "", errNoContainerMatch
 	}
 
-	return containers.BuildTaggerEntityName(cID), nil
+	return types.NewEntityID(types.ContainerID, cID).String(), nil
 }

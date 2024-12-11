@@ -50,11 +50,11 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 }
 
 HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
-    struct policy_t policy = fetch_policy(EVENT_BPF);
-    if (is_discarded_by_process(policy.mode, EVENT_BPF)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_BPF);
     struct syscall_cache_t syscall = {
         .policy = policy,
         .type = EVENT_BPF,
@@ -75,8 +75,8 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (filter_syscall(syscall, bpf_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, bpf_approvers) == DISCARDED) {
+        return 0;
     }
 
     syscall->bpf.retval = retval;

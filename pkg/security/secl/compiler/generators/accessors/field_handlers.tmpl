@@ -37,7 +37,7 @@ func (ev *Event) resolveFields(forADs bool) {
             {{end}}
         {{end}}
 
-        {{- if and (eq $Field.Event "*") }}
+        {{- if and (eq $Field.Event "") }}
             {{ $resolver := $Field | GetFieldHandler $.AllFields }}
             {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
                 {{$Checks := $Field | GetChecks $.AllFields}}
@@ -70,7 +70,7 @@ func (ev *Event) resolveFields(forADs bool) {
     // resolve event specific fields
     switch ev.GetEventType().String() {
     {{- range $Name, $EventType := .EventTypes}}
-        {{- if (ne $Name "*") }}
+        {{- if (ne $Name "") }}
         case "{{$Name}}":
             {{- range $Key, $FieldName := $EventType.Fields }}
                 {{- $Field := index $.Fields $FieldName }}

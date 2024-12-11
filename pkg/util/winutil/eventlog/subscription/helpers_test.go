@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func ReadNumEvents(t testing.TB, ti eventlog_test.APITester, sub PullSubscription, numEvents uint) ([]*evtapi.EventRecord, error) { //nolint:revive // TODO fix revive unused-parameter
+func ReadNumEvents(t testing.TB, _ eventlog_test.APITester, sub PullSubscription, numEvents uint) ([]*evtapi.EventRecord, error) {
 	eventRecords := make([]*evtapi.EventRecord, 0)
 
 	var err error

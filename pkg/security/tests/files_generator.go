@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -348,7 +348,7 @@ func (fgc *FileGeneratorContext) start(wg *sync.WaitGroup) {
 		fgc.mountWordDir()
 		defer fgc.unmountWordDir()
 		remountTicker := time.NewTicker(fgc.config.RemountEvery)
-
+		defer remountTicker.Stop()
 		var testEnd *time.Time
 		started := false
 		fgc.resetFirstStates()

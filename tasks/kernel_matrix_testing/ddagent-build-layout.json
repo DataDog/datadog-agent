@@ -1,0 +1,7 @@
+{
+    "layout": [],
+    "copy": {
+        "tasks/kernel_matrix_testing/default-openmetrics.yaml": "/etc/datadog-agent/conf.d/openmetrics.d/conf.yaml"
+    },
+    "run": []
+}

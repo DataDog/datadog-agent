@@ -4,7 +4,10 @@
 package kafka
 
 const (
-	TopicNameBuckets = 0xa
+	TopicNameBuckets                     = 0xa
+	TopicNameMaxSize                     = 0x50
+	MaxSupportedProduceRequestApiVersion = 0xa
+	MaxSupportedFetchRequestApiVersion   = 0xc
 )
 
 type ConnTuple struct {
@@ -31,6 +34,7 @@ type KafkaTransactionKey struct {
 }
 type KafkaTransaction struct {
 	Request_started     uint64
+	Response_last_seen  uint64
 	Records_count       uint32
 	Request_api_key     uint8
 	Request_api_version uint8
@@ -61,5 +65,6 @@ type KafkaResponseContext struct {
 }
 
 type RawKernelTelemetry struct {
-	Name_size_buckets [10]uint64
+	Topic_name_size_buckets  [10]uint64
+	Produce_no_required_acks uint64
 }

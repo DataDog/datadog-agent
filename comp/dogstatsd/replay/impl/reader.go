@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package replay
+package replayimpl
 
 import (
 	"encoding/binary"
@@ -187,23 +187,4 @@ func (tc *TrafficCaptureReader) ReadState() (map[int32]string, map[string]*pb.En
 	}
 
 	return pbState.PidMap, pbState.State, err
-}
-
-// Read reads the next protobuf packet available in the file and returns it in a byte slice, and an error if any.
-func Read(r io.Reader) ([]byte, error) {
-	buf := make([]byte, 4)
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return nil, err
-	}
-
-	size := binary.LittleEndian.Uint32(buf)
-
-	msg := make([]byte, size)
-
-	_, err := io.ReadFull(r, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return msg, err
 }

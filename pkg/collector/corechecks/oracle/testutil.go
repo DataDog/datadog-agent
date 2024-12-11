@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -34,18 +36,15 @@ const (
 )
 
 const (
-	expectedSessionsDefault           = 2
+	expectedSessionsDefault           = 3
 	expectedSessionsWithCustomQueries = 3
 )
 
 func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 	handleRealConnection := func(userType int) config.ConnectionConfig {
-		var username string
-		var password string
-		var server string
-		var serviceName string
 		var userEnvVariable string
 		var passwordEnvVariable string
+
 		serverEnvVariable := "ORACLE_TEST_SERVER"
 		serviceNameEnvVariable := "ORACLE_TEST_SERVICE_NAME"
 		portEnvVariable := "ORACLE_TEST_PORT"
@@ -54,23 +53,40 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 		case useDefaultUser:
 			userEnvVariable = "ORACLE_TEST_USER"
 			passwordEnvVariable = "ORACLE_TEST_PASSWORD"
-			server = os.Getenv(serverEnvVariable)
-			serviceName = os.Getenv(serviceNameEnvVariable)
 		case useLegacyUser:
 			userEnvVariable = "ORACLE_TEST_LEGACY_USER"
 			passwordEnvVariable = "ORACLE_TEST_LEGACY_PASSWORD"
-			server = os.Getenv(serverEnvVariable)
-			serviceName = os.Getenv(serviceNameEnvVariable)
 		case useSysUser:
 			userEnvVariable = "ORACLE_TEST_SYS_USER"
 			passwordEnvVariable = "ORACLE_TEST_SYS_PASSWORD"
-			server = os.Getenv(serverEnvVariable)
-			serviceName = os.Getenv(serviceNameEnvVariable)
 		}
 
-		username = os.Getenv(userEnvVariable)
-		password = os.Getenv(passwordEnvVariable)
-		port, _ := strconv.Atoi(os.Getenv(portEnvVariable))
+		server := os.Getenv(serverEnvVariable)
+		if server == "" {
+			server = "localhost"
+		}
+		serviceName := os.Getenv(serviceNameEnvVariable)
+		if serviceName == "" {
+			serviceName = "XE"
+		}
+
+		username := os.Getenv(userEnvVariable)
+		password := os.Getenv(passwordEnvVariable)
+		if username == "" {
+			switch userType {
+			case useDefaultUser:
+				username = "c##datadog"
+				password = "datadog"
+			case useSysUser:
+				username = "sys"
+				password = "datad0g"
+			}
+		}
+
+		port, err := strconv.Atoi(os.Getenv(portEnvVariable))
+		if port == 0 || err != nil {
+			port = 1521
+		}
 
 		if t != nil {
 			require.NotEqualf(t, "", username, "Please set the %s environment variable", userEnvVariable)
@@ -108,12 +124,21 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 	}
 }
 
+func getSysConnection(t *testing.T) (*sql.DB, error) {
+	connection := getConnectData(t, useSysUser)
+	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
+	conn, err := sql.Open("oracle", databaseUrl)
+	return conn, err
+}
+
 func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	var err error
 	c := Check{}
 
 	connectYaml, err := yaml.Marshal(connectConfig)
-	require.NoError(t, err)
+	if t != nil {
+		require.NoError(t, err)
+	}
 	instanceConfig := string(connectYaml)
 	if instanceConfigAddition != "" {
 		instanceConfig = fmt.Sprintf("%s\n%s", instanceConfig, instanceConfigAddition)
@@ -122,17 +147,25 @@ func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceC
 	rawInitConfig := []byte(initConfig)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	err = c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "oracle_test")
-	require.NoError(t, err)
+	if t != nil {
+		require.NoError(t, err)
+	}
 
 	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
 	sender.SetupAcceptAll()
-	assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
-	assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
-	assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
-	assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
-	assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
+	if t != nil {
+		assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
+		assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
+		assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
+		assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
+		assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
+		assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+	}
 
-	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+	if oracleLibDir := os.Getenv("ORACLE_TEST_ORACLE_CLIENT_LIB_DIR"); oracleLibDir != "" {
+		c.config.InstanceConfig.OracleClientLibDir = oracleLibDir
+		c.config.InstanceConfig.OracleClient = true
+	}
 
 	return c, sender
 }
@@ -145,6 +178,10 @@ func newLegacyCheck(t *testing.T, instanceConfigAddition string, initConfig stri
 
 func newDefaultCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	return newTestCheck(t, getConnectData(t, useDefaultUser), instanceConfigAddition, initConfig)
+}
+
+func newSysCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
+	return newTestCheck(t, getConnectData(t, useSysUser), instanceConfigAddition, initConfig)
 }
 
 func newDbDoesNotExistCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {

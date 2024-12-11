@@ -8,23 +8,36 @@ package infraattributesprocessor
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
 type infraAttributesSpanProcessor struct {
-	logger *zap.Logger
+	logger      *zap.Logger
+	tagger      taggerClient
+	cardinality types.TagCardinality
+	generateID  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesSpanProcessor(set processor.Settings, _ *Config) (*infraAttributesSpanProcessor, error) {
-	tesp := &infraAttributesSpanProcessor{
-		logger: set.Logger,
+func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesSpanProcessor, error) {
+	iasp := &infraAttributesSpanProcessor{
+		logger:      set.Logger,
+		tagger:      tagger,
+		cardinality: cfg.Cardinality,
+		generateID:  generateID,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
-	return tesp, nil
+	return iasp, nil
 }
 
-func (tesp *infraAttributesSpanProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
+func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
+	rss := td.ResourceSpans()
+	for i := 0; i < rss.Len(); i++ {
+		resourceAttributes := rss.At(i).Resource().Attributes()
+		processInfraTags(iasp.logger, iasp.tagger, iasp.cardinality, iasp.generateID, resourceAttributes)
+	}
 	return td, nil
 }

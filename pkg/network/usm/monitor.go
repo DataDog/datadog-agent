@@ -25,21 +25,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type monitorState = string
-
-const (
-	disabled   monitorState = "disabled"
-	running    monitorState = "running"
-	notRunning monitorState = "Not running"
-)
-
 var (
-	state        = disabled
 	startupError error
 )
 
@@ -65,7 +58,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
-			state = notRunning
+			usmstate.Set(usmstate.NotRunning)
 			err = fmt.Errorf("could not initialize USM: %w", err)
 			startupError = err
 		}
@@ -77,7 +70,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	}
 
 	if len(mgr.enabledProtocols) == 0 {
-		state = disabled
+		usmstate.Set(usmstate.Disabled)
 		log.Debug("not enabling USM as no protocols monitoring were enabled.")
 		return nil, nil
 	}
@@ -99,7 +92,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	state = running
+	usmstate.Set(usmstate.Running)
 
 	usmMonitor := &Monitor{
 		cfg:            c,
@@ -169,16 +162,16 @@ func (m *Monitor) Resume() error {
 // GetUSMStats returns the current state of the USM monitor
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	response := map[string]interface{}{
-		"state": state,
+		"state": usmstate.Get(),
 	}
 
 	if startupError != nil {
 		response["error"] = startupError.Error()
 	}
 
-	response["blocked_processes"] = utils.GetBlockedPathIDsList()
+	response["blocked_processes"] = utils.GetBlockedPathIDsList(consts.USMModuleName)
 
-	tracedPrograms := utils.GetTracedProgramList()
+	tracedPrograms := utils.GetTracedProgramList(consts.USMModuleName)
 	response["traced_programs"] = tracedPrograms
 
 	if m != nil {
@@ -215,6 +208,7 @@ func (m *Monitor) Stop() {
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
+	usmstate.Set(usmstate.Stopped)
 }
 
 // DumpMaps dumps the maps associated with the monitor

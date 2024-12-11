@@ -113,7 +113,7 @@ func TestTelemetryDisabled(t *testing.T) {
 
 	collector := NewCollector(cfg)
 
-	server.assertReq = func(req *http.Request) {
+	server.assertReq = func(_ *http.Request) {
 		t.Fail()
 	}
 	collector.SendStartupError(GenericError, fmt.Errorf(""))

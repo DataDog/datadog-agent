@@ -58,7 +58,6 @@ func (agent *agentCommandRunner) executeCommandWithError(command string, command
 
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
-	agent.t.Logf("Running agent command: %+q", arguments)
 	output, err := agent.executor.execute(arguments)
 	return output, err
 }
@@ -170,6 +169,15 @@ func (agent *agentCommandRunner) Status(commandArgs ...agentclient.AgentArgsOpti
 // StatusWithError runs status command and returns a Status struct and error
 func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
 	status, err := agent.executeCommandWithError("status", commandArgs...)
+
+	return &agentclient.Status{
+		Content: status,
+	}, err
+}
+
+// JMX run the jmx command and returns a Status struct and error
+func (agent *agentCommandRunner) JMX(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
+	status, err := agent.executeCommandWithError("jmx", commandArgs...)
 
 	return &agentclient.Status{
 		Content: status,

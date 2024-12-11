@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	dockertypes "github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
 
 	"github.com/shirou/gopsutil/v3/process"
@@ -366,7 +367,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
+func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, parser string) (interface{}, error) {
 	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
@@ -564,7 +565,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 	var resolved []interface{}
 	switch spec.Kind {
 	case "image":
-		list, err := cl.ImageList(ctx, dockertypes.ImageListOptions{All: true})
+		list, err := cl.ImageList(ctx, image.ListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
@@ -597,7 +598,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "network":
-		networks, err := cl.NetworkList(ctx, dockertypes.NetworkListOptions{})
+		networks, err := cl.NetworkList(ctx, network.ListOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -780,7 +781,7 @@ var rpmDbs = []string{
 	"/var/lib/rpm/Packages",
 }
 
-func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) { //nolint:revive // TODO fix revive unused-parameter
+func (r *defaultResolver) resolvePackage(_ context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
 	if len(spec.Names) == 0 {
 		return nil, nil
 	}

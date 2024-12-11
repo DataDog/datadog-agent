@@ -27,7 +27,7 @@ var _ EventHandler = new(PerfHandler)
 type PerfHandler struct {
 	RecordGetter func() *perf.Record
 
-	dataChannel chan *DataEvent
+	dataChannel chan DataEvent
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
@@ -39,7 +39,7 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 		RecordGetter: func() *perf.Record {
 			return recordPool.Get()
 		},
-		dataChannel: make(chan *DataEvent, dataChannelSize),
+		dataChannel: make(chan DataEvent, dataChannelSize),
 		lostChannel: make(chan uint64, 10),
 	}
 }
@@ -58,11 +58,11 @@ func (c *PerfHandler) RecordHandler(record *perf.Record, _ *manager.PerfMap, _ *
 		return
 	}
 
-	c.dataChannel <- &DataEvent{Data: record.RawSample, pr: record}
+	c.dataChannel <- DataEvent{Data: record.RawSample, pr: record}
 }
 
 // DataChannel returns the channel with event data
-func (c *PerfHandler) DataChannel() <-chan *DataEvent {
+func (c *PerfHandler) DataChannel() <-chan DataEvent {
 	return c.dataChannel
 }
 

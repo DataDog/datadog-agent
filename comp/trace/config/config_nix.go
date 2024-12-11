@@ -18,5 +18,8 @@ import (
 // DefaultLogFilePath is where the agent will write logs if not overridden in the conf
 const DefaultLogFilePath = "/var/log/datadog/trace-agent.log"
 
+// defaultReceiverSocket specifies the default Unix Domain Socket to receive traces.
+const defaultReceiverSocket = "/var/run/datadog/apm.socket"
+
 // defaultDDAgentBin specifies the default path to the main agent binary.
 var defaultDDAgentBin = filepath.Join(setup.InstallPath, "bin/agent/agent")

@@ -8,8 +8,8 @@ package installer
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,13 +30,38 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	packages := DefaultPackages(env)
 
 	assert.Equal(t, []string{
-		"oci://gcr.io/datadoghq/apm-inject-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-java-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-ruby-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-js-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-dotnet-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-python-package:latest",
+		"oci://install.datadoghq.com/apm-inject-package:latest",
+		"oci://install.datadoghq.com/apm-library-java-package:1",
+		"oci://install.datadoghq.com/apm-library-ruby-package:2",
+		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
+		"oci://install.datadoghq.com/apm-library-python-package:2",
 	}, packages)
+}
+
+func TestDefaultPackagesAgentVersion(t *testing.T) {
+	env := &env.Env{
+		AgentMajorVersion: "7",
+		AgentMinorVersion: "42.0",
+		DefaultPackagesInstallOverride: map[string]bool{
+			"datadog-agent": true,
+		},
+	}
+	packages := DefaultPackages(env)
+
+	assert.Equal(t, []string{"oci://install.datadoghq.com/agent-package:7.42.0-1"}, packages)
+}
+
+func TestDefaultPackagesAgentMinorVersion(t *testing.T) {
+	env := &env.Env{
+		AgentMinorVersion: "42.0",
+		DefaultPackagesInstallOverride: map[string]bool{
+			"datadog-agent": true,
+		},
+	}
+	packages := DefaultPackages(env)
+
+	assert.Equal(t, []string{"oci://install.datadoghq.com/agent-package:7.42.0-1"}, packages)
 }
 
 func TestDefaultPackages(t *testing.T) {
@@ -121,9 +146,9 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "Package is a language with a pinned version",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
@@ -134,14 +159,14 @@ func TestDefaultPackages(t *testing.T) {
 					APMInstrumentationEnabled: "all",
 				},
 			},
-			expected: []pkg{{n: "datadog-apm-library-java", v: "1.37.0-1"}, {n: "datadog-apm-library-ruby", v: "latest"}},
+			expected: []pkg{{n: "datadog-apm-library-java", v: "1.37.0-1"}, {n: "datadog-apm-library-ruby", v: "2"}},
 		},
 		{
 			name: "Package is a language with a pinned version",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
@@ -152,17 +177,17 @@ func TestDefaultPackages(t *testing.T) {
 				},
 			},
 			expected: []pkg{
-				{n: "datadog-apm-library-java", v: "latest"},
-				{n: "datadog-apm-library-ruby", v: "latest"},
-				{n: "datadog-apm-library-js", v: "latest"},
+				{n: "datadog-apm-library-java", v: "1"},
+				{n: "datadog-apm-library-ruby", v: "2"},
+				{n: "datadog-apm-library-js", v: "5"},
 			},
 		},
 		{
 			name: "Override ignore package pin",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-ruby", released: false, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-js", released: false, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: false, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: false, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: false, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
@@ -174,17 +199,18 @@ func TestDefaultPackages(t *testing.T) {
 				DefaultPackagesInstallOverride: map[string]bool{
 					"datadog-apm-library-java": true,
 					"datadog-apm-library-ruby": true,
+					"datadog-apm-library-php":  true,
 				},
 			},
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1.2.3-1"},
-				{n: "datadog-apm-library-ruby", v: "latest"},
+				{n: "datadog-apm-library-ruby", v: "2"},
 			},
 		},
 		{
 			name: "Strip leading v in version",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
@@ -201,9 +227,9 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "Add -1 prefix only for full version pin",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-python", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
@@ -221,6 +247,25 @@ func TestDefaultPackages(t *testing.T) {
 				{n: "datadog-apm-library-ruby", v: "1.2"},
 			},
 		},
+		{
+			name: "Install libraries without the injector",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java": "1.2.3",
+					"php":  "1",
+				},
+				InstallScript: env.InstallScriptEnv{},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+				{n: "datadog-apm-library-php", v: "1"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,6 +276,67 @@ func TestDefaultPackages(t *testing.T) {
 				expected = append(expected, oci.PackageURL(tt.env, p.n, p.v))
 			}
 			assert.Equal(t, expected, packages)
+		})
+	}
+}
+
+func TestAgentVersion(t *testing.T) {
+	type testCase struct {
+		name           string
+		majorVersion   string
+		minorVersions  string
+		expectedResult string
+	}
+
+	tests := []testCase{
+		{
+			name:           "No version",
+			majorVersion:   "",
+			minorVersions:  "",
+			expectedResult: "latest",
+		},
+		{
+			name:           "Major version only",
+			majorVersion:   "7",
+			minorVersions:  "",
+			expectedResult: "latest",
+		},
+		{
+			name:           "Major, minor+patch version",
+			majorVersion:   "7",
+			minorVersions:  "42.0",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "Major, minor version",
+			majorVersion:   "7",
+			minorVersions:  "42",
+			expectedResult: "7.42",
+		},
+		{
+			name:           "minor+patch",
+			minorVersions:  "42.0",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "minor+patch-1",
+			minorVersions:  "42.0-1",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "minor only",
+			minorVersions:  "42",
+			expectedResult: "7.42",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &env.Env{
+				AgentMajorVersion: tt.majorVersion,
+				AgentMinorVersion: tt.minorVersions,
+			}
+			res := agentVersion(Package{}, e)
+			assert.Equal(t, tt.expectedResult, res)
 		})
 	}
 }

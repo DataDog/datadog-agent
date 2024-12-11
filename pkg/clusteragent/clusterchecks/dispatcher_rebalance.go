@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -172,7 +172,7 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
-	if config.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
 		return d.rebalanceUsingUtilization(force)
 	}
 
@@ -339,7 +339,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// checks.
 	currentUtilizationStdDev := currentChecksDistribution.utilizationStdDev()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
-	minPercImprovement := config.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
 
 	if force || rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement) {
 

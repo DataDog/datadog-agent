@@ -155,14 +155,6 @@ func getDockerMetadataLength(msg []byte) int {
 	return dockerHeaderLength + idx + 1
 }
 
-// min returns the minimum value between a and b.
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // isEmptyMessage tests if the entire message is in the form of escaped new line
 // i.e. \\n  or \\r or \\r\\n
 func isEmptyMessage(content []byte) bool {

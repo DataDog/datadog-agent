@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetIntegrationConfig(t *testing.T) {
@@ -147,7 +147,7 @@ instances:
 	require.Equal(t, 0, len(errors))
 
 	// Change config
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("autoconf_config_files_poll", true)
 	mockConfig.SetWithoutSource("autoconf_config_files_poll_interval", 2)
 

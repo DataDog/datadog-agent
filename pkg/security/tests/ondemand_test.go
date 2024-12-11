@@ -21,15 +21,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func skipOnFentry(t *testing.T) {
-	if os.Getenv("DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY") == "true" {
-		t.Skip("fentry is not supported for on-demand yet")
-	}
-}
-
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
-	skipOnFentry(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -81,7 +74,7 @@ func TestOnDemandOpen(t *testing.T) {
 			return err
 		}
 		return syscall.Close(int(fd))
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 
 		value, _ := event.GetFieldValue("ondemand.arg2.str")
@@ -91,7 +84,6 @@ func TestOnDemandOpen(t *testing.T) {
 
 func TestOnDemandChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
-	skipOnFentry(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -131,7 +123,7 @@ func TestOnDemandChdir(t *testing.T) {
 
 	test.WaitSignal(t, func() error {
 		return os.Chdir(testFolder)
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 
 		value, _ := event.GetFieldValue("ondemand.arg1.str")
@@ -141,7 +133,6 @@ func TestOnDemandChdir(t *testing.T) {
 
 func TestOnDemandMprotect(t *testing.T) {
 	SkipIfNotAvailable(t)
-	skipOnFentry(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -183,7 +174,7 @@ func TestOnDemandMprotect(t *testing.T) {
 			return fmt.Errorf("couldn't mprotect segment: %w", err)
 		}
 		return nil
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 	})
 }

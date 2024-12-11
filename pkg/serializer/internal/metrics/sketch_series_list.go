@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -179,7 +179,7 @@ func (pb *payloadsBuilder) startPayload() error {
 	{
 		buf := bytes.NewBuffer([]byte{})
 		ps := molecule.NewProtoStream(buf)
-		_ = ps.Embedded(payloadMetadata, func(ps *molecule.ProtoStream) error {
+		_ = ps.Embedded(payloadMetadata, func(_ *molecule.ProtoStream) error {
 			return nil
 		})
 		footer = buf.Bytes()

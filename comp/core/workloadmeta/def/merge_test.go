@@ -46,6 +46,7 @@ func container1(testTime time.Time) Container {
 			CreatedAt:  testTime,
 			StartedAt:  testTime,
 			FinishedAt: time.Time{},
+			Health:     ContainerHealthUnknown,
 		},
 		CollectorTags: []string{"tag1", "tag2"},
 	}
@@ -87,6 +88,7 @@ func container2() Container {
 			StartedAt:  time.Time{},
 			FinishedAt: time.Time{},
 			ExitCode:   pointer.Ptr(int64(100)),
+			Health:     ContainerHealthHealthy,
 		},
 		CollectorTags: []string{"tag3"},
 	}
@@ -110,6 +112,7 @@ func TestMerge(t *testing.T) {
 			StartedAt:  testTime,
 			FinishedAt: time.Time{},
 			ExitCode:   pointer.Ptr(int64(100)),
+			Health:     ContainerHealthHealthy,
 		},
 	}
 

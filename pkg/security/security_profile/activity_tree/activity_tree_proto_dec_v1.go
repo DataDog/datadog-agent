@@ -13,6 +13,7 @@ import (
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -38,7 +39,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]int, 0, len(pan.Syscalls)),
+		Syscalls:       make([]*SyscallNode, 0, len(pan.Syscalls)),
 		ImageTags:      pan.ImageTags,
 	}
 
@@ -73,7 +74,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	}
 
 	for _, sysc := range pan.Syscalls {
-		ppan.Syscalls = append(ppan.Syscalls, int(sysc))
+		ppan.Syscalls = append(ppan.Syscalls, NewSyscallNode(int(sysc), "", Unknown))
 	}
 
 	return ppan
@@ -94,9 +95,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		IsThread:    p.IsThread,
 		IsExecExec:  p.IsExecChild,
 		FileEvent:   *protoDecodeFileEvent(p.File),
-		ContainerID: p.ContainerId,
-		SpanID:      p.SpanId,
-		TraceID:     p.TraceId,
+		ContainerID: containerutils.ContainerID(p.ContainerId),
 		TTYName:     p.Tty,
 		Comm:        p.Comm,
 
@@ -332,6 +331,7 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 			MatchedRules: make([]*model.MatchedRule, 0, len(bindNode.MatchedRules)),
 			Port:         uint16(bindNode.Port),
 			IP:           bindNode.Ip,
+			Protocol:     uint16(bindNode.Protocol),
 			ImageTags:    bindNode.ImageTags,
 		}
 

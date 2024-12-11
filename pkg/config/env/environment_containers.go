@@ -37,6 +37,7 @@ func init() {
 	registerFeature(Docker)
 	registerFeature(Containerd)
 	registerFeature(Cri)
+	registerFeature(Crio)
 	registerFeature(Kubernetes)
 	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
@@ -45,6 +46,7 @@ func init() {
 	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
+	registerFeature(PodResources)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -52,6 +54,7 @@ func IsAnyContainerFeaturePresent() bool {
 	return IsFeaturePresent(Docker) ||
 		IsFeaturePresent(Containerd) ||
 		IsFeaturePresent(Cri) ||
+		IsFeaturePresent(Crio) ||
 		IsFeaturePresent(Kubernetes) ||
 		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
@@ -63,10 +66,11 @@ func IsAnyContainerFeaturePresent() bool {
 func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
-	detectContainerd(features, cfg)
+	detectCriRuntimes(features, cfg)
 	detectAWSEnvironments(features, cfg)
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
+	detectPodResources(features, cfg)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -94,7 +98,7 @@ func detectDocker(features FeatureMap) {
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
 				model.AddOverrideFunc(func(model.Config) {
-					os.Setenv("DOCKER_HOST", getDefaultDockerSocketType()+defaultDockerSocketPath)
+					os.Setenv("DOCKER_HOST", getDefaultSocketPrefix()+defaultDockerSocketPath)
 				})
 				break
 			}
@@ -102,40 +106,55 @@ func detectDocker(features FeatureMap) {
 	}
 }
 
-func detectContainerd(features FeatureMap, cfg model.Reader) {
+// detectCriRuntimes checks for both containerd and crio runtimes
+func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
+
+	// If no cri_socket_path is provided and the Agent is not running in Docker, check default paths
 	if criSocket == "" && !IsDockerRuntime() {
 		for _, defaultCriPath := range getDefaultCriPaths() {
-			exists, reachable := socket.IsAvailable(defaultCriPath, socketTimeout)
-			if exists && !reachable {
-				log.Infof(
-					"Agent found cri socket at: %s but socket not reachable (permissions?)",
-					defaultCriPath,
-				)
-				continue
-			}
-
-			if exists && reachable {
-				criSocket = defaultCriPath
-				model.AddOverride("cri_socket_path", defaultCriPath)
+			// Check default CRI paths
+			criSocket = checkCriSocket(defaultCriPath)
+			if criSocket != "" {
+				model.AddOverride("cri_socket_path", criSocket)
 				// Currently we do not support multiple CRI paths
 				break
 			}
 		}
+	} else {
+		// Check manually provided CRI socket path
+		criSocket = checkCriSocket(criSocket)
 	}
 
+	// If a valid CRI socket path was found, determine the runtime (containerd or crio)
 	if criSocket != "" {
 		if isCriSupported() {
 			features[Cri] = struct{}{}
 		}
-
 		if strings.Contains(criSocket, "containerd") {
 			features[Containerd] = struct{}{}
+			mergeContainerdNamespaces(cfg)
+		} else if strings.Contains(criSocket, "crio") {
+			features[Crio] = struct{}{}
 		}
 	}
+}
 
+func checkCriSocket(socketPath string) string {
+	// Check if the socket exists and is reachable
+	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && reachable {
+		log.Infof("Agent found cri socket at: %s", socketPath)
+		return socketPath
+	} else if exists && !reachable {
+		log.Infof("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
+	}
+	return ""
+}
+
+func mergeContainerdNamespaces(cfg model.Reader) {
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(
 		cfg.GetStringSlice("containerd_namespaces"),
@@ -168,7 +187,7 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") &&
-			cfg.GetBool("orchestrator_explorer.ecs_collection.enabled") {
+			cfg.GetBool("ecs_task_collection_enabled") {
 			features[ECSOrchestratorExplorer] = struct{}{}
 		}
 		return
@@ -183,7 +202,7 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECS() {
 		features[ECSEC2] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") &&
-			cfg.GetBool("orchestrator_explorer.ecs_collection.enabled") {
+			cfg.GetBool("ecs_task_collection_enabled") {
 			features[ECSOrchestratorExplorer] = struct{}{}
 		}
 	}
@@ -209,6 +228,21 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 	}
 }
 
+func detectPodResources(features FeatureMap, cfg model.Reader) {
+	// We only check the path from config. Default socket path is defined in the config
+	socketPath := getDefaultSocketPrefix() + cfg.GetString("kubernetes_kubelet_podresources_socket")
+
+	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && reachable {
+		log.Infof("Agent found PodResources socket at %s", socketPath)
+		features[PodResources] = struct{}{}
+	} else if exists && !reachable {
+		log.Infof("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
+	} else {
+		log.Infof("Agent did not find PodResources socket at %s", socketPath)
+	}
+}
+
 func getHostMountPrefixes() []string {
 	if IsContainerized() {
 		return []string{"", defaultHostMountPrefix}
@@ -216,7 +250,7 @@ func getHostMountPrefixes() []string {
 	return []string{""}
 }
 
-func getDefaultDockerSocketType() string {
+func getDefaultSocketPrefix() string {
 	if runtime.GOOS == "windows" {
 		return winNamedPipePrefix
 	}

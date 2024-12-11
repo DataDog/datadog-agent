@@ -24,7 +24,7 @@ func TestBufferTelemetry(t *testing.T) {
 	// We need a high enough duration to avoid the buffer to flush
 	// And cause the program to deadlock on the packetChannel
 	duration := 10 * time.Second
-	packetChannel := make(chan Packets)
+	packetChannel := make(chan Packets, 1)
 	buffer := NewBuffer(3, duration, packetChannel, "test_buffer", telemetryStore)
 	defer buffer.Close()
 
@@ -104,7 +104,7 @@ func TestBufferTelemetryFull(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, channelPacketsBytesMetrics, 1)
 
-	// buffer size metrcis get reset when buffer is full
+	// buffer size metrics get reset when buffer is full
 	bufferSizeMetricLabel := bufferSizeMetrics[0].Tags()
 	assert.Equal(t, bufferSizeMetricLabel["listener_id"], "test_buffer")
 	assert.Equal(t, float64(0), bufferSizeMetrics[0].Value())
@@ -126,4 +126,23 @@ func TestBufferTelemetryFull(t *testing.T) {
 	assert.Equal(t, float64(123), channelPacketsBytesMetrics[0].Value())
 
 	assert.Equal(t, float64(1), channelSizeMetrics[0].Value())
+}
+
+func TestBufferFlush(t *testing.T) {
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
+	duration := 10 * time.Hour
+	packetChannel := make(chan Packets, 1)
+	buffer := NewBuffer(0, duration, packetChannel, "test_buffer", telemetryStore)
+	packet := &Packet{
+		Contents:   []byte("test"),
+		Buffer:     []byte("test read"),
+		Origin:     "test origin",
+		ListenerID: "1",
+		Source:     0,
+	}
+
+	buffer.Append(packet)
+	buffer.Flush()
+	assert.Equal(t, 1, len(packetChannel))
 }

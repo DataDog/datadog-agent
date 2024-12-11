@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -69,7 +69,7 @@ type ZkTestSuite struct {
 	containerName  string
 	zkVersion      string
 	zkURL          string
-	providerConfig config.ConfigurationProviders
+	providerConfig pkgconfigsetup.ConfigurationProviders
 	compose        *utils.ComposeConf
 }
 
@@ -110,7 +110,7 @@ func (suite *ZkTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *ZkTestSuite) SetupTest() {
-	suite.providerConfig = config.ConfigurationProviders{
+	suite.providerConfig = pkgconfigsetup.ConfigurationProviders{
 		TemplateURL: suite.zkURL,
 		TemplateDir: "/datadog/check_configs",
 	}
@@ -132,7 +132,7 @@ func (suite *ZkTestSuite) populate() error {
 
 func (suite *ZkTestSuite) TestCollect() {
 	ctx := context.Background()
-	zk, err := providers.NewZookeeperConfigProvider(&suite.providerConfig)
+	zk, err := providers.NewZookeeperConfigProvider(&suite.providerConfig, nil)
 	require.Nil(suite.T(), err)
 
 	templates, err := zk.(providers.CollectingConfigProvider).Collect(ctx)

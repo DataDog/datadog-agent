@@ -13,18 +13,16 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newConfig),
-		fx.Provide(func(syscfg sysprobeconfig.Component) optional.Option[sysprobeconfig.Component] {
-			return optional.NewOption[sysprobeconfig.Component](syscfg)
-		}),
+		fxutil.ProvideOptional[sysprobeconfig.Component](),
 	)
 }
 
@@ -32,12 +30,12 @@ func Module() fxutil.Module {
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
-	config.Config
+	model.Config
 
 	syscfg *sysconfigtypes.Config
 
 	// warnings are the warnings generated during setup
-	warnings *config.Warnings
+	warnings *model.Warnings
 }
 
 // sysprobeconfigDependencies is an interface that mimics the fx-oriented dependencies struct (This is copied from the main agent configuration.)
@@ -58,7 +56,7 @@ func (d dependencies) getParams() *Params {
 }
 
 func setupConfig(deps sysprobeconfigDependencies) (*sysconfigtypes.Config, error) {
-	return sysconfig.New(deps.getParams().sysProbeConfFilePath)
+	return sysconfig.New(deps.getParams().sysProbeConfFilePath, deps.getParams().fleetPoliciesDirPath)
 }
 
 func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
@@ -67,14 +65,14 @@ func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
 		return nil, err
 	}
 
-	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
+	return &cfg{Config: pkgconfigsetup.SystemProbe(), syscfg: syscfg}, nil
 }
 
-func (c *cfg) Warnings() *config.Warnings {
+func (c *cfg) Warnings() *model.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() config.Reader {
+func (c *cfg) Object() model.Reader {
 	return c
 }
 

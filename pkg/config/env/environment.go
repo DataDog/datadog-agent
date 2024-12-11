@@ -11,15 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-// GetEnvDefault retrieves a value from the environment named by the key or return def if not set.
-func GetEnvDefault(key, def string) string {
-	value, found := os.LookupEnv(key)
-	if !found {
-		return def
-	}
-	return value
-}
-
 // IsContainerized returns whether the Agent is running on a Docker container
 // DOCKER_DD_AGENT is set in our official Dockerfile
 func IsContainerized() bool {

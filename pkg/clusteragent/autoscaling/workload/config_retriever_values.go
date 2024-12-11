@@ -16,12 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -81,6 +82,57 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 	}
 
 	podAutoscaler.UpdateFromValues(scalingValues)
+
+	// Emit telemetry for received values
+	// Target name cannot normally be empty, but we handle it just in case
+	var targetName string
+	if podAutoscaler.Spec() != nil {
+		targetName = podAutoscaler.Spec().TargetRef.Name
+	}
+
+	// Horizontal value
+	if scalingValues.Horizontal != nil {
+		telemetryHorizontalScaleReceivedRecommendations.Set(
+			float64(scalingValues.Horizontal.Replicas),
+			podAutoscaler.Namespace(),
+			targetName,
+			podAutoscaler.Name(),
+			string(scalingValues.Horizontal.Source),
+			le.JoinLeaderValue,
+		)
+	}
+
+	// Vertical values
+	if scalingValues.Vertical != nil {
+		for _, containerResources := range scalingValues.Vertical.ContainerResources {
+			for resource, value := range containerResources.Requests {
+				telemetryVerticalScaleReceivedRecommendationsRequests.Set(
+					value.AsApproximateFloat64(),
+					podAutoscaler.Namespace(),
+					targetName,
+					podAutoscaler.Name(),
+					string(scalingValues.Vertical.Source),
+					containerResources.Name,
+					string(resource),
+					le.JoinLeaderValue,
+				)
+			}
+
+			for resource, value := range containerResources.Limits {
+				telemetryVerticalScaleReceivedRecommendationsLimits.Set(
+					value.AsApproximateFloat64(),
+					podAutoscaler.Namespace(),
+					targetName,
+					podAutoscaler.Name(),
+					string(scalingValues.Vertical.Source),
+					containerResources.Name,
+					string(resource),
+					le.JoinLeaderValue,
+				)
+			}
+		}
+	}
+
 	return nil
 }
 

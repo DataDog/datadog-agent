@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -73,6 +74,7 @@ type K8sProcessorContext struct {
 	HostName  string
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
+	SystemInfo         *model.SystemInfo
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -81,6 +83,8 @@ type ECSProcessorContext struct {
 	AWSAccountID int
 	ClusterName  string
 	Region       string
+	SystemInfo   *model.SystemInfo
+	Hostname     string
 }
 
 // Handlers is the interface that is to be implemented for every resource type
@@ -124,6 +128,9 @@ type Handlers interface {
 
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
+
+	// ResourceTaggerTags returns the resource tags.
+	ResourceTaggerTags(ctx ProcessorContext, resource interface{}) []string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -227,6 +234,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Content:         yaml,
 			Version:         "v1",
 			ContentType:     "json",
+			Tags:            p.h.ResourceTaggerTags(ctx, resource),
 		})
 	}
 

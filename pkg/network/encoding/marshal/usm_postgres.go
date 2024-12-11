@@ -62,7 +62,7 @@ func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.
 		staticTags |= stats.StaticTags
 		e.postgresAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
 			builder.SetPostgres(func(statsBuilder *model.PostgresStatsBuilder) {
-				statsBuilder.SetTableName(key.TableName)
+				statsBuilder.SetTableName(key.Parameters)
 				statsBuilder.SetOperation(uint64(toPostgresModelOperation(key.Operation)))
 				if latencies := stats.Latencies; latencies != nil {
 					blob, _ := proto.Marshal(latencies.ToProto())
@@ -106,6 +106,8 @@ func toPostgresModelOperation(op postgres.Operation) model.PostgresOperation {
 		return model.PostgresOperation_PostgresAlterOp
 	case postgres.TruncateTableOP:
 		return model.PostgresOperation_PostgresTruncateOp
+	case postgres.ShowOP:
+		return model.PostgresOperation_PostgresShowOp
 	default:
 		return model.PostgresOperation_PostgresUnknownOp
 	}

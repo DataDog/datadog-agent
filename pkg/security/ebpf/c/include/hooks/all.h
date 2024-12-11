@@ -12,6 +12,7 @@
 #include "ioctl.h"
 #include "iouring.h"
 #include "link.h"
+#include "login_uid.h"
 #include "mkdir.h"
 #include "mmap.h"
 #include "module.h"
@@ -36,6 +37,7 @@
 #include "chdir.h"
 
 #include "network/bind.h"
+#include "network/connect.h"
 
 #ifndef DO_NOT_USE_TC
 #include "network/dns.h"
@@ -44,6 +46,7 @@
 #include "network/net_device.h"
 #include "network/router.h"
 #include "network/tc.h"
+#include "network/raw.h"
 #endif
 
 #endif

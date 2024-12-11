@@ -51,7 +51,7 @@ func TestIterableSeriesCallback(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestIterableSeriesReceiverStopped(t *testing.T) {
+func TestIterableSeriesReceiverStopped(_ *testing.T) {
 	iterableSeries := NewIterableSeries(func(*Serie) {}, 1, 1)
 	iterableSeries.Append(&Serie{Name: "serie1"})
 

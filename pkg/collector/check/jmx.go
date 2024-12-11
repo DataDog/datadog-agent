@@ -9,7 +9,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	agentconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // IsJMXConfig checks if a certain YAML config contains at least one instance of a JMX config
@@ -25,7 +25,7 @@ func IsJMXConfig(config integration.Config) bool {
 
 // IsJMXInstance checks if a certain YAML instance is a JMX config
 func IsJMXInstance(name string, instance integration.Data, initConfig integration.Data) bool {
-	if _, ok := agentconfig.StandardJMXIntegrations[name]; ok {
+	if _, ok := pkgconfigsetup.StandardJMXIntegrations[name]; ok {
 		return true
 	}
 

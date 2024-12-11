@@ -13,11 +13,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,7 +88,7 @@ func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 
 CONNECT: // Outer loop handles re-connecting in case the docker daemon closes the connection
 	for {
-		eventOptions := types.EventsOptions{
+		eventOptions := events.ListOptions{
 			Since:   strconv.FormatInt(latestTimestamp, 10),
 			Filters: eventFilters(),
 		}
@@ -157,7 +156,7 @@ func eventFilters() filters.Args {
 		res.Add("event", string(containerEventAction))
 	}
 
-	if config.Datadog().GetBool("container_image.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("container_image.enabled") {
 		res.Add("type", string(events.ImageEventType))
 		for _, imageEventAction := range imageEventActions {
 			res.Add("event", string(imageEventAction))

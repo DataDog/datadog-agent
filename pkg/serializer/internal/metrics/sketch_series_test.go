@@ -12,8 +12,9 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -92,16 +93,16 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 			payload, _ := sl.Marshal()
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 
 			assert.Nil(t, err)
@@ -121,12 +122,12 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 		kind                string
 		maxUncompressedSize int
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, maxUncompressedSize: 100},
-		"zstd": {kind: compressionimpl.ZstdKind, maxUncompressedSize: 200},
+		"zlib": {kind: common.ZlibKind, maxUncompressedSize: 100},
+		"zstd": {kind: common.ZstdKind, maxUncompressedSize: 200},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
@@ -143,7 +144,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			})
 
 			serializer := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 
 			assert.Nil(t, err)
@@ -169,12 +170,12 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := metrics.NewSketchesSourceTest()
 
@@ -184,7 +185,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 			sl.Reset()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 			require.NoError(t, err)
 
@@ -225,12 +226,12 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		kind                string
 		maxUncompressedSize int
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, maxUncompressedSize: 2000},
-		"zstd": {kind: compressionimpl.ZstdKind, maxUncompressedSize: 2000},
+		"zlib": {kind: common.ZlibKind, maxUncompressedSize: 2000},
+		"zstd": {kind: common.ZstdKind, maxUncompressedSize: 2000},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
@@ -243,7 +244,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 			}
 
 			serializer := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 			assert.Nil(t, err)
 
@@ -292,12 +293,12 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := metrics.NewSketchesSourceTest()
 
@@ -307,7 +308,7 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 
 			sl.Reset()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig)
 			payloads, filteredPayloads, err := serializer2.MarshalSplitCompressMultiple(mockConfig, strategy, func(ss *metrics.SketchSeries) bool {
 				return ss.Name == "name.0"
 			})

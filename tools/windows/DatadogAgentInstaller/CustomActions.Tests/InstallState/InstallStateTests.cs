@@ -23,6 +23,8 @@ namespace CustomActions.Tests.InstallState
             Test.Properties.Should()
                 .NotContainKeys(
                     "DDAGENTUSER_NAME",
+                    "DDAGENT_installedDomain",
+                    "DDAgent_installedUser",
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
                     "DDAGENT_WINDOWSBUILD").And
@@ -52,6 +54,8 @@ namespace CustomActions.Tests.InstallState
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_NAME", @"testDomain\testUser").And
+                .Contain("DDAGENT_installedDomain", "testDomain").And
+                .Contain("DDAGENT_installedUser", "testUser").And
                 .Contain("PROJECTLOCATION", @"C:\datadog").And
                 .Contain("APPLICATIONDATADIRECTORY", @"D:\data").And
                 .Contain("DDAGENT_WINDOWSBUILD", "z_1234567890");

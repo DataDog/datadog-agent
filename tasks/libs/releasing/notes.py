@@ -2,13 +2,15 @@ from datetime import date
 
 from invoke import Failure
 
-from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
 
 
 def _add_prelude(ctx, version):
     res = ctx.run(f"reno new prelude-release-{version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+    branch = DEFAULT_INTEGRATIONS_CORE_BRANCH
 
     with open(new_releasenote, "w") as f:
         f.write(
@@ -16,7 +18,7 @@ def _add_prelude(ctx, version):
     |
     Release on: {date.today()}
 
-    - Please refer to the `{version} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{version.replace('.', '')}>`_ for the list of changes on the Core Checks
+    - Please refer to the `{version} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/{branch}/AGENT_CHANGELOG.md#datadog-agent-version-{version.replace('.', '')}>`_ for the list of changes on the Core Checks
 """
         )
 
@@ -25,29 +27,25 @@ def _add_prelude(ctx, version):
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
-def _add_dca_prelude(ctx, agent7_version, agent6_version=""):
-    """
-    Release of the Cluster Agent should be pinned to a version of the Agent.
-    """
-    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{agent7_version}")
-    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+def _add_dca_prelude(ctx, version=None):
+    """Release of the Cluster Agent should be pinned to a version of the Agent."""
 
-    if agent6_version != "":
-        agent6_version = (
-            f"--{agent6_version.replace('.', '')}"  # generate the right hyperlink to the agent's changelog.
-        )
+    branch = get_default_branch()
+
+    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
+    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     with open(new_releasenote, "w") as f:
         f.write(
             f"""prelude:
     |
     Released on: {date.today()}
-    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{DEFAULT_BRANCH}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
+    Pinned to datadog-agent v{version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{branch}/CHANGELOG.rst#{version.replace('.', '')}>`_."""
         )
 
     ctx.run(f"git add {new_releasenote}")
     print("\nIf not run as part of finish task, commit this with:")
-    print(f"git commit -m \"Add prelude for {agent7_version} release\"")
+    print(f"git commit -m \"Add prelude for {version} release\"")
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
@@ -83,13 +81,6 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         sed_i_arg = "-i"
     except Failure:
         sed_i_arg = "-i ''"
-    # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
-    v6_tag = ""
-    if new_version_int[0] == 7:
-        v6_tag = _find_v6_tag(ctx, new_version)
-        if v6_tag:
-            ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
-            ctx.run(f"sed {sed_i_arg} -E 's#^======$#================#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
@@ -101,27 +92,3 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
 
     print("\nCommit this with:")
     print(f"git commit -m \"Update {changelog_file} for {new_version}\"")
-
-
-def _find_v6_tag(ctx, v7_tag):
-    """
-    Returns one of the v6 tags that point at the same commit as the passed v7 tag.
-    If none are found, returns the empty string.
-    """
-    v6_tag = ""
-
-    print(f"Looking for a v6 tag pointing to same commit as tag '{v7_tag}'...")
-    # Find commit at which the v7_tag points
-    commit = ctx.run(f"git rev-list --max-count=1 {v7_tag}", hide='out').stdout.strip()
-    try:
-        v6_tags = ctx.run(f"git tag --points-at {commit} | grep -E '^6\\.'", hide='out').stdout.strip().split("\n")
-    except Failure:
-        print(f"Found no v6 tag pointing at same commit as '{v7_tag}'.")
-    else:
-        v6_tag = v6_tags[0]
-        if len(v6_tags) > 1:
-            print(f"Found v6 tags '{v6_tags}', picking {v6_tag}'")
-        else:
-            print(f"Found v6 tag '{v6_tag}'")
-
-    return v6_tag

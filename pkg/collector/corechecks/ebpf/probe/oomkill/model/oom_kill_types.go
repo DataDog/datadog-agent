@@ -8,13 +8,13 @@ package model
 
 // OOMKillStats contains the statistics of a given socket
 type OOMKillStats struct {
-	CgroupName string `json:"cgroupName"`
-	Pid        uint32 `json:"pid"`
-	TPid       uint32 `json:"tpid"`
-	FComm      string `json:"fcomm"`
-	TComm      string `json:"tcomm"`
-	Score      int64  `json:"score"`
-	ScoreAdj   int16  `json:"scoreAdj"`
-	Pages      uint64 `json:"pages"`
-	MemCgOOM   uint32 `json:"memcgoom"`
+	CgroupName  string `json:"cgroupName"`
+	VictimPid   uint32 `json:"victimPid"`
+	TriggerPid  uint32 `json:"triggerPid"`
+	VictimComm  string `json:"victimComm"`
+	TriggerComm string `json:"triggerComm"`
+	Score       int64  `json:"score"`
+	ScoreAdj    int16  `json:"scoreAdj"`
+	Pages       uint64 `json:"pages"`
+	MemCgOOM    uint32 `json:"memcgoom"`
 }

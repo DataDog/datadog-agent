@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 )
@@ -24,19 +25,6 @@ const (
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
 	ID() string
-}
-
-// ScanOptions defines the scan options
-type ScanOptions struct {
-	Analyzers        []string
-	CheckDiskUsage   bool
-	MinAvailableDisk uint64
-	Timeout          time.Duration
-	WaitAfter        time.Duration
-	Fast             bool
-	CollectFiles     bool
-	UseMount         bool
-	OverlayFsScan    bool
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
@@ -59,11 +47,10 @@ func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts Scan
 }
 
 // ScanRequest defines the scan request interface
-type ScanRequest interface {
-	Collector() string
-	Type(ScanOptions) string
-	ID() string
-}
+type ScanRequest = types.ScanRequest
+
+// ScanOptions defines the scan options
+type ScanOptions = types.ScanOptions
 
 // ScanResult defines the scan result
 type ScanResult struct {

@@ -6,6 +6,8 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+permissions: {}
+
 jobs:
   label:
     permissions:

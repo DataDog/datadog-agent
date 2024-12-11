@@ -155,6 +155,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "profile": "my-profile",
             "profile_version": 10,
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "router"
         }
     ],
@@ -234,6 +235,7 @@ profiles:
             "profile": "f5-big-ip",
             "vendor": "f5",
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "load_balancer"
         }
     ],
@@ -375,6 +377,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             "status":1,
 			"ping_status":2,
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "switch"
         }
     ],
@@ -485,6 +488,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 			"ping_status":2,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "firewall"
         }
     ],
@@ -555,6 +559,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
             "status":1,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "other"
         }
     ],
@@ -626,6 +631,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 			"ping_status":2,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "other"
         }
     ],
@@ -697,6 +703,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 			"ping_status":2,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
+			"integration": "snmp",
 			"device_type": "other"
         }
     ],

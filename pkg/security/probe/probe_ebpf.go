@@ -23,6 +23,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
@@ -31,15 +32,14 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -55,7 +55,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -63,7 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -75,9 +77,11 @@ type EventStream interface {
 	Resume() error
 }
 
-// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
-// allowed before we switch off the subsystem
-const MaxOnDemandEventsPerSecond = 1_000
+const (
+	// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
+	// allowed before we switch off the subsystem
+	MaxOnDemandEventsPerSecond = 1_000
+)
 
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
@@ -87,6 +91,8 @@ var (
 		model.ExitEventType.String(),
 	}
 )
+
+var _ PlatformProbe = (*EBPFProbe)(nil)
 
 // EBPFProbe defines a platform probe
 type EBPFProbe struct {
@@ -107,13 +113,16 @@ type EBPFProbe struct {
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
 
-	// TC Classifier
-	newTCNetDevices chan model.NetDevice
+	// TC Classifier & raw packets
+	newTCNetDevices           chan model.NetDevice
+	rawPacketFilterCollection *lib.Collection
 
 	// Ring
 	eventStream EventStream
@@ -126,7 +135,7 @@ type EBPFProbe struct {
 	erpcRequest              *erpc.Request
 	inodeDiscarders          *inodeDiscarders
 	discarderPushedCallbacks []DiscarderPushedCallback
-	approvers                map[eval.EventType]kfilters.ActiveApprovers
+	kfilters                 map[eval.EventType]kfilters.ActiveKFilters
 
 	// Approvers / discarders section
 	discarderPushedCallbacksLock sync.RWMutex
@@ -146,6 +155,18 @@ type EBPFProbe struct {
 	// On demand
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
+
+	// hash action
+	fileHasher *FileHasher
+
+	// snapshot
+	ruleSetVersion    uint64
+	playSnapShotState *atomic.Bool
+}
+
+// GetProfileManager returns the Profile Managers
+func (p *EBPFProbe) GetProfileManager() interface{} {
+	return p.profileManagers
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -173,11 +194,39 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	supported := p.kernelVersion.HaveFentrySupport()
-	if !supported {
-		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	if p.kernelVersion.Code < kernel.Kernel6_1 {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return
 	}
-	p.useFentry = supported
+
+	if !p.kernelVersion.HaveFentrySupport() {
+		p.useFentry = false
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return
+	}
+
+	p.useFentry = true
+}
+
+func (p *EBPFProbe) isNetworkNotSupported() bool {
+	return IsNetworkNotSupported(p.kernelVersion)
+}
+
+func (p *EBPFProbe) isRawPacketNotSupported() bool {
+	return IsRawPacketNotSupported(p.kernelVersion)
 }
 
 func (p *EBPFProbe) sanityChecks() error {
@@ -190,9 +239,14 @@ func (p *EBPFProbe) sanityChecks() error {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
-	if p.config.Probe.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
-		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+	if p.config.Probe.NetworkEnabled && p.isNetworkNotSupported() {
+		seclog.Warnf("the network feature of CWS isn't supported on this kernel version")
 		p.config.Probe.NetworkEnabled = false
+	}
+
+	if p.config.Probe.NetworkRawPacketEnabled && p.isRawPacketNotSupported() {
+		seclog.Warnf("the raw packet feature of CWS isn't supported on this kernel version")
+		p.config.Probe.NetworkRawPacketEnabled = false
 	}
 
 	return nil
@@ -214,7 +268,7 @@ func (p *EBPFProbe) VerifyOSVersion() error {
 // VerifyEnvironment returns an error if the current environment seems to be misconfigured
 func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 	var err *multierror.Error
-	if aconfig.IsContainerized() {
+	if env.IsContainerized() {
 		if mounted, _ := mountinfo.Mounted("/etc/passwd"); !mounted {
 			err = multierror.Append(err, errors.New("/etc/passwd doesn't seem to be a mountpoint"))
 		}
@@ -323,6 +377,8 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	return nil
 }
 
@@ -331,12 +387,118 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 	return p.runtimeCompiled
 }
 
+func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
+	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
+	if err != nil {
+		return err
+	}
+	if rawPacketEventMap == nil {
+		return errors.New("unable to find `rawpacket_event` map")
+	}
+
+	routerMap, _, err := p.Manager.GetMap("raw_packet_classifier_router")
+	if err != nil {
+		return err
+	}
+	if routerMap == nil {
+		return errors.New("unable to find `classifier_router` map")
+	}
+
+	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
+	if err != nil {
+		return err
+	}
+	if enabledMap == nil {
+		return errors.New("unable to find `raw_packet_enabled` map")
+	}
+
+	var rawPacketFilters []rawpacket.Filter
+	for id, rule := range rs.GetRules() {
+		for _, field := range rule.GetFieldValues("packet.filter") {
+			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
+				RuleID:    id,
+				BPFFilter: field.Value.(string),
+			})
+		}
+	}
+
+	// enable raw packet or not
+	enabled := make([]uint32, p.numCPU)
+	if len(rawPacketFilters) > 0 {
+		for i := range enabled {
+			enabled[i] = 1
+		}
+	}
+	if err = enabledMap.Put(uint32(0), enabled); err != nil {
+		seclog.Errorf("couldn't push raw_packet_enabled entry to kernel space: %s", err)
+	}
+
+	// unload the previews one
+	if p.rawPacketFilterCollection != nil {
+		p.rawPacketFilterCollection.Close()
+		ddebpf.RemoveNameMappingsCollection(p.rawPacketFilterCollection)
+	}
+
+	// not enabled
+	if enabled[0] == 0 {
+		return nil
+	}
+
+	// adapt max instruction limits depending of the kernel version
+	opts := rawpacket.DefaultProgOpts
+	if p.kernelVersion.Code >= kernel.Kernel5_2 {
+		opts.MaxProgSize = 1_000_000
+	}
+
+	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
+
+	// compile the filters
+	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
+	if err != nil {
+		return err
+	}
+
+	if len(progSpecs) == 0 {
+		return nil
+	}
+
+	colSpec := lib.CollectionSpec{
+		Programs: make(map[string]*lib.ProgramSpec),
+	}
+	for _, progSpec := range progSpecs {
+		colSpec.Programs[progSpec.Name] = progSpec
+	}
+
+	col, err := lib.NewCollection(&colSpec)
+	if err != nil {
+		return fmt.Errorf("failed to load program: %w", err)
+	}
+	p.rawPacketFilterCollection = col
+
+	// check that the sender program is not overridden. The default opts should avoid this.
+	if probes.TCRawPacketFilterKey+uint32(len(progSpecs)) >= probes.TCRawPacketParserSenderKey {
+		return fmt.Errorf("sender program overridden")
+	}
+
+	// setup tail calls
+	for i, progSpec := range progSpecs {
+		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
+			Program:       col.Programs[progSpec.Name],
+			Key:           probes.TCRawPacketFilterKey + uint32(i),
+			ProgArrayName: "raw_packet_classifier_router",
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Setup the probe
 func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -354,7 +516,7 @@ func (p *EBPFProbe) Setup() error {
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.playSnapshot()
+	p.playSnapshot(true)
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
@@ -362,9 +524,10 @@ func (p *EBPFProbe) Start() error {
 	return p.eventStream.Start(&p.wg)
 }
 
-// playSnapshot plays a snapshot
-func (p *EBPFProbe) playSnapshot() {
-	// Get the snapshotted data
+// PlaySnapshot plays a snapshot
+func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
+	seclog.Debugf("playing the snapshot")
+
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
@@ -372,13 +535,8 @@ func (p *EBPFProbe) playSnapshot() {
 			return
 		}
 		entry.Retain()
-		event := NewEBPFEvent(p.fieldHandlers)
-		event.Type = uint32(model.ExecEventType)
-		event.TimestampRaw = uint64(time.Now().UnixNano())
-		event.ProcessCacheEntry = entry
-		event.ProcessContext = &entry.ProcessContext
-		event.Exec.Process = &entry.Process
-		event.ProcessContext.Process.ContainerID = entry.ContainerID
+
+		event := p.newEBPFPooledEventFromPCE(entry)
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -388,13 +546,14 @@ func (p *EBPFProbe) playSnapshot() {
 	}
 	p.Resolvers.ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
-		p.DispatchEvent(event)
+		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
+		p.eventPool.Put(event)
 	}
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(event.ContainerContext.ID)
+	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -411,7 +570,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 }
 
 // DispatchEvent sends an event to the probe event handler
-func (p *EBPFProbe) DispatchEvent(event *model.Event) {
+func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
@@ -434,7 +593,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToConsumers(event)
+	if notifyConsumers {
+		p.probe.sendEventToConsumers(event)
+	}
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -456,6 +617,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)
 
+	p.processKiller.SendStats(p.statsdClient)
+
 	if err := p.profileManagers.SendStats(); err != nil {
 		return err
 	}
@@ -476,7 +639,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, &event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -485,7 +648,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -508,19 +671,19 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	if err != nil {
 		return n, err
 	}
-	entry.Process.ContainerID = ev.ContainerContext.ID
+
+	entry.Process.ContainerID = ev.ContainerContext.ContainerID
+	entry.ContainerID = ev.ContainerContext.ContainerID
+
+	entry.Process.CGroup.Merge(&ev.CGroupContext)
+	entry.CGroup.Merge(&ev.CGroupContext)
+
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
 }
 
-func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-		p.probe.DispatchCustomEvent(
-			NewEventLostWriteEvent(perfMapName, perEvent),
-		)
-	}
-
+func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 		p.profileManagers.SnapshotTracedCgroups()
@@ -528,8 +691,8 @@ func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) 
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
-func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event) bool {
-	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -540,6 +703,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if event.ProcessContext == nil {
 		panic("should always return a process context")
 	}
+
+	// do the same with cgroup context
+	event.CGroupContext = event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -568,10 +734,37 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
-	offset := 0
-	event := p.zeroEvent()
+	// handle play snapshot
+	if p.playSnapShotState.Swap(false) {
+		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		p.playSnapshot(false)
+	}
 
-	dataLen := uint64(len(data))
+	var (
+		offset        = 0
+		event         = p.zeroEvent()
+		dataLen       = uint64(len(data))
+		relatedEvents []*model.Event
+		newEntryCb    = func(entry *model.ProcessCacheEntry, err error) {
+			// all Execs will be forwarded since used by AD. Forks will be forwarded all if there are consumers
+			if !entry.IsExec && p.probe.eventConsumers[model.ForkEventType] == nil {
+				return
+			}
+
+			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
+
+			if err != nil {
+				var errResolution *path.ErrPathResolution
+				if errors.As(err, &errResolution) {
+					relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
+				} else {
+					return
+				}
+			}
+
+			relatedEvents = append(relatedEvents, relatedEvent)
+		}
+	)
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
@@ -627,6 +820,19 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
+		if pce != nil {
+			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)); err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
+			}
+		}
+		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -650,13 +856,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return utils.NetNSPathFromPid(event.PIDContext.Pid)
 	})
 
-	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
-		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode Network Context")
-		}
-		offset += read
-	}
-
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	switch eventType {
 	case model.ForkEventType:
@@ -672,7 +871,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.Resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
 		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
-		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, newEntryCb)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -694,11 +893,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	}
 
-	if !p.setProcessContext(eventType, event) {
+	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
 
 	switch eventType {
+
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -712,7 +912,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ContainerID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -728,7 +928,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ContainerID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -803,7 +1003,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event)
+		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event, newEntryCb)
 		if !exists {
 			// no need to dispatch an exit event that don't have the corresponding cache entry
 			return
@@ -818,8 +1018,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// update mount pid mapping
 		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 
-		// update kill action reports
+		// update action reports
 		p.processKiller.HandleProcessExited(event)
+		p.fileHasher.HandleProcessExited(event)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -853,6 +1054,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
+	case model.LoginUIDWriteEventType:
+		if event.Error != nil {
+			break
+		}
+
+		if _, err = event.LoginUIDWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode login_uid_write event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
@@ -868,13 +1079,36 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
-		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
-			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+		if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
+			pce = newPlaceholderProcessCacheEntryPTraceMe()
+		} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
+			seclog.Errorf("ptrace event without any PID to resolve")
+			return
+		} else {
+			pidToResolve := event.PTrace.PID
+
+			if pidToResolve == 0 { // resolve the PID given as argument instead
+				containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
+					pidToResolve = event.PTrace.NSPID
+				} else {
+					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, event.PTrace.NSPID)
+					if err != nil {
+						seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
+							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+						return
+					}
+					pidToResolve = pid
+				}
+			}
+
+			pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
+			if pce == nil {
+				pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
+			}
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -907,6 +1141,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	case model.SignalEventType:
 		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
@@ -916,7 +1151,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
 		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
+			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
 		}
 		if pce == nil {
 			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
@@ -940,26 +1175,51 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
 	case model.DNSEventType:
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+			return
+		}
+		offset += read
+
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
-				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 			} else {
-				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d, data %s))", err, offset, len(data), string(data[offset:]))
 			}
 
 			return
 		}
 	case model.IMDSEventType:
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+			return
+		}
+		offset += read
+
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			if err != model.ErrNoUsefulData {
+				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
+				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			}
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
+	case model.RawPacketEventType:
+		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case model.ConnectEventType:
+		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.SyscallsEventType:
@@ -983,14 +1243,22 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
-	p.DispatchEvent(event)
+	// send related events
+	for _, relatedEvent := range relatedEvents {
+		p.DispatchEvent(relatedEvent, true)
+		p.eventPool.Put(relatedEvent)
+	}
+	relatedEvents = relatedEvents[0:0]
+
+	p.DispatchEvent(event, true)
 
 	if eventType == model.ExitEventType {
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
 	}
 
-	// flush pending kill actions
+	// flush pending actions
 	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1002,7 +1270,7 @@ func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 }
 
 // GetEventTags returns the event tags
-func (p *EBPFProbe) GetEventTags(containerID string) []string {
+func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
@@ -1038,7 +1306,7 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode, flags kfilters.PolicyFlag) error {
+func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := managerhelper.Map(p.Manager, "filter_policy")
 	if err != nil {
@@ -1047,27 +1315,28 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 
 	et := config.ParseEvalEventType(eventType)
 	if et == model.UnknownEventType {
-		return errors.New("unable to parse the eval event type")
+		return fmt.Errorf("unable to parse the eval event type: %s", eventType)
 	}
 
-	policy := &kfilters.FilterPolicy{
-		Mode:  mode,
-		Flags: flags,
-	}
+	policy := &kfilters.FilterPolicy{Mode: mode}
 
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
-// SetApprovers applies approvers and removes the unused ones
-func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	handler, exists := kfilters.AllApproversHandlers[eventType]
+// setApprovers applies approvers and removes the unused ones
+func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
 	if !exists {
 		return nil
 	}
 
-	newApprovers, err := handler(approvers)
+	newKFilters, fieldHandled, err := kfiltersGetter(approvers)
 	if err != nil {
-		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+		return err
+	}
+
+	if len(approvers) != len(fieldHandled) {
+		return fmt.Errorf("all the approvers should be handled : %v vs %v", approvers, fieldHandled)
 	}
 
 	type tag struct {
@@ -1076,25 +1345,25 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 	}
 	approverAddedMetricCounter := make(map[tag]float64)
 
-	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
-		if err := newApprover.Apply(p.Manager); err != nil {
+	for _, newKFilter := range newKFilters {
+		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
+		if err := newKFilter.Apply(p.Manager); err != nil {
 			return err
 		}
 
-		approverType := getApproverType(newApprover.GetTableName())
+		approverType := newKFilter.GetApproverType()
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
-	if previousApprovers, exist := p.approvers[eventType]; exist {
-		previousApprovers.Sub(newApprovers)
-		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
-			if err := previousApprover.Remove(p.Manager); err != nil {
+	if previousKFilters, exist := p.kfilters[eventType]; exist {
+		previousKFilters.Sub(newKFilters)
+		for _, previousKFilter := range previousKFilters {
+			seclog.Tracef("Removing previous kfilter %+v for event type %s", previousKFilter, eventType)
+			if err := previousKFilter.Remove(p.Manager); err != nil {
 				return err
 			}
 
-			approverType := getApproverType(previousApprover.GetTableName())
+			approverType := previousKFilter.GetApproverType()
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1113,18 +1382,8 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 		}
 	}
 
-	p.approvers[eventType] = newApprovers
+	p.kfilters[eventType] = newKFilters
 	return nil
-}
-
-func getApproverType(approverTableName string) string {
-	approverType := "flag"
-
-	if approverTableName == kfilters.BasenameApproverKernelMapName {
-		approverType = "basename"
-	}
-
-	return approverType
 }
 
 func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
@@ -1150,11 +1409,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 }
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
-	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
-		return false
-	}
-	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
-		return false
+	switch eventType {
+	case "dns":
+		return p.probe.IsNetworkEnabled()
+	case "imds":
+		return p.probe.IsNetworkEnabled()
+	case "packet":
+		return p.probe.IsNetworkRawPacketEnabled()
 	}
 	return true
 }
@@ -1163,17 +1424,17 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 // of the applied approvers for it.
 func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
-	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
-	eventTypes = append(eventTypes, ruleEventTypes...)
+	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
+	requestedEventTypes = append(requestedEventTypes, ruleEventTypes...)
 	for eventType, handlers := range p.probe.eventHandlers {
 		if len(handlers) == 0 {
 			continue
 		}
-		if slices.Contains(eventTypes, model.EventType(eventType).String()) {
+		if slices.Contains(requestedEventTypes, model.EventType(eventType).String()) {
 			continue
 		}
 		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
-			eventTypes = append(eventTypes, model.EventType(eventType).String())
+			requestedEventTypes = append(requestedEventTypes, model.EventType(eventType).String())
 		}
 	}
 
@@ -1181,8 +1442,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
+
+			// to ensure the `enabled_events` map is correctly set with events that are enabled because of ADs
+			if !slices.Contains(requestedEventTypes, eventType) {
+				requestedEventTypes = append(requestedEventTypes, eventType)
+			}
 		}
 	}
 
@@ -1207,6 +1473,15 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		// ActivityDumps
 		if p.config.RuntimeSecurity.ActivityDumpEnabled {
 			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
+				if e == model.SyscallsEventType {
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					break
+				}
+			}
+		}
+		// SecurityProfiles
+		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
+			for _, e := range p.profileManagers.GetAnomalyDetectionEventTypes() {
 				if e == model.SyscallsEventType {
 					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 					break
@@ -1238,7 +1513,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	}
 
 	enabledEvents := uint64(0)
-	for _, eventName := range eventTypes {
+	for _, eventName := range requestedEventTypes {
 		if eventName != "*" {
 			eventType := config.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
@@ -1252,17 +1527,57 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	return p.Manager.UpdateActivatedProbes(activatedProbes)
+	previousProbes := p.computeProbesIDs()
+	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
+		return err
+	}
+	newProbes := p.computeProbesIDs()
+
+	p.computeProbesDiffAndRemoveMapping(previousProbes, newProbes)
+	return nil
+}
+
+func (p *EBPFProbe) computeProbesIDs() map[string]lib.ProgramID {
+	out := make(map[string]lib.ProgramID)
+	progList, err := p.Manager.GetPrograms()
+	if err != nil {
+		return out
+	}
+	for funcName, prog := range progList {
+		programInfo, err := prog.Info()
+		if err != nil {
+			continue
+		}
+
+		programID, isAvailable := programInfo.ID()
+		if isAvailable {
+			out[funcName] = programID
+		}
+	}
+
+	return out
+}
+
+func (p *EBPFProbe) computeProbesDiffAndRemoveMapping(previousProbes map[string]lib.ProgramID, newProbes map[string]lib.ProgramID) {
+	// Compute the list of programs that need to be deleted from the ddebpf mapping
+	var toDelete []lib.ProgramID
+	for previousProbeFuncName, programID := range previousProbes {
+		if _, ok := newProbes[previousProbeFuncName]; !ok {
+			toDelete = append(toDelete, programID)
+		}
+	}
+
+	for _, id := range toDelete {
+		ddebpf.RemoveProgramID(uint32(id), "cws")
+	}
+
+	// new programs could have been introduced during the update, add them now
+	ddebpf.AddNameMappings(p.Manager, "cws")
 }
 
 // GetDiscarders retrieve the discarders
 func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 	inodeMap, err := managerhelper.Map(p.Manager, "inode_discarders")
-	if err != nil {
-		return nil, err
-	}
-
-	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
 	if err != nil {
 		return nil, err
 	}
@@ -1277,7 +1592,7 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, inodeMap, statsFB, statsBB)
 	if err != nil {
 		return nil, err
 	}
@@ -1320,7 +1635,7 @@ func (p *EBPFProbe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *EBPFProbe) RefreshUserCache(containerID string) error {
+func (p *EBPFProbe) RefreshUserCache(containerID containerutils.ContainerID) error {
 	return p.Resolvers.UserGroupResolver.RefreshCache(containerID)
 }
 
@@ -1348,10 +1663,18 @@ func (p *EBPFProbe) Close() error {
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
+	if p.rawPacketFilterCollection != nil {
+		p.rawPacketFilterCollection.Close()
+	}
+
 	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
+		return err
+	}
+
+	if err := p.Erpc.Close(); err != nil {
 		return err
 	}
 
@@ -1371,6 +1694,9 @@ func (err QueuedNetworkDeviceError) Error() string {
 
 func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
 	select {
+	case <-p.ctx.Done():
+		// the probe is stopping, do not push the new tc classifier request
+		return
 	case p.newTCNetDevices <- device:
 		// do nothing
 	default:
@@ -1420,7 +1746,6 @@ func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
 	if err != nil {
 		return err
 	}
-
 	if err := handle.Close(); err != nil {
 		return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
 	}
@@ -1479,7 +1804,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 			mode = kfilters.PolicyModeDeny
 		}
 
-		if err := p.ApplyFilterPolicy(eventType.String(), mode, math.MaxUint8); err != nil {
+		if err := p.ApplyFilterPolicy(eventType.String(), mode); err != nil {
 			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
 		}
 	}
@@ -1487,7 +1812,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 
 func isKillActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
-		for _, action := range rule.Definition.Actions {
+		for _, action := range rule.Def.Actions {
 			if action.Kill != nil {
 				return true
 			}
@@ -1510,11 +1835,16 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
-		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
-			return nil, err
-		}
-		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
-			return nil, err
+		if err := p.setApprovers(eventType, report.Approvers); err != nil {
+			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+
+			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -1557,12 +1887,30 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	if p.probe.IsNetworkRawPacketEnabled() {
+		if err := p.setupRawPacketProgs(rs); err != nil {
+			seclog.Errorf("unable to load raw packet filter programs: %v", err)
+		}
+	}
+
+	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
+	if p.ruleSetVersion != 0 {
+		p.playSnapShotState.Store(true)
+	}
+
+	p.ruleSetVersion++
+
 	return ars, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
+	p.processKiller.Reset(rs)
 }
 
 // NewEvent returns a new event
 func (p *EBPFProbe) NewEvent() *model.Event {
-	return NewEBPFEvent(p.fieldHandlers)
+	return newEBPFEvent(p.fieldHandlers)
 }
 
 // GetFieldHandlers returns the field handlers
@@ -1575,19 +1923,29 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 	return p.Resolvers.ProcessResolver.ToDot(withArgs)
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
+}
+
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	onDemandRate := rate.Limit(math.Inf(1))
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
+
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
 		probe:                probe,
@@ -1595,7 +1953,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		opts:                 opts,
 		statsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
+		kfilters:             make(map[eval.EventType]kfilters.ActiveKFilters),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		Erpc:                 nerpc,
 		erpcRequest:          erpc.NewERPCRequest(0),
@@ -1603,8 +1961,9 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        NewProcessKiller(),
+		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
+		playSnapShotState:    atomic.NewBool(false),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1637,12 +1996,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	p.monitors = NewEBPFMonitors(p)
 
-	numCPU, err := utils.NumCPU()
+	p.numCPU, err = utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
 		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:          useRingBuffers,
 		UseMmapableMaps:         useMmapableMaps,
@@ -1653,6 +2012,15 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				// Add syscall monitor probes
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
+	}
+	if config.RuntimeSecurity.AnomalyDetectionEnabled {
+		for _, e := range config.RuntimeSecurity.AnomalyDetectionEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
 				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
@@ -1693,6 +2061,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "do_dentry_open_without_inode",
+			Value: getDoDentryOpenWithoutInode(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
 		},
@@ -1726,7 +2098,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
-			Value: mount.GetVFSRenameInputType(p.kernelVersion),
+			Value: getVFSRenameRegisterArgsOrStruct(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
@@ -1791,15 +2163,17 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, config.Probe.NetworkRawPacketEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
 
-	if !config.Probe.NetworkEnabled {
-		// prevent all TC classifiers from loading
+	// prevent some TC classifiers from loading
+	if !p.config.Probe.NetworkEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
+	} else if !p.config.Probe.NetworkRawPacketEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
 	}
 
 	if p.useFentry {
@@ -1812,16 +2186,19 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 	}
 
 	resolversOpts := resolvers.Opts{
-		PathResolutionEnabled: probe.Opts.PathResolutionEnabled,
-		TagsResolver:          probe.Opts.TagsResolver,
-		UseRingBuffer:         useRingBuffers,
-		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
+		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
+		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
+		Tagger:                   probe.Opts.Tagger,
+		UseRingBuffer:            useRingBuffers,
+		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, wmeta, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {
@@ -1835,7 +2212,15 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		}
 	}
 
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}
+	fh, err := NewEBPFFieldHandlers(config, p.Resolvers, hostname, p.onDemandManager)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
+
+	p.eventPool = ddsync.NewTypedPool(func() *model.Event {
+		return newEBPFEvent(p.fieldHandlers)
+	})
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -1905,6 +2290,13 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 	return doForkListInput
 }
 
+func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
+	if kernelversion.Code != 0 && kernelversion.Code >= kernel.Kernel6_10 {
+		return 1
+	}
+	return 0
+}
+
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
 		if val {
@@ -1923,9 +2315,31 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	}
 }
 
+func getVFSRenameRegisterArgsOrStruct(kernelVersion *kernel.Version) uint64 {
+	if val, err := constantfetch.GetHasVFSRenameStructArgs(); err == nil {
+		if val {
+			return 2
+		}
+		return 1
+	}
+
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 2
+	}
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kernelVersion.Code.Patch() >= 220 {
+		return 2
+	}
+
+	return 1
+}
+
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 	// https://github.com/torvalds/linux/commit/0af950f57fefabab628f1963af881e6b9bfe7f38
 	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_5 {
+		return 2
+	}
+
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9_4Kernel() {
 		return 2
 	}
 
@@ -1999,9 +2413,26 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb", "linux/dcache.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
+	// inode time offsets
+	// no runtime compilation for those, we expect them to default to 0 if not there and use the fallback
+	// in the eBPF code itself in that case
+	if kv.Code >= kernel.Kernel6_11 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeSec, "struct inode", "i_ctime_sec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeNsec, "struct inode", "i_ctime_nsec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeSec, "struct inode", "i_mtime_sec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeNsec, "struct inode", "i_mtime_nsec", "")
+	}
+
+	// rename offsets
+	if kv.Code >= kernel.Kernel5_12 || (kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() >= 220) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry", "linux/fs.h")
 	}
 
 	// bpf offsets
@@ -2078,45 +2509,81 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
 
-	for _, action := range rule.Definition.Actions {
+	for _, action := range rule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(ev.ContainerContext.ID)
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
+			_ = p.RefreshUserCache(ev.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ID) > 0:
-			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ID); err != nil {
-				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ID, ev.ProcessContext.Comm, err)
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ContainerID); err != nil {
+				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
 						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
 					}
 				}
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			})
-		case action.CoreDump != nil:
+			}) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
+
+		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-				dump := NewCoreDump(action.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
+				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
 				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
 				p.probe.DispatchCustomEvent(rule, event)
+				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
-		case action.Hash != nil:
-			// force the resolution as it will force the hash resolution as well
-			ev.ResolveFields()
+		case action.Def.Hash != nil:
+			if p.fileHasher.HashAndReport(rule, ev) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		}
 	}
+}
+
+// GetAgentContainerContext returns the agent container context
+func (p *EBPFProbe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.probe.GetAgentContainerContext()
+}
+
+// newPlaceholderProcessCacheEntryPTraceMe returns a new empty process cache entry for PTRACE_TRACEME calls,
+// it's similar to model.NewPlaceholderProcessCacheEntry with pid = tid = 0, and isKworker = false
+var newPlaceholderProcessCacheEntryPTraceMe = sync.OnceValue(func() *model.ProcessCacheEntry {
+	return model.NewPlaceholderProcessCacheEntry(0, 0, false)
+})
+
+// newEBPFPooledEventFromPCE returns a new event from a process cache entry
+func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *model.Event {
+	eventType := model.ExecEventType
+	if !entry.IsExec {
+		eventType = model.ForkEventType
+	}
+
+	event := p.eventPool.Get()
+
+	event.Type = uint32(eventType)
+	event.TimestampRaw = uint64(time.Now().UnixNano())
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.Exec.Process = &entry.Process
+	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.CGroup = entry.CGroup
+
+	return event
 }

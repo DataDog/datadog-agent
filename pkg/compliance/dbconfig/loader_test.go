@@ -257,7 +257,7 @@ func TestPGConfParsingCustom(t *testing.T) {
 
 func FuzzPGConfTokenizer(f *testing.F) {
 	f.Add(pgConfigCommon)
-	f.Fuzz(func(t *testing.T, a string) {
+	f.Fuzz(func(_ *testing.T, a string) {
 		tok := pgConfLexer{buf: []byte(a)}
 		tok.next()
 	})

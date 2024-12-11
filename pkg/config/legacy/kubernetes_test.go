@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -118,7 +118,7 @@ func TestConvertKubernetes(t *testing.T) {
 	err = os.WriteFile(srcEmpty, []byte(kubernetesLegacyEmptyConf), 0640)
 	require.NoError(t, err)
 
-	configConverter := config.NewConfigConverter()
+	configConverter := NewConfigConverter()
 	deprecations, err := importKubernetesConfWithDeprec(src, dst, true, configConverter)
 	require.NoError(t, err)
 	require.EqualValues(t, expectedKubeDeprecations, deprecations)
@@ -127,26 +127,26 @@ func TestConvertKubernetes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, kubeletNewConf, string(newConf))
 
-	assert.Equal(t, 1234, config.Datadog().GetInt("kubernetes_http_kubelet_port"))
-	assert.Equal(t, 1234, config.Datadog().GetInt("kubernetes_https_kubelet_port"))
-	assert.Equal(t, "localhost", config.Datadog().GetString("kubernetes_kubelet_host"))
-	assert.Equal(t, "/path/to/client.crt", config.Datadog().GetString("kubelet_client_crt"))
-	assert.Equal(t, "/path/to/client.key", config.Datadog().GetString("kubelet_client_key"))
-	assert.Equal(t, "/path/to/ca.pem", config.Datadog().GetString("kubelet_client_ca"))
-	assert.Equal(t, "/path/to/token", config.Datadog().GetString("kubelet_auth_token_path"))
-	assert.EqualValues(t, expectedHostTags, config.Datadog().GetStringMapString("kubernetes_node_labels_as_tags"))
-	assert.Equal(t, false, config.Datadog().GetBool("kubelet_tls_verify"))
+	assert.Equal(t, 1234, pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port"))
+	assert.Equal(t, 1234, pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, "localhost", pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host"))
+	assert.Equal(t, "/path/to/client.crt", pkgconfigsetup.Datadog().GetString("kubelet_client_crt"))
+	assert.Equal(t, "/path/to/client.key", pkgconfigsetup.Datadog().GetString("kubelet_client_key"))
+	assert.Equal(t, "/path/to/ca.pem", pkgconfigsetup.Datadog().GetString("kubelet_client_ca"))
+	assert.Equal(t, "/path/to/token", pkgconfigsetup.Datadog().GetString("kubelet_auth_token_path"))
+	assert.EqualValues(t, expectedHostTags, pkgconfigsetup.Datadog().GetStringMapString("kubernetes_node_labels_as_tags"))
+	assert.Equal(t, false, pkgconfigsetup.Datadog().GetBool("kubelet_tls_verify"))
 
-	assert.Equal(t, true, config.Datadog().GetBool("kubernetes_collect_service_tags"))
-	assert.Equal(t, true, config.Datadog().GetBool("collect_kubernetes_events"))
-	assert.Equal(t, true, config.Datadog().GetBool("leader_election"))
-	assert.Equal(t, 1200, config.Datadog().GetInt("leader_lease_duration"))
-	assert.Equal(t, 3000, config.Datadog().GetInt("kubernetes_service_tag_update_freq"))
+	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("kubernetes_collect_service_tags"))
+	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("collect_kubernetes_events"))
+	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("leader_election"))
+	assert.Equal(t, 1200, pkgconfigsetup.Datadog().GetInt("leader_lease_duration"))
+	assert.Equal(t, 3000, pkgconfigsetup.Datadog().GetInt("kubernetes_service_tag_update_freq"))
 
 	configConverter.Set("kubelet_tls_verify", true)
 	deprecations, err = importKubernetesConfWithDeprec(srcEmpty, dstEmpty, true, configConverter)
 	require.NoError(t, err)
-	assert.Equal(t, true, config.Datadog().GetBool("kubelet_tls_verify"))
+	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 0, len(deprecations))
 	newEmptyConf, err := os.ReadFile(dstEmpty)
 	require.NoError(t, err)

@@ -10,15 +10,14 @@ import (
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
-// Module defines the fx options for this component
+// Module for collector contrib component
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(func() collectorcontrib.Component {
-			// TODO: (agent-shared-components) use fxutil.ProvideComponentConstruct once it is implemented
-			// See the RFC "fx-decoupled components" for more details
-			return collectorcontribimpl.NewComponent()
-		}))
+		fxutil.ProvideComponentConstructor(
+			collectorcontribimpl.NewComponent,
+		),
+		fxutil.ProvideOptional[collectorcontrib.Component](),
+	)
 }

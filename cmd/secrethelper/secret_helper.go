@@ -52,7 +52,7 @@ const (
 )
 
 // NewKubeClient returns a new kubernetes.Interface
-type NewKubeClient func(timeout time.Duration) (kubernetes.Interface, error)
+type NewKubeClient func(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error)
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
@@ -70,7 +70,7 @@ func Commands() []*cobra.Command {
 		Short: "Read secrets",
 		Long:  ``,
 		Args:  cobra.MaximumNArgs(1), // 0 when using the provider prefixes option, 1 when reading a file
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(readCmd,
 				fx.Supply(cliParams),
@@ -175,7 +175,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, newKubeClie
 		case filePrefix:
 			res[secretID] = providers.ReadSecretFile(id)
 		case k8sSecretPrefix:
-			kubeClient, err := newKubeClientFunc(10 * time.Second)
+			kubeClient, err := newKubeClientFunc(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0
 			if err != nil {
 				res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
 			} else {

@@ -16,9 +16,21 @@ import (
 
 // FieldHandlers defines a field handlers
 type FieldHandlers struct {
-	config    *config.Config
+	*BaseFieldHandlers
 	resolvers *resolvers.Resolvers
-	hostname  string
+}
+
+// NewFieldHandlers returns a new FieldHandlers
+func NewFieldHandlers(config *config.Config, resolvers *resolvers.Resolvers, hostname string) (*FieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config, hostname)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FieldHandlers{
+		BaseFieldHandlers: bfh,
+		resolvers:         resolvers,
+	}, nil
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
@@ -27,11 +39,6 @@ func (fh *FieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) t
 		ev.Timestamp = time.Now()
 	}
 	return ev.Timestamp
-}
-
-// ResolveContainerContext retrieve the ContainerContext of the event
-func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
 }
 
 // ResolveFilePath resolves the inode to a full path
@@ -70,7 +77,7 @@ func (fh *FieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.Proce
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid)
 	}
@@ -83,24 +90,6 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	return ev.ProcessCacheEntry, true
 }
 
-// ResolveService returns the service tag based on the process context
-func (fh *FieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-	return getProcessService(fh.config, entry)
-}
-
-// GetProcessService returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-	return getProcessService(fh.config, entry)
-}
-
 // ResolveProcessCmdLineScrubbed returns a scrubbed version of the cmdline
 func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.Process) string {
 	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)
@@ -111,6 +100,16 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
 }
 
+// ResolveContainerContext retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *FieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
+	return ""
+}
+
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.ContainerContext) int {
 	return int(e.CreatedAt)
@@ -118,7 +117,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.Cont
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(_ *model.Event, e *model.ContainerContext) string {
-	return e.ID
+	return string(e.ContainerID)
 }
 
 // ResolveContainerTags resolves the container tags of the event
@@ -157,9 +156,4 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 		return cp.NewSd
 	}
 	return hrsd
-}
-
-// ResolveHostname resolve the hostname
-func (fh *FieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
-	return fh.hostname
 }

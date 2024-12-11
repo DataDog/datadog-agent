@@ -10,12 +10,13 @@ package aws
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type mockrdsServiceConfigurer func(k *MockrdsService)
@@ -24,14 +25,14 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 	testCases := []struct {
 		name                           string
 		configureClient                mockrdsServiceConfigurer
-		clusterIds                     []string
+		clusterIDs                     []string
 		expectedAuroraClusterEndpoints map[string]*AuroraCluster
 		expectedErr                    error
 	}{
 		{
 			name:            "no cluster ids given",
-			configureClient: func(k *MockrdsService) {},
-			clusterIds:      nil,
+			configureClient: func(*MockrdsService) {},
+			clusterIDs:      nil,
 			expectedErr:     errors.New("at least one database cluster identifier is required"),
 		},
 		{
@@ -39,7 +40,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
 			},
-			clusterIds:                     []string{"test-cluster"},
+			clusterIDs:                     []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: nil,
 			expectedErr:                    errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
 		},
@@ -48,7 +49,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(nil, errors.New("big time error")).Times(1)
 			},
-			clusterIds:                     []string{"test-cluster"},
+			clusterIDs:                     []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: nil,
 			expectedErr:                    errors.New("error running GetAuroraClusterEndpoints big time error"),
 		},
@@ -71,7 +72,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster"},
+			clusterIDs: []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -126,7 +127,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster"},
+			clusterIDs: []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -193,7 +194,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster"},
+			clusterIDs: []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -210,7 +211,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns single endpoint from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -225,8 +226,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						},
 					},
 				}, nil).Times(1)
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{},
+				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster", "test-cluster-2"},
+			clusterIDs: []string{"test-cluster", "test-cluster-2"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -243,7 +247,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns many endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -267,6 +271,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
 						},
+					},
+				}, nil).Times(1)
+
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),
@@ -281,7 +290,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster", "test-cluster-2"},
+			clusterIDs: []string{"test-cluster", "test-cluster-2"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -319,7 +328,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIds)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -340,7 +349,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 	}{
 		{
 			name:            "no filter tags supplied",
-			configureClient: func(k *MockrdsService) {},
+			configureClient: func(_ *MockrdsService) {},
 			tags:            []string{},
 			expectedErr:     errors.New("at least one tag filter is required"),
 		},
@@ -579,6 +588,67 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 			tags:               []string{"test:tag", "test2:tag2"},
 			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
 		},
+		{
+			name: "multiple pages returns ids from all pages",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					Marker: aws.String("next"),
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Marker: aws.String("next"),
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+								{
+									Key:   aws.String("foo"),
+									Value: aws.String("bar"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag", "test2:tag2"},
+			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+		},
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -598,12 +668,12 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 	}
 }
 
-func createDescribeDBInstancesRequest(clusterIds []string) *rds.DescribeDBInstancesInput {
+func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
 	return &rds.DescribeDBInstancesInput{
 		Filters: []types.Filter{
 			{
 				Name:   aws.String("db-cluster-id"),
-				Values: clusterIds,
+				Values: clusterIDs,
 			},
 		},
 	}

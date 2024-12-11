@@ -18,7 +18,7 @@ func NewGetConnectionsNamesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "names",
 		Short: "Get connections names",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			names, err := (*cl).GetConnectionsNames()
 			if err != nil {
 				return err

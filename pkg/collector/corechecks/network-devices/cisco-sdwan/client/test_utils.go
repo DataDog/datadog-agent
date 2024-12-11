@@ -37,7 +37,7 @@ func tokenHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func fixtureHandler(payload string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(payload)))
 	}
@@ -82,7 +82,7 @@ func setupCommonServerMux() *http.ServeMux {
 func setupCommonServerMuxWithFixture(path string, payload string) (*http.ServeMux, handler) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(payload))
 	})
@@ -107,6 +107,8 @@ func SetupMockAPIServer() *httptest.Server {
 	mux.HandleFunc("/dataservice/data/device/state/OMPPeer", fixtureHandler(fixtures.GetOMPPeersState))
 	mux.HandleFunc("/dataservice/data/device/state/BFDSessions", fixtureHandler(fixtures.GetBFDSessionsState))
 	mux.HandleFunc("/dataservice/data/device/state/HardwareEnvironment", fixtureHandler(fixtures.GetHardwareStates))
+	mux.HandleFunc("/dataservice/data/device/statistics/cloudxstatistics", fixtureHandler(fixtures.GetCloudExpressMetrics))
+	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", fixtureHandler(fixtures.GetBGPNeighbors))
 
 	return httptest.NewServer(mux)
 }

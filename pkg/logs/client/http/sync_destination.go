@@ -30,11 +30,11 @@ func NewSyncDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
 	senderDoneChan chan *sync.WaitGroup,
-	telemetryName string,
+	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader) *SyncDestination {
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, telemetryName, cfg),
+		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, destMeta, cfg, metrics.NewNoopPipelineMonitor("0")),
 		senderDoneChan: senderDoneChan,
 	}
 }
@@ -49,8 +49,13 @@ func (d *SyncDestination) Target() string {
 	return d.destination.url
 }
 
+// Metadata returns the metadata of the destination
+func (d *SyncDestination) Metadata() *client.DestinationMetadata {
+	return d.destination.destMeta
+}
+
 // Start starts reading the input channel
-func (d *SyncDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+func (d *SyncDestination) Start(input chan *message.Payload, output chan *message.Payload, _ chan bool) (stopChan <-chan struct{}) {
 	stop := make(chan struct{})
 	go d.run(input, output, stop)
 	return stop
@@ -62,7 +67,7 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 	for p := range input {
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.destination.expVars.AddFloat(expVarIdleMsMapKey, idle)
-		tlmIdle.Add(idle, d.destination.telemetryName)
+		tlmIdle.Add(idle, d.destination.destMeta.TelemetryName())
 		var startInUse = time.Now()
 
 		err := d.destination.unconditionalSend(p)
@@ -84,7 +89,7 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		d.destination.expVars.AddFloat(expVarInUseMsMapKey, inUse)
-		tlmInUse.Add(inUse, d.destination.telemetryName)
+		tlmInUse.Add(inUse, d.destination.destMeta.TelemetryName())
 		startIdle = time.Now()
 	}
 

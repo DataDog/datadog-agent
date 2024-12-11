@@ -10,10 +10,11 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,15 +25,22 @@ const (
 	// longestScalingRulePeriodAllowed is the maximum period allowed for a scaling rule
 	// increasing duration increase the number of events to keep in memory and to process for recommendations.
 	longestScalingRulePeriodAllowed = 30 * time.Minute
+
+	// statusRetainedActions is the number of horizontal actions kept in status
+	statusRetainedActions = 5
 )
 
-// PodAutoscalerInternal hols the necessary data to work with the `DatadogPodAutoscaler` CRD.
+// PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
 	// namespace is the namespace of the PodAutoscaler
 	namespace string
 
 	// name is the name of the PodAutoscaler
 	name string
+
+	// creationTimestamp is the time when the kubernetes object was created
+	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
+	creationTimestamp time.Time
 
 	// generation is the received generation of the PodAutoscaler
 	generation int64
@@ -118,6 +126,7 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
@@ -223,8 +232,8 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 			}
 		}
 
-		if status.Horizontal.LastAction != nil {
-			p.horizontalLastActions = append(p.horizontalLastActions, *status.Horizontal.LastAction)
+		if len(status.Horizontal.LastActions) > 0 {
+			p.horizontalLastActions = status.Horizontal.LastActions
 		}
 	}
 
@@ -267,6 +276,11 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 	}
 }
 
+// UpdateCreationTimestamp updates the timestamp the kubernetes object was created
+func (p *PodAutoscalerInternal) UpdateCreationTimestamp(creationTimestamp time.Time) {
+	p.creationTimestamp = creationTimestamp
+}
+
 //
 // Getters
 //
@@ -299,6 +313,11 @@ func (p *PodAutoscalerInternal) Spec() *datadoghq.DatadogPodAutoscalerSpec {
 // SettingsTimestamp returns the timestamp of the last settings update
 func (p *PodAutoscalerInternal) SettingsTimestamp() time.Time {
 	return p.settingsTimestamp
+}
+
+// CreationTimestamp returns the timestamp the kubernetes object was created
+func (p *PodAutoscalerInternal) CreationTimestamp() time.Time {
+	return p.creationTimestamp
 }
 
 // ScalingValues returns the scaling values of the PodAutoscaler
@@ -388,8 +407,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 			},
 		}
 
-		if len(p.horizontalLastActions) > 0 {
-			status.Horizontal.LastAction = &p.horizontalLastActions[len(p.horizontalLastActions)-1]
+		if lenActions := len(p.horizontalLastActions); lenActions > 0 {
+			firstIndex := lenActions - statusRetainedActions
+			if firstIndex < 0 {
+				firstIndex = 0
+			}
+
+			status.Horizontal.LastActions = slices.Clone(p.horizontalLastActions[firstIndex:lenActions])
 		}
 	}
 

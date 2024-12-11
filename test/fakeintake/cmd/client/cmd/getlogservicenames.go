@@ -18,7 +18,7 @@ func NewGetLogServiceNamesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "names",
 		Short: "Get log service names",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			names, err := (*cl).GetLogServiceNames()
 			if err != nil {
 				return err

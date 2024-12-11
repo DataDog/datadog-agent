@@ -111,9 +111,11 @@ func extractNetworkPolicyPeer(peer *networkingv1.NetworkPolicyPeer) *model.Netwo
 	podSelector := extractLabelSelector(peer.PodSelector)
 
 	return &model.NetworkPolicyPeer{
-		IpBlock:           ipBlock,
-		NamespaceSelector: namespaceSelector,
-		PodSelector:       podSelector,
+		IpBlock:              ipBlock,
+		NamespaceSelector:    namespaceSelector,
+		PodSelector:          podSelector,
+		HasNamespaceSelector: peer.NamespaceSelector != nil,
+		HasPodSelector:       peer.PodSelector != nil,
 	}
 }
 

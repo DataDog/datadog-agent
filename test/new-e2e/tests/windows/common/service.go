@@ -97,7 +97,7 @@ func (s *ServiceConfig) FetchUserSID(host *components.RemoteHost) error {
 
 // GetServiceStatus returns the status of the service
 func GetServiceStatus(host *components.RemoteHost, service string) (string, error) {
-	cmd := fmt.Sprintf("$ErrorActionPreference='Stop'; (Get-Service -Name '%s').Status", service)
+	cmd := fmt.Sprintf("(Get-Service -Name '%s').Status", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
 }
@@ -236,4 +236,19 @@ func IsUserModeServiceType(serviceType int) bool {
 // IsKernelModeServiceType returns true if the service is a kernel mode service
 func IsKernelModeServiceType(serviceType int) bool {
 	return serviceType == SERVICE_KERNEL_DRIVER || serviceType == SERVICE_FILE_SYSTEM_DRIVER
+}
+
+// SetServiceEnvironment sets the environment variables for a service
+func SetServiceEnvironment(host *components.RemoteHost, service string, env map[string]string) error {
+	// build k=v list
+	var elems []string
+	for k, v := range env {
+		elems = append(elems, fmt.Sprintf("%s=%s", k, v))
+	}
+	// format as powershell list
+	pslist := fmt.Sprintf("@('%s')", strings.Join(elems, "','"))
+	// set the environment in the registry
+	cmd := fmt.Sprintf(`Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -Value %s -Type MultiString`, service, pslist)
+	_, err := host.Execute(cmd)
+	return err
 }

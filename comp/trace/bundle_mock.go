@@ -16,7 +16,7 @@
 package trace
 
 import (
-	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
+	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

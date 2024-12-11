@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix ExtraTags mapping for CollectorManifest.

@@ -42,25 +42,9 @@ func computeDefaultClosedConnRingBufferSize() int {
 	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
 }
 
-// computeDefaultFailedConnectionsRingBufferSize is the default buffer size of the ring buffer for closed connection events.
-// Must be a power of 2 and a multiple of the page size
-func computeDefaultFailedConnectionsRingBufferSize() int {
-	numCPUs, err := cebpf.PossibleCPU()
-	if err != nil {
-		numCPUs = 1
-	}
-	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
-}
-
 // computeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
 // Must be a multiple of the page size
 func computeDefaultClosedConnPerfBufferSize() int {
-	return 8 * os.Getpagesize()
-}
-
-// computeDefaultFailedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
-// Must be a multiple of the page size
-func computeDefaultFailedConnPerfBufferSize() int {
 	return 8 * os.Getpagesize()
 }
 
@@ -73,17 +57,10 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 		ValueSize:  0,
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
-	mgrOpts.MapSpecEditors[probes.FailedConnEventMap] = manager.MapSpecEditor{
-		Type:       cebpf.RingBuf,
-		MaxEntries: uint32(computeDefaultFailedConnectionsRingBufferSize()),
-		KeySize:    0,
-		ValueSize:  0,
-		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
-	}
 }
 
 // SetupHandler sets up the closed connection event handler
-func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, ringSize int, perfSize int, mapName probes.BPFMapName) {
+func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, perfSize int, mapName probes.BPFMapName) {
 	switch handler := eventHandler.(type) {
 	case *ebpf.RingBufferHandler:
 		log.Infof("Setting up connection handler for map %v with ring buffer", mapName)
@@ -93,8 +70,6 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 				RecordGetter:     handler.RecordGetter,
 				RecordHandler:    handler.RecordHandler,
 				TelemetryEnabled: cfg.InternalTelemetryEnabled,
-				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-				RingBufferSize: ringSize,
 			},
 		}
 		mgr.RingBuffers = append(mgr.RingBuffers, rb)
@@ -113,8 +88,9 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 			},
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
+		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		err := helperCallRemover.BeforeInit(mgr.Manager, mgr.Name, nil)
 		if err != nil {
 			log.Error("Failed to remove helper calls from eBPF programs: ", err)
 		}
@@ -123,14 +99,9 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 	}
 }
 
-// SetupFailedConnHandler sets up the closed connection event handler
-func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultFailedConnectionsRingBufferSize(), computeDefaultFailedConnPerfBufferSize(), probes.FailedConnEventMap)
-}
-
 // SetupClosedConnHandler sets up the closed connection event handler
 func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnRingBufferSize(), computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
 }
 
 // AddBoolConst modifies the options to include a constant editor for a boolean value
@@ -148,8 +119,8 @@ func AddBoolConst(options *manager.Options, name string, flag bool) {
 	)
 }
 
-// ConnStatsToTuple converts a ConnectionStats to a ConnTuple
-func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
+// ConnTupleToEBPFTuple converts a ConnectionTuple to an eBPF ConnTuple
+func ConnTupleToEBPFTuple(c *network.ConnectionTuple, tup *netebpf.ConnTuple) {
 	tup.Sport = c.SPort
 	tup.Dport = c.DPort
 	tup.Netns = c.NetNS
@@ -164,10 +135,10 @@ func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
 	} else {
 		tup.SetType(netebpf.UDP)
 	}
-	if !c.Source.IsZero() {
+	if c.Source.IsValid() {
 		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
 	}
-	if !c.Dest.IsZero() {
+	if c.Dest.IsValid() {
 		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
 	}
 }

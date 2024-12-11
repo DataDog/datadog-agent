@@ -1,7 +1,7 @@
+using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
-using System.Windows;
-using NineDigit.WixSharpExtensions;
+using WixSetup.Datadog_Agent;
 using WixSharp;
 using WixSharp.CommonTasks;
 using Condition = WixSharp.Condition;
@@ -28,6 +28,7 @@ namespace WixSetup.Datadog_Installer
         private static readonly string InstallerBannerImagePath = Path.Combine("assets", "banner_background.bmp");
 
         private readonly DatadogInstallerCustomActions _installerCustomActions = new();
+        private readonly AgentVersion _agentVersion = new();
 
         public Project Configure()
         {
@@ -52,6 +53,16 @@ namespace WixSetup.Datadog_Installer
                     Value = @"C:\ProgramData\Datadog",
                     AttributesDefinition = "Secure=yes",
                 },
+                // User provided password property
+                new Property("DDAGENTUSER_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes"
+                },
+                // ProcessDDAgentUserCredentials CustomAction processed password property
+                new Property("DDAGENTUSER_PROCESSED_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes"
+                },
                 new Dir(@"%ProgramFiles%\Datadog\Datadog Installer",
                     new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                         new ServiceInstaller
@@ -73,14 +84,8 @@ namespace WixSetup.Datadog_Installer
                             Account = "LocalSystem",
                             Vital = true
                         })
-                ),
-                // This is where the installer will store its data
-                new Dir(new Id("DatadogInstallerData"), @"%CommonAppDataFolder%\Datadog Installer",
-                    new Dir("packages"),
-                    new Dir("temp"),
-                    new Dir("locks")
-                    )
-                );
+                )
+            );
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
@@ -129,7 +134,7 @@ namespace WixSetup.Datadog_Installer
                 // Set custom output directory (WixSharp defaults to current directory)
                 project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
             }
-            project.OutFileName = "datadog-installer-1-x86_64";
+            project.OutFileName = $"datadog-installer-{_agentVersion.PackageVersion}-1-x86_64";
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
             project.UI = WUI.WixUI_Common;
             project.CustomUI = new DatadogInstallerUI(this, _installerCustomActions);

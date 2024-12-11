@@ -18,7 +18,7 @@ if debian_target?
     # Debian ARM64 build
     package_name = "#{base_package_name}_arm64.deb"
     source sha256: "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e"
-    source url: "#{source_url_base}/debian/10/prod/pool/main/m/msodbcsql18/#{package_name}"
+    source url: "#{source_url_base}/debian/11/prod/pool/main/m/msodbcsql18/#{package_name}"
   else
     # Debian AMD64 build
     package_name = "#{base_package_name}_amd64.deb"

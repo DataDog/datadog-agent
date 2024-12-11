@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package implgzip implements the compression component interface
-package implgzip
+// Package gzipimpl implements the compression component interface
+package gzipimpl
 
 import (
+	"compress/gzip"
 	"io"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-
-	"compress/gzip"
 )
 
 const encoding = "gzip"

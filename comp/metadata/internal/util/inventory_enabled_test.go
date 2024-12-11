@@ -8,12 +8,12 @@ package util
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInventoryEnabled(t *testing.T) {
-	m := config.Mock(t)
+	m := configmock.New(t)
 
 	m.SetWithoutSource("enable_metadata_collection", false)
 	m.SetWithoutSource("inventories_enabled", true)

@@ -325,6 +325,15 @@ var (
 		"COREDUMPED": ExitCoreDumped,
 		"SIGNALED":   ExitSignaled,
 	}
+
+	tlsVersionContants = map[string]uint16{
+		"SSL_2_0": 0x0200,
+		"SSL_3_0": 0x0300,
+		"TLS_1_0": 0x0301,
+		"TLS_1_1": 0x0302,
+		"TLS_1_2": 0x0303,
+		"TLS_1_3": 0x0304,
+	}
 )
 
 var (
@@ -334,6 +343,7 @@ var (
 	l4ProtocolStrings    = map[L4Protocol]string{}
 	addressFamilyStrings = map[uint16]string{}
 	exitCauseStrings     = map[ExitCause]string{}
+	tlsVersionStrings    = map[uint16]string{}
 )
 
 // File flags
@@ -341,6 +351,30 @@ const (
 	LowerLayer = 1 << iota
 	UpperLayer
 )
+
+// SyscallDriftEventReason describes why a syscall drift event was sent
+type SyscallDriftEventReason uint64
+
+const (
+	// SyscallMonitorPeriodReason means that the event was sent because the syscall cache entry was dirty for longer than syscall_monitor.period
+	SyscallMonitorPeriodReason SyscallDriftEventReason = iota + 1
+	// ExitReason means that the event was sent because a pid that was about to exit had a dirty cache entry
+	ExitReason
+	// ExecveReason means that the event was sent because an execve syscall was detected on a pid with a dirty cache entry
+	ExecveReason
+)
+
+func (r SyscallDriftEventReason) String() string {
+	switch r {
+	case SyscallMonitorPeriodReason:
+		return "MonitorPeriod"
+	case ExecveReason:
+		return "Execve"
+	case ExitReason:
+		return "Exit"
+	}
+	return "Unknown"
+}
 
 func initErrorConstants() {
 	for k, v := range errorConstants {
@@ -399,6 +433,13 @@ func initBoolConstants() {
 	}
 }
 
+func initSSLVersionConstants() {
+	for k, v := range tlsVersionContants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		tlsVersionStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initBoolConstants()
 	initErrorConstants()
@@ -425,7 +466,9 @@ func initConstants() {
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
+	initAUIDConstants()
 	usersession.InitUserSessionTypes()
+	initSSLVersionConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -482,6 +525,13 @@ type L3Protocol uint16
 
 func (proto L3Protocol) String() string {
 	return l3ProtocolStrings[proto]
+}
+
+// TLSVersion tls version
+type TLSVersion uint16
+
+func (tls TLSVersion) String() string {
+	return tlsVersionStrings[uint16(tls)]
 }
 
 const (

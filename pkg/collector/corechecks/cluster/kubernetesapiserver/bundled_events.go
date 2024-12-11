@@ -10,20 +10,24 @@ package kubernetesapiserver
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-func newBundledTransformer(clusterName string, taggerInstance tagger.Component) eventTransformer {
+func newBundledTransformer(clusterName string, taggerInstance tagger.Component, collectedTypes []collectedEventType, filteringEnabled bool) eventTransformer {
 	return &bundledTransformer{
-		clusterName:    clusterName,
-		taggerInstance: taggerInstance,
+		clusterName:      clusterName,
+		taggerInstance:   taggerInstance,
+		collectedTypes:   collectedTypes,
+		filteringEnabled: filteringEnabled,
 	}
 }
 
 type bundledTransformer struct {
-	clusterName    string
-	taggerInstance tagger.Component
+	clusterName      string
+	taggerInstance   tagger.Component
+	collectedTypes   []collectedEventType
+	filteringEnabled bool
 }
 
 func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -44,7 +48,14 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			event.Source.Component,
 			event.Type,
 			event.Reason,
+			getEventSource(event.ReportingController, event.Source.Component),
 		)
+
+		if c.filteringEnabled {
+			if !(shouldCollectByDefault(event) || shouldCollect(event, c.collectedTypes)) {
+				continue
+			}
+		}
 
 		id := buildBundleID(event)
 
@@ -70,7 +81,12 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			continue
 		}
 
-		emittedEvents.Inc(id.kind, id.evType)
+		emittedEvents.Inc(
+			id.kind,
+			id.evType,
+			getEventSource(bundle.reportingController, bundle.component),
+			"true",
+		)
 
 		datadogEvs = append(datadogEvs, datadogEv)
 	}

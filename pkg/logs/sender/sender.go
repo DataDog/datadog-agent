@@ -13,6 +13,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -37,11 +38,14 @@ type Sender struct {
 	done           chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
-	flushDoneChan  chan struct{}
+	flushWg        *sync.WaitGroup
+
+	pipelineMonitor metrics.PipelineMonitor
+	utilization     metrics.UtilizationMonitor
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushDoneChan chan struct{}) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *Sender {
 	return &Sender{
 		config:         config,
 		inputChan:      inputChan,
@@ -50,7 +54,11 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, ou
 		done:           make(chan struct{}),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
-		flushDoneChan:  flushDoneChan,
+		flushWg:        flushWg,
+
+		// Telemetry
+		pipelineMonitor: pipelineMonitor,
+		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
 	}
 }
 
@@ -73,6 +81,7 @@ func (s *Sender) run() {
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
+		s.utilization.Start()
 		var startInUse = time.Now()
 		senderDoneWg := &sync.WaitGroup{}
 
@@ -80,6 +89,9 @@ func (s *Sender) run() {
 		for !sent {
 			for _, destSender := range reliableDestinations {
 				if destSender.Send(payload) {
+					if destSender.destination.Metadata().ReportingEnabled {
+						s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
+					}
 					sent = true
 					if s.senderDoneChan != nil {
 						senderDoneWg.Add(1)
@@ -121,12 +133,15 @@ func (s *Sender) run() {
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		tlmSendWaitTime.Add(inUse)
+		s.utilization.Stop()
 
-		if s.senderDoneChan != nil {
+		if s.senderDoneChan != nil && s.flushWg != nil {
+			// Wait for all destinations to finish sending the payload
 			senderDoneWg.Wait()
-			// In serverless ensure the payload is sent to all destinations to sync with a flush
-			s.flushDoneChan <- struct{}{}
+			// Decrement the wait group when this payload has been sent
+			s.flushWg.Done()
 		}
+		s.pipelineMonitor.ReportComponentEgress(payload, "sender")
 	}
 
 	// Cleanup the destinations

@@ -6,7 +6,7 @@
 package packets
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -42,7 +42,7 @@ func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 			return packet
 		}),
 		// telemetry
-		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(config.Datadog()),
+		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()),
 		packetsTelemetry: packetsTelemetry,
 	}
 }

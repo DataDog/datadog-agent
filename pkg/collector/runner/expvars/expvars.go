@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mohae/deepcopy"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -98,19 +100,8 @@ func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 	defer checkStats.statsLock.RUnlock()
 
 	// Because the returned maps will be used after the lock is released, and
-	// thus when they might be further modified, we must clone them here.  The
-	// map values (`stats.Stats`) are threadsafe and need not be cloned.
-
-	cloned := make(map[string]map[checkid.ID]*checkstats.Stats)
-	for k, v := range checkStats.stats {
-		innerCloned := make(map[checkid.ID]*checkstats.Stats)
-		for innerK, innerV := range v {
-			innerCloned[innerK] = innerV
-		}
-		cloned[k] = innerCloned
-	}
-
-	return cloned
+	// thus when they might be further modified, we must clone them here.
+	return deepcopy.Copy(checkStats.stats).(map[string]map[checkid.ID]*checkstats.Stats)
 }
 
 // AddCheckStats adds runtime stats to the check's expvars

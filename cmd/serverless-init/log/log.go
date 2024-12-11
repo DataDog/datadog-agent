@@ -9,13 +9,14 @@
 package log
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"os"
 	"strings"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
@@ -52,24 +53,25 @@ func CreateConfig(origin string) *Config {
 }
 
 // SetupLogAgent creates the log agent and sets the base tags
-func SetupLogAgent(conf *Config, tags map[string]string) logsAgent.ServerlessLogsAgent {
-	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source)
+func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component) logsAgent.ServerlessLogsAgent {
+	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger)
 
 	tagsArray := serverlessTag.MapToArray(tags)
 
-	addFileTailing(logsAgent, tagsArray)
+	addFileTailing(logsAgent, conf.source, tagsArray)
 
 	serverlessLogs.SetLogsTags(tagsArray)
 	return logsAgent
 }
 
-func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, tags []string) {
+func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string) {
 	if filePath, set := os.LookupEnv(envVarTailFilePath); set {
 		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
 			Path:    filePath,
 			Service: os.Getenv("DD_SERVICE"),
 			Tags:    tags,
+			Source:  source,
 		})
 		logsAgent.GetSources().AddSource(src)
 	}

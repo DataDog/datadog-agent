@@ -7,7 +7,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -15,21 +14,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 const (
-	defaultMajorVersion           = "7"
-	defaultArch                   = "x86_64"
-	agentInstallerListProductName = "datadog-agent"
-	agentS3BucketRelease          = "ddagent-windows-stable"
-	agentS3BucketTesting          = "dd-agent-mstesting"
-	betaChannel                   = "beta"
-	betaURL                       = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
-	stableChannel                 = "stable"
-	stableURL                     = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
+	defaultMajorVersion  = "7"
+	defaultArch          = "x86_64"
+	defaultFlavor        = "base"
+	agentS3BucketRelease = "ddagent-windows-stable"
+	betaChannel          = "beta"
+	betaURL              = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
+	stableChannel        = "stable"
+	stableURL            = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
+)
+
+// Environment variable constants
+const (
+	PackageFlavorEnvVar = "WINDOWS_AGENT_FLAVOR"
 )
 
 // Package contains identifying information about an Agent MSI package.
@@ -44,6 +45,8 @@ type Package struct {
 	Arch string
 	// URL is the URL the MSI can be downloaded from
 	URL string
+	// Flavor is the Agent Flavor (e.g. `base`, `fips`, `iot``)
+	Flavor string
 }
 
 // AgentVersion returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
@@ -54,33 +57,61 @@ func (p *Package) AgentVersion() string {
 }
 
 // GetBetaMSIURL returns the URL for the beta agent MSI
+//
 // majorVersion: 6, 7
 // arch: x86_64
-func GetBetaMSIURL(version string, arch string) (string, error) {
-	return GetMSIURL(betaChannel, version, arch)
+// flavor: base, fips
+func GetBetaMSIURL(version string, arch string, flavor string) (string, error) {
+	return GetMSIURL(betaChannel, version, arch, flavor)
 }
 
 // GetStableMSIURL returns the URL for the stable agent MSI
+//
 // majorVersion: 6, 7
 // arch: x86_64
-func GetStableMSIURL(version string, arch string) (string, error) {
-	return GetMSIURL(stableChannel, version, arch)
+// flavor: base, fips
+func GetStableMSIURL(version string, arch string, flavor string) (string, error) {
+	return GetMSIURL(stableChannel, version, arch, flavor)
 }
 
 // GetMSIURL returns the URL for the agent MSI
+//
 // channel: beta, stable
 // majorVersion: 6, 7
 // arch: x86_64
-func GetMSIURL(channel string, version string, arch string) (string, error) {
+// flavor: base, fips
+func GetMSIURL(channel string, version string, arch string, flavor string) (string, error) {
 	channelURL, err := GetChannelURL(channel)
 	if err != nil {
 		return "", err
 	}
 
-	return installers.GetProductURL(channelURL, agentInstallerListProductName, version, arch)
+	productName, err := GetFlavorProductName(flavor)
+	if err != nil {
+		return "", err
+	}
+
+	return installers.GetProductURL(channelURL, productName, version, arch)
+}
+
+// GetFlavorProductName returns the product name for the flavor
+//
+// flavor: base, fips
+func GetFlavorProductName(flavor string) (string, error) {
+	switch flavor {
+	case "":
+		return "datadog-agent", nil
+	case "base":
+		return "datadog-agent", nil
+	case "fips":
+		return "datadog-fips-agent", nil
+	default:
+		return "", fmt.Errorf("unknown flavor %v", flavor)
+	}
 }
 
 // GetChannelURL returns the URL for the channel name
+//
 // channel: beta, stable
 func GetChannelURL(channel string) (string, error) {
 	if strings.EqualFold(channel, betaChannel) {
@@ -93,67 +124,61 @@ func GetChannelURL(channel string) (string, error) {
 }
 
 // GetLatestMSIURL returns the URL for the latest agent MSI
+//
 // majorVersion: 6, 7
 // arch: x86_64
-func GetLatestMSIURL(majorVersion string, arch string) string {
+func GetLatestMSIURL(majorVersion string, arch string, flavor string) (string, error) {
 	// why do we use amd64 for the latest URL and x86_64 everywhere else?
 	if arch == "x86_64" {
 		arch = "amd64"
 	}
-	return fmt.Sprintf(`https://s3.amazonaws.com/`+agentS3BucketRelease+`/datadog-agent-%s-latest.%s.msi`,
-		majorVersion, arch)
+	productName, err := GetFlavorProductName(flavor)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`https://s3.amazonaws.com/`+agentS3BucketRelease+`/%s-%s-latest.%s.msi`,
+		productName, majorVersion, arch), nil
 }
 
 // GetPipelineMSIURL returns the URL for the agent MSI built by the pipeline
+//
 // majorVersion: 6, 7
 // arch: x86_64
-func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (string, error) {
-	// dd-agent-mstesting is a public bucket so we can use anonymous credentials
-	config, err := awsConfig.LoadDefaultConfig(context.Background(), awsConfig.WithCredentialsProvider(aws.AnonymousCredentials{}))
+// flavor: base, fips
+func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flavor string) (string, error) {
+	productName, err := GetFlavorProductName(flavor)
 	if err != nil {
 		return "", err
 	}
-
-	s3Client := s3.NewFromConfig(config)
-
 	// Manual URL example: https://s3.amazonaws.com/dd-agent-mstesting?prefix=pipelines/A7/25309493
-	result, err := s3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-		Bucket: aws.String(agentS3BucketTesting),
-		Prefix: aws.String(fmt.Sprintf("pipelines/A%s/%s", majorVersion, pipelineID)),
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	if len(result.Contents) <= 0 {
-		return "", fmt.Errorf("no agent MSI found for pipeline %v", pipelineID)
-	}
-
-	// In case there are multiple artifacts, try to match the right one
-	// This is only here as a workaround for a CI issue that can cause artifacts
-	// from different pipelines to be mixed together. This should be removed once
-	// the issue is resolved.
-	// TODO: CIREL-1970
-	for _, obj := range result.Contents {
+	fmt.Printf("Looking for agent MSI for pipeline majorVersion %v %v\n", majorVersion, pipelineID)
+	artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, majorVersion, func(artifact string) bool {
+		// In case there are multiple artifacts, try to match the right one
+		// This is only here as a workaround for a CI issue that can cause artifacts
+		// from different pipelines to be mixed together. This should be removed once
+		// the issue is resolved.
+		// TODO: CIREL-1970
 		// Example: datadog-agent-7.52.0-1-x86_64.msi
 		// Example: datadog-agent-7.53.0-devel.git.512.41b1225.pipeline.30353507-1-x86_64.msi
-		if !strings.Contains(*obj.Key, fmt.Sprintf("datadog-agent-%s", majorVersion)) {
-			continue
+		if !strings.Contains(artifact, fmt.Sprintf("%s-%s", productName, majorVersion)) {
+			return false
 		}
+
 		// Not all pipelines include the pipeline ID in the artifact name, but if it is there then match against it
-		if strings.Contains(*obj.Key, "pipeline.") &&
-			!strings.Contains(*obj.Key, fmt.Sprintf("pipeline.%s", pipelineID)) {
-			continue
+		if strings.Contains(artifact, "pipeline.") &&
+			!strings.Contains(artifact, fmt.Sprintf("pipeline.%s", pipelineID)) {
+			return false
 		}
-		if !strings.Contains(*obj.Key, fmt.Sprintf("-%s.msi", arch)) {
-			continue
+		if !strings.Contains(artifact, fmt.Sprintf("-%s.msi", arch)) {
+			return false
 		}
-
-		return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", agentS3BucketTesting, *obj.Key), nil
+		// match!
+		return true
+	})
+	if err != nil {
+		return "", fmt.Errorf("no agent MSI found for pipeline %v arch %v flavor: %v: %w", pipelineID, arch, flavor, err)
 	}
-
-	return "", fmt.Errorf("no agent MSI found for pipeline %v and arch %v", pipelineID, arch)
+	return artifactURL, nil
 }
 
 // LookupChannelFromEnv looks at environment variabes to select the agent channel, if the value
@@ -168,6 +193,20 @@ func LookupChannelFromEnv() (string, bool) {
 		return channel, true
 	}
 	return stableChannel, false
+}
+
+// LookupFlavorFromEnv looks at environment variables to select the agent flavor, if the value
+// is found it is returned along with true, otherwise an empty string and false are returned.
+//
+// WINDOWS_AGENT_FLAVOR: base, fips
+//
+// Default Flavor: base
+func LookupFlavorFromEnv() (string, bool) {
+	flavor := os.Getenv(PackageFlavorEnvVar)
+	if flavor != "" {
+		return flavor, true
+	}
+	return defaultFlavor, false
 }
 
 // LookupVersionFromEnv looks at environment variabes to select the agent version, if the value
@@ -239,7 +278,7 @@ func LookupChannelURLFromEnv() (string, bool) {
 //
 // The returned Package contains the MSI URL and other identifying information.
 // Some Package fields will be populated but may not be related to the returned URL.
-// For example, if a URL is provided directly, the Channel, Version, and Arch fields
+// For example, if a URL is provided directly, the Channel, Version, Arch, and Flavor fields
 // have no effect on the returned URL. They are returned anyway so they can be used for
 // other purposes, such as logging, stack name, instance options, test assertions, etc.
 //
@@ -257,6 +296,8 @@ func LookupChannelURLFromEnv() (string, bool) {
 //
 // WINDOWS_AGENT_ARCH: The arch of the agent, x86_64
 //
+// WINDOWS_AGENT_FLAVOR: The flavor of the agent, base or fips
+//
 // If a channel is not provided and the version contains `-rc.`, the beta channel is used.
 //
 // See other Lookup*FromEnv functions for more options and details.
@@ -267,6 +308,7 @@ func GetPackageFromEnv() (*Package, error) {
 	channel, channelFound := LookupChannelFromEnv()
 	version, _ := LookupVersionFromEnv()
 	arch, _ := LookupArchFromEnv()
+	flavor, _ := LookupFlavorFromEnv()
 	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
 
 	majorVersion := strings.Split(version, ".")[0]
@@ -289,12 +331,13 @@ func GetPackageFromEnv() (*Package, error) {
 			Version: version,
 			Arch:    arch,
 			URL:     url,
+			Flavor:  flavor,
 		}, nil
 	}
 
 	// check if we should use the URL from a specific CI pipeline
 	if pipelineIDFound {
-		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch)
+		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor)
 		if err != nil {
 			return nil, err
 		}
@@ -303,6 +346,7 @@ func GetPackageFromEnv() (*Package, error) {
 			Version:    version,
 			Arch:       arch,
 			URL:        url,
+			Flavor:     flavor,
 		}, nil
 	}
 
@@ -317,7 +361,11 @@ func GetPackageFromEnv() (*Package, error) {
 			}
 		}
 		// Get MSI URL
-		url, err := installers.GetProductURL(channelURL, agentInstallerListProductName, version, arch)
+		productName, err := GetFlavorProductName(flavor)
+		if err != nil {
+			return nil, err
+		}
+		url, err := installers.GetProductURL(channelURL, productName, version, arch)
 		if err != nil {
 			return nil, err
 		}
@@ -326,16 +374,21 @@ func GetPackageFromEnv() (*Package, error) {
 			Version: version,
 			Arch:    arch,
 			URL:     url,
+			Flavor:  flavor,
 		}, nil
 	}
 
 	// Default to latest stable
-	url = GetLatestMSIURL(majorVersion, arch)
+	url, err = GetLatestMSIURL(majorVersion, arch, flavor)
+	if err != nil {
+		return nil, err
+	}
 	return &Package{
 		Channel: stableChannel,
 		Version: version,
 		Arch:    arch,
 		URL:     url,
+		Flavor:  flavor,
 	}, nil
 }
 
@@ -351,6 +404,7 @@ func GetPackageFromEnv() (*Package, error) {
 // invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION"
 func GetLastStablePackageFromEnv() (*Package, error) {
 	arch, _ := LookupArchFromEnv()
+	flavor, _ := LookupFlavorFromEnv()
 	ver := os.Getenv("LAST_STABLE_VERSION")
 	if ver == "" {
 		return nil, fmt.Errorf("LAST_STABLE_VERSION is not set")
@@ -363,7 +417,7 @@ func GetLastStablePackageFromEnv() (*Package, error) {
 	url := os.Getenv("LAST_STABLE_WINDOWS_AGENT_MSI_URL")
 	if url == "" {
 		// Manual URL not provided, lookup the URL using the version
-		url, err = GetStableMSIURL(ver, arch)
+		url, err = GetStableMSIURL(ver, arch, flavor)
 		if err != nil {
 			return nil, err
 		}
@@ -374,5 +428,6 @@ func GetLastStablePackageFromEnv() (*Package, error) {
 		Version: ver,
 		Arch:    arch,
 		URL:     url,
+		Flavor:  flavor,
 	}, nil
 }

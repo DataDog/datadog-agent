@@ -114,7 +114,7 @@ func TestUnsafeParseInt(t *testing.T) {
 
 func TestResolveContainerIDFromLocalData(t *testing.T) {
 	const (
-		LocalDataPrefix   = "c:"
+		localDataPrefix   = "c:"
 		containerIDPrefix = "ci-"
 		inodePrefix       = "in-"
 		containerID       = "abcdef"
@@ -142,67 +142,67 @@ func TestResolveContainerIDFromLocalData(t *testing.T) {
 	}{
 		{
 			name:     "Empty LocalData",
-			input:    []byte(LocalDataPrefix),
+			input:    []byte(localDataPrefix),
 			expected: []byte{},
 		},
 		{
 			name:     "LocalData with new container ID",
-			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID),
+			input:    []byte(localDataPrefix + containerIDPrefix + containerID),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData with old container ID format",
-			input:    []byte(LocalDataPrefix + containerID),
+			input:    []byte(localDataPrefix + containerID),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData with inode",
-			input:    []byte(LocalDataPrefix + inodePrefix + containerInode),
+			input:    []byte(localDataPrefix + inodePrefix + containerInode),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData with invalid inode",
-			input:    []byte(LocalDataPrefix + inodePrefix + "invalid"),
+			input:    []byte(localDataPrefix + inodePrefix + "invalid"),
 			expected: []byte(nil),
 		},
 		{
 			name:     "LocalData as a list",
-			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID + "," + inodePrefix + containerInode),
+			input:    []byte(localDataPrefix + containerIDPrefix + containerID + "," + inodePrefix + containerInode),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as a list with only inode",
-			input:    []byte(LocalDataPrefix + inodePrefix + containerInode),
+			input:    []byte(localDataPrefix + inodePrefix + containerInode),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as a list with only container ID",
-			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID),
+			input:    []byte(localDataPrefix + containerIDPrefix + containerID),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as a list with only inode with trailing comma",
-			input:    []byte(LocalDataPrefix + inodePrefix + containerInode + ","),
+			input:    []byte(localDataPrefix + inodePrefix + containerInode + ","),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as a list with only container ID with trailing comma",
-			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID + ","),
+			input:    []byte(localDataPrefix + containerIDPrefix + containerID + ","),
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as a list with only inode surrounded by commas",
-			input:    []byte(LocalDataPrefix + "," + inodePrefix + containerInode + ","), // This is an invalid format, but we should still be able to extract the container ID
+			input:    []byte(localDataPrefix + "," + inodePrefix + containerInode + ","), // This is an invalid format, but we should still be able to extract the container ID
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as a list with only inode surrounded by commas",
-			input:    []byte(LocalDataPrefix + "," + containerIDPrefix + containerID + ","), // This is an invalid format, but we should still be able to extract the container ID
+			input:    []byte(localDataPrefix + "," + containerIDPrefix + containerID + ","), // This is an invalid format, but we should still be able to extract the container ID
 			expected: []byte(containerID),
 		},
 		{
 			name:     "LocalData as an invalid list",
-			input:    []byte(LocalDataPrefix + ","),
+			input:    []byte(localDataPrefix + ","),
 			expected: []byte(nil),
 		},
 	}

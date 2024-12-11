@@ -123,7 +123,7 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	statsValue := make([]StructStatsValue, nbCpus)
 	it := t.statsMap.Iterate()
 	for it.Next(&statsKey, &statsValue) {
-		cgroupName := string(statsKey.Cgroup[:])
+		cgroupName := unix.ByteSliceToString(statsKey.Cgroup[:])
 		max := model.TCPQueueLengthStatsValue{}
 		for cpu := 0; cpu < nbCpus; cpu++ {
 			if statsValue[cpu].Read_buffer_max_usage > max.ReadBufferMaxUsage {

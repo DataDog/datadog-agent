@@ -20,7 +20,7 @@ type testResponse struct {
 	Body       string `json:"body"`
 }
 
-func testHandler(ctx context.Context, ev events.APIGatewayProxyRequest) (testResponse, error) {
+func testHandler(_ context.Context, _ events.APIGatewayProxyRequest) (testResponse, error) {
 	// Sleep to ensure correct log ordering
 	time.Sleep(250 * time.Millisecond)
 	fmt.Printf("XXX LOG 0 XXX\n")

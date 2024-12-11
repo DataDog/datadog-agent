@@ -5,8 +5,8 @@
 
 //go:build !otlp
 
-// Package collector contains a no-op implementation of the collector
-package collector
+// Package pipelineimpl contains a no-op implementation of the collector
+package pipelineimpl
 
 import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"

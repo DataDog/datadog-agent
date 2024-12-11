@@ -10,12 +10,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func makeTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) *httptest.Server {
@@ -26,7 +25,7 @@ func makeTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Re
 
 func TestDoGet(t *testing.T) {
 	t.Run("simple request", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("test"))
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
@@ -36,7 +35,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("error response", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
@@ -50,7 +49,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("request error", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 		server.Close()
 
 		_, err := DoGetWithOptions(server.Client(), server.URL, &ReqOptions{})
@@ -77,7 +76,7 @@ func TestDoGet(t *testing.T) {
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
 
-		cfg := model.NewConfig("datadog", "test", strings.NewReplacer("_", "."))
+		cfg := configmock.New(t)
 		dir := t.TempDir()
 		authTokenPath := dir + "/auth_token"
 		err := os.WriteFile(authTokenPath, []byte("0123456789abcdef0123456789abcdef"), 0644)
@@ -92,7 +91,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("context cancel", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))

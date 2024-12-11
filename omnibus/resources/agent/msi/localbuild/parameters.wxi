@@ -8,8 +8,6 @@
   <?define BinFiles="c:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin\agent" ?>
   <?define EtcFiles="C:/omnibus-ruby/src\etc\datadog-agent" ?>
   <?define ResourcesDir="c:\dev\go\src\github.com\datadog\datadog-agent\omnibus\resources\agent\msi"?>
-  <?define IncludePython2= "false" ?>
-  <?define IncludePython3= "true" ?>
   <?define IncludeAPMInject= "false" ?>
   <?define Platform= "x64" ?>
   <?define IncludeSysprobe="true" ?>

@@ -11,7 +11,6 @@ package ptracer
 import (
 	"bufio"
 	"bytes"
-	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
@@ -27,10 +26,11 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Funcs mainly copied from github.com/DataDog/datadog-agent/pkg/security/utils/cgroup.go
@@ -74,26 +74,25 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 
 }
 
-func getContainerIDFromProcFS(cgroupPath string) (string, error) {
+func getContainerIDFromProcFS(cgroupPath string) (containerutils.ContainerID, error) {
 	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
 	if err != nil {
 		return "", err
 	}
 
 	for _, cgroup := range cgroups {
-		cid := containerutils.FindContainerID(cgroup.path)
-		if cid != "" {
+		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
 			return cid, nil
 		}
 	}
 	return "", nil
 }
 
-func getCurrentProcContainerID() (string, error) {
+func getCurrentProcContainerID() (containerutils.ContainerID, error) {
 	return getContainerIDFromProcFS("/proc/self/cgroup")
 }
 
-func getProcContainerID(pid int) (string, error) {
+func getProcContainerID(pid int) (containerutils.ContainerID, error) {
 	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
 }
 
@@ -133,7 +132,7 @@ func simpleHTTPRequest(uri string) ([]byte, error) {
 		path = "/"
 	}
 
-	req := fmt.Sprintf("GET %s?%s HTTP/1.1\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
+	req := fmt.Sprintf("GET %s?%s HTTP/1.0\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
 
 	_, err = client.Write([]byte(req))
 	if err != nil {
@@ -168,24 +167,25 @@ func fillProcessCwd(process *Process) error {
 	if err != nil {
 		return err
 	}
-	process.Res.Cwd = cwd
+	process.FsRes.Cwd = cwd
 	return nil
 }
 
 func getFullPathFromFd(process *Process, filename string, fd int32) (string, error) {
 	if len(filename) > 0 && filename[0] != '/' {
 		if fd == unix.AT_FDCWD { // if use current dir, try to prefix it
-			if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
-				filename = filepath.Join(process.Res.Cwd, filename)
+			if process.FsRes.Cwd != "" || fillProcessCwd(process) == nil {
+				filename = filepath.Join(process.FsRes.Cwd, filename)
 			} else {
 				return "", errors.New("fillProcessCwd failed")
 			}
 		} else { // if using another dir, prefix it, we should have it in cache
-			if path, exists := process.Res.Fd[fd]; exists {
-				filename = filepath.Join(path, filename)
-			} else {
-				return "", errors.New("process FD cache incomplete during path resolution")
+			path, err := process.GetFilenameFromFd(fd)
+			if err != nil {
+				return "", fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 			}
+
+			filename = filepath.Join(path, filename)
 		}
 	}
 	return filename, nil
@@ -193,8 +193,8 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 
 func getFullPathFromFilename(process *Process, filename string) (string, error) {
 	if len(filename) > 0 && filename[0] != '/' {
-		if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
-			filename = filepath.Join(process.Res.Cwd, filename)
+		if process.FsRes.Cwd != "" || fillProcessCwd(process) == nil {
+			filename = filepath.Join(process.FsRes.Cwd, filename)
 		} else {
 			return "", errors.New("fillProcessCwd failed")
 		}
@@ -459,7 +459,7 @@ func microsecsToNanosecs(secs uint64) uint64 {
 }
 
 func getModuleName(reader io.ReaderAt) (string, error) {
-	elf, err := elf.NewFile(reader)
+	elf, err := safeelf.NewFile(reader)
 	if err != nil {
 		return "", err
 	}

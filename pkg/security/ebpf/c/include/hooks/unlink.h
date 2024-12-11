@@ -69,18 +69,15 @@ int hook_vfs_unlink(ctx_t *ctx) {
     set_file_inode(dentry, &syscall->unlink.file, 1);
     fill_file(dentry, &syscall->unlink.file);
 
-    if (filter_syscall(syscall, unlink_approvers)) {
-        return mark_as_discarded(syscall);
-    }
-
-    if (is_discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
     }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_UNLINK_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -100,8 +97,10 @@ int tail_call_target_dr_unlink_callback(ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret < 0) {
-        return mark_as_discarded(syscall);
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_UNLINK);
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        syscall->state = DISCARDED;
     }
 
     return 0;
@@ -118,10 +117,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     }
 
     u64 enabled_events = get_enabled_events();
-    int pass_to_userspace = !syscall->discarded &&
-                            (mask_has_event(enabled_events, EVENT_UNLINK) ||
-                                mask_has_event(enabled_events, EVENT_RMDIR));
-    if (pass_to_userspace) {
+    if (syscall->state != DISCARDED && (mask_has_event(enabled_events, EVENT_UNLINK) || mask_has_event(enabled_events, EVENT_RMDIR))) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {
                 .syscall.retval = retval,

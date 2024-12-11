@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	componentsos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -51,12 +50,10 @@ func (v *vmSuite) SetupSuite() {
 	currDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	kitchenDir := filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
+	v.testspath = filepath.Join(currDir, "artifacts")
 }
 
-func (v *vmSuite) TestSystemProbeSuite() {
+func (v *vmSuite) TestSystemProbeNPMSuite() {
 	v.BaseSuite.SetupSuite()
 	t := v.T()
 	// get the remote host
@@ -106,13 +103,7 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	// install the agent (just so we can get the driver(s) installed)
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	require.NoError(t, err)
-	remoteMSIPath, err := windowsCommon.GetTemporaryFile(vm)
-	require.NoError(t, err)
-	t.Logf("Getting install package %s...", agentPackage.URL)
-	err = windowsCommon.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
-	require.NoError(t, err)
-
-	err = windowsCommon.InstallMSI(vm, remoteMSIPath, "", "")
+	_, err = windowsAgent.InstallAgent(vm, windowsAgent.WithPackage(agentPackage))
 	t.Log("Install complete")
 	require.NoError(t, err)
 
@@ -127,5 +118,5 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	_, err = vm.Execute("start-service ddnpm")
 	require.NoError(t, err)
 
-	rs.RunTests()
+	rs.RunTests("")
 }

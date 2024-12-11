@@ -23,7 +23,7 @@ type SystemAPIClient struct {
 }
 
 // Events is a mock method
-func (c *SystemAPIClient) Events(context.Context, types.EventsOptions) (<-chan events.Message, <-chan error) {
+func (c *SystemAPIClient) Events(context.Context, events.ListOptions) (<-chan events.Message, <-chan error) {
 	return nil, nil
 }
 

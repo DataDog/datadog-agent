@@ -394,13 +394,6 @@ func (db *driverReadBuffer) resizeDriverBuffer(compareSize int) driverResizeResu
 	return ResizedUnchanged
 }
 
-func minUint64(a, b uint64) uint64 {
-	if a > b {
-		return b
-	}
-	return a
-}
-
 func (di *DriverInterface) setFlowParams() error {
 	// set up the maximum flows
 
@@ -411,8 +404,8 @@ func (di *DriverInterface) setFlowParams() error {
 
 	// this makes it so that the config can clamp down, but can never make it
 	// larger than the coded defaults above.
-	maxOpenFlows := minUint64(defaultMaxOpenFlows, di.maxOpenFlows)
-	maxClosedFlows := minUint64(defaultMaxClosedFlows, di.maxClosedFlows)
+	maxOpenFlows := min(defaultMaxOpenFlows, di.maxOpenFlows)
+	maxClosedFlows := min(defaultMaxClosedFlows, di.maxClosedFlows)
 
 	err := di.driverFlowHandle.DeviceIoControl(
 		driver.SetMaxOpenFlowsIOCTL,

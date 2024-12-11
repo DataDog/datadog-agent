@@ -20,120 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
-// easyjson:json
-type ActivitySnapshot struct {
-	Metadata
-	// Tags should be part of the common Metadata struct but because Activity payloads use a string array
-	// and samples use a comma-delimited list of tags in a single string, both flavors have to be handled differently
-	Tags               []string            `json:"ddtags,omitempty"`
-	CollectionInterval float64             `json:"collection_interval,omitempty"`
-	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
-}
-
-//nolint:revive // TODO(DBM) Fix revive linter
-type RowMetadata struct {
-	Commands       []string `json:"dd_commands,omitempty"`
-	Tables         []string `json:"dd_tables,omitempty"`
-	Comments       []string `json:"dd_comments,omitempty"`
-	QueryTruncated string   `json:"query_truncated,omitempty"`
-}
-
-// Metadata contains the metadata fields common to all events processed
-type Metadata struct {
-	Timestamp      float64 `json:"timestamp,omitempty"`
-	Host           string  `json:"host,omitempty"`
-	Source         string  `json:"ddsource,omitempty"`
-	DBMType        string  `json:"dbm_type,omitempty"`
-	DDAgentVersion string  `json:"ddagentversion,omitempty"`
-}
-
-//nolint:revive // TODO(DBM) Fix revive linter
-type OracleSQLRow struct {
-	SQLID                  string `json:"sql_id,omitempty"`
-	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
-	SQLPlanHashValue       uint64 `json:"sql_plan_hash_value,omitempty"`
-	SQLExecStart           string `json:"sql_exec_start,omitempty"`
-}
-
-//nolint:revive // TODO(DBM) Fix revive linter
-type OracleActivityRow struct {
-	Now           string `json:"now"`
-	SessionID     uint64 `json:"sid,omitempty"`
-	SessionSerial uint64 `json:"serial,omitempty"`
-	User          string `json:"user,omitempty"`
-	Status        string `json:"status"`
-	OsUser        string `json:"os_user,omitempty"`
-	Process       string `json:"process,omitempty"`
-	Client        string `json:"client,omitempty"`
-	Port          string `json:"port,omitempty"`
-	Program       string `json:"program,omitempty"`
-	Type          string `json:"type,omitempty"`
-	OracleSQLRow
-	Module                string `json:"module,omitempty"`
-	Action                string `json:"action,omitempty"`
-	ClientInfo            string `json:"client_info,omitempty"`
-	LogonTime             string `json:"logon_time,omitempty"`
-	ClientIdentifier      string `json:"client_identifier,omitempty"`
-	BlockingInstance      uint64 `json:"blocking_instance,omitempty"`
-	BlockingSession       uint64 `json:"blocking_session,omitempty"`
-	FinalBlockingInstance uint64 `json:"final_blocking_instance,omitempty"`
-	FinalBlockingSession  uint64 `json:"final_blocking_session,omitempty"`
-	WaitEvent             string `json:"wait_event,omitempty"`
-	WaitEventClass        string `json:"wait_event_class,omitempty"`
-	WaitTimeMicro         uint64 `json:"wait_time_micro,omitempty"`
-	Statement             string `json:"statement,omitempty"`
-	PdbName               string `json:"pdb_name,omitempty"`
-	CdbName               string `json:"cdb_name,omitempty"`
-	QuerySignature        string `json:"query_signature,omitempty"`
-	CommandName           string `json:"command_name,omitempty"`
-	PreviousSQL           bool   `json:"previous_sql,omitempty"`
-	OpFlags               uint64 `json:"op_flags,omitempty"`
-	RowMetadata
-}
-
-//nolint:revive // TODO(DBM) Fix revive linter
-type OracleActivityRowDB struct {
-	Now                        string         `db:"NOW"`
-	SessionID                  uint64         `db:"SID"`
-	SessionSerial              uint64         `db:"SERIAL#"`
-	User                       sql.NullString `db:"USERNAME"`
-	Status                     string         `db:"STATUS"`
-	OsUser                     sql.NullString `db:"OSUSER"`
-	Process                    sql.NullString `db:"PROCESS"`
-	Client                     sql.NullString `db:"MACHINE"`
-	Port                       sql.NullInt64  `db:"PORT"`
-	Program                    sql.NullString `db:"PROGRAM"`
-	Type                       sql.NullString `db:"TYPE"`
-	SQLID                      sql.NullString `db:"SQL_ID"`
-	ForceMatchingSignature     *string        `db:"FORCE_MATCHING_SIGNATURE"`
-	SQLPlanHashValue           *uint64        `db:"SQL_PLAN_HASH_VALUE"`
-	SQLExecStart               sql.NullString `db:"SQL_EXEC_START"`
-	SQLAddress                 sql.NullString `db:"SQL_ADDRESS"`
-	PrevSQLID                  sql.NullString `db:"PREV_SQL_ID"`
-	PrevForceMatchingSignature *string        `db:"PREV_FORCE_MATCHING_SIGNATURE"`
-	PrevSQLPlanHashValue       *uint64        `db:"PREV_SQL_PLAN_HASH_VALUE"`
-	PrevSQLExecStart           sql.NullString `db:"PREV_SQL_EXEC_START"`
-	PrevSQLAddress             sql.NullString `db:"PREV_SQL_ADDRESS"`
-	Module                     sql.NullString `db:"MODULE"`
-	Action                     sql.NullString `db:"ACTION"`
-	ClientInfo                 sql.NullString `db:"CLIENT_INFO"`
-	LogonTime                  sql.NullString `db:"LOGON_TIME"`
-	ClientIdentifier           sql.NullString `db:"CLIENT_IDENTIFIER"`
-	OpFlags                    uint64         `db:"OP_FLAGS"`
-	BlockingInstance           *uint64        `db:"BLOCKING_INSTANCE"`
-	BlockingSession            *uint64        `db:"BLOCKING_SESSION"`
-	FinalBlockingInstance      *uint64        `db:"FINAL_BLOCKING_INSTANCE"`
-	FinalBlockingSession       *uint64        `db:"FINAL_BLOCKING_SESSION"`
-	WaitEvent                  sql.NullString `db:"EVENT"`
-	WaitEventClass             sql.NullString `db:"WAIT_CLASS"`
-	WaitTimeMicro              *uint64        `db:"WAIT_TIME_MICRO"`
-	Statement                  sql.NullString `db:"SQL_FULLTEXT"`
-	PrevSQLFullText            sql.NullString `db:"PREV_SQL_FULLTEXT"`
-	PdbName                    sql.NullString `db:"PDB_NAME"`
-	CommandName                sql.NullString `db:"COMMAND_NAME"`
-}
-
 // Converts sql types to Go native types
 func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
 	SQLRow := OracleSQLRow{}
@@ -161,8 +47,70 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
+func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) error {
+	var collectionInterval float64
+	if c.config.QuerySamples.ActiveSessionHistory {
+		collectionInterval = 1
+	} else {
+		collectionInterval = float64(c.config.MinCollectionInterval)
+	}
+	var ts float64
+	if timestamp > 0 {
+		ts = timestamp
+	} else {
+		ts = float64(c.clock.Now().UnixMilli())
+	}
+	log.Debugf("%s STIMESTAMP FETCHED %f", c.logPrompt, timestamp)
+	log.Debugf("%s STIMESTAMP UNIX    %f", c.logPrompt, float64(c.clock.Now().UnixMilli()))
+	payload := ActivitySnapshot{
+		Metadata: Metadata{
+			//Timestamp:      float64(c.clock.Now().UnixMilli()),
+			Timestamp:      ts,
+			Host:           c.dbHostname,
+			Source:         common.IntegrationName,
+			DBMType:        "activity",
+			DDAgentVersion: c.agentVersion,
+		},
+		CollectionInterval: collectionInterval,
+		Tags:               c.tags,
+		OracleActivityRows: sessionRows,
+	}
+
+	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
+	copy(c.lastOracleActivityRows, sessionRows)
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
+		return err
+	}
+
+	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
+		return err
+	}
+	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
+	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
+
+	return nil
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
+	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
+	if activeSessionHistory && c.lastSampleID == 0 {
+		err := getWrapper(c, &c.lastSampleID, "SELECT /* DD */ NVL(MAX(sample_id),0) FROM v$active_session_history")
+		if err != nil {
+			return err
+		}
+		if c.lastSampleID == 0 {
+			log.Infof("%s no active session history samples found", c.logPrompt)
+			return nil
+		}
+	}
 	start := time.Now()
 	copy(c.lastOracleActivityRows, []OracleActivityRow{})
 
@@ -170,7 +118,10 @@ func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
 	maxSQLTextLength := c.sqlSubstringLength
-	if c.hostingType == selfManaged {
+
+	if activeSessionHistory {
+		activityQuery = activityQueryActiveSessionHistory
+	} else if c.hostingType == selfManaged && !c.config.QuerySamples.ForceDirectQuery {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
 		} else {
@@ -180,11 +131,20 @@ func (c *Check) SampleSession() error {
 		activityQuery = activityQueryDirect
 	}
 
-	if c.config.QuerySamples.IncludeAllSessions {
-		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
+	if !c.config.QuerySamples.IncludeAllSessions && !activeSessionHistory {
+		activityQuery = fmt.Sprintf("%s %s", activityQuery, ` AND (
+	NOT (state = 'WAITING' AND wait_class = 'Idle')
+	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
+)
+AND status = 'ACTIVE'`)
 	}
 
-	err := selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
+	var err error
+	if activeSessionHistory {
+		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, c.lastSampleID)
+	} else {
+		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
+	}
 
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-06502") {
@@ -199,10 +159,25 @@ func (c *Check) SampleSession() error {
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	defer o.Stop()
+	var payloadSent bool
+	var lastNow string
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
 
+		if activeSessionHistory && sample.SampleID > c.lastSampleID {
+			c.lastSampleID = sample.SampleID
+		}
+
 		sessionRow.Now = sample.Now
+		if lastNow != sessionRow.Now && lastNow != "" {
+			err = sendPayload(c, sessionRows, sample.UtcMs)
+			if err != nil {
+				log.Errorf("%s error sending payload %s", c.logPrompt, err)
+			}
+			payloadSent = true
+		}
+		lastNow = sessionRow.Now
+
 		sessionRow.SessionID = sample.SessionID
 		sessionRow.SessionSerial = sample.SessionSerial
 		if sample.User.Valid {
@@ -377,39 +352,21 @@ func (c *Check) SampleSession() error {
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}
-
-	payload := ActivitySnapshot{
-		Metadata: Metadata{
-			Timestamp:      float64(time.Now().UnixMilli()),
-			Host:           c.dbHostname,
-			Source:         common.IntegrationName,
-			DBMType:        "activity",
-			DDAgentVersion: c.agentVersion,
-		},
-		CollectionInterval: c.checkInterval,
-		Tags:               c.tags,
-		OracleActivityRows: sessionRows,
+	if !payloadSent {
+		err = sendPayload(c, sessionRows, 0)
+		if err != nil {
+			log.Errorf("%s error sending payload %s", c.logPrompt, err)
+		}
 	}
-
-	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
-	copy(c.lastOracleActivityRows, sessionRows)
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
-		return err
-	}
-
-	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
-
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
+		log.Errorf("%s GetSender SampleSession", c.logPrompt)
 		return err
 	}
-	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
+	TlmOracleActivityLatency.Observe(float64(time.Since(start).Milliseconds()))
+	TlmOracleActivitySamplesCount.Set(float64(len(sessionRows)))
+
 	sender.Commit()
 
 	return nil

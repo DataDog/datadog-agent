@@ -47,8 +47,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 
 	go func() {
 		defer close(exited)
-		//nolint:revive // TODO(NET) Fix revive linter
-		for range ev {
+		for range ev { //nolint:revive // TODO
 		}
 	}()
 

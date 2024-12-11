@@ -70,7 +70,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) { //nolint:revive // TODO fix revive unused-parameter
+func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) {
 	c.series = append(c.series,
 		&metrics.Serie{
 			Name:     dimensions.Name(),
@@ -113,8 +113,8 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 	var serieErr, sketchesErr error
 	metrics.Serialize(
-		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
-		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
+		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
+		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {
 				seriesSink.Append(serie)

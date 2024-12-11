@@ -22,6 +22,6 @@ func NewNodeInfo() (*NodeInfo, error) {
 // GetNodeLabels returns node labels for this host
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error) {
+func (n *NodeInfo) GetNodeLabels(_ context.Context) (map[string]string, error) {
 	return nil, nil
 }

@@ -24,9 +24,6 @@ import (
 
 // team: agent-shared-components
 
-// LogConfig reads the logger config
-type LogConfig pkgconfigmodel.Reader
-
 // Component is the component type.
 type Component interface {
 	pkgconfigmodel.ReaderWriter

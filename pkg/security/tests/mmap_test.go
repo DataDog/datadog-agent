@@ -47,7 +47,7 @@ func TestMMapEvent(t *testing.T) {
 				return fmt.Errorf("couldn't unmap memory segment: %w", err)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
@@ -91,7 +91,7 @@ func TestMMapApproverZero(t *testing.T) {
 			return fmt.Errorf("couldn't unmap memory segment: %w", err)
 		}
 		return nil
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 		assert.Equal(t, uint64(unix.PROT_NONE), event.MMap.Protection&(unix.PROT_NONE), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 

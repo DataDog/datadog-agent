@@ -86,3 +86,8 @@ func (s *TCPServer) Run(done chan struct{}) error {
 
 	return nil
 }
+
+// Address returns the address of the server.
+func (s *TCPServer) Address() string {
+	return s.address
+}

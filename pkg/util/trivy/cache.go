@@ -301,7 +301,7 @@ func (c *persistentCache) removeOldest() error {
 	}
 
 	evicted := 0
-	if err := c.db.Delete([]string{key}, func(key string, value []byte) error {
+	if err := c.db.Delete([]string{key}, func(_ string, value []byte) error {
 		evicted += len(value)
 		return nil
 	}); err != nil {

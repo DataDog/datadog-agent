@@ -3,31 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestDump(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(context.Background()),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	container := &wmdef.Container{
 		EntityID: wmdef.EntityID{
@@ -39,6 +26,12 @@ func TestDump(t *testing.T) {
 		},
 		Image: wmdef.ContainerImage{
 			Name: "ctr-image",
+		},
+		Resources: wmdef.ContainerResources{
+			GPUVendorList: []string{"nvidia"},
+		},
+		AllocatedResources: []wmdef.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: "GPU-1234"},
 		},
 		Runtime:       wmdef.ContainerRuntimeDocker,
 		RuntimeFlavor: wmdef.ContainerRuntimeFlavorKata,
@@ -96,6 +89,9 @@ Runtime: docker
 RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
 `,
 				},
 			},
@@ -133,6 +129,9 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
 Network IPs: 
 PID: 0
@@ -162,6 +161,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+----------- Allocated Resources -----------
 Hostname: 
 Network IPs: 
 PID: 1
@@ -191,6 +191,9 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
 Network IPs: 
 PID: 1

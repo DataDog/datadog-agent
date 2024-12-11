@@ -21,9 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -56,7 +56,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "stream-logs",
 		Short: "Stream the logs being processed by a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(streamLogs,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -72,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().DurationVarP(&cliParams.Duration, "duration", "d", 0, "Duration of the log stream (default: 0, infinite)")
 	cmd.Flags().BoolVarP(&cliParams.Quiet, "quiet", "q", false, "Quiet mode (no output to stdout)")
 	// PreRunE is used to validate duration before stream-logs is run.
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {
 		if cliParams.Duration < 0 {
 			return fmt.Errorf("duration must be a positive value")
 		}
@@ -83,8 +83,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func streamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func streamRequest(url string, body []byte, duration time.Duration, onChunk func
 		c.Timeout = duration
 	}
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog())
+	e = util.SetAuthToken(pkgconfigsetup.Datadog())
 	if e != nil {
 		return e
 	}

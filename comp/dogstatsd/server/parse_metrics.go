@@ -48,6 +48,8 @@ type dogstatsdMetricSample struct {
 	tags       []string
 	// containerID represents the container ID of the sender (optional).
 	containerID []byte
+	// externalData is used for Origin Detection
+	externalData string
 	// timestamp read in the message if any
 	ts time.Time
 }

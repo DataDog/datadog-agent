@@ -10,7 +10,6 @@ package agent
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"sort"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -46,6 +46,7 @@ func SetupHandlers(
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
+	tagger tagger.Component,
 ) *mux.Router {
 	// Register the handlers from the component providers
 	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })
@@ -58,7 +59,7 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
-		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
+		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), ac, tagger)
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
 
@@ -137,21 +138,16 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	// Indicate that we are already running in Agent process (and flip RunLocal)
 	diagCfg.RunLocal = true
 
-	var diagnoses []diagnosis.Diagnoses
+	var diagnoseResult *diagnosis.DiagnoseResult
 	var err error
 
 	// Get diagnoses via API
 	// TODO: Once API component will be refactored, clean these dependencies
 	collector, ok := diagnoseDeps.Collector.Get()
 	if ok {
-		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+		diagnoseResult, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 	} else {
-		ac, ok := diagnoseDeps.AC.Get()
-		if ok {
-			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
-		} else {
-			err = errors.New("collector or autoDiscovery not found")
-		}
+		diagnoseResult, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, diagnoseDeps.AC, diagnoseDeps.Tagger))
 	}
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
@@ -160,7 +156,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 
 	// Serizalize diagnoses (and implicitly write result to the response)
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(diagnoses)
+	err = json.NewEncoder(w).Encode(diagnoseResult)
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}

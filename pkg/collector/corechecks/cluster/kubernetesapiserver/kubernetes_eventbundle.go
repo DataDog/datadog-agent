@@ -17,7 +17,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -50,8 +50,17 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	// We do not process the events in chronological order necessarily.
 	// We only care about the first time they occurred, the last time and the count.
-	b.timeStamp = float64(event.FirstTimestamp.Unix())
-	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
+	if event.FirstTimestamp.IsZero() {
+		b.timeStamp = float64(event.EventTime.Unix())
+	} else {
+		b.timeStamp = float64(event.FirstTimestamp.Unix())
+	}
+
+	if event.LastTimestamp.IsZero() {
+		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.EventTime.Unix()))
+	} else {
+		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
+	}
 
 	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
 

@@ -152,7 +152,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
 		Pid:        ps.Pid,
-		PPid:       getUint32Pointer(&ps.PPid),
+		PPid:       createNumPointer(ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
 		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 		User:       e.FieldHandlers.ResolveUser(e, ps),

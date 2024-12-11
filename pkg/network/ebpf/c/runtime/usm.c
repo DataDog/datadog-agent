@@ -21,9 +21,8 @@
 #include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
 #include "protocols/postgres/decoding.h"
+#include "protocols/redis/decoding.h"
 #include "protocols/sockfd-probes.h"
-#include "protocols/tls/java/erpc_dispatcher.h"
-#include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/go-tls-goid.h"
 #include "protocols/tls/go-tls-location.h"
@@ -75,6 +74,7 @@ int tracepoint__net__netif_receive_skb(void *ctx) {
     terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
     postgres_batch_flush(ctx);
+    redis_batch_flush(ctx);
     return 0;
 }
 

@@ -5,7 +5,7 @@
 
 //go:build otlp
 
-package collector
+package pipelineimpl
 
 import (
 	"embed"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 )
 
 //go:embed status_templates
@@ -28,7 +29,7 @@ func (c *collectorImpl) getStatusInfo() map[string]interface{} {
 
 func (c *collectorImpl) populateStatus(stats map[string]interface{}) {
 	otlpStatus := make(map[string]interface{})
-	otlpIsEnabled := otlp.IsEnabled(c.config)
+	otlpIsEnabled := configcheck.IsEnabled(c.config)
 
 	var otlpCollectorStatus otlp.CollectorStatus
 
@@ -67,6 +68,6 @@ func (c *collectorImpl) Text(_ bool, buffer io.Writer) error {
 }
 
 // HTML renders the html output
-func (c *collectorImpl) HTML(_ bool, _ io.Writer) error {
-	return nil
+func (c *collectorImpl) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "otlpHTML.tmpl", buffer, c.getStatusInfo())
 }

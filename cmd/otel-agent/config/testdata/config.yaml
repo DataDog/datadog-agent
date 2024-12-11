@@ -14,6 +14,12 @@ exporters:
     api:
       key: DATADOG_API_KEY
       site: datadoghq.eu
+    metrics:
+      endpoint: "test.metrics.com"
+    logs:
+      endpoint: "test.logs.com"
+      batch_wait: 10
+      compression_level: 1
     traces:
       span_name_as_resource_name: false
       span_name_remappings:

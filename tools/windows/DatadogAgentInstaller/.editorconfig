@@ -6,7 +6,13 @@
 indent_style = space
 tab_width = 4
 indent_size = 4
-end_of_line = crlf
+
+# unset = native (let the platform decide)
+# see https://github.com/editorconfig/editorconfig/wiki/EditorConfig-Properties#end_of_line
+#   > 'if you want to use native line endings between different operating systems it is better not to set this option and leave that task to the VCS'
+# and
+# https://github.com/editorconfig/editorconfig/issues/226
+# end_of_line = crlf
 
 #### .NET Coding Conventions ####
 

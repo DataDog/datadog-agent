@@ -135,6 +135,7 @@ message KubernetesPod {
   repeated string kubeServices = 11;
   map<string, string> namespaceLabels = 12;
   repeated OrchestratorContainer InitContainers = 13;
+  string runtimeClass = 14;
 }
 
 enum ECSLaunchType {
@@ -154,6 +155,7 @@ message ECSTask {
   string version = 9;
   ECSLaunchType launchType = 10;
   repeated OrchestratorContainer containers = 11;
+  int64 awsAccountID = 12;
 }
 
 message WorkloadmetaEvent {

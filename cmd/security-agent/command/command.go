@@ -13,7 +13,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -23,6 +23,7 @@ import (
 type GlobalParams struct {
 	ConfigFilePaths      []string
 	SysProbeConfFilePath string
+	FleetPoliciesDirPath string
 
 	// NoColor is a flag to disable color output
 	NoColor bool
@@ -36,11 +37,11 @@ const LoggerName = "SECURITY"
 
 var (
 	defaultSecurityAgentConfigFilePaths = []string{
-		path.Join(commonpath.DefaultConfPath, "datadog.yaml"),
-		path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
+		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
+		path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
 	}
 
-	defaultSysProbeConfPath = path.Join(commonpath.DefaultConfPath, "system-probe.yaml")
+	defaultSysProbeConfPath = path.Join(defaultpaths.ConfPath, "system-probe.yaml")
 )
 
 // MakeCommand makes the top-level Cobra command for this command.
@@ -53,7 +54,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			if globalParams.NoColor {
 				color.NoColor = true
 			}
@@ -68,6 +69,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, "cfgpath", "c", defaultSecurityAgentConfigFilePaths, "paths to yaml configuration files")
 	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, "sysprobe-config", defaultSysProbeConfPath, "path to system-probe.yaml config")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "path to the directory containing fleet policies")
+	_ = SecurityAgentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 
 	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {

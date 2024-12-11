@@ -6,11 +6,6 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
-    struct policy_t policy = fetch_policy(EVENT_INIT_MODULE);
-    if (is_discarded_by_process(policy.mode, EVENT_INIT_MODULE)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_INIT_MODULE,
         .init_module = {
@@ -47,8 +42,8 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_INIT_MODULE : 0;
     syscall->resolver.iteration = 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
@@ -161,11 +156,6 @@ HOOK_SYSCALL_EXIT(finit_module) {
 }
 
 HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
-    struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
-    if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_DELETE_MODULE,
         .delete_module = {

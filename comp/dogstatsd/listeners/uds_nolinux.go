@@ -9,7 +9,6 @@ package listeners
 
 import (
 	"errors"
-	"net"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -28,13 +27,13 @@ func getUDSAncillarySize() int {
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func enableUDSPassCred(conn *net.UnixConn) error {
+func enableUDSPassCred(_ netUnixConn) error {
 	return ErrLinuxOnly
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func processUDSOrigin(oob []byte, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) (int, string, error) {
+func processUDSOrigin(_ []byte, _ optional.Option[workloadmeta.Component], _ pidmap.Component) (int, string, error) {
 	return 0, packets.NoOrigin, ErrLinuxOnly
 }

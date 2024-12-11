@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // RemoteExecutable is a helper struct to run tests on a remote host
@@ -115,7 +117,12 @@ func (rs *RemoteExecutable) CopyFiles() error {
 
 // RunTests iterates through all of the tests that were copied and executes them one by one.
 // it captures the output, and logs it.
-func (rs *RemoteExecutable) RunTests() error {
+func (rs *RemoteExecutable) RunTests(timeoutarg string) error {
+
+	if timeoutarg == "" {
+		timeoutarg = "2m"
+	}
+	tmo := "\"-test.timeout=" + timeoutarg + "\""
 
 	for _, testsuite := range rs.testfiles {
 		rs.t.Logf("Running testsuite: %s", testsuite)
@@ -123,7 +130,7 @@ func (rs *RemoteExecutable) RunTests() error {
 
 		// google test programs compiled in this way run with no timeout by default.
 		// don't allow an individual test to take too long
-		executeAndLogOutput(rs.t, rs.vm, remotePath, "\"-test.v\"", "\"-test.timeout=2m\"")
+		executeAndLogOutput(rs.t, rs.vm, remotePath, "\"-test.v\"", tmo)
 	}
 	return nil
 }
@@ -133,15 +140,18 @@ func executeAndLogOutput(t *testing.T, vm *components.RemoteHost, command string
 	outfilename := command + ".out"
 	fullcommand := "cd " + cmdDir + ";"
 	fullcommand += command + " " + strings.Join(args, " ") + " | Out-File -Encoding ASCII -FilePath " + outfilename
-	_, err := vm.Execute(fullcommand)
-	require.NoError(t, err)
+	_, testErr := vm.Execute(fullcommand)
 
 	// get the output
 	outbytes, err := vm.ReadFile(outfilename)
-	require.NoError(t, err)
 
 	// log the output
-	for _, line := range strings.Split(string(outbytes[:]), "\n") {
-		t.Logf("TestSuite: %s", line)
+	if assert.NoError(t, err) {
+		for _, line := range strings.Split(string(outbytes[:]), "\n") {
+			t.Logf("TestSuite: %s", line)
+		}
 	}
+
+	require.NoError(t, testErr)
+
 }

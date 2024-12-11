@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"text/template"
@@ -137,7 +138,7 @@ func Languages() []string {
 func publishReceiverStats() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
-	return receiverStats
+	return slices.Clone(receiverStats)
 }
 
 // UpdateRateByService updates the RateByService map and the filtered RateByServiceFiltered map.

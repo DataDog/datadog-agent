@@ -1,0 +1,7 @@
+# enable NPM
+network_config:
+  enabled: true
+
+# enableUSM
+service_monitoring_config:
+  enabled: true

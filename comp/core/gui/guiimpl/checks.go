@@ -21,27 +21,27 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	configPaths = []string{
-		config.Datadog().GetString("confd_path"),    // Custom checks
-		filepath.Join(path.GetDistPath(), "conf.d"), // Default check configs
+		pkgconfigsetup.Datadog().GetString("confd_path"),    // Custom checks
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"), // Default check configs
 	}
 
 	checkPaths = []string{
-		filepath.Join(path.GetDistPath(), "checks.d"),    // Custom checks
-		config.Datadog().GetString("additional_checksd"), // Custom checks
-		path.PyChecksPath, // Integrations-core checks
+		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
+		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
+		defaultpaths.PyChecksPath,                                // Integrations-core checks
 	}
 )
 
@@ -83,7 +83,7 @@ func runCheckHandler(collector collector.Component, ac autodiscovery.Component) 
 		for _, ch := range instances {
 			collector.RunCheck(ch) //nolint:errcheck
 		}
-		log.Infof("Scheduled new check: " + name)
+		log.Infof("Scheduled new check: %s", name)
 	}
 }
 
@@ -156,14 +156,14 @@ func reloadCheckHandler(collector collector.Component, ac autodiscovery.Componen
 		name := html.EscapeString(mux.Vars(r)["name"])
 		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 		if len(instances) == 0 {
-			log.Errorf("Can't reload " + name + ": check has no new instances.")
+			log.Errorf("Can't reload %s: check has no new instances.", name)
 			w.Write([]byte("Can't reload " + name + ": check has no new instances"))
 			return
 		}
 
 		killed, e := collector.ReloadAllCheckInstances(name, instances)
 		if e != nil {
-			log.Errorf("Error reloading check: " + e.Error())
+			log.Errorf("Error reloading check: %s", e.Error())
 			w.Write([]byte("Error reloading check: " + e.Error()))
 			return
 		}
@@ -247,21 +247,21 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var checkConfFolderPath, defaultCheckConfFolderPath string
 
 	if checkFolder != "" {
-		checkConfFolderPath, err = securejoin.SecureJoin(config.Datadog().GetString("confd_path"), checkFolder)
+		checkConfFolderPath, err = securejoin.SecureJoin(pkgconfigsetup.Datadog().GetString("confd_path"), checkFolder)
 		if err != nil {
 			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
 			log.Errorf("Error: Unable to join provided \"confd_path\" setting path with checkFolder: %s", err.Error())
 			return
 		}
-		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(path.GetDistPath(), "conf.d"), checkFolder)
+		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(defaultpaths.GetDistPath(), "conf.d"), checkFolder)
 		if err != nil {
 			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
 			log.Errorf("Error: Unable to join conf folder path with checkFolder: %s", err.Error())
 			return
 		}
 	} else {
-		checkConfFolderPath = config.Datadog().GetString("confd_path")
-		defaultCheckConfFolderPath = filepath.Join(path.GetDistPath(), "conf.d")
+		checkConfFolderPath = pkgconfigsetup.Datadog().GetString("confd_path")
+		defaultCheckConfFolderPath = filepath.Join(defaultpaths.GetDistPath(), "conf.d")
 	}
 
 	if r.Method == "POST" {
@@ -309,7 +309,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Infof("Successfully wrote new " + fileName + " config file.")
+		log.Infof("Successfully wrote new %s  config file.", fileName)
 		w.Write([]byte("Success"))
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
@@ -336,7 +336,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Infof("Successfully disabled integration " + fileName + " config file.")
+		log.Infof("Successfully disabled integration %s config file.", fileName)
 		w.Write([]byte("Success"))
 	}
 }
@@ -352,7 +352,7 @@ func getWheelsChecks() ([]string, error) {
 	}
 
 	for _, integration := range integrations {
-		if _, ok := config.StandardJMXIntegrations[integration]; !ok {
+		if _, ok := pkgconfigsetup.StandardJMXIntegrations[integration]; !ok {
 			pyChecks = append(pyChecks, integration)
 		}
 	}
@@ -391,7 +391,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	for integration := range config.StandardJMXIntegrations {
+	for integration := range pkgconfigsetup.StandardJMXIntegrations {
 		integrations = append(integrations, integration)
 	}
 

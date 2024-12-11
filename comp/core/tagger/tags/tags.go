@@ -46,6 +46,8 @@ const (
 	KubePriorityClass = "kube_priority_class"
 	// KubeQOS is the tag for the Kubernetes QoS (Quality of Service)
 	KubeQOS = "kube_qos"
+	// KubeRuntimeClass is the tag for the Kubernetes runtime class
+	KubeRuntimeClass = "kube_runtime_class"
 	// KubeContainerName is the tag for the Kubernetes container name
 	KubeContainerName = "kube_container_name"
 	// KubeOwnerRefKind is the tag for the Kubernetes owner reference kind
@@ -87,6 +89,11 @@ const (
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
 
+	// GPU related tags
+
+	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor
+	KubeGPUVendor = "gpu_vendor"
+
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"
 
@@ -106,6 +113,10 @@ const (
 	EcsContainerName = "ecs_container_name"
 	// EcsClusterName is the tag for the ECS cluster name
 	EcsClusterName = "ecs_cluster_name"
+	// EcsServiceName is the tag for the ECS service name
+	EcsServiceName = "ecs_service"
+	// AwsAccount is the tag for ECS account id
+	AwsAccount = "aws_account"
 
 	// Language is the tag for the process language
 	Language = "language"

@@ -12,16 +12,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -101,6 +103,10 @@ var (
 	Kernel6_5 = kernel.VersionCode(6, 5, 0)
 	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
 	Kernel6_6 = kernel.VersionCode(6, 6, 0)
+	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
+	Kernel6_10 = kernel.VersionCode(6, 10, 0)
+	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
+	Kernel6_11 = kernel.VersionCode(6, 11, 0)
 )
 
 // Version defines a kernel version helper
@@ -139,8 +145,10 @@ func NewKernelVersion() (*Version, error) {
 	return kernelVersionCache.Version, err
 }
 
+const lsbRelease = "/etc/lsb-release"
+
 func newKernelVersion() (*Version, error) {
-	osReleasePaths := make([]string, 0, 2*3)
+	osReleasePaths := make([]string, 0, 2*3+1)
 
 	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
@@ -153,7 +161,7 @@ func newKernelVersion() (*Version, error) {
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
-	if config.IsContainerized() && filesystem.FileExists("/host") {
+	if env.IsContainerized() && filesystem.FileExists("/host") {
 		osReleasePaths = append(
 			osReleasePaths,
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
@@ -170,6 +178,9 @@ func newKernelVersion() (*Version, error) {
 		osrelease.UsrLibOsRelease,
 		osrelease.EtcOsRelease,
 	)
+
+	// as a final fallback, we try to read /etc/lsb-release, useful for very old systems
+	osReleasePaths = append(osReleasePaths, lsbRelease)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -238,6 +249,11 @@ func (k *Version) IsRH9Kernel() bool {
 // IsRH9_3Kernel returns whether the kernel is a rh9.3 kernel
 func (k *Version) IsRH9_3Kernel() bool {
 	return k.IsRH9Kernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "9.3")
+}
+
+// IsRH9_4Kernel returns whether the kernel is a rh9.3 kernel
+func (k *Version) IsRH9_4Kernel() bool {
+	return k.IsRH9Kernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "9.4")
 }
 
 // IsSuseKernel returns whether the kernel is a suse kernel
@@ -322,8 +338,7 @@ func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
 }
 
-// HaveFentrySupport returns whether the kernel supports fentry probes
-func (k *Version) HaveFentrySupport() bool {
+func (k *Version) commonFentryCheck(funcName string) bool {
 	if features.HaveProgramType(ebpf.Tracing) != nil {
 		return false
 	}
@@ -331,7 +346,7 @@ func (k *Version) HaveFentrySupport() bool {
 	spec := &ebpf.ProgramSpec{
 		Type:       ebpf.Tracing,
 		AttachType: ebpf.AttachTraceFEntry,
-		AttachTo:   "vfs_open",
+		AttachTo:   funcName,
 		Instructions: asm.Instructions{
 			asm.LoadImm(asm.R0, 0, asm.DWord),
 			asm.Return(),
@@ -356,7 +371,36 @@ func (k *Version) HaveFentrySupport() bool {
 	return true
 }
 
+// HaveFentrySupport returns whether the kernel supports fentry probes
+func (k *Version) HaveFentrySupport() bool {
+	return k.commonFentryCheck("vfs_open")
+}
+
+// HaveFentrySupportWithStructArgs returns whether the kernel supports fentry probes with struct arguments
+func (k *Version) HaveFentrySupportWithStructArgs() bool {
+	return k.commonFentryCheck("audit_set_loginuid")
+}
+
+// HaveFentryNoDuplicatedWeakSymbols returns whether the kernel supports fentry probes with struct arguments
+func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
+	var symbol string
+	switch runtime.GOARCH {
+	case "amd64":
+		symbol = "__ia32_sys_setregid16"
+	default:
+		return true
+	}
+
+	return k.commonFentryCheck(symbol)
+}
+
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
 func (k *Version) SupportBPFSendSignal() bool {
 	return k.Code != 0 && k.Code >= Kernel5_3
+}
+
+// SupportCORE returns is CORE is supported
+func (k *Version) SupportCORE() bool {
+	_, err := btf.LoadKernelSpec()
+	return err == nil
 }

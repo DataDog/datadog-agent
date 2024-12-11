@@ -8,24 +8,24 @@
 package modules
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (module.Module, error) {
+func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
@@ -35,6 +35,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 	}
 
 	opts := eventmonitor.Opts{}
+	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
+	opts.ProbeOpts.Tagger = deps.Tagger
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options
@@ -44,14 +46,14 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, telemetry)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, secmoduleOpts)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -83,13 +85,16 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 
 	netconfig := netconfig.New()
 	if netconfig.EnableUSMEventStream {
-		procmonconsumer, err := createProcessMonitorConsumer(evm, netconfig)
-		if err != nil {
+		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
 			return nil, err
 		}
-		if procmonconsumer != nil {
-			evm.RegisterEventConsumer(procmonconsumer)
-			log.Info("USM process monitoring consumer initialized")
+	}
+
+	gpucfg := gpuconfig.New()
+	if gpucfg.Enabled {
+		err := createGPUProcessEventConsumer(evm)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create event consumer for GPU: %w", err)
 		}
 	}
 

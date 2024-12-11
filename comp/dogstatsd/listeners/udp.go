@@ -15,7 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,12 +36,18 @@ func init() {
 	udpExpvars.Set("Bytes", &udpBytes)
 }
 
+type netUDPConn interface {
+	LocalAddr() net.Addr
+	ReadFrom(b []byte) (int, net.Addr, error)
+	Close() error
+}
+
 // UDPListener implements the StatsdListener interface for UDP protocol.
 // It listens to a given UDP address and sends back packets ready to be
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn            *net.UDPConn
+	conn            netUDPConn
 	packetsBuffer   *packets.Buffer
 	packetAssembler *packets.Assembler
 	buffer          []byte
@@ -50,7 +57,7 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -63,7 +70,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		// Listen to all network interfaces
 		url = fmt.Sprintf(":%s", port)
 	} else {
-		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), port)
+		url = net.JoinHostPort(pkgconfigsetup.GetBindHostFromConfig(cfg), port)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)

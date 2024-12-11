@@ -50,7 +50,7 @@ type CloudFoundryService struct {
 var _ Service = &CloudFoundryService{}
 
 // NewCloudFoundryListener creates a CloudFoundryListener
-func NewCloudFoundryListener(Config) (ServiceListener, error) {
+func NewCloudFoundryListener(ServiceListernerDeps) (ServiceListener, error) {
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		return nil, err
@@ -231,6 +231,11 @@ func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error)
 // GetTags returns the list of container tags
 func (s *CloudFoundryService) GetTags() ([]string, error) {
 	return s.tags, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in CF
+func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]string, error) {
+	return s.GetTags()
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF

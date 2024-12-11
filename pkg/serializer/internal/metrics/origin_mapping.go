@@ -18,6 +18,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		return 10
 	case metrics.MetricSourceJmxCustom,
 		metrics.MetricSourceActivemq,
+		metrics.MetricSourceAnyscale,
+		metrics.MetricSourceAppgateSDP,
 		metrics.MetricSourceCassandra,
 		metrics.MetricSourceConfluentPlatform,
 		metrics.MetricSourceHazelcast,
@@ -38,9 +40,10 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceContainerd,
 		metrics.MetricSourceCri,
 		metrics.MetricSourceDocker,
-		metrics.MetricSourceNtp,
+		metrics.MetricSourceNTP,
 		metrics.MetricSourceSystemd,
 		metrics.MetricSourceHelm,
+		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubernetesAPIServer,
 		metrics.MetricSourceKubernetesStateCore,
 		metrics.MetricSourceOrchestrator,
@@ -61,6 +64,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
+		// Plugins and non-checks
+		metrics.MetricSourceCloudFoundry,
+		metrics.MetricSourceJenkins,
 		// Python Checks
 		metrics.MetricSourceZenohRouter,
 		metrics.MetricSourceZabbix,
@@ -80,6 +86,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceSonarr,
 		metrics.MetricSourceSnmpwalk,
 		metrics.MetricSourceSendmail,
+		metrics.MetricSourceScaphandre,
 		metrics.MetricSourceScalr,
 		metrics.MetricSourceRiakRepl,
 		metrics.MetricSourceRedpanda,
@@ -96,6 +103,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourcePhpOpcache,
 		metrics.MetricSourcePhpApcu,
 		metrics.MetricSourceOpenPolicyAgent,
+		metrics.MetricSourceOctopusDeploy,
 		metrics.MetricSourceOctoprint,
 		metrics.MetricSourceNvml,
 		metrics.MetricSourceNs1,
@@ -107,6 +115,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceLogstash,
 		metrics.MetricSourceLighthouse,
 		metrics.MetricSourceKernelcare,
+		metrics.MetricSourceKepler,
 		metrics.MetricSourceJfrogPlatformSelfHosted,
 		metrics.MetricSourceHikaricp,
 		metrics.MetricSourceGrpcCheck,
@@ -115,6 +124,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceGnatsd,
 		metrics.MetricSourceGitea,
 		metrics.MetricSourceGatekeeper,
+		metrics.MetricSourceFlyIo,
 		metrics.MetricSourceFluentbit,
 		metrics.MetricSourceFilemage,
 		metrics.MetricSourceFilebeat,
@@ -141,6 +151,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceRay,
 		metrics.MetricSourceNvidiaTriton,
 		metrics.MetricSourceKarpenter,
+		metrics.MetricSourceKubeVirtAPI,
+		metrics.MetricSourceKubeVirtController,
+		metrics.MetricSourceKubeVirtHandler,
 		metrics.MetricSourceFluxcd,
 		metrics.MetricSourceEsxi,
 		metrics.MetricSourceDcgm,
@@ -221,6 +234,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceKubelet,
 		metrics.MetricSourceKubernetesState,
 		metrics.MetricSourceKyototycoon,
+		metrics.MetricSourceKyverno,
 		metrics.MetricSourceLighttpd,
 		metrics.MetricSourceLinkerd,
 		metrics.MetricSourceLinuxProcExtras,
@@ -261,6 +275,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceScylla,
 		metrics.MetricSourceSilk,
 		metrics.MetricSourceSinglestore,
+		metrics.MetricSourceSlurm,
 		metrics.MetricSourceSnowflake,
 		metrics.MetricSourceSpark,
 		metrics.MetricSourceSqlserver,
@@ -273,6 +288,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTCPCheck,
 		metrics.MetricSourceTeamcity,
 		metrics.MetricSourceTeradata,
+		metrics.MetricSourceTibcoEMS,
 		metrics.MetricSourceTLS,
 		metrics.MetricSourceTokumx,
 		metrics.MetricSourceTrafficServer,
@@ -281,6 +297,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVarnish,
 		metrics.MetricSourceVault,
 		metrics.MetricSourceVertica,
+		metrics.MetricSourceVllm,
 		metrics.MetricSourceVoltdb,
 		metrics.MetricSourceVsphere,
 		metrics.MetricSourceWin32EventLog,
@@ -288,7 +305,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceWindowsService,
 		metrics.MetricSourceWmiCheck,
 		metrics.MetricSourceYarn,
-		metrics.MetricSourceZk:
+		metrics.MetricSourceZk,
+		metrics.MetricSourceAwsNeuron,
+		metrics.MetricSourceMilvus:
 		return 11 // integrationMetrics
 	default:
 		return 0
@@ -352,6 +371,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 36
 	case metrics.MetricSourceClickhouse:
 		return 37
+	case metrics.MetricSourceCloudFoundry:
+		return 440
 	case metrics.MetricSourceCloudFoundryAPI:
 		return 38
 	case metrics.MetricSourceCockroachdb:
@@ -394,6 +415,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 58
 	case metrics.MetricSourceFluentd:
 		return 60
+	case metrics.MetricSourceFlyIo:
+		return 430
 	case metrics.MetricSourceFoundationdb:
 		return 61
 	case metrics.MetricSourceGearmand:
@@ -448,10 +471,14 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 86
 	case metrics.MetricSourceJbossWildfly:
 		return 87
+	case metrics.MetricSourceJenkins:
+		return 436
 	case metrics.MetricSourceKafkaConsumer:
 		return 89
 	case metrics.MetricSourceKafka:
 		return 90
+	case metrics.MetricSourceKepler:
+		return 431
 	case metrics.MetricSourceKong:
 		return 91
 	case metrics.MetricSourceKubeAPIserverMetrics:
@@ -470,6 +497,12 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 98
 	case metrics.MetricSourceKubernetesState:
 		return 99
+	case metrics.MetricSourceKubeVirtAPI:
+		return 437
+	case metrics.MetricSourceKubeVirtController:
+		return 438
+	case metrics.MetricSourceKubeVirtHandler:
+		return 439
 	case metrics.MetricSourceKyototycoon:
 		return 100
 	case metrics.MetricSourceLighttpd:
@@ -506,6 +539,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 116
 	case metrics.MetricSourceNginx:
 		return 117
+	case metrics.MetricSourceOctopusDeploy:
+		return 432
 	case metrics.MetricSourceOpenldap:
 		return 118
 	case metrics.MetricSourceOpenmetrics:
@@ -550,6 +585,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 139
 	case metrics.MetricSourceSapHana:
 		return 140
+	case metrics.MetricSourceScaphandre:
+		return 433
 	case metrics.MetricSourceScylla:
 		return 141
 	case metrics.MetricSourceSilk:
@@ -630,7 +667,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 182
 	case metrics.MetricSourceDocker:
 		return 183
-	case metrics.MetricSourceNtp:
+	case metrics.MetricSourceNTP:
 		return 184
 	case metrics.MetricSourceSystemd:
 		return 185
@@ -844,6 +881,24 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 398
 	case metrics.MetricSourceZenohRouter:
 		return 399
+	case metrics.MetricSourceVllm:
+		return 412
+	case metrics.MetricSourceAwsNeuron:
+		return 413
+	case metrics.MetricSourceAnyscale:
+		return 414
+	case metrics.MetricSourceAppgateSDP:
+		return 415
+	case metrics.MetricSourceKubeflow:
+		return 416
+	case metrics.MetricSourceSlurm:
+		return 417
+	case metrics.MetricSourceKyverno:
+		return 418
+	case metrics.MetricSourceTibcoEMS:
+		return 419
+	case metrics.MetricSourceMilvus:
+		return 425
 	default:
 		return 0
 	}

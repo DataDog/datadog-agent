@@ -27,7 +27,7 @@ func TestCommand(t *testing.T) {
 		commands,
 		[]string{"workload-list", "-v"},
 		workloadList,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, cliParams.verboseList)
 			require.Equal(t, false, secretParams.Enabled)
 		})

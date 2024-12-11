@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"sync"
 	"testing"
@@ -250,13 +251,18 @@ func TestResetBuffer(t *testing.T) {
 		ContainerID: string(make([]byte, 50*1e6)),
 	}
 
+	w.mu.Lock()
 	w.tracerPayloads = append(w.tracerPayloads, bigPayload)
+	w.mu.Unlock()
 
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 
+	w.mu.Lock()
 	w.resetBuffer()
+	w.mu.Unlock()
+
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	assert.Less(t, m.HeapInuse, uint64(50*1e6))
@@ -371,6 +377,38 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	})
 }
 
+func TestTraceWriterUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+	}
+
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+	defer tw.Stop()
+
+	url, err := url.Parse(srv.URL + pathTraces)
+	assert.NoError(err)
+
+	assert.Len(tw.senders, 1)
+	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+
+	tw.UpdateAPIKey("invalid", "foo")
+	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+
+	tw.UpdateAPIKey("123", "foo")
+	assert.Equal("foo", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+}
+
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
 func deserializePayload(p payload, compressor compression.Component) (*pb.AgentPayload, error) {
 	reader, err := compressor.NewReader(p.body)
@@ -447,7 +485,7 @@ func BenchmarkSerialize(b *testing.B) {
 		},
 	} {
 		b.Run(tt.name, func(b *testing.B) {
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				io.Copy(io.Discard, r.Body)
 				r.Body.Close()
 			}))

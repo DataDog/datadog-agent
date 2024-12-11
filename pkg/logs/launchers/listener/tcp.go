@@ -72,7 +72,9 @@ func (l *TCPListener) Stop() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stop <- struct{}{}
-	l.listener.Close()
+	if l.listener != nil {
+		l.listener.Close()
+	}
 	stopper := startstop.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
@@ -127,7 +129,7 @@ func (l *TCPListener) startListener() error {
 }
 
 // read reads data from connection, returns an error if it failed and stop the tailer.
-func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, error) {
+func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	if l.idleTimeout > 0 {
 		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
 	}
@@ -136,9 +138,9 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, error) {
 	if err != nil {
 		l.source.Status.Error(err)
 		go l.stopTailer(tailer)
-		return nil, err
+		return nil, "", err
 	}
-	return frame[:n], nil
+	return frame[:n], tailer.Conn.RemoteAddr().String(), nil
 }
 
 // startTailer creates and starts a new tailer that reads from the connection.

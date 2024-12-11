@@ -77,6 +77,14 @@ func (ev *Event) GetContainerId() string {
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }
 
+// GetContainerRuntime returns the value of the field, resolving if necessary
+func (ev *Event) GetContainerRuntime() string {
+	if ev.BaseEvent.ContainerContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
+}
+
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
 	if ev.BaseEvent.ContainerContext == nil {
@@ -974,6 +982,19 @@ func (ev *Event) GetProcessAncestorsFilePathLength() []int {
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetProcessAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsLength() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary

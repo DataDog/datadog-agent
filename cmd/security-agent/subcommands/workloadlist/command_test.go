@@ -25,10 +25,7 @@ func TestWorkloadListCommand(t *testing.T) {
 }
 
 func TestWorkloadURL(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		// fx.Replace(config.MockParams{Overrides: overrides}),
-	))
+	cfg := config.NewMock(t)
 
 	expected := "https://localhost:5010/agent/workload-list?verbose=true"
 	got, err := workloadURL(cfg, true)

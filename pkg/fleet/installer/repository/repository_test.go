@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package repository
 
 import (
 	"fmt"
 	"os"
 	"path"
-	"runtime"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +25,7 @@ func createTestRepository(t *testing.T, dir string, stablePackageName string) *R
 		rootPath:  repositoryPath,
 		locksPath: locksPath,
 	}
-	err := r.Create(testCtx, stablePackageName, stablePackagePath)
+	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
 	return &r
 }
@@ -39,19 +37,30 @@ func createTestDownloadedPackage(t *testing.T, dir string, packageName string) s
 	return downloadPath
 }
 
+func assertLinkTarget(t *testing.T, repository *Repository, link string, target string) {
+	linkPath := path.Join(repository.rootPath, link)
+	assert.FileExists(t, linkPath)
+	linkTarget, err := linkRead(linkPath)
+	assert.NoError(t, err)
+	assert.Equal(t, target, filepath.Base(linkTarget))
+}
+
 func TestCreateFresh(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
+	state, err := repository.GetState()
 
 	assert.DirExists(t, repository.rootPath)
 	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.NoError(t, err)
+	assert.True(t, state.HasStable())
+	assert.Equal(t, "v1", state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertLinkTarget(t, repository, stableVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "v1")
 }
 
 func TestCreateOverwrite(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: broken on darwin")
-	}
-
 	dir := t.TempDir()
 	oldRepository := createTestRepository(t, dir, "old")
 
@@ -93,9 +102,18 @@ func TestSetExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
+	assert.NoError(t, err)
+	state, err := repository.GetState()
+
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
+	assert.True(t, state.HasStable())
+	assert.Equal(t, "v1", state.Stable)
+	assert.True(t, state.HasExperiment())
+	assert.Equal(t, "v2", state.Experiment)
+	assertLinkTarget(t, repository, stableVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "v2")
 }
 
 func TestSetExperimentTwice(t *testing.T) {
@@ -104,9 +122,9 @@ func TestSetExperimentTwice(t *testing.T) {
 	experiment1DownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 	experiment2DownloadPackagePath := createTestDownloadedPackage(t, dir, "v3")
 
-	err := repository.SetExperiment(testCtx, "v2", experiment1DownloadPackagePath)
+	err := repository.SetExperiment("v2", experiment1DownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.SetExperiment(testCtx, "v3", experiment2DownloadPackagePath)
+	err = repository.SetExperiment("v3", experiment2DownloadPackagePath)
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -118,46 +136,47 @@ func TestSetExperimentBeforeStable(t *testing.T) {
 	}
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.Error(t, err)
 }
 
 func TestPromoteExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: broken on darwin")
-	}
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.PromoteExperiment(testCtx)
+	err = repository.PromoteExperiment()
 	assert.NoError(t, err)
+	state, err := repository.GetState()
+	assert.NoError(t, err)
+
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v1"))
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
+	assert.True(t, state.HasStable())
+	assert.Equal(t, "v2", state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertLinkTarget(t, repository, stableVersionLink, "v2")
+	assertLinkTarget(t, repository, experimentVersionLink, "v2")
 }
 
 func TestPromoteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 
-	err := repository.PromoteExperiment(testCtx)
+	err := repository.PromoteExperiment()
 	assert.Error(t, err)
 }
 
 func TestDeleteExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: broken on darwin")
-	}
-
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.DeleteExperiment(testCtx)
+	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -166,7 +185,7 @@ func TestDeleteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 
-	err := repository.DeleteExperiment(testCtx)
+	err := repository.DeleteExperiment()
 	assert.NoError(t, err)
 }
 
@@ -175,7 +194,7 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 
 	// Add a running process... our own! So we're sure it's running.
@@ -198,7 +217,7 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	err = repository.DeleteExperiment(testCtx)
+	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 	assert.DirExists(t, path.Join(repository.locksPath, "v2"))
@@ -206,16 +225,15 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
 }
 
-func TestLoadRepositories(t *testing.T) {
-	rootDir := t.TempDir()
-	runDir := t.TempDir()
+func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1")
 
-	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
-	os.Mkdir(path.Join(rootDir, "tmp-install-stable-datadog-agent"), 0755)
-
-	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	err := os.Remove(path.Join(repository.rootPath, experimentVersionLink))
 	assert.NoError(t, err)
-	assert.Len(t, repositories, 1)
-	assert.Contains(t, repositories, "datadog-agent")
-	assert.NotContains(t, repositories, "tmp-install-stable-datadog-agent")
+	assert.NoFileExists(t, path.Join(repository.rootPath, experimentVersionLink))
+	err = repository.Cleanup()
+	assert.NoError(t, err)
+	assertLinkTarget(t, repository, stableVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "v1")
 }

@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -29,7 +29,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 		f.Close()
 	})
 
-	mockConfig := model.NewConfig("datadog", "fake-datadog-yaml", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	mockConfig.SetConfigFile(f.Name())
 	mockConfig.SetWithoutSource("auth_token", "")
 

@@ -194,7 +194,7 @@ func (e *eventLog) addEventRecord(event *eventRecord) {
 }
 
 func (e *eventLog) reportEvent(
-	api *API, //nolint:revive // TODO fix revive unused-parameter
+	_ *API,
 	Type uint,
 	Category uint,
 	EventID uint,

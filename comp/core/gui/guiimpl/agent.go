@@ -19,13 +19,12 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -67,7 +66,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 
 	if err != nil {
-		log.Errorf("Error getting status: " + err.Error())
+		log.Errorf("Error getting status: %s", err.Error())
 		w.Write([]byte("Error getting status: " + err.Error()))
 		return
 	}
@@ -81,7 +80,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 func getVersion(w http.ResponseWriter, _ *http.Request) {
 	version, e := version.Agent()
 	if e != nil {
-		log.Errorf("Error getting version: " + e.Error())
+		log.Errorf("Error getting version: %s", e.Error())
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
@@ -95,7 +94,7 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	hname, e := hostname.Get(r.Context())
 	if e != nil {
-		log.Errorf("Error getting hostname: " + e.Error())
+		log.Errorf("Error getting hostname: %s", e.Error())
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
@@ -111,7 +110,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = path.DefaultLogFile
+		logFile = defaultpaths.LogFile
 	}
 
 	logFileContents, e := os.ReadFile(logFile)
@@ -150,22 +149,22 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 		return
 	}
 
-	filePath, e := flare.Create(nil, nil)
+	filePath, e := flare.Create(nil, 0, nil)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
-		log.Errorf("Error creating flare zipfile: " + e.Error())
+		log.Errorf("Error creating flare zipfile: %s", e.Error())
 		return
 	}
 
 	res, e := flare.Send(filePath, payload.CaseID, payload.Email, helpers.NewLocalFlareSource())
 	if e != nil {
 		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
-		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())
+		log.Errorf("Flare zipfile successfully created: %s\n%s", filePath, e.Error())
 		return
 	}
 
 	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
-	log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + res)
+	log.Infof("Flare zipfile successfully created: %s\n%s", filePath, res)
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function

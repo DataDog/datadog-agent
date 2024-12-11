@@ -26,8 +26,8 @@ var (
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
-	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
-	defaultSystemProbeAddress = "localhost:3333"
+	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
+	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
 	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
 	defaultEventMonitorAddress    = "localhost:3335"
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
@@ -35,6 +35,8 @@ var (
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 	// InstallPath is the default install path for the agent
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
+	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
+	defaultStatsdSocket = ""
 )
 
 func osinit() {

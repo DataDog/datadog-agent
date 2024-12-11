@@ -14,21 +14,11 @@ import (
 // PolicyMode represents the policy mode (accept or deny)
 type PolicyMode uint8
 
-// PolicyFlag is a bitmask of the active filtering policies
-type PolicyFlag uint8
-
 // Policy modes
 const (
 	PolicyModeNoFilter PolicyMode = iota
 	PolicyModeAccept
 	PolicyModeDeny
-)
-
-// Policy flags
-const (
-	PolicyFlagBasename PolicyFlag = 1
-	PolicyFlagFlags    PolicyFlag = 2
-	PolicyFlagMode     PolicyFlag = 4
 
 	// need to be aligned with the kernel size
 	BasenameFilterSize = 256
@@ -54,27 +44,4 @@ func (m PolicyMode) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(s)
-}
-
-// MarshalJSON returns the JSON encoding of the policy flags
-func (f PolicyFlag) MarshalJSON() ([]byte, error) {
-	flags := f.StringArray()
-
-	return json.Marshal(flags)
-}
-
-// StringArray returns the policy flags as a string array
-func (f PolicyFlag) StringArray() []string {
-	var flags []string
-	if f&PolicyFlagBasename != 0 {
-		flags = append(flags, "basename")
-	}
-	if f&PolicyFlagFlags != 0 {
-		flags = append(flags, "flags")
-	}
-	if f&PolicyFlagMode != 0 {
-		flags = append(flags, "mode")
-	}
-
-	return flags
 }

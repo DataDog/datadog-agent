@@ -6,14 +6,14 @@
 //go:build test
 // +build test
 
-package agent
+package agentimpl
 
 import (
 	"context"
 	"testing"
 
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -31,6 +31,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 type noopConcentrator struct{}
 
 func (c *noopConcentrator) Start()            {}
@@ -38,7 +40,7 @@ func (c *noopConcentrator) Stop()             {}
 func (c *noopConcentrator) Add(_ stats.Input) {}
 
 // NewMock creates a new mock agent component.
-func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:revive // TODO fix revive unused-parameter
+func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
 
 	// Several related non-components require a shared context to gracefully stop.
@@ -49,7 +51,7 @@ func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:re
 			deps.Config.Object(),
 			telemetryCollector,
 			&statsd.NoOpClient{},
-			gzip.NewComponent(),
+			zstd.NewComponent(),
 		),
 		cancel:             cancel,
 		config:             deps.Config,

@@ -22,9 +22,10 @@ import (
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -33,9 +34,9 @@ import (
 )
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("serializer_compressor_kind", "blah")
-	s := NewSerializer(nil, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+	s := NewSerializer(nil, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 	initExtraHeaders(s)
 
 	expected := make(http.Header)
@@ -63,14 +64,14 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 		kind             string
 		expectedEncoding string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, expectedEncoding: compression.ZlibEncoding},
-		"zstd": {kind: compressionimpl.ZstdKind, expectedEncoding: compression.ZstdEncoding},
+		"zlib": {kind: common.ZlibKind, expectedEncoding: compression.ZlibEncoding},
+		"zstd": {kind: common.ZstdKind, expectedEncoding: compression.ZstdEncoding},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(nil, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(nil, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			initExtraHeaders(s)
 
 			expected := make(http.Header)
@@ -249,17 +250,17 @@ func TestSendV1Events(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`, s)
 			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
@@ -275,18 +276,18 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", true)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 
 			events := event.Events{&event.Event{SourceTypeName: "source1"}, &event.Event{SourceTypeName: "source2"}, &event.Event{SourceTypeName: "source3"}}
 			payloadsCountMatcher := func(payloadCount int) interface{} {
@@ -314,17 +315,17 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`, s)
 			f.On("SubmitV1CheckRuns", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
@@ -339,18 +340,18 @@ func TestSendV1Series(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("use_v2_api.series", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			matcher := createJSONPayloadMatcher(`{"series":[]}`, s)
 
 			f.On("SubmitV1Series", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -366,17 +367,17 @@ func TestSendSeries(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			matcher := createProtoscopeMatcher(`1: {
 		1: { 1: {"host"} }
 		5: 3
@@ -395,17 +396,17 @@ func TestSendSketch(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			matcher := createProtoscopeMatcher(`
 		1: { 1: {"fakename"} 2: {"fakehost"} 8: { 1: { 4: 10 }}}
 		2: {}
@@ -425,16 +426,16 @@ func TestSendMetadata(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			compressor := compressionimpl.NewCompressor(mockConfig)
+			compressor := selector.NewCompressor(mockConfig)
 			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
 			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -460,17 +461,17 @@ func TestSendProcessesMetadata(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			payload := []byte("\"test\"")
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			payloads, _ := mkPayloads(payload, true, s)
 			f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
@@ -494,13 +495,13 @@ func TestSendWithDisabledKind(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := configmock.New(t)
 
 			mockConfig.SetWithoutSource("enable_payloads.events", false)
 			mockConfig.SetWithoutSource("enable_payloads.series", false)
@@ -510,7 +511,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			f := &forwarder.MockedForwarder{}
-			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
+			s := NewSerializer(f, nil, selector.NewCompressor(mockConfig), mockConfig, "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
 			payload := &testPayload{}
 

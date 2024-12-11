@@ -24,7 +24,6 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOpt
 	return &RuntimeSecurityAgent{
 		client:               client,
 		hostname:             hostname,
-		telemetry:            nil,
 		storage:              nil,
 		running:              atomic.NewBool(false),
 		connected:            atomic.NewBool(false),

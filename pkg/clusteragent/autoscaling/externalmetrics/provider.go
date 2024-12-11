@@ -21,7 +21,8 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -48,7 +49,7 @@ var (
 )
 
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
-func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (provider.ExternalMetricsProvider, error) {
+func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to create DatadogMetricProvider without valid APIClient")
 	}
@@ -58,17 +59,18 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as LeaderElection failed with: %v", err)
 	}
 
-	aggregator := config.Datadog().GetString("external_metrics.aggregator")
-	rollup := config.Datadog().GetInt("external_metrics_provider.rollup")
+	aggregator := pkgconfigsetup.Datadog().GetString("external_metrics.aggregator")
+	rollup := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.rollup")
 	setQueryConfigValues(aggregator, rollup)
 
-	refreshPeriod := config.Datadog().GetInt64("external_metrics_provider.refresh_period")
-	metricsMaxAge = int64(math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
-	metricsQueryValidityPeriod = int64(config.Datadog().GetFloat64("external_metrics_provider.query_validity_period"))
-	splitBatchBackoffOnErrors := config.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
+	refreshPeriod := pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.refresh_period")
+	metricsMaxAge = int64(math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	metricsQueryValidityPeriod = int64(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.query_validity_period"))
+	splitBatchBackoffOnErrors := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
-	autogenEnabled := config.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
-	wpaEnabled := config.Datadog().GetBool("external_metrics_provider.wpa_controller")
+	autogenEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
+	wpaEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller")
+	numWorkers := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.num_workers")
 
 	provider := &datadogMetricProvider{
 		apiCl:            apiCl,
@@ -77,11 +79,6 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	}
 
 	// Start MetricsRetriever, only leader will do refresh metrics
-	datadogClient, err = autoscalers.NewDatadogClient()
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
-	}
-
 	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, metricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
@@ -121,7 +118,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	apiCl.InformerFactory.Start(ctx.Done())
 
 	go autoscalerWatcher.Run(ctx.Done())
-	go controller.Run(ctx)
+	go controller.Run(ctx, numWorkers)
 
 	return provider, nil
 }
@@ -137,7 +134,7 @@ func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace s
 		}
 	}
 
-	setQueryTelemtry("get", namespace, startTime, err)
+	setQueryTelemtry("get", startTime, err)
 	return res, err
 }
 

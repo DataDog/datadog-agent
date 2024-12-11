@@ -11,7 +11,7 @@ package ratelimit
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 )
 
@@ -23,7 +23,7 @@ type cgroupMemoryUsage struct {
 }
 
 func newCgroupMemoryUsage() (*cgroupMemoryUsage, error) {
-	selfReader, err := cgroups.NewSelfReader("/proc", config.IsContainerized())
+	selfReader, err := cgroups.NewSelfReader("/proc", env.IsContainerized())
 	if err != nil {
 		return nil, err
 	}

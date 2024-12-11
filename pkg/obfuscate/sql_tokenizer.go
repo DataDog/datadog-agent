@@ -473,10 +473,15 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			// modulo operator (e.g. 'id % 8')
 			return TokenKind(ch), tkn.bytes()
 		case '$':
-			if isDigit(tkn.lastChar) {
-				// TODO(gbbr): the first digit after $ does not necessarily guarantee
-				// that this isn't a dollar-quoted string constant. We might eventually
-				// want to cover for this use-case too (e.g. $1$some text$1$).
+			if isDigit(tkn.lastChar) || tkn.lastChar == '?' {
+				// TODO(knusbaum): Valid dollar quote tags start with alpha characters and contain no symbols.
+				// See: https://www.postgresql.org/docs/15/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
+				// See also: https://pgpedia.info/d/dollar-quoting.html instead.
+				//
+				// Instances of $[integer] or $? are prepared statement variables.
+				// We may eventually want to expand this to check for symbols other than numbers and '?',
+				// since other symbols are not valid dollar quote tags, but for now this covers prepared statement
+				// variables without exposing us to more risk of not obfuscating something than necessary.
 				return tkn.scanPreparedStatement('$')
 			}
 
@@ -678,9 +683,14 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 
 func (tkn *SQLTokenizer) scanPreparedStatement(_ rune) (TokenKind, []byte) {
 	// a prepared statement expect a digit identifier like $1
-	if !isDigit(tkn.lastChar) {
+	if !isDigit(tkn.lastChar) && tkn.lastChar != '?' {
 		tkn.setErr(`prepared statements must start with digits, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
 		return LexError, tkn.bytes()
+	}
+
+	if tkn.lastChar == '?' {
+		tkn.advance()
+		return PreparedStatement, tkn.bytes()
 	}
 
 	// scanNumber keeps the prefix rune intact.

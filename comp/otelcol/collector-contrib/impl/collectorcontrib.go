@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package collectorcontrib defines the implementation of the collectorcontrib component
-package collectorcontrib
+// Package collectorcontribimpl defines the implementation of the collectorcontrib component
+package collectorcontribimpl
 
 import (
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"

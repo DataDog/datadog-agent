@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-// Package implnoop implements a no-op version of the component
-package implnoop
+// Package noopimpl implements a no-op version of the component
+package noopimpl
 
 import (
 	"sync"

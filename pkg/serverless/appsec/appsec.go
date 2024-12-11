@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"os"
 	"time"
 
 	appsecLog "github.com/DataDog/appsec-internal-go/log"
@@ -44,11 +45,16 @@ func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycle
 		return nil, nil, nil // appsec disabled
 	}
 
+	lambdaRuntimeAPI := os.Getenv("AWS_LAMBDA_RUNTIME_API")
+	if lambdaRuntimeAPI == "" {
+		lambdaRuntimeAPI = "127.0.0.1:9001"
+	}
+
 	// AppSec monitors the invocations by acting as a proxy of the AWS Lambda Runtime API.
 	lp = httpsec.NewProxyLifecycleProcessor(appsecInstance, demux)
 	shutdownProxy := proxy.Start(
 		"127.0.0.1:9000",
-		"127.0.0.1:9001",
+		lambdaRuntimeAPI,
 		lp,
 	)
 	log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")

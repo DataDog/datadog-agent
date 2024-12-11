@@ -7,7 +7,10 @@
 
 package providers
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-var NewConsulConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+var NewConsulConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

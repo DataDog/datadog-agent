@@ -9,7 +9,6 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.infra import (
-    ask_for_ssh,
     build_infrastructure,
     ensure_key_in_agent,
     ensure_key_in_ec2,
@@ -25,7 +24,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info
+from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG
 
 if TYPE_CHECKING:
@@ -199,12 +198,11 @@ def launch_stack(
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
     if remote_vms_in_config(vm_config):
-        if ssh_key_obj is None and ask_for_ssh():
+        if ssh_key_obj is None:
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key")
 
-        if ssh_key_obj is not None:
-            ensure_key_in_agent(ctx, ssh_key_obj)
-            ensure_key_in_ec2(ctx, ssh_key_obj)
+        ensure_key_in_agent(ctx, ssh_key_obj)
+        ensure_key_in_ec2(ctx, ssh_key_obj)
 
     env = [
         "TEAM=ebpf-platform",
@@ -286,7 +284,14 @@ def destroy_ec2_instances(ctx: Context, stack: str):
     if not os.path.exists(stack_output):
         return
 
-    infra = build_infrastructure(stack)
+    try:
+        infra = build_infrastructure(stack)
+    except RuntimeError:
+        warn(
+            f"[-] Failed to read stack output file {stack_output}, this might be due to stack not being created properly. If you know there are EC2 instances remaining, please use the AWS console to terminate them."
+        )
+        return
+
     ips: list[str] = []
     for arch, instance in infra.items():
         if arch != "local":

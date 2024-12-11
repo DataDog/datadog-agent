@@ -58,7 +58,7 @@ func TestRmdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -88,7 +88,7 @@ func TestRmdir(t *testing.T) {
 				return error(err)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -149,7 +149,7 @@ func TestRmdir(t *testing.T) {
 				return fmt.Errorf("failed to unlink file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -182,21 +182,26 @@ func TestRmdirInvalidate(t *testing.T) {
 	}
 	defer test.Close()
 
-	for i := 0; i != 5; i++ {
-		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
-		if err != nil {
-			t.Fatal(err)
-		}
+	ifSyscallSupported("SYS_RMDIR", func(t *testing.T, syscallNB uintptr) {
+		for i := 0; i != 5; i++ {
+			testFile, testFilePtr, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if err := syscall.Mkdir(testFile, 0777); err != nil {
-			t.Fatal(err)
-		}
+			if err := syscall.Mkdir(testFile, 0777); err != nil {
+				t.Fatal(err)
+			}
 
-		test.WaitSignal(t, func() error {
-			return syscall.Rmdir(testFile)
-		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assertFieldEqual(t, event, "rmdir.file.path", testFile)
-		})
-	}
+			test.WaitSignal(t, func() error {
+				if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); errno != 0 {
+					return error(errno)
+				}
+				return nil
+			}, func(event *model.Event, _ *rules.Rule) {
+				assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
+				assertFieldEqual(t, event, "rmdir.file.path", testFile)
+			})
+		}
+	})
 }

@@ -8,10 +8,10 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func newProcessProbe(config config.Reader, options ...procutil.Option) procutil.Probe { //nolint:revive // TODO fix revive unused-parameter
+func newProcessProbe(_ pkgconfigmodel.Reader, options ...procutil.Option) procutil.Probe {
 	return procutil.NewProcessProbe(options...)
 }

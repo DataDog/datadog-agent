@@ -13,7 +13,7 @@ from tasks.libs.common.constants import (
     REPO_NAME,
     TAG_FOUND_TEMPLATE,
 )
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch, is_agent6
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.releasing.documentation import release_entry_for
 from tasks.libs.types.version import Version
@@ -30,6 +30,9 @@ RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 
 # Regex matching minor release rc version tag like x.y.0-rc.1 (semver PATCH == 0), but not x.y.1-rc.1 (semver PATCH > 0)
 MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
+
+# Regex matching the git describe output
+DESCRIBE_PATTERN = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
 
 
 def build_compatible_version_re(allowed_major_versions, minor_version):
@@ -58,11 +61,13 @@ def _create_version_from_match(match):
     return version
 
 
-def check_version(agent_version):
+def check_version(ctx, agent_version):
     """Check Agent version to see if it is valid."""
-    version_re = re.compile(r'7[.](\d+)[.](\d+)(-rc\.(\d+))?')
+
+    major = '6' if is_agent6(ctx) else '7'
+    version_re = re.compile(rf'{major}[.](\d+)[.](\d+)(-rc\.(\d+))?')
     if not version_re.match(agent_version):
-        raise Exit(message="Version should be of the form 7.Y.Z or 7.Y.Z-rc.t")
+        raise Exit(message=f"Version should be of the form {major}.Y.Z or {major}.Y.Z-rc.t")
 
 
 def current_version(ctx, major_version) -> Version:
@@ -110,10 +115,6 @@ def next_rc_version(ctx, major_version, patch_version=False) -> Version:
                 new_version = previous_version.next_version(bump_minor=True, rc=True)
 
     return new_version
-
-
-def parse_major_versions(major_versions):
-    return sorted(int(x) for x in major_versions.split(","))
 
 
 ##
@@ -253,17 +254,21 @@ def get_version(
 ):
     version = ""
     if pipeline_id is None:
-        pipeline_id = os.getenv("CI_PIPELINE_ID")
+        pipeline_id = os.getenv(
+            "E2E_PIPELINE_ID", os.getenv("CI_PIPELINE_ID")
+        )  # If we are in an E2E pipeline, we should use the E2E pipeline ID
 
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
         agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
         if not agent_version_cache_file_exist:
             if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-                ctx.run(
+                result = ctx.run(
                     f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
                     hide="stdout",
                 )
+                if "unable to locate credentials" in result.stderr.casefold():
+                    raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
                 agent_version_cache_file_exist = True
 
         if agent_version_cache_file_exist:
@@ -322,10 +327,12 @@ def get_version_numeric_only(ctx, major_version='7'):
     if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
         try:
             if not os.path.exists(AGENT_VERSION_CACHE_NAME):
-                ctx.run(
+                result = ctx.run(
                     f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
                     hide="stdout",
                 )
+                if "unable to locate credentials" in result.stderr.casefold():
+                    raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
 
             with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
@@ -379,7 +386,7 @@ def query_version(ctx, major_version, git_sha_length=7, release=False):
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
-    commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
+    commit_number_match = DESCRIBE_PATTERN.match(described_version)
     commit_number = 0
     if commit_number_match:
         commit_number = int(commit_number_match.group('commit_number'))
@@ -418,10 +425,19 @@ def get_matching_pattern(ctx, major_version, release=False):
     """
     We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
     """
+    from functools import cmp_to_key
+
+    import semver
+
     pattern = rf"{major_version}\.*"
     if release or os.getenv("BUCKET_BRANCH") in ALLOWED_REPO_NIGHTLY_BRANCHES:
-        pattern = ctx.run(
-            rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
-            hide=True,
-        ).stdout.strip()
+        tags = (
+            ctx.run(
+                rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'",
+                hide=True,
+            )
+            .stdout.strip()
+            .split("\n")
+        )
+        pattern = max(tags, key=cmp_to_key(semver.compare))
     return pattern

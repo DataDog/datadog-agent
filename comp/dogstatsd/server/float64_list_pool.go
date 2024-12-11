@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -37,7 +37,7 @@ func newFloat64ListPool(telemetrycomp telemetry.Component) *float64ListPool {
 			},
 		},
 		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(config.Datadog()),
+		tlmEnabled: utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()),
 		tlmFloat64ListPoolGet: telemetrycomp.NewCounter("dogstatsd", "float64_list_pool_get",
 			nil, "Count of get done in the float64_list  pool"),
 		tlmFloat64ListPoolPut: telemetrycomp.NewCounter("dogstatsd", "float64_list_pool_put",

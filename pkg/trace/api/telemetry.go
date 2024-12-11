@@ -36,6 +36,7 @@ const (
 	awsLambda                     cloudResourceType = "AWSLambda"
 	awsFargate                    cloudResourceType = "AWSFargate"
 	cloudRun                      cloudResourceType = "GCPCloudRun"
+	cloudFunctions                cloudResourceType = "GCPCloudFunctions"
 	azureAppService               cloudResourceType = "AzureAppService"
 	azureContainerApp             cloudResourceType = "AzureContainerApp"
 	aws                           cloudProvider     = "AWS"
@@ -122,7 +123,6 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		statsd:              statsd,
 		logger:              log.NewThrottled(5, 10*time.Second),
 	}
-	forwarder.start()
 	return forwarder
 }
 
@@ -201,7 +201,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Read at most maxInflightBytes since we're going to throw out the result anyway if it's bigger
-		body, err := io.ReadAll(io.LimitReader(r.Body, forwarder.maxInflightBytes))
+		body, err := io.ReadAll(io.LimitReader(r.Body, forwarder.maxInflightBytes+1))
 		if err != nil {
 			writeEmptyJSON(w, http.StatusInternalServerError)
 			return
@@ -212,9 +212,15 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			return
 		}
 
+		newReq, err := http.NewRequestWithContext(forwarder.cancelCtx, r.Method, r.URL.String(), bytes.NewBuffer(body))
+		if err != nil {
+			writeEmptyJSON(w, http.StatusInternalServerError)
+			return
+		}
+		newReq.Header = r.Header.Clone()
 		select {
 		case forwarder.forwardedReqChan <- forwardedRequest{
-			req:  r.Clone(forwarder.cancelCtx),
+			req:  newReq,
 			body: body,
 		}:
 			writeEmptyJSON(w, http.StatusOK)
@@ -251,8 +257,9 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		req.Header.Set(header.ContainerID, containerID)
 	}
 	if containerTags != "" {
-		req.Header.Set("x-datadog-container-tags", containerTags)
-		log.Debugf("Setting header x-datadog-container-tags=%s for telemetry proxy", containerTags)
+		ctagsHeader := normalizeHTTPHeader(containerTags)
+		req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+		log.Debugf("Setting header X-Datadog-Container-Tags=%s for telemetry proxy", ctagsHeader)
 	}
 	if f.conf.InstallSignature.Found {
 		req.Header.Set("DD-Agent-Install-Id", f.conf.InstallSignature.InstallID)
@@ -273,6 +280,12 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		case "cloudrun":
 			req.Header.Set(cloudProviderHeader, string(gcp))
 			req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
+			if serviceName, found := f.conf.GlobalTags["service_name"]; found {
+				req.Header.Set(cloudResourceIdentifierHeader, serviceName)
+			}
+		case "cloudfunction":
+			req.Header.Set(cloudProviderHeader, string(gcp))
+			req.Header.Set(cloudResourceTypeHeader, string(cloudFunctions))
 			if serviceName, found := f.conf.GlobalTags["service_name"]; found {
 				req.Header.Set(cloudResourceIdentifierHeader, serviceName)
 			}
@@ -314,6 +327,9 @@ func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
 		newReq.Body = io.NopCloser(bytes.NewReader(req.body))
 
 		if resp, err := f.forwardTelemetryEndpoint(newReq, e); err == nil {
+			if !(200 <= resp.StatusCode && resp.StatusCode < 300) {
+				f.logger.Error("Received unexpected status code %v", resp.StatusCode)
+			}
 			io.Copy(io.Discard, resp.Body) // nolint:errcheck
 			resp.Body.Close()
 		} else {

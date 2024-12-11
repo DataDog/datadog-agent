@@ -94,7 +94,7 @@ func (p *PoolManager[K]) Count() int {
 	defer p.RUnlock()
 
 	size := 0
-	p.refs.Range(func(k, v interface{}) bool {
+	p.refs.Range(func(_, _ interface{}) bool {
 		size++
 		return true
 	})

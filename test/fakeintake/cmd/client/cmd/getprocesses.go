@@ -19,7 +19,7 @@ func NewGetProcessesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "processes",
 		Short: "Get processes",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			procs, err := (*cl).GetProcesses()
 			if err != nil {
 				return err

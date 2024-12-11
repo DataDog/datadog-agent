@@ -13,7 +13,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -53,7 +53,7 @@ func (h *host) getPayload(ctx context.Context) *Payload {
 	}
 
 	if h.config.GetBool("enable_gohai") {
-		gohaiPayload, err := gohai.GetPayloadAsString(pkgconfig.IsContainerized())
+		gohaiPayload, err := gohai.GetPayloadAsString(env.IsContainerized())
 		if err != nil {
 			h.log.Errorf("Could not serialize gohai payload: %s", err)
 		} else {

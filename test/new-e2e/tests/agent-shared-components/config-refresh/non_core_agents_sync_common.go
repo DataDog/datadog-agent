@@ -9,13 +9,16 @@ import (
 	"bytes"
 	_ "embed"
 	"html/template"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 const (
@@ -44,16 +47,33 @@ func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoke
 		h.Helper()
 	}
 
+	hostHTTPClient := host.NewHTTPClient()
 	for _, endpoint := range []agentConfigEndpointInfo{
 		traceConfigEndpoint(apmCmdPort),
 		processConfigEndpoint(processCmdPort),
 		securityConfigEndpoint(securityCmdPort),
 	} {
-		cmd := endpoint.fetchCommand(authtoken, host.OSFamily)
-		cfg, err := host.Execute(cmd)
-		if assert.NoErrorf(t, err, "failed to fetch config from %s using cmd: %s", endpoint.name, cmd) {
-			assertConfigHasKey(t, cfg, key, "checking key used by "+endpoint.name)
+		req, err := endpoint.httpRequest(authtoken)
+		if !assert.NoErrorf(t, err, "failed to create request for %s", endpoint.name) {
+			continue
 		}
+
+		resp, err := hostHTTPClient.Do(req)
+		if !assert.NoErrorf(t, err, "failed to fetch config from %s", endpoint.name) {
+			continue
+		}
+		defer resp.Body.Close()
+
+		if !assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", endpoint.name) {
+			continue
+		}
+
+		cfg, err := io.ReadAll(resp.Body)
+		if !assert.NoErrorf(t, err, "failed to read response body from %s", endpoint.name) {
+			continue
+		}
+
+		assertConfigHasKey(t, string(cfg), key, "checking key used by "+endpoint.name)
 	}
 }
 

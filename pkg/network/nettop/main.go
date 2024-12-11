@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package main - single file executable
 package main
 
 import (
@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkConfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
@@ -29,8 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	config.Datadog().SetConfigFile(*cfgpath)
-	if _, err := config.LoadWithoutSecret(); err != nil {
+	pkgconfigsetup.Datadog().SetConfigFile(*cfgpath)
+	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

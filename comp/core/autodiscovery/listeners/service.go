@@ -12,9 +12,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +37,7 @@ type service struct {
 	extraConfig     map[string]string
 	metricsExcluded bool
 	logsExcluded    bool
+	tagger          tagger.Component
 }
 
 var _ Service = &service{}
@@ -88,18 +91,17 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	taggerEntity := ""
-	switch e := s.entity.(type) {
-	case *workloadmeta.Container:
-		taggerEntity = containers.BuildTaggerEntityName(e.ID)
-	case *workloadmeta.KubernetesPod:
-		taggerEntity = kubelet.PodUIDToTaggerEntityName(e.ID)
-	default:
-		entityID := s.entity.GetID()
-		log.Errorf("cannot build AD entity ID for kind %q, ID %q", entityID.Kind, entityID.ID)
-	}
+	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), s.tagger.ChecksCardinality())
+}
 
-	return tagger.Tag(taggerEntity, tagger.ChecksCardinality())
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
+	checkCard, err := types.StringToTagCardinality(cardinality)
+	if err == nil {
+		return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), checkCard)
+	}
+	log.Warnf("error converting cardinality %s to TagCardinality: %v", cardinality, err)
+	return s.GetTags()
 }
 
 // GetPid returns the process ID of the service.
@@ -182,7 +184,7 @@ func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration
 // added by the config provider (AddContainerCollectAllConfigs) if the service
 // has any other templates containing logs config.
 func (s *service) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
-	if !config.Datadog().GetBool("logs_config.container_collect_all") {
+	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 

@@ -17,13 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 func payloadToString(payload []byte, cfg config.Component) string {
-	strategy := compressionimpl.NewCompressor(cfg)
+	strategy := selector.NewCompressor(cfg)
 	p, err := strategy.Decompress(payload)
 	if err != nil {
 		return err.Error()
@@ -35,19 +36,19 @@ func TestCompressorSimple(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			maxPayloadSize := mockConfig.GetInt("serializer_max_payload_size")
 			maxUncompressedSize := mockConfig.GetInt("serializer_max_uncompressed_payload_size")
 			c, err := NewCompressor(
 				&bytes.Buffer{}, &bytes.Buffer{},
 				maxPayloadSize, maxUncompressedSize,
-				[]byte("{["), []byte("]}"), []byte(","), compressionimpl.NewCompressor(mockConfig))
+				[]byte("{["), []byte("]}"), []byte(","), selector.NewCompressor(mockConfig))
 			require.NoError(t, err)
 
 			for i := 0; i < 5; i++ {
@@ -69,18 +70,18 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			checkAddItemErrCode := func(maxPayloadSize, maxUncompressedSize, dataLen int) {
 				c, err := NewCompressor(
 					&bytes.Buffer{}, &bytes.Buffer{},
 					maxPayloadSize, maxUncompressedSize,
-					[]byte("{["), []byte("]}"), []byte(","), compressionimpl.NewCompressor(mockConfig))
+					[]byte("{["), []byte("]}"), []byte(","), selector.NewCompressor(mockConfig))
 				require.NoError(t, err)
 
 				payload := strings.Repeat("A", dataLen)
@@ -94,11 +95,11 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 
 			// While some of these values may look like they should fit, they currently don't due to a combination
 			// of due to overhead in the payload (header and footer) and the CompressBound calculation
-			t.Run("Edge Case from real world", func(t *testing.T) {
+			t.Run("Edge Case from real world", func(_ *testing.T) {
 				checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896)
 			})
 
-			t.Run("Other values from iterative testing", func(t *testing.T) {
+			t.Run("Other values from iterative testing", func(_ *testing.T) {
 				checkAddItemErrCode(17, 32, 1)
 				checkAddItemErrCode(19, 35, 4)
 				checkAddItemErrCode(23, 43, 12)
@@ -114,8 +115,8 @@ func TestOnePayloadSimple(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -125,9 +126,9 @@ func TestOnePayloadSimple(t *testing.T) {
 				Footer: "]}",
 			}
 
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 1)
@@ -142,8 +143,8 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		kind           string
 		maxPayloadSize int
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, maxPayloadSize: 22},
-		"zstd": {kind: compressionimpl.ZstdKind, maxPayloadSize: 90},
+		"zlib": {kind: common.ZlibKind, maxPayloadSize: 22},
+		"zstd": {kind: common.ZstdKind, maxPayloadSize: 90},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -152,11 +153,11 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 1)
@@ -176,11 +177,11 @@ func TestZstdCompressionLevel(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
 			mockConfig.SetDefault("serializer_zstd_compressor_level", level)
 
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 1)
@@ -195,8 +196,8 @@ func TestTwoPayload(t *testing.T) {
 		kind           string
 		maxPayloadSize int
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, maxPayloadSize: 22},
-		"zstd": {kind: compressionimpl.ZstdKind, maxPayloadSize: 70},
+		"zlib": {kind: common.ZlibKind, maxPayloadSize: 22},
+		"zstd": {kind: common.ZstdKind, maxPayloadSize: 70},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -205,11 +206,11 @@ func TestTwoPayload(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 2)
@@ -224,8 +225,8 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -234,11 +235,11 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 				Header: "{[",
 				Footer: "]}",
 			}
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
-			builderLocked := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
-			builderUnLocked := NewJSONPayloadBuilder(false, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			builderLocked := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
+			builderUnLocked := NewJSONPayloadBuilder(false, mockConfig, selector.NewCompressor(mockConfig))
 			payloads1, err := BuildJSONPayload(builderLocked, m)
 			require.NoError(t, err)
 			payloads2, err := BuildJSONPayload(builderUnLocked, m)
@@ -254,16 +255,16 @@ func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 		kind                       string
 		maxUncompressedPayloadSize int
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, maxUncompressedPayloadSize: 40},
-		"zstd": {kind: compressionimpl.ZstdKind, maxUncompressedPayloadSize: 170},
+		"zlib": {kind: common.ZlibKind, maxUncompressedPayloadSize: 40},
+		"zstd": {kind: common.ZstdKind, maxUncompressedPayloadSize: 170},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedPayloadSize)
 			marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
-			builder := NewJSONPayloadBuilder(false, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(false, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
 				marshaler,
 				DropItemOnErrItemTooBig)

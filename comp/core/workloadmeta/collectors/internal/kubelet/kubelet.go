@@ -18,9 +18,11 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,7 +61,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
@@ -82,13 +84,13 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	events := c.parsePods(updatedPods)
+	events := parsePods(updatedPods)
 
 	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
-			events = append(events, c.parseExpires(expiredIDs)...)
+			events = append(events, parseExpires(expiredIDs)...)
 			c.lastExpire = time.Now()
 		}
 	}
@@ -106,7 +108,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -130,19 +132,21 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			ID:   podMeta.UID,
 		}
 
-		podInitContainers, initContainerEvents := c.parsePodContainers(
+		podInitContainers, initContainerEvents := parsePodContainers(
 			pod,
 			pod.Spec.InitContainers,
 			pod.Status.InitContainers,
 			&podID,
 		)
 
-		podContainers, containerEvents := c.parsePodContainers(
+		podContainers, containerEvents := parsePodContainers(
 			pod,
 			pod.Spec.Containers,
 			pod.Status.Containers,
 			&podID,
 		)
+
+		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
@@ -155,6 +159,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		}
 
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
+		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
@@ -173,6 +178,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			GPUVendorList:              GPUVendors,
+			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
 
@@ -188,7 +195,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 	return events
 }
 
-func (c *collector) parsePodContainers(
+func parsePodContainers(
 	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
@@ -217,7 +224,7 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
 		if err != nil {
-			if stdErrors.Is(err, containers.ErrImageIsSha256) {
+			if stdErrors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256
@@ -259,6 +266,14 @@ func (c *collector) parsePodContainers(
 			log.Debugf("cannot find spec for container %q", container.Name)
 		}
 
+		var allocatedResources []workloadmeta.ContainerAllocatedResource
+		for _, resource := range container.AllocatedResources {
+			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
+				Name: resource.Name,
+				ID:   resource.ID,
+			})
+		}
+
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
@@ -271,6 +286,13 @@ func (c *collector) parsePodContainers(
 			containerState.CreatedAt = st.StartedAt
 			containerState.StartedAt = st.StartedAt
 			containerState.FinishedAt = st.FinishedAt
+		}
+
+		// Kubelet considers containers without probe to be ready
+		if container.Ready {
+			containerState.Health = workloadmeta.ContainerHealthHealthy
+		} else {
+			containerState.Health = workloadmeta.ContainerHealthUnhealthy
 		}
 
 		podContainers = append(podContainers, podContainer)
@@ -288,19 +310,44 @@ func (c *collector) parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:           image,
-				EnvVars:         env,
-				SecurityContext: containerSecurityContext,
-				Ports:           ports,
-				Runtime:         workloadmeta.ContainerRuntime(runtime),
-				State:           containerState,
-				Owner:           parent,
-				Resources:       resources,
+				Image:              image,
+				EnvVars:            env,
+				SecurityContext:    containerSecurityContext,
+				Ports:              ports,
+				Runtime:            workloadmeta.ContainerRuntime(runtime),
+				State:              containerState,
+				Owner:              parent,
+				Resources:          resources,
+				AllocatedResources: allocatedResources,
 			},
 		})
 	}
 
 	return podContainers, events
+}
+
+func getGPUVendorsFromContainers(initContainerEvents, containerEvents []workloadmeta.CollectorEvent) []string {
+	gpuUniqueTypes := make(map[string]bool)
+	for _, event := range append(initContainerEvents, containerEvents...) {
+		container := event.Entity.(*workloadmeta.Container)
+		for _, GPUVendor := range container.Resources.GPUVendorList {
+			gpuUniqueTypes[GPUVendor] = true
+		}
+	}
+
+	GPUVendors := make([]string, 0, len(gpuUniqueTypes))
+	for GPUVendor := range gpuUniqueTypes {
+		GPUVendors = append(GPUVendors, GPUVendor)
+	}
+
+	return GPUVendors
+}
+
+func extractPodRuntimeClassName(spec *kubelet.Spec) string {
+	if spec.RuntimeClassName == nil {
+		return ""
+	}
+	return *spec.RuntimeClassName
 }
 
 func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {
@@ -391,6 +438,21 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
 	}
 
+	// extract GPU resource info from the possible GPU sources
+	uniqueGPUVendor := make(map[string]struct{})
+	for resourceName := range spec.Resources.Requests {
+		gpuName, found := gpu.ExtractSimpleGPUName(gpu.ResourceGPU(resourceName))
+		if found {
+			uniqueGPUVendor[gpuName] = struct{}{}
+		}
+	}
+
+	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))
+	for GPUVendor := range uniqueGPUVendor {
+		gpuVendorList = append(gpuVendorList, GPUVendor)
+	}
+	resources.GPUVendorList = gpuVendorList
+
 	return resources
 }
 
@@ -404,7 +466,7 @@ func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.Cont
 	return nil
 }
 
-func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
+func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
 	podTerminatedTime := time.Now()
 

@@ -59,16 +59,12 @@ func execJmxCommand(command string,
 	configs []integration.Config,
 	agentAPI internalAPI.Component,
 	logger jmxlogger.Component) error {
-	// start the cmd HTTP server
-	if err := agentAPI.StartServer(); err != nil {
-		return fmt.Errorf("Error while starting api server, exiting: %v", err)
-	}
 
 	runner := jmxfetch.NewJMXFetch(logger)
 
 	runner.Reporter = reporter
 	runner.Command = command
-	runner.IPCPort = agentAPI.ServerAddress().Port
+	runner.IPCPort = agentAPI.CMDServerAddress().Port
 	runner.Output = output
 	runner.LogLevel = logLevel
 

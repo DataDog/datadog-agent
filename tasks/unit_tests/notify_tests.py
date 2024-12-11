@@ -32,21 +32,32 @@ def get_github_slack_map():
 
 class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     def test_merge(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        repo_mock.pipelines.get.return_value.ref = "test"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
         notify.send_message(MockContext(), notification_type="merge", dry_run=True)
         list_mock.assert_called()
 
-    @patch("tasks.notify.get_failed_jobs")
-    def test_merge_without_get_failed_call(self, get_failed_jobs_mock):
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    @patch('tasks.libs.notify.pipeline_status.get_failed_jobs')
+    @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    def test_merge_without_get_failed_call(self, get_failed_jobs_mock, api_mock):
+        repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
+        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        repo_mock.pipelines.get.return_value.ref = "test"
+
         failed = FailedJobs()
         failed.add_failed_job(
             ProjectJob(
                 MagicMock(),
                 attrs={
+                    "id": 1,
                     "name": "job1",
                     "stage": "stage1",
                     "retry_summary": [],
@@ -61,6 +72,7 @@ class TestSendMessage(unittest.TestCase):
             ProjectJob(
                 MagicMock(),
                 attrs={
+                    "id": 2,
                     "name": "job2",
                     "stage": "stage2",
                     "retry_summary": [],
@@ -75,6 +87,7 @@ class TestSendMessage(unittest.TestCase):
             ProjectJob(
                 MagicMock(),
                 attrs={
+                    "id": 3,
                     "name": "job3",
                     "stage": "stage3",
                     "retry_summary": [],
@@ -89,6 +102,7 @@ class TestSendMessage(unittest.TestCase):
             ProjectJob(
                 MagicMock(),
                 attrs={
+                    "id": 4,
                     "name": "job4",
                     "stage": "stage4",
                     "retry_summary": [],
@@ -178,6 +192,7 @@ class TestSendMessage(unittest.TestCase):
         self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     def test_merge_with_get_failed_call(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
         trace_mock = repo_mock.jobs.get.return_value.trace
@@ -185,6 +200,8 @@ class TestSendMessage(unittest.TestCase):
 
         trace_mock.return_value = b"no basic auth credentials"
         list_mock.return_value = get_fake_jobs()
+        repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
+        repo_mock.pipelines.get.return_value.ref = "test"
 
         notify.send_message(MockContext(), notification_type="merge", dry_run=True)
 
@@ -192,35 +209,35 @@ class TestSendMessage(unittest.TestCase):
         list_mock.assert_called()
 
     def test_post_to_channel1(self):
-        self.assertTrue(pipeline_status.should_send_message_to_channel("main", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_author("main", default_branch="main"))
 
     def test_post_to_channel2(self):
-        self.assertTrue(pipeline_status.should_send_message_to_channel("7.52.x", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_author("7.52.x", default_branch="main"))
 
     def test_post_to_channel3(self):
-        self.assertTrue(pipeline_status.should_send_message_to_channel("7.52.0", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_author("7.52.0", default_branch="main"))
 
     def test_post_to_channel4(self):
-        self.assertTrue(pipeline_status.should_send_message_to_channel("7.52.0-rc.1", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_author("7.52.0-rc.1", default_branch="main"))
 
     def test_post_to_author1(self):
-        self.assertFalse(
-            pipeline_status.should_send_message_to_channel("7.52.0-beta-test-feature", default_branch="main")
+        self.assertTrue(
+            pipeline_status.should_send_message_to_author("7.52.0-beta-test-feature", default_branch="main")
         )
 
     def test_post_to_author2(self):
-        self.assertFalse(
-            pipeline_status.should_send_message_to_channel("7.52.0-rc.1-beta-test-feature", default_branch="main")
+        self.assertTrue(
+            pipeline_status.should_send_message_to_author("7.52.0-rc.1-beta-test-feature", default_branch="main")
         )
 
     def test_post_to_author3(self):
-        self.assertFalse(pipeline_status.should_send_message_to_channel("celian/7.52.0", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_author("celian/7.52.0", default_branch="main"))
 
     def test_post_to_author4(self):
-        self.assertFalse(pipeline_status.should_send_message_to_channel("a.b.c", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_author("a.b.c", default_branch="main"))
 
     def test_post_to_author5(self):
-        self.assertFalse(pipeline_status.should_send_message_to_channel("my-feature", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_author("my-feature", default_branch="main"))
 
 
 class TestSendStats(unittest.TestCase):

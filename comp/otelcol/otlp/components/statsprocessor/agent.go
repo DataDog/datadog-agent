@@ -64,6 +64,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
 func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
@@ -73,7 +75,7 @@ func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient stat
 // NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
 func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
-	cfg.ReceiverPort = 0
+	cfg.ReceiverEnabled = false
 	// set the API key to succeed startup; it is never used nor needed
 	cfg.Endpoints[0].APIKey = "skip_check"
 	// set the default hostname to the translator's placeholder; in the case where no hostname

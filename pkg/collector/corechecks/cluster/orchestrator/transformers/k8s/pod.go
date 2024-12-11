@@ -12,6 +12,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/twmb/murmur3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -141,18 +143,61 @@ func FillK8sPodResourceVersion(p *model.Pod) error {
 }
 
 // computeStatus is mostly copied from kubernetes to match what users see in kubectl
-// in case of issues, check for changes upstream: https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L685
+// in case of issues, check for changes upstream: https://github.com/kubernetes/kubernetes/blob/b95f9c32d65638b63dee7fc887ff9ab2ba409c58/pkg/printers/internalversion/printers.go#L841
 func computeStatus(p *corev1.Pod) string {
+	restarts := 0
+	restartableInitContainerRestarts := 0
+	totalContainers := len(p.Spec.Containers)
+	readyContainers := 0
+	lastRestartDate := metav1.NewTime(time.Time{})
+	lastRestartableInitContainerRestartDate := metav1.NewTime(time.Time{})
+
 	reason := string(p.Status.Phase)
 	if p.Status.Reason != "" {
 		reason = p.Status.Reason
 	}
 
+	for _, condition := range p.Status.Conditions {
+		if condition.Type == corev1.PodScheduled && condition.Reason == corev1.PodReasonSchedulingGated {
+			reason = corev1.PodReasonSchedulingGated
+		}
+	}
+
+	initContainers := make(map[string]*corev1.Container)
+	for i := range p.Spec.InitContainers {
+		initContainers[p.Spec.InitContainers[i].Name] = &p.Spec.InitContainers[i]
+		if isRestartableInitContainer(&p.Spec.InitContainers[i]) {
+			totalContainers++
+		}
+	}
+
 	initializing := false
 	for i := range p.Status.InitContainerStatuses {
 		container := p.Status.InitContainerStatuses[i]
+		restarts += int(container.RestartCount)
+		if container.LastTerminationState.Terminated != nil {
+			terminatedDate := container.LastTerminationState.Terminated.FinishedAt
+			if lastRestartDate.Before(&terminatedDate) {
+				lastRestartDate = terminatedDate
+			}
+		}
+		if isRestartableInitContainer(initContainers[container.Name]) {
+			restartableInitContainerRestarts += int(container.RestartCount)
+			if container.LastTerminationState.Terminated != nil {
+				terminatedDate := container.LastTerminationState.Terminated.FinishedAt
+				if lastRestartableInitContainerRestartDate.Before(&terminatedDate) {
+					lastRestartableInitContainerRestartDate = terminatedDate
+				}
+			}
+		}
 		switch {
 		case container.State.Terminated != nil && container.State.Terminated.ExitCode == 0:
+			continue
+		case isRestartableInitContainer(initContainers[container.Name]) &&
+			container.Started != nil && *container.Started:
+			if container.Ready {
+				readyContainers++
+			}
 			continue
 		case container.State.Terminated != nil:
 			// initialization is failed
@@ -175,11 +220,21 @@ func computeStatus(p *corev1.Pod) string {
 		}
 		break
 	}
-	if !initializing {
+
+	if !initializing || isPodInitializedConditionTrue(&p.Status) {
+		restarts = restartableInitContainerRestarts
+		lastRestartDate = lastRestartableInitContainerRestartDate
 		hasRunning := false
 		for i := len(p.Status.ContainerStatuses) - 1; i >= 0; i-- {
 			container := p.Status.ContainerStatuses[i]
 
+			restarts += int(container.RestartCount)
+			if container.LastTerminationState.Terminated != nil {
+				terminatedDate := container.LastTerminationState.Terminated.FinishedAt
+				if lastRestartDate.Before(&terminatedDate) {
+					lastRestartDate = terminatedDate
+				}
+			}
 			if container.State.Waiting != nil && container.State.Waiting.Reason != "" {
 				reason = container.State.Waiting.Reason
 			} else if container.State.Terminated != nil && container.State.Terminated.Reason != "" {
@@ -192,12 +247,17 @@ func computeStatus(p *corev1.Pod) string {
 				}
 			} else if container.Ready && container.State.Running != nil {
 				hasRunning = true
+				readyContainers++
 			}
 		}
 
 		// change pod status back to "Running" if there is at least one container still reporting as "Running" status
 		if reason == "Completed" && hasRunning {
-			reason = "Running"
+			if hasPodReadyCondition(p.Status.Conditions) {
+				reason = "Running"
+			} else {
+				reason = "NotReady"
+			}
 		}
 	}
 
@@ -369,4 +429,35 @@ func mapToTags(m map[string]string) []string {
 	}
 
 	return slice
+}
+
+func isRestartableInitContainer(initContainer *corev1.Container) bool {
+	if initContainer == nil {
+		return false
+	}
+	if initContainer.RestartPolicy == nil {
+		return false
+	}
+
+	return *initContainer.RestartPolicy == corev1.ContainerRestartPolicyAlways
+}
+
+func isPodInitializedConditionTrue(status *corev1.PodStatus) bool {
+	for _, condition := range status.Conditions {
+		if condition.Type != corev1.PodInitialized {
+			continue
+		}
+
+		return condition.Status == corev1.ConditionTrue
+	}
+	return false
+}
+
+func hasPodReadyCondition(conditions []corev1.PodCondition) bool {
+	for _, condition := range conditions {
+		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

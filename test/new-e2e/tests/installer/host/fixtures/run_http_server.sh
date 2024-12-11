@@ -8,6 +8,4 @@ python3 /opt/fixtures/http_server.py >/tmp/server.log 2>&1 &
 PID=$!
 disown $PID
 
-while ! curl -s http://localhost:8080 > /dev/null; do
-    sleep 1
-done
+timeout 30s bash -c 'while ! curl -s http://localhost:8080 > /dev/null; do sleep 1; done'
