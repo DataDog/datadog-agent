@@ -13,19 +13,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
-type linuxNetworkPathIntegrationTestSuite01 struct {
+type windowsNetworkPathIntegrationTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
-func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
+func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite01{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
-		)),
-	))
+		),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+	)))
 }
