@@ -146,8 +146,7 @@ int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
 }
 
 SEC("fexit/do_sys_openat2")
-int BPF_PROG(do_sys_openat2_exit, int dirfd, const char *pathname, void *how, long ret) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_BYPASSABLE_PROG(do_sys_openat2_exit, int dirfd, const char *pathname, void *how, long ret) {
     lib_path_t path = { 0 };
     if (fill_lib_path(&path, pathname)) {
         push_event_if_relevant(ctx, &path, ret);
