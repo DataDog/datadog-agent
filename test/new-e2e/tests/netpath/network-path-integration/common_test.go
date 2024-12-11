@@ -9,6 +9,7 @@ package networkpathintegration
 import (
 	_ "embed"
 	"fmt"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -30,18 +31,14 @@ type baseNetworkPathIntegrationTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func (s *baseNetworkPathIntegrationTestSuite) assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metricTags [][]string) {
+func assertMetrics(fakeIntake *components.FakeIntake, t *testing.T, c *assert.CollectT, metricTags [][]string) {
 	fakeClient := fakeIntake.Client()
 
-	s.T().Log("try assert datadog.network_path.path.monitored metric")
+	t.Log("try assert metrics")
 	metrics, err := fakeClient.FilterMetrics("datadog.network_path.path.monitored")
 	require.NoError(c, err)
 	assert.NotEmpty(c, metrics)
-	for _, metric := range metrics {
-		s.T().Logf("    datadog.network_path.path.monitored metric tags: %+v", metric.Tags)
-	}
 	for _, tags := range metricTags {
-		s.T().Logf("    test metric tags: %+v", tags)
 		// assert destination is monitored
 		metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
@@ -54,6 +51,5 @@ func (s *baseNetworkPathIntegrationTestSuite) assertMetrics(fakeIntake *componen
 		)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
-
 	}
 }

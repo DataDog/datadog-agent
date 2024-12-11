@@ -33,10 +33,10 @@ func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 
 }
 
-func (s *baseNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
+func (s *linuxNetworkPathIntegrationTestSuite05) TestLinuxNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.assertMetrics(fakeIntake, c, [][]string{
+		assertMetrics(fakeIntake, s.T(), c, [][]string{
 			{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
 			{"destination_hostname:8.8.8.8", "protocol:UDP"},
 		})

@@ -38,7 +38,7 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 func (s *windowsNetworkPathIntegrationTestSuite05) TestWindowsNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.assertMetrics(fakeIntake, nil, [][]string{
+		assertMetrics(fakeIntake, s.T(), c, [][]string{
 			{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
 
 			// TODO: Test UDP once implemented for windows
