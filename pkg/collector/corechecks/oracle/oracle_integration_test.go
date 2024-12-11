@@ -430,7 +430,7 @@ func TestCanConnectTags(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedHostTag := fmt.Sprintf("host:%s", chk.config.InstanceConfig.Server)
-	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.can_connect", []string{expectedHostTag})
+	sender.AssertServiceCheck(t, "oracle.can_connect", servicecheck.ServiceCheckOK, "", []string{expectedHostTag}, "")
 }
 
 func TestLargeUint64Binding(t *testing.T) {
