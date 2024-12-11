@@ -28,6 +28,8 @@ var networkPathIntegration []byte
 
 type baseNetworkPathIntegrationTestSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	destinationsTagsToAssert [][]string
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) TestNetworkPathIntegrationMetrics() {
@@ -41,12 +43,7 @@ func (s *baseNetworkPathIntegrationTestSuite) TestNetworkPathIntegrationMetrics(
 		for _, metric := range metrics {
 			s.T().Logf("    datadog.network_path.path.monitored metric tags: %+v", metric.Tags)
 		}
-
-		destinationsTagsToAssert := [][]string{
-			{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
-			{"destination_hostname:8.8.8.8", "protocol:UDP"},
-		}
-		for _, tags := range destinationsTagsToAssert {
+		for _, tags := range s.destinationsTagsToAssert {
 			// assert destination is monitored
 			metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 			assert.NoError(c, err)
