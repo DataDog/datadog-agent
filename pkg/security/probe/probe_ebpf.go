@@ -818,6 +818,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
+		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupTracing.Pid, event.CgroupTracing.Pid, 0, false, newEntryCb)
+		if pce != nil {
+			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupTracing.CGroupContext.CGroupFile, containerutils.CGroupFlags(event.CgroupTracing.CGroupContext.CGroupFlags)); err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
+			}
+
+			event.CgroupTracing.CGroupContext = pce.CGroup
+		}
+
 		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		return
 	case model.CgroupWriteEventType:

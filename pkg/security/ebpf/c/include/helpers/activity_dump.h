@@ -108,6 +108,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, containe
     evt->container.cgroup_context = *cgroup;
     evt->cookie = cookie;
     evt->config = config;
+    evt->pid = bpf_get_current_pid_tgid() >> 32;
     send_event_ptr(ctx, EVENT_CGROUP_TRACING, evt);
 
     // return cookie
@@ -115,7 +116,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, containe
 }
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_supported(struct cgroup_context_t *cgroup) {
-   return (cgroup->cgroup_flags != 0) && ((cgroup->cgroup_flags&CGROUP_MANAGER_SYSTEMD) == 0);
+   return (cgroup->cgroup_flags != 0) && ((cgroup->cgroup_flags&0b111) != CGROUP_MANAGER_SYSTEMD);
 }
 
 __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, struct container_context_t *container) {

@@ -1186,6 +1186,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 
 		dumps = append(dumps, &activityDumpIdentifier{
 			Name:        dump.Metadata.Name,
+			ContainerID: containerutils.ContainerID(dump.Metadata.ContainerID),
 			CGroupID:    containerutils.CGroupID(dump.Metadata.CGroupID),
 			Timeout:     dump.Metadata.Timeout,
 			OutputFiles: files,
