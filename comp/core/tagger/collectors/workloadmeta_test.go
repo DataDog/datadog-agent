@@ -2253,6 +2253,61 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+func TestHandleGPU(t *testing.T) {
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindGPU,
+		ID:   "gpu-1234",
+	}
+
+	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+
+	tests := []struct {
+		name     string
+		gpu      workloadmeta.GPU
+		expected []*types.TagInfo
+	}{
+		{
+			name: "basic",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor: "nvidia",
+				Device: "tesla-v100",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla-v100",
+						"gpu_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+			actual := collector.handleGPU(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.gpu,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
 func TestHandleDelete(t *testing.T) {
 	const (
 		podName       = "datadog-agent-foobar"
