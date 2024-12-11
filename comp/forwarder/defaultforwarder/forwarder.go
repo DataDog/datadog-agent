@@ -7,22 +7,26 @@ package defaultforwarder
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type dependencies struct {
 	fx.In
-	Config config.Component
-	Log    log.Component
-	Lc     fx.Lifecycle
-	Params Params
+	Config     config.Component
+	ConfigSync optional.Option[configsync.Component]
+	Log        log.Component
+	Lc         fx.Lifecycle
+	Params     Params
 }
 
 type provides struct {
@@ -37,6 +41,12 @@ func newForwarder(dep dependencies) provides {
 		return provides{
 			Comp: NoopForwarder{},
 		}
+	}
+
+	if _, ok := dep.ConfigSync.Get(); ok {
+		fmt.Println("confsync ready in forwarder comp")
+	} else {
+		fmt.Println("confsync not ready in forwarder comp")
 	}
 
 	options := createOptions(dep.Params, dep.Config, dep.Log)
