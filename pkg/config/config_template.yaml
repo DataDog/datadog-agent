@@ -878,15 +878,6 @@ api_key:
     #
     # oid_batch_size: 5
 
-{{- if (eq .OS "windows")}}
-  ## @param windows_counter_refresh_interval - number - optional - default: 60
-  ## This changes the interval for which windows performance counters are refreshed by the agent.
-  ## Refreshes are necessary for the discovery of new counters/countersets and instances. 
-  #
-  # windows_counter_refresh_interval: 60
-{{ end }}
-
-
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
