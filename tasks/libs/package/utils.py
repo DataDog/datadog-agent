@@ -11,6 +11,57 @@ from tasks.libs.notify.utils import AWS_S3_CP_CMD
 PACKAGE_SIZE_S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/package_size"
 
 
+class PackageSize:
+    def __init__(self, arch, flavor, os_name, threshold):
+        self.arch = arch
+        self.flavor = flavor
+        self.os = os_name
+        self.size = 0
+        self.ancestor_size = 0
+        self.diff = 0
+        self.threshold = threshold
+        self.emoji = "✅"
+
+    @property
+    def name(self):
+        return f"{self.flavor}-{self.arch}-{self.os}"
+
+    def arch_name(self):
+        if self.arch in ["x86_64", "amd64"]:
+            return "amd"
+        return "arm"
+
+    def ko(self):
+        return self.diff > self.threshold
+
+    def compare(self, size, ancestor_size):
+        self.size = size
+        self.ancestor_size = ancestor_size
+        self.diff = self.size - self.ancestor_size
+        if self.ko():
+            self.emoji = "❌"
+        elif self.diff > 0:
+            self.emoji = "⚠️"
+
+    @staticmethod
+    def mb(value):
+        return f"{value / 1000000:.2f}MB"
+
+    def log(self):
+        return f"{self.emoji} - {self.name} size {self.mb(self.size)}: {self.mb(self.diff)} diff with previous {self.mb(self.ancestor_size)} (max: {self.mb(self.threshold)})"
+
+    def markdown(self):
+        elements = (
+            self.name,
+            self.mb(self.diff),
+            self.emoji,
+            self.mb(self.size),
+            self.mb(self.ancestor_size),
+            self.mb(self.threshold),
+        )
+        return f'|{"|".join(map(str, elements))}|'
+
+
 def get_package_path(glob_pattern):
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
@@ -103,4 +154,4 @@ def display_message(ctx, ancestor, rows, decision):
 ## Decision
 {decision}
 """
-    pr_commenter(ctx, title="Package size comparison", body=message)
+    pr_commenter(ctx, title="Uncompressed package size comparison", body=message)
