@@ -25,7 +25,7 @@
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
-/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/container-ecosystems
 
 /*.md                                   @DataDog/agent-devx-infra @DataDog/documentation
 /NOTICE                                 @DataDog/agent-delivery @DataDog/documentation
@@ -92,7 +92,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx-infra
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx-infra @DataDog/agent-delivery
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx-infra
-/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery
+/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery @DataDog/container-ecosystems
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx-infra @DataDog/agent-metrics-logs
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx-infra
 /.gitlab/integration_test/linux.yml                  @DataDog/agent-devx-infra
@@ -119,7 +119,7 @@
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 
-/.gitlab/benchmarks/                                 @DataDog/agent-devx-infra @DataDog/apm-reliability-and-performance @DataDog/agent-apm
+/.gitlab/benchmarks/                                 @DataDog/agent-devx-infra @DataDog/apm-ecosystems-performance @DataDog/agent-apm
 
 /.gitlab/deploy_containers/                          @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy_dca/                                 @DataDog/container-integrations @DataDog/agent-delivery
@@ -193,6 +193,7 @@
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/ndm-core
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
+/cmd/agent/subcommands/analyzelogs      @DataDog/agent-metrics-logs
 /cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist     @DataDog/container-platform
@@ -608,6 +609,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
+/test/new-e2e/tests/netpath                   @DataDog/Networks @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app

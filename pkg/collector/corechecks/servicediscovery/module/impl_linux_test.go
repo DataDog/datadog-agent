@@ -1025,22 +1025,6 @@ func TestTagsPriority(t *testing.T) {
 	}
 }
 
-func BenchmarkOldProcess(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		process.NewProcess(int32(os.Getpid()))
-	}
-}
-
-func BenchmarkNewProcess(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		customNewProcess(int32(os.Getpid()))
-	}
-}
-
 func getSocketsOld(p *process.Process) ([]uint64, error) {
 	FDs, err := p.OpenFiles()
 	if err != nil {

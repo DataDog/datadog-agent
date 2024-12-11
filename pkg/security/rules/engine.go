@@ -377,7 +377,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	}
 
 	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(e.config.PoliciesDir, e.config.WatchPoliciesDir); err != nil {
+	if provider, err := rules.NewPoliciesDirProvider(e.config.PoliciesDir); err != nil {
 		seclog.Errorf("failed to load local policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
