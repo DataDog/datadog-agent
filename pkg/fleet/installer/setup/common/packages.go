@@ -1,6 +1,6 @@
 package common
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer"
+import "github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 
 const (
 	DatadogAgentPackage            string = "datadog-agent"
@@ -14,16 +14,37 @@ const (
 	DatadogAPMLibraryPHPPackage    string = "datadog-apm-library-php"
 )
 
+var (
+	order = []string{
+		DatadogInstallerPackage,
+		DatadogAgentPackage,
+		DatadogAPMInjectPackage,
+		DatadogAPMLibraryJavaPackage,
+		DatadogAPMLibraryPythonPackage,
+		DatadogAPMLibraryRubyPackage,
+		DatadogAPMLibraryJSPackage,
+		DatadogAPMLibraryDotNetPackage,
+		DatadogAPMLibraryPHPPackage,
+	}
+)
+
+func (s *Setup) installPackages() error {
+	for _, pkg := range order {
+		if version, ok := s.Packages.install[pkg]; ok {
+			url := oci.PackageURL(s.Env, pkg, version)
+			err := s.installer.Install(s.Ctx, url, nil)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 type Packages struct {
-	install          map[string]string
-	versionOverrides map[string]string
-	installOverrides map[string]string
+	install map[string]string
 }
 
 func (p *Packages) Install(pkg string, version string) {
 	p.install[pkg] = version
-}
-
-func (p *Packages) exec(installer installer.Installer) error {
-	
 }

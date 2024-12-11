@@ -9,6 +9,7 @@
 package djm
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
@@ -81,9 +82,14 @@ var (
 )
 
 // SetupDatabricks sets up the Databricks environment
-func SetupDatabricks(s *common.Setup) {
+func SetupDatabricks(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = -1 // avoid port conflict
@@ -99,6 +105,7 @@ func SetupDatabricks(s *common.Setup) {
 	default:
 		setupDatabricksWorker(s)
 	}
+	return nil
 }
 
 func setupDatabricksDriver(s *common.Setup) {

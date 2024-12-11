@@ -26,6 +26,11 @@ var (
 
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
+	configDir string
+	installer installer.Installer
+
+	Env      *env.Env
+	Ctx      context.Context
 	Span     ddtrace.Span
 	Packages Packages
 	Config   Config
@@ -36,31 +41,43 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 	if env.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
-	span, _ := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", name))
+	installer, err := installer.NewInstaller(env)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create installer: %w", err)
+	}
+	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", name))
 	s := &Setup{
-		Span: span,
+		configDir: configDir,
+		installer: installer,
+		Env:       env,
+		Ctx:       ctx,
+		Span:      span,
 		Config: Config{
 			DatadogYAML: DatadogConfig{
-				APIKey: env.APIKey,
-				Site:   env.Site,
-				Env:    os.Getenv("DD_ENV"),
+				APIKey:   env.APIKey,
+				Hostname: os.Getenv("DD_HOSTNAME"),
+				Site:     env.Site,
+				Env:      os.Getenv("DD_ENV"),
 			},
 			IntegrationConfigs: make(map[string]IntegrationConfig),
 		},
 		Packages: Packages{
-			install:          make(map[string]string),
-			versionOverrides: env.DefaultPackagesVersionOverride,
+			install: make(map[string]string),
 		},
 	}
 	return s, nil
 }
 
-// Exec installs the packages and writes the configurations
-func (s *Setup) Exec(ctx context.Context, installer installer.Installer) (err error) {
+// Run installs the packages and writes the configurations
+func (s *Setup) Run() (err error) {
 	defer func() { s.Span.Finish(tracer.WithError(err)) }()
-	err = s.Config.write(configDir)
+	err = s.writeConfigs()
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
+	}
+	err = s.installPackages()
+	if err != nil {
+		return fmt.Errorf("failed to install packages: %w", err)
 	}
 	return nil
 }
