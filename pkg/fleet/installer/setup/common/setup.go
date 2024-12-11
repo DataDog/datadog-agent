@@ -25,8 +25,9 @@ var (
 
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
-	configDir string
-	installer installer.Installer
+	configDir           string
+	installer           installer.Installer
+	installerPackageURL string
 
 	Env      *env.Env
 	Ctx      context.Context
@@ -40,17 +41,23 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 	if env.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
+	executablePath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+	installerPackageURL := fmt.Sprintf("file://%s", executablePath)
 	installer, err := installer.NewInstaller(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", name))
 	s := &Setup{
-		configDir: configDir,
-		installer: installer,
-		Env:       env,
-		Ctx:       ctx,
-		Span:      span,
+		configDir:           configDir,
+		installer:           installer,
+		installerPackageURL: installerPackageURL,
+		Env:                 env,
+		Ctx:                 ctx,
+		Span:                span,
 		Config: Config{
 			DatadogYAML: DatadogConfig{
 				APIKey:   env.APIKey,
@@ -73,6 +80,10 @@ func (s *Setup) Run() (err error) {
 	err = writeConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
+	}
+	err = s.installer.Install(s.Ctx, s.installerPackageURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to install installer: %w", err)
 	}
 	packages := resolvePackages(s.Packages)
 	for _, p := range packages {

@@ -92,6 +92,10 @@ func downloadInstaller(ctx context.Context, env *env.Env, version string, tmpDir
 	if downloadedPackage.Name != installerPackage {
 		return fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, installerPackage)
 	}
+	err = downloadedPackage.WriteOCILayout(tmpDir)
+	if err != nil {
+		return fmt.Errorf("failed to write OCI layout: %w", err)
+	}
 	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("failed to extract layers: %w", err)
