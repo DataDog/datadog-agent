@@ -51,6 +51,7 @@ var _ module.Module = &discovery{}
 type serviceInfo struct {
 	generatedName        string
 	generatedNameSource  string
+	containerServiceName string
 	ddServiceName        string
 	ddServiceInjected    bool
 	checkedContainerData bool
@@ -600,7 +601,7 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
-func getServiceNameFromContainerTags(tags []string) string {
+func getServiceNameFromContainerTags(tags []string) (string, string) {
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -641,10 +642,10 @@ func getServiceNameFromContainerTags(tags []string) string {
 		}
 
 		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return *tag.tagValue
+		return tag.tagName, *tag.tagValue
 	}
 
-	return ""
+	return "", ""
 }
 
 func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
@@ -655,7 +656,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 
 	service.ContainerID = id
 
-	// We got the service name from container tags before, no need to do it again.
+	// We checked the container tags before, no need to do it again.
 	if service.CheckedContainerData {
 		return
 	}
@@ -665,25 +666,15 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	serviceName := getServiceNameFromContainerTags(container.Tags)
-
-	if serviceName != "" {
-		service.GeneratedName = serviceName
-		// Update the legacy name field as well
-		if service.DDService == "" {
-			service.Name = serviceName
-		}
-		service.GeneratedNameSource = string(usm.Container)
-	}
+	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
+	service.ContainerServiceName = serviceName
+	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
 	s.mux.Lock()
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
-		if serviceName != "" {
-			serviceInfo.generatedName = serviceName
-			serviceInfo.generatedNameSource = string(usm.Container)
-		}
+		serviceInfo.containerServiceName = serviceName
 		serviceInfo.checkedContainerData = true
 	}
 	s.mux.Unlock()
