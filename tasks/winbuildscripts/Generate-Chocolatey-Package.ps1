@@ -5,8 +5,13 @@ Param(
     $installMethod,
 
     [Parameter(Mandatory=$false,Position=1)]
-    [String] 
-    $msiDirectory
+    [String]
+    $msiDirectory,
+
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("datadog-agent", "datadog-fips-agent")]
+    [String]
+    $Flavor = "datadog-agent"
 )
 
 $ErrorActionPreference = 'Stop';
@@ -36,11 +41,25 @@ if (Test-Path $buildTempDir) {
 New-Item -ItemType Directory -Path $buildTempDir | Out-Null
 Push-Location -Path $buildTempDir
 try {
-    # For historical reasons, use a different artifact name for the datadog-agent flavor
-    # See agent-release-mangement for more details
-    $artifactName = "ddagent-cli"
-    $packageSource = "$repoRoot\chocolatey\datadog-agent\$installMethod"
-    $nuspecFile = "datadog-agent-$installMethod.nuspec"
+    # Set the artifact name and package source based on the flavor
+    if ($flavor -eq "datadog-agent") {
+        # For historical reasons, use a different artifact name for the datadog-agent flavor
+        # See agent-release-mangement for more details
+        $artifactName = "ddagent-cli"
+        $packageSource = "$repoRoot\chocolatey\datadog-agent\$installMethod"
+        $nuspecFile = "datadog-agent-$installMethod.nuspec"
+    } elseif ($flavor -eq "datadog-fips-agent") {
+        if ($installMethod -eq "offline") {
+            Write-Error "Offline install method not supported for flavor $flavor"
+            exit 1
+        }
+        $artifactName = "datadog-fips-agent"
+        $packageSource = "$repoRoot\chocolatey\datadog-fips-agent\online"
+        $nuspecFile = "datadog-fips-agent-online.nuspec"
+    } else {
+        Write-Error "Unknown flavor $flavor"
+        exit 1
+    }
 
     # These files/directories are referenced in the nuspec file
     $licensePath = "tools\LICENSE.txt"
