@@ -185,8 +185,7 @@ func (t *ebpfLessTracer) processConnection(
 		return nil
 	}
 
-	isLoopback := t.scratchConn.Source.IsLoopback() && t.scratchConn.Dest.IsLoopback()
-	t.determineConnectionDirection(t.scratchConn, pktType, isLoopback)
+	t.determineConnectionDirection(t.scratchConn, pktType)
 	flipSourceDest(t.scratchConn, pktType)
 
 	t.m.Lock()
@@ -247,7 +246,7 @@ func flipSourceDest(conn *network.ConnectionStats, pktType uint8) {
 	}
 }
 
-func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8, _isLoopback bool) {
+func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) {
 	t.m.Lock()
 	defer t.m.Unlock()
 
