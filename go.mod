@@ -27,6 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def/
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ./comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
+	github.com/DataDog/datadog-agent/comp/core/configsync/def => ./comp/core/configsync/def
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
@@ -615,7 +616,10 @@ require (
 	go.opentelemetry.io/collector/config/configtelemetry v0.115.0
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.115.0
+require (
+	github.com/DataDog/datadog-agent/comp/core/configsync/def v0.0.0-00010101000000-000000000000
+	go.opentelemetry.io/collector/component/componenttest v0.115.0
+)
 
 require (
 	go.opentelemetry.io/collector/extension/extensiontest v0.115.0 // indirect

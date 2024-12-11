@@ -6,6 +6,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/configsync/def => ../../../core/configsync/def
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../core/hostname/hostnameinterface
@@ -151,6 +152,7 @@ require (
 require go.opentelemetry.io/collector/extension/extensiontest v0.115.0 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/configsync/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect

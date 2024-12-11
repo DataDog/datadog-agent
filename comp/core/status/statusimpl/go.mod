@@ -5,6 +5,7 @@ go 1.23.0
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../config
+	github.com/DataDog/datadog-agent/comp/core/configsync/def => ../../configsync/def
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../../log/def
