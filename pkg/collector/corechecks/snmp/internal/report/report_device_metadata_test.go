@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -31,7 +30,7 @@ import (
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 

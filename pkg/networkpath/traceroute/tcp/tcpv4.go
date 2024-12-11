@@ -9,8 +9,6 @@ package tcp
 import (
 	"net"
 	"time"
-
-	"github.com/google/gopacket/layers"
 )
 
 type (
@@ -26,26 +24,6 @@ type (
 		MaxTTL   uint8
 		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
 		Timeout  time.Duration // full timeout for all packets
-	}
-
-	// Results encapsulates a response from the TCP
-	// traceroute
-	Results struct {
-		Source     net.IP
-		SourcePort uint16
-		Target     net.IP
-		DstPort    uint16
-		Hops       []*Hop
-	}
-
-	// Hop encapsulates information about a single
-	// hop in a TCP traceroute
-	Hop struct {
-		IP       net.IP
-		Port     uint16
-		ICMPType layers.ICMPv4TypeCode
-		RTT      time.Duration
-		IsDest   bool
 	}
 )
 

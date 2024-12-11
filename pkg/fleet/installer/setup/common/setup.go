@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 // Package common defines the Setup structure that allows setup scripts to define packages and configurations to install.
 package common
 
