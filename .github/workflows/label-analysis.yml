@@ -29,11 +29,11 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version: 3.12
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
       - name: Auto assign team label
         env:
           PR_ID: ${{ github.event.pull_request.number }}
@@ -50,11 +50,11 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version: 3.12
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
       - name: Check release note
         env:
           BRANCH_NAME: ${{ github.head_ref }}
@@ -131,10 +131,10 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version: 3.12
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
       - name: Check agent telemetry metric list
         run: inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
