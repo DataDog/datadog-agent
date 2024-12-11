@@ -347,7 +347,7 @@ func (cf Filter) IsExcluded(annotations map[string]string, containerName, contai
 
 	// If containerImage doesn't include the tag or digest, add a colon so that it
 	// can match image filters
-	if len(containerImage) > 0 && strings.Index(containerImage, ":") < 0 {
+	if len(containerImage) > 0 && !strings.Contains(containerImage, ":") {
 		containerImage += ":"
 	}
 
