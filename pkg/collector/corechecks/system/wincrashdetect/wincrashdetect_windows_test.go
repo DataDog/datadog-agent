@@ -53,7 +53,8 @@ func TestWinCrashReporting(t *testing.T) {
 	// Prepare a security descriptor that allows the current user.
 	currentUser, err := user.Current()
 	assert.NoError(t, err)
-	sd := server.FormatSecurityDescriptorWithSid(currentUser.Uid)
+	sd, err := server.FormatSecurityDescriptorWithSid(currentUser.Uid)
+	assert.NoError(t, err)
 
 	listener, err := server.NewListenerWithSecurityDescriptor(systemProbeTestPipeName, sd)
 	require.NoError(t, err)
@@ -188,8 +189,13 @@ func TestCrashReportingStates(t *testing.T) {
 
 	var crashStatus *probe.WinCrashStatus
 
-	listener, err := server.NewListenerWithSecurityDescriptor(
-		systemProbeTestPipeName, systemProbeTestPipeSecurityDescriptor)
+	// Prepare a security descriptor that allows the current user.
+	currentUser, err := user.Current()
+	assert.NoError(t, err)
+	sd, err := server.FormatSecurityDescriptorWithSid(currentUser.Uid)
+	assert.NoError(t, err)
+
+	listener, err := server.NewListenerWithSecurityDescriptor(systemProbeTestPipeName, sd)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 

@@ -41,7 +41,11 @@ func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	sd := sysprobeserver.FormatSecurityDescriptorWithSid(currentUser.Uid)
+
+	sd, err := sysprobeserver.FormatSecurityDescriptorWithSid(currentUser.Uid)
+	if err != nil {
+		return nil, err
+	}
 
 	conn, err := sysprobeserver.NewListenerWithSecurityDescriptor(systemProbeTestPipeName, sd)
 	if err != nil {

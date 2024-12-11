@@ -8,6 +8,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -27,7 +28,7 @@ const (
 	// DACL template for the system probe named pipe that allows a specific SID.
 	// SE_DACL_PROTECTED (P), SE_DACL_AUTO_INHERITED (AI)
 	// Allow Administorators (BA), Local System (SY)
-	// Allow placeholder SID, NO_PROPAGATE_INHERIT_ACE (NP)
+	// Allow a custom SID, NO_PROPAGATE_INHERIT_ACE (NP)
 	namedPipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;%s)"
 
 	// Default DACL for the system probe named pipe.
@@ -95,7 +96,11 @@ func SetupPermissions() {
 		return
 	}
 
-	sd := FormatSecurityDescriptorWithSid(sidString)
+	sd, err := FormatSecurityDescriptorWithSid(sidString)
+	if err != nil {
+		log.Errorf("Invalid SID from ddagentuser: %s", sidString)
+		return
+	}
 
 	log.Debugf("named pipe DACL prepared with ddagentuser %s", user)
 	namedPipeSecurityDescriptor = sd
@@ -103,8 +108,12 @@ func SetupPermissions() {
 
 // FormatSecurityDescriptorWithSid creates a security descriptor string for the system probe
 // named pipe that allows a set of default users and the specified SID.
-func FormatSecurityDescriptorWithSid(sidString string) string {
-	return fmt.Sprintf(namedPipeSecurityDescriptorTemplate, sidString)
+func FormatSecurityDescriptorWithSid(sidString string) (string, error) {
+	// Sanity check
+	if !strings.HasPrefix(sidString, "S-") {
+		return "", fmt.Errorf("Invalid SID %s", sidString)
+	}
+	return fmt.Sprintf(namedPipeSecurityDescriptorTemplate, sidString), nil
 }
 
 // NewListener sets up a named pipe listener for the system probe service.
