@@ -23,13 +23,14 @@ import (
 func GetWiFiInfo() (WiFiInfo, error) {
 	info := C.GetWiFiInformation()
 	return WiFiInfo{
-		Rssi:         int(info.rssi),
-		Ssid:         C.GoString(info.ssid),
-		Bssid:        C.GoString(info.bssid),
-		Channel:      int(info.channel),
-		Noise:        int(info.noise),
-		TransmitRate: float64(info.transmitRate),
-		SecurityType: C.GoString(info.securityType),
+		Rssi:            int(info.rssi),
+		Ssid:            C.GoString(info.ssid),
+		Bssid:           C.GoString(info.bssid),
+		Channel:         int(info.channel),
+		Noise:           int(info.noise),
+		TransmitRate:    float64(info.transmitRate),
+		SecurityType:    C.GoString(info.securityType),
+		HardwareAddress: C.GoString(info.hardwareAddress),
 	}, nil
 }
 

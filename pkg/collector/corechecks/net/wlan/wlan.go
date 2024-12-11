@@ -30,13 +30,14 @@ var lastChannelID int = -1
 
 // WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
 type WiFiInfo struct {
-	Rssi         int
-	Ssid         string
-	Bssid        string
-	Channel      int
-	Noise        int
-	TransmitRate float64
-	SecurityType string
+	Rssi            int
+	Ssid            string
+	Bssid           string
+	Channel         int
+	Noise           int
+	TransmitRate    float64
+	SecurityType    string
+	HardwareAddress string
 }
 
 // WLANCheck monitors the status of the WLAN interface
@@ -71,11 +72,13 @@ func (c *WLANCheck) Run() error {
 		bssid = "unknown"
 	}
 	securityType := strings.ToLower(strings.Replace(wifiInfo.SecurityType, " ", "_", -1))
+	hardwareAddress := strings.ToLower(strings.Replace(wifiInfo.HardwareAddress, " ", "_", -1))
 
 	tags := []string{}
 	tags = append(tags, "ssid:"+ssid)
 	tags = append(tags, "bssid:"+bssid)
 	tags = append(tags, "security_type:"+securityType)
+	tags = append(tags, "mac_address:"+hardwareAddress)
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
 	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)

@@ -77,6 +77,7 @@ WiFiInfo GetWiFiInformation() {
     info.channel = (int)wifiInterface.wlanChannel.channelNumber;
     info.noise = (int)wifiInterface.noiseMeasurement;
     info.transmitRate = wifiInterface.transmitRate;
+    info.hardwareAddress = [[wifiInterface hardwareAddress] UTF8String];
 
     CWSecurity security = wifiInterface.security;
     const char *securityStr = "";

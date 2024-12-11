@@ -19,13 +19,14 @@ func TestWLANOK(t *testing.T) {
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			SecurityType: "WPA/WPA2 Personal",
+			Rssi:            10,
+			Ssid:            "test-ssid",
+			Bssid:           "test-bssid",
+			Channel:         1,
+			Noise:           20,
+			TransmitRate:    4.0,
+			SecurityType:    "WPA/WPA2 Personal",
+			HardwareAddress: "hardware-address",
 		}, nil
 	}
 	setupLocationAccess = func() {
@@ -44,26 +45,26 @@ func TestWLANOK(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "security_type:wpa/wpa2_personal"}
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "security_type:wpa/wpa2_personal", "mac_address:hardware-address"}
 
 	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
-
 }
 
 func TestWLANEmptySSIDandBSSID(t *testing.T) {
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "",
-			Bssid:        "",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			SecurityType: "WPA/WPA2 Personal",
+			Rssi:            10,
+			Ssid:            "",
+			Bssid:           "",
+			Channel:         1,
+			Noise:           20,
+			TransmitRate:    4.0,
+			SecurityType:    "WPA/WPA2 Personal",
+			HardwareAddress: "hardware-address",
 		}, nil
 	}
 	setupLocationAccess = func() {
@@ -82,7 +83,7 @@ func TestWLANEmptySSIDandBSSID(t *testing.T) {
 
 	wlanCheck.Run()
 
-	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal"}
+	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal", "mac_address:hardware-address"}
 
 	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
@@ -94,13 +95,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	// setup mocks
 	getWifiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "",
-			Bssid:        "",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			SecurityType: "WPA/WPA2 Personal",
+			Rssi:            10,
+			Ssid:            "",
+			Bssid:           "",
+			Channel:         1,
+			Noise:           20,
+			TransmitRate:    4.0,
+			SecurityType:    "WPA/WPA2 Personal",
+			HardwareAddress: "hardware-address",
 		}, nil
 	}
 	setupLocationAccess = func() {
@@ -110,7 +112,7 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 		setupLocationAccess = SetupLocationAccess
 	}()
 
-	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal"}
+	expectedTags := []string{"ssid:unknown", "bssid:unknown", "security_type:wpa/wpa2_personal", "mac_address:hardware-address"}
 
 	wlanCheck := new(WLANCheck)
 
@@ -128,13 +130,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	// change channel number from 1 to 2
 	getWifiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "",
-			Bssid:        "",
-			Channel:      2,
-			Noise:        20,
-			TransmitRate: 4.0,
-			SecurityType: "WPA/WPA2 Personal",
+			Rssi:            10,
+			Ssid:            "",
+			Bssid:           "",
+			Channel:         2,
+			Noise:           20,
+			TransmitRate:    4.0,
+			SecurityType:    "WPA/WPA2 Personal",
+			HardwareAddress: "hardware-address",
 		}, nil
 	}
 
@@ -145,13 +148,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 
 	getWifiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "",
-			Bssid:        "",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			SecurityType: "WPA/WPA2 Personal",
+			Rssi:            10,
+			Ssid:            "",
+			Bssid:           "",
+			Channel:         1,
+			Noise:           20,
+			TransmitRate:    4.0,
+			SecurityType:    "WPA/WPA2 Personal",
+			HardwareAddress: "hardware-address",
 		}, nil
 	}
 
