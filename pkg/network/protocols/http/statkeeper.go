@@ -12,19 +12,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/sketches-go/ddsketch"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                  sync.Mutex
 	stats                map[Key]*RequestStats
-	prevStats            map[Key]*RequestStats
 	incomplete           IncompleteBuffer
 	maxEntries           int
 	quantizer            *URLQuantizer
@@ -94,11 +92,8 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 			h.add(tx)
 		}
 
-		// put back 'DDSketch' objects to pool
-		h.releasePreviousSketches()
-
 		// Rotate stats
-		h.prevStats = h.stats
+		stats = h.stats
 		h.stats = make(map[Key]*RequestStats)
 
 		// Rotate ConnectionAggregator
@@ -111,14 +106,14 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		h.connectionAggregator = utils.NewConnectionAggregator()
 	}()
 
-	h.clearEphemeralPorts(previousAggregationState, h.prevStats)
-	return h.prevStats
+	h.clearEphemeralPorts(previousAggregationState, stats)
+	return stats
 }
 
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
-	h.releaseAllSketches()
+	h.ReleaseSketches()
 }
 
 func (h *StatKeeper) add(tx Transaction) {
@@ -243,17 +238,8 @@ func newSketchPool() *ddsync.TypedPool[ddsketch.DDSketch] {
 	return sketchPool
 }
 
-// releasePreviousSketches puts 'DDSketch' objects from previous cycle back to pool.
-func (h *StatKeeper) releasePreviousSketches() {
-	for _, stats := range h.prevStats {
-		stats.PutSketches()
-	}
-	h.prevStats = nil
-}
-
-// releaseAllSketches puts 'DDSketch' objects from previous and current cycle back to pool.
-func (h *StatKeeper) releaseAllSketches() {
-	h.releasePreviousSketches()
+// ReleaseSketches puts 'DDSketch' objects back to pool.
+func (h *StatKeeper) ReleaseSketches() {
 	for _, stats := range h.stats {
 		stats.PutSketches()
 	}

@@ -6,13 +6,12 @@
 package http
 
 import (
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
-	"github.com/DataDog/sketches-go/ddsketch"
-
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // Interner is used to intern strings to save memory allocations.

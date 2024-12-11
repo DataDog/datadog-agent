@@ -544,6 +544,12 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 	return ret
 }
 
+func (e *ebpfProgram) releaseStats() {
+	for _, protocol := range e.enabledProtocols {
+		protocol.Instance.ReleaseStats()
+	}
+}
+
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
 // If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
 // successfully executed the callback.

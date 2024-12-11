@@ -26,7 +26,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 	t.Cleanup(func() {
-		sk.releaseAllSketches()
+		sk.ReleaseSketches()
 	})
 
 	srcString := "1.1.1.1"
@@ -68,6 +68,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			assert.True(t, p50 >= expectedLatency-acceptableError)
 			assert.True(t, p50 <= expectedLatency+acceptableError)
 		}
+		sk.ReleaseSketches()
 	}
 }
 
@@ -358,6 +359,7 @@ func benchmarkHTTPStatkeeper(b *testing.B, sk *StatKeeper) {
 			b.StartTimer()
 			sk.Process(tx)
 		}
+		sk.ReleaseSketches()
 	}
 	b.StopTimer()
 }

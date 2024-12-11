@@ -290,6 +290,11 @@ func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
+// ReleaseStats is a no-op.
+func (p *goTLSProgram) ReleaseStats() {
+	return
+}
+
 // Stop terminates goTLS main goroutine.
 func (p *goTLSProgram) Stop(*manager.Manager) {
 	close(p.done)

@@ -564,6 +564,11 @@ func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
+// ReleaseStats is a no-op.
+func (p *sslProgram) ReleaseStats() {
+	return
+}
+
 const (
 	// Defined in https://man7.org/linux/man-pages/man5/proc.5.html.
 	taskCommLen = 16

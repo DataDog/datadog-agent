@@ -239,6 +239,11 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
+// ReleaseStats release objects back to pool, not implemented yet, to satisfy protocol.
+func (p *protocol) ReleaseStats() {
+	return
+}
+
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
