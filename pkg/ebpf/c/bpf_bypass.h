@@ -29,7 +29,7 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
         DO_WITHx(x, __VA_ARGS__)
 
 #define WITH(...) \
-        _WITH(nargs(__VA_ARGS__), __VA_ARGS__)
+        _WITH(NARGS(__VA_ARGS__), __VA_ARGS__)
 
 #define BPF_KPROBE_MODIFY(preamble, name, args...) \
     name(struct pt_regs *ctx);						    \
@@ -59,8 +59,6 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
     	_Pragma("GCC diagnostic pop")					    \
     }									    \
     static __always_inline typeof(name(0)) ____##name(struct pt_regs *ctx, ##args)
-
-
 
 
 /* BPF_BYPASSABLE_UPROBE and BPF_BYPASSABLE_URETPROBE are identical to BPF_BYPASSABLE_KPROBE and BPF_BYPASSABLE_KRETPROBE,
