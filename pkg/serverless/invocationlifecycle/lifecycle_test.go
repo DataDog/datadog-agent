@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -1026,12 +1027,30 @@ func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID: "test-request-id",
 	})
-	assert.Equal(t, map[string]string{
-		"cold_start":                        "false",
-		"function_trigger.event_source_arn": "aws:s3:sample:event:source",
-		"request_id":                        "test-request-id",
-		"function_trigger.event_source":     "s3",
-	}, testProcessor.GetTags())
+
+	tags := testProcessor.GetTags()
+	assert.Equal(t, "false", tags["cold_start"])
+	assert.Equal(t, "aws:s3:sample:event:source", tags["function_trigger.event_source_arn"])
+	assert.Equal(t, "test-request-id", tags["request_id"])
+	assert.Equal(t, "s3", tags["function_trigger.event_source"])
+
+	var actualSpanLinks []map[string]interface{}
+	err := json.Unmarshal([]byte(tags["_dd.span_links"]), &actualSpanLinks)
+	assert.NoError(t, err)
+
+	expectedSpanLinks := []map[string]interface{}{
+		{
+			"attributes": map[string]interface{}{
+				"link.kind": "span-pointer",
+				"ptr.dir":   "u",
+				"ptr.hash":  "1dc3e5d00dae48c1f07d95371a747788",
+				"ptr.kind":  "aws.s3.object",
+			},
+			"span_id":  "0",
+			"trace_id": "0",
+		},
+	}
+	assert.Equal(t, expectedSpanLinks, actualSpanLinks)
 }
 
 func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
