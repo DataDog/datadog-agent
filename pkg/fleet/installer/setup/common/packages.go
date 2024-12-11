@@ -8,15 +8,24 @@ package common
 import "fmt"
 
 const (
-	DatadogAgentPackage            string = "datadog-agent"
-	DatadogInstallerPackage        string = "datadog-installer"
-	DatadogAPMInjectPackage        string = "datadog-apm-inject"
-	DatadogAPMLibraryJavaPackage   string = "datadog-apm-library-java"
+	// DatadogInstallerPackage is the datadog installer package
+	DatadogInstallerPackage string = "datadog-installer"
+	// DatadogAgentPackage is the datadog agent package
+	DatadogAgentPackage string = "datadog-agent"
+	// DatadogAPMInjectPackage is the datadog apm inject package
+	DatadogAPMInjectPackage string = "datadog-apm-inject"
+	// DatadogAPMLibraryJavaPackage is the datadog apm library java package
+	DatadogAPMLibraryJavaPackage string = "datadog-apm-library-java"
+	// DatadogAPMLibraryPythonPackage is the datadog apm library python package
 	DatadogAPMLibraryPythonPackage string = "datadog-apm-library-python"
-	DatadogAPMLibraryRubyPackage   string = "datadog-apm-library-ruby"
-	DatadogAPMLibraryJSPackage     string = "datadog-apm-library-js"
+	// DatadogAPMLibraryRubyPackage is the datadog apm library ruby package
+	DatadogAPMLibraryRubyPackage string = "datadog-apm-library-ruby"
+	// DatadogAPMLibraryJSPackage is the datadog apm library js package
+	DatadogAPMLibraryJSPackage string = "datadog-apm-library-js"
+	// DatadogAPMLibraryDotNetPackage is the datadog apm library dotnet package
 	DatadogAPMLibraryDotNetPackage string = "datadog-apm-library-dotnet"
-	DatadogAPMLibraryPHPPackage    string = "datadog-apm-library-php"
+	// DatadogAPMLibraryPHPPackage is the datadog apm library php package
+	DatadogAPMLibraryPHPPackage string = "datadog-apm-library-php"
 )
 
 var (
@@ -46,6 +55,7 @@ func resolvePackages(packages Packages) []packageWithVersion {
 	return resolved
 }
 
+// Packages is a list of packages to install
 type Packages struct {
 	install map[string]packageWithVersion
 }
@@ -55,6 +65,7 @@ type packageWithVersion struct {
 	version string
 }
 
+// Install marks a package to be installed
 func (p *Packages) Install(pkg string, version string) {
 	p.install[pkg] = packageWithVersion{
 		name:    pkg,

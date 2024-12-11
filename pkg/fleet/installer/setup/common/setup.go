@@ -20,6 +20,7 @@ import (
 )
 
 var (
+	// ErrNoAPIKey is returned when no API key is provided.
 	ErrNoAPIKey = errors.New("no API key provided")
 )
 
