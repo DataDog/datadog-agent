@@ -49,8 +49,7 @@ int BPF_KPROBE_MODIFY(WITH(BYPASS), kprobe__tcp_sendmsg, struct sock *sk) {
 }
 
 SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb(void *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__net__netif_receive_skb, void *, ctx) {
     log_debug("tracepoint/net/netif_receive_skb");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs

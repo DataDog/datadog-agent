@@ -61,6 +61,22 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
     static __always_inline typeof(name(0)) ____##name(struct pt_regs *ctx, ##args)
 
 
+#define BPF_TRACEPOINT_MODIFY(preamble, name, type, arg_name)   \
+    name(type);						                            \
+    static __always_inline typeof(name(0))					    \
+    ____##name(type);				                            \
+    typeof(name(0)) name(type arg_name)				                    \
+    {									                        \
+        preamble;                                               \
+    	_Pragma("GCC diagnostic push")					        \
+    	_Pragma("GCC diagnostic ignored \"-Wint-conversion\"")  \
+    	return ____##name(arg_name);			                \
+    	_Pragma("GCC diagnostic pop")					        \
+    }									                        \
+    static __always_inline typeof(name(0)) ____##name(type arg_name)
+
+
+
 /* BPF_BYPASSABLE_UPROBE and BPF_BYPASSABLE_URETPROBE are identical to BPF_BYPASSABLE_KPROBE and BPF_BYPASSABLE_KRETPROBE,
  * but are named way less confusingly for SEC("uprobe") and SEC("uretprobe")
  * use cases.

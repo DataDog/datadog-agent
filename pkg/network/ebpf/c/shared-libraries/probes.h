@@ -102,43 +102,37 @@ cleanup:
 }
 
 SEC("tracepoint/syscalls/sys_enter_open")
-int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__syscalls__sys_enter_open, enter_sys_open_ctx *, args) {
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_open")
-int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__syscalls__sys_exit_open, exit_sys_ctx *, args) {
     do_sys_open_helper_exit(args);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_enter_openat")
-int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__syscalls__sys_enter_openat, enter_sys_openat_ctx *, args) {
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_openat")
-int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__syscalls__sys_exit_openat, exit_sys_ctx *, args) {
     do_sys_open_helper_exit(args);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_enter_openat2")
-int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__syscalls__sys_enter_openat2, enter_sys_openat2_ctx *, args) {
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_openat2")
-int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__syscalls__sys_exit_openat2, exit_sys_ctx *, args) {
     do_sys_open_helper_exit(args);
     return 0;
 }

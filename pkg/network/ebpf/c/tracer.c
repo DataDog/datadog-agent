@@ -1119,8 +1119,7 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
 }
 
 SEC("tracepoint/net/net_dev_queue")
-int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_TRACEPOINT_MODIFY(WITH(BYPASS), tracepoint__net__net_dev_queue, struct net_dev_queue_ctx *, ctx) {
     struct sk_buff *skb = ctx->skb;
     if (!skb) {
         return 0;
