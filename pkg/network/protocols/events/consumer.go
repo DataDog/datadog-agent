@@ -275,6 +275,7 @@ func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
 }
 
+// GetMetricGroup returns the metric group associated with the consumer.
 func (c *Consumer[V]) GetMetricGroup() *telemetry.MetricGroup {
 	return c.metricGroup
 }
