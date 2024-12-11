@@ -10,7 +10,6 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math"
 	"runtime"
 	"testing"
@@ -71,20 +70,22 @@ func newTestEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	return m, nil
 }
 
-func structToBytes(b *testing.B, data EbpfEvent, numEvents int) [4096]int8 {
+// structToBytes serializes the provided events into a byte array.
+func structToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) [4096]int8 {
 	var result [4096]int8
 	var buffer bytes.Buffer
 
-	// Serialize the event multiple times
-	for i := 0; i < numEvents; i++ {
-		require.NoError(b, binary.Write(&buffer, binary.LittleEndian, data))
+	// Serialize the events in the slice
+	for i := 0; i < numOfEventsInBatch; i++ {
+		// Use modulo to cycle through the provided events
+		event := events[i%len(events)]
+		require.NoError(b, binary.Write(&buffer, binary.LittleEndian, event))
 	}
 
 	serializedData := buffer.Bytes()
 	// Ensure the serialized data fits into the result array
 	require.LessOrEqualf(b, len(serializedData), len(result), "serialized data exceeds 4096 bytes")
 
-	// Copy serialized data to the result array
 	for i, b := range serializedData {
 		result[i] = int8(b)
 	}
@@ -92,25 +93,43 @@ func structToBytes(b *testing.B, data EbpfEvent, numEvents int) [4096]int8 {
 	return result
 }
 
+// createHTTPEvents creates a slice of HTTP events to be used in the benchmark.
+func createHTTPEvents() []EbpfEvent {
+	httpReq1 := "GET /etc/os-release HTTP/1.1\nHost: localhost:8001\nUser-Agent: curl/7.81.0\nAccept: */*"
+	httpReq2 := "POST /submit HTTP/1.1\nHost: localhost:8002\nUser-Agent: curl/7.81.0\nContent-Type: application/json\n\n{\"key\":\"value\"}"
+
+	return []EbpfEvent{
+		{
+			Tuple: ConnTuple{},
+			Http: EbpfTx{
+				Request_method:       1,
+				Response_status_code: 200,
+				Request_fragment:     requestFragment([]byte(httpReq1)),
+			},
+		},
+		{
+			Tuple: ConnTuple{},
+			Http: EbpfTx{
+				Request_method:       2,
+				Response_status_code: 200,
+				Request_fragment:     requestFragment([]byte(httpReq2)),
+			},
+		},
+	}
+}
+
 // BenchmarkConsumer benchmarks the consumer with a large number of events to measure the performance.
 func BenchmarkFlow(b *testing.B) {
-	// serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch
+	// Serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch.
 	const numOfEventsInBatch = 14
-	const TotalEventsCount = 140
+	const TotalEventsCount = 1400
 	c := config.New()
 
 	program, err := newTestEBPFProgram(c)
 	require.NoError(b, err)
-	httpReq := "GET /etc/os-release HTTP/1.1\nHost: localhost:8001\nUser-Agent: curl/7.81.0\nAccept: */*"
 
-	httpEvent := EbpfEvent{
-		Tuple: ConnTuple{},
-		Http: EbpfTx{
-			Request_method:       1,
-			Response_status_code: 200,
-			Request_fragment:     requestFragment([]byte(httpReq)),
-		},
-	}
+	httpEvents := createHTTPEvents()
+	require.Len(b, httpEvents, 2)
 
 	httpTelemetry := NewTelemetry("http")
 
@@ -125,31 +144,32 @@ func BenchmarkFlow(b *testing.B) {
 	mockBatch := events.Batch{
 		Len:        uint16(numOfEventsInBatch),
 		Cap:        uint16(numOfEventsInBatch),
-		Event_size: uint16(unsafe.Sizeof(httpEvent)),
-		Data:       structToBytes(b, httpEvent, numOfEventsInBatch),
+		Event_size: uint16(unsafe.Sizeof(httpEvents[0])),
+		Data:       structToBytes(b, httpEvents, numOfEventsInBatch),
+	}
+
+	for i := 0; i < TotalEventsCount/numOfEventsInBatch; i++ {
+		b.Logf("Processing i: %d", i)
+		mockBatch.Idx = uint64(i)
+		var buf bytes.Buffer
+		require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
+		events.RecordSample(c, consumer, buf.Bytes())
+		buf.Reset()
 	}
 
 	b.ReportAllocs()
 	runtime.GC()
 	b.ResetTimer()
 
-	b.N = TotalEventsCount / numOfEventsInBatch
 	for i := 0; i < b.N; i++ {
-		fmt.Printf("Iteration %d\n", i)
-
-		mockBatch.Idx = uint64(i)
-		var buf bytes.Buffer
-		require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
-
-		events.RecordSample(c, consumer, buf.Bytes())
-
 		consumer.Start()
 		require.Eventually(b, func() bool {
 			// Ensure all events were processed by hits 2XX counter for each iteration
-			return (i+1)*numOfEventsInBatch == int(httpTelemetry.hits2XX.counterPlain.Get())
-		}, 50*time.Second, 1000*time.Millisecond)
+			return TotalEventsCount == int(httpTelemetry.hits2XX.counterPlain.Get())
+		}, 5*time.Second, 1000*time.Millisecond)
 	}
 	b.Cleanup(func() {
+		b.Logf("usm events summary:  %s", consumer.GetMetricGroup().Summary())
 		program.Stop(manager.CleanAll)
 	})
 }

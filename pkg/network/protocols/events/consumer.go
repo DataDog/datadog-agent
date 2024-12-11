@@ -275,6 +275,10 @@ func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
 }
 
+func (c *Consumer[V]) GetMetricGroup() *telemetry.MetricGroup {
+	return c.metricGroup
+}
+
 // RecordSample records a sample using the consumer Handler.
 func RecordSample[V any](c *config.Config, consumer *Consumer[V], sampleData []byte) {
 	// Ring buffers require kernel version 5.8.0 or higher, therefore, the Handler is chosen based on the kernel version.
