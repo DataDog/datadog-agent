@@ -154,9 +154,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20241219210556-f517775059d1
 	github.com/DataDog/ebpf-manager v0.7.7
@@ -684,7 +684,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/common v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.59.0
@@ -695,10 +695,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/system v0.60.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1
 	github.com/DataDog/go-libddwaf/v3 v3.5.1
 	github.com/DataDog/go-sqllexer v0.0.17
