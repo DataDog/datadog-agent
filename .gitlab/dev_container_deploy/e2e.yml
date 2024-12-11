@@ -43,7 +43,7 @@ qa_agent_fips_jmx:
     - when: on_success
   needs:
     - docker_build_fips_agent7_jmx
-    - docker_build_fips_agent7_jmx_arm64
+    - docker_build_fips_agent7_arm64_jmx
     - docker_build_fips_agent7_windows2022_core_jmx
   variables:
     IMG_REGISTRIES: agent-qa
