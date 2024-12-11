@@ -121,10 +121,8 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-			return workloadmeta.Params{
-				AgentType: workloadmeta.Remote,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
 		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()

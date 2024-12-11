@@ -104,10 +104,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType: workloadmeta.Remote,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
 				remoteTaggerfx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
