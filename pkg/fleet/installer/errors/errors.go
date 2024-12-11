@@ -105,16 +105,16 @@ func (e InstallerError) ToJSON() string {
 }
 
 // FromJSON returns an InstallerError from a JSON string.
-func FromJSON(errStr string) InstallerError {
+func FromJSON(errStr string) *InstallerError {
 	var jsonError installerErrorJSON
 	err := json.Unmarshal([]byte(errStr), &jsonError)
 	if err != nil {
-		return InstallerError{
+		return &InstallerError{
 			err:  errors.New(errStr),
 			code: errUnknown,
 		}
 	}
-	return InstallerError{
+	return &InstallerError{
 		err:  errors.New(jsonError.Error),
 		code: InstallerErrorCode(jsonError.Code),
 	}
