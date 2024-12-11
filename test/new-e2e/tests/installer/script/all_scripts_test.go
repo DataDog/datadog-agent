@@ -150,7 +150,7 @@ func (s *installerScriptBaseSuite) RunInstallScript(url string, params ...string
 
 func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params ...string) error {
 	scriptParams := append(params, "DD_API_KEY=test", "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script; sudo -E %s bash install_script", url, strings.Join(scriptParams, " ")))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("curl -L %s > install_script; %s bash install_script", url, strings.Join(scriptParams, " ")))
 	return err
 }
 
