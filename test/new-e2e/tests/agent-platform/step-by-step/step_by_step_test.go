@@ -33,12 +33,13 @@ var (
 	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 	architecture          = flag.String("arch", "", "architecture to test (x86_64, arm64))")
 	flavorName            = flag.String("flavor", "datadog-agent", "package flavor to install")
-	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
+	majorVersion          = flag.String("major-version", "6", "major version to test")
 )
 
 type stepByStepSuite struct {
 	e2e.BaseSuite[environments.Host]
 
+	osName       string
 	osVersion    float64
 	cwsSupported bool
 }
@@ -105,7 +106,7 @@ func TestStepByStepScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
-				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version},
+				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, osName: osVers},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -213,7 +214,7 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 		arch = *architecture
 	}
 	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -240,6 +241,14 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
+	if strings.HasPrefix(is.osName, "centos") {
+		// Centos 7 EOLed on July 1st, 2024. We need to switch to vault.centos.org to get the packages
+		is.T().Run("update centos mirrorlist", func(t *testing.T) {
+			ExecuteWithoutError(t, VMclient, "sudo sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo")
+			ExecuteWithoutError(t, VMclient, "sudo sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo")
+			ExecuteWithoutError(t, VMclient, "sudo sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo")
+		})
+	}
 	is.T().Run("install rhel", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo yum makecache -y")
 		ExecuteWithoutError(t, VMclient, "sudo yum install -y %s", *flavorName)
@@ -255,7 +264,7 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 	}
 
 	suseRepo := fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -283,6 +292,11 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
-		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
+		_, err = VMclient.Host.Execute(fmt.Sprintf("sudo zypper --non-interactive install %s", *flavorName))
+		if err != nil {
+			t.Logf("Failed to install %s, trying to register the cloud guest and install the package again", *flavorName)
+			ExecuteWithoutError(t, VMclient, "sudo registercloudguest --force-new")
+			ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
+		}
 	})
 }
