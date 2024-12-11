@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
@@ -131,7 +132,7 @@ type MetricPayload struct {
 	Value   float64                `json:"value"`
 	Type    string                 `json:"type"`
 	Tags    map[string]interface{} `json:"tags,omitempty"`
-	Buckets map[string]interface{} `json:"buckets,omitempty"`
+	Buckets map[string]uint64      `json:"buckets,omitempty"`
 }
 
 func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Client {
@@ -240,17 +241,18 @@ func (s *senderImpl) addMetricPayload(
 	metricType := metricFamily.GetType()
 	switch metricType {
 	case dto.MetricType_COUNTER:
-		payload.Type = "monotonic"
+		payload.Type = "counter"
 		payload.Value = metric.GetCounter().GetValue()
 	case dto.MetricType_GAUGE:
 		payload.Type = "gauge"
 		payload.Value = metric.GetGauge().GetValue()
 	case dto.MetricType_HISTOGRAM:
 		payload.Type = "histogram"
-		payload.Buckets = make(map[string]interface{}, 0)
+		payload.Buckets = make(map[string]uint64, 0)
 		histogram := metric.GetHistogram()
 		for _, bucket := range histogram.GetBucket() {
-			boundName := fmt.Sprintf("upperbound_%v", bucket.GetUpperBound())
+			boundNameRaw := fmt.Sprintf("%v", bucket.GetUpperBound())
+			boundName := strings.ReplaceAll(boundNameRaw, ".", "_")
 			payload.Buckets[boundName] = bucket.GetCumulativeCount()
 		}
 	}
@@ -319,7 +321,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
 	}
 
-	reqBody, err := scrubber.ScrubBytes(payloadJSON)
+	reqBody, err := scrubber.ScrubJSON(payloadJSON)
 	if err != nil {
 		return fmt.Errorf("failed to scrubl agent telemetry payload: %w", err)
 	}

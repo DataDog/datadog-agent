@@ -329,6 +329,11 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 	if err != nil {
 		return fb.logError("error getting absolute path for '%s': %s", srcDir, err)
 	}
+
+	if isLocal := filepath.IsLocal(destDir); !isLocal {
+		return fb.logError("the destination path is not local to the flare root path: %s", destDir)
+	}
+
 	fb.RegisterFilePerm(srcDir)
 
 	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, _ error) error {
@@ -370,6 +375,10 @@ func (fb *builder) PrepareFilePath(path string) (string, error) {
 func (fb *builder) prepareFilePath(path string) (string, error) {
 	if fb.isClosed {
 		return "", errors.New("flare builder is already closed")
+	}
+
+	if isLocal := filepath.IsLocal(path); !isLocal {
+		return "", fb.logError("the destination path is not local to the flare root path: %s", path)
 	}
 
 	p := filepath.Join(fb.flareDir, path)

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -57,7 +56,7 @@ import (
 )
 
 var (
-	logger seelog.LoggerInterface
+	logger log.LoggerInterface
 )
 
 const (
@@ -741,7 +740,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.DontDiscardRuntime = false
 	}
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
 		return nil, err
 	}
@@ -999,7 +998,7 @@ func (tm *testModule) Close() {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	logLevel, found := log.LogLevelFromString(logLevelStr)
 	if !found {
 		return fmt.Errorf("invalid log level '%s'", logLevel)
 	}
@@ -1014,20 +1013,20 @@ func initLogger() error {
 	return nil
 }
 
-func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
 		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.LogLevelFromString(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }

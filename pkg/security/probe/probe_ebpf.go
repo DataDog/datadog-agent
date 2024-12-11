@@ -32,7 +32,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -195,11 +194,31 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	supported := p.kernelVersion.HaveFentrySupport()
-	if !supported {
-		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	if p.kernelVersion.Code < kernel.Kernel6_1 {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return
 	}
-	p.useFentry = supported
+
+	if !p.kernelVersion.HaveFentrySupport() {
+		p.useFentry = false
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return
+	}
+
+	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return
+	}
+
+	p.useFentry = true
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
@@ -480,7 +499,6 @@ func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -535,7 +553,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(string(event.ContainerContext.ContainerID))
+	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -626,9 +644,6 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
-	// TODO(lebauce): fix this
-	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
-
 	return read, nil
 }
 
@@ -657,9 +672,12 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
-	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
-	entry.Process.CGroup.CGroupFile = ev.CGroupContext.CGroupFile
+	entry.Process.ContainerID = ev.ContainerContext.ContainerID
+	entry.ContainerID = ev.ContainerContext.ContainerID
+
+	entry.Process.CGroup.Merge(&ev.CGroupContext)
+	entry.CGroup.Merge(&ev.CGroupContext)
+
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -685,6 +703,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if event.ProcessContext == nil {
 		panic("should always return a process context")
 	}
+
+	// do the same with cgroup context
+	event.CGroupContext = event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -807,24 +828,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
-			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
-			if err == nil && path != "" {
-				path = filepath.Dir(string(path))
-				pce.CGroup.CGroupID = containerutils.CGroupID(path)
-				pce.Process.CGroup.CGroupID = containerutils.CGroupID(path)
-				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
-				if cgroupFlags.IsContainer() {
-					containerID, _ := containerutils.GetContainerFromCgroup(path)
-					pce.ContainerID = containerutils.ContainerID(containerID)
-					pce.Process.ContainerID = containerutils.ContainerID(containerID)
-				}
-				pce.CGroup.CGroupFlags = cgroupFlags
-				pce.Process.CGroup = pce.CGroup
-			} else {
-				seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
+			if err := p.Resolvers.ResolveCGroup(pce, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)); err != nil {
+				seclog.Debugf("Failed to resolve cgroup: %s", err)
 			}
-		} else {
-			seclog.Debugf("failed to resolve process of cgroup write event: %s", err)
 		}
 		return
 	case model.UnshareMountNsEventType:
@@ -906,7 +912,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, string(event.ContainerContext.ContainerID))
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ContainerID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -922,7 +928,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, string(event.ContainerContext.ContainerID))
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ContainerID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -1073,14 +1079,35 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
-		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
+		if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 			pce = newPlaceholderProcessCacheEntryPTraceMe()
+		} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
+			seclog.Errorf("ptrace event without any PID to resolve")
+			return
 		} else {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false, newEntryCb)
+			pidToResolve := event.PTrace.PID
+
+			if pidToResolve == 0 { // resolve the PID given as argument instead
+				containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
+					pidToResolve = event.PTrace.NSPID
+				} else {
+					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, event.PTrace.NSPID)
+					if err != nil {
+						seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
+							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+						return
+					}
+					pidToResolve = pid
+				}
+			}
+
+			pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
 			if pce == nil {
-				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+				pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
 			}
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
@@ -1114,6 +1141,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	case model.SignalEventType:
 		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
@@ -1149,6 +1177,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
+			return
 		}
 		offset += read
 
@@ -1166,12 +1195,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.IMDSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
+			return
 		}
 		offset += read
 
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
-			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
-			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			if err != model.ErrNoUsefulData {
+				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
+				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			}
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
@@ -1238,7 +1270,7 @@ func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 }
 
 // GetEventTags returns the event tags
-func (p *EBPFProbe) GetEventTags(containerID string) []string {
+func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
@@ -1381,7 +1413,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case "dns":
 		return p.probe.IsNetworkEnabled()
 	case "imds":
-		return p.probe.IsNetworkEnabled() && p.config.Probe.NetworkIngressEnabled
+		return p.probe.IsNetworkEnabled()
 	case "packet":
 		return p.probe.IsNetworkRawPacketEnabled()
 	}
@@ -1495,7 +1527,52 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	return p.Manager.UpdateActivatedProbes(activatedProbes)
+	previousProbes := p.computeProbesIDs()
+	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
+		return err
+	}
+	newProbes := p.computeProbesIDs()
+
+	p.computeProbesDiffAndRemoveMapping(previousProbes, newProbes)
+	return nil
+}
+
+func (p *EBPFProbe) computeProbesIDs() map[string]lib.ProgramID {
+	out := make(map[string]lib.ProgramID)
+	progList, err := p.Manager.GetPrograms()
+	if err != nil {
+		return out
+	}
+	for funcName, prog := range progList {
+		programInfo, err := prog.Info()
+		if err != nil {
+			continue
+		}
+
+		programID, isAvailable := programInfo.ID()
+		if isAvailable {
+			out[funcName] = programID
+		}
+	}
+
+	return out
+}
+
+func (p *EBPFProbe) computeProbesDiffAndRemoveMapping(previousProbes map[string]lib.ProgramID, newProbes map[string]lib.ProgramID) {
+	// Compute the list of programs that need to be deleted from the ddebpf mapping
+	var toDelete []lib.ProgramID
+	for previousProbeFuncName, programID := range previousProbes {
+		if _, ok := newProbes[previousProbeFuncName]; !ok {
+			toDelete = append(toDelete, programID)
+		}
+	}
+
+	for _, id := range toDelete {
+		ddebpf.RemoveProgramID(uint32(id), "cws")
+	}
+
+	// new programs could have been introduced during the update, add them now
+	ddebpf.AddNameMappings(p.Manager, "cws")
 }
 
 // GetDiscarders retrieve the discarders
@@ -1558,7 +1635,7 @@ func (p *EBPFProbe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *EBPFProbe) RefreshUserCache(containerID string) error {
+func (p *EBPFProbe) RefreshUserCache(containerID containerutils.ContainerID) error {
 	return p.Resolvers.UserGroupResolver.RefreshCache(containerID)
 }
 
@@ -1852,7 +1929,7 @@ func (p *EBPFProbe) EnableEnforcement(state bool) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -2116,7 +2193,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -2262,6 +2339,10 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 2
 	}
 
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9_4Kernel() {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
@@ -2332,6 +2413,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb", "linux/dcache.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
@@ -2434,10 +2516,10 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(string(ev.ContainerContext.ContainerID))
+			_ = p.RefreshUserCache(ev.ContainerContext.ContainerID)
 
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
-			if err := p.Resolvers.SBOMResolver.RefreshSBOM(string(ev.ContainerContext.ContainerID)); err != nil {
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ContainerID); err != nil {
 				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
