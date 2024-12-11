@@ -128,7 +128,7 @@ func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := rs.listenPackets(timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, end, err := rs.listenPackets(timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
@@ -141,8 +141,8 @@ func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout
 
 	return &common.Hop{
 		IP:       hopIP,
-		Port:     hopPort,
-		ICMPType: icmpType,
+		Port:     0, // TODO: fix this
+		ICMPType: 0, // TODO: fix this
 		RTT:      rtt,
 		IsDest:   hopIP.Equal(t.Target),
 	}, nil

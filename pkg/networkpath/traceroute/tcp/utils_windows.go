@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"golang.org/x/net/ipv4"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 )
 
 var (
@@ -30,59 +28,44 @@ var (
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
-func (w *winrawsocket) listenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
-	var icmpErr error
-	var wg sync.WaitGroup
-	var icmpIP net.IP
-	//var tcpIP net.IP
-	//var icmpCode layers.ICMPv4TypeCode
-	//var tcpFinished time.Time
-	var icmpFinished time.Time
-	var port uint16
-	wg.Add(1)
+func listenPackets(w *common.Winrawsocket, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	go func() {
-		defer wg.Done()
-		defer cancel()
-		icmpIP, _, _, icmpFinished, icmpErr = w.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, seqNum)
-	}()
-	wg.Wait()
-
-	if icmpErr != nil {
-		_, icmpCanceled := icmpErr.(common.CanceledError)
-		if icmpCanceled {
+	ip, finished, err := handlePackets(ctx, w, localIP, localPort, remoteIP, remotePort, seqNum)
+	if err != nil {
+		_, canceled := err.(common.CanceledError)
+		if canceled {
 			log.Trace("timed out waiting for responses")
-			return net.IP{}, 0, 0, time.Time{}, nil
+			return net.IP{}, time.Time{}, nil
 		}
-		if icmpErr != nil {
-			log.Errorf("ICMP listener error: %s", icmpErr.Error())
+		if err != nil {
+			log.Errorf("listener error: %s", err.Error())
 		}
 
-		return net.IP{}, 0, 0, time.Time{}, fmt.Errorf("icmp error: %w", icmpErr)
+		return net.IP{}, time.Time{}, fmt.Errorf("error: %w", err)
 	}
 
-	// return the TCP response
-	return icmpIP, port, 0, icmpFinished, nil
+	// return the response
+	return ip, finished, nil
 }
 
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func handlePackets(ctx context.Context, w *common.Winrawsocket, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, time.Time, error) {
 	buf := make([]byte, 512)
 	tp := newTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, 0, 0, time.Time{}, common.CanceledError("listener canceled")
+			return net.IP{}, time.Time{}, common.CanceledError("listener canceled")
 		default:
 		}
 
 		// the receive timeout is set to 100ms in the constructor, to match the
 		// linux side. This is a workaround for the lack of a deadline for sockets.
 		//err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-		n, _, err := recvFrom(w.s, buf, 0)
+		n, _, err := recvFrom(w.Socket, buf, 0)
 		if err != nil {
 			if err == windows.WSAETIMEDOUT {
 				continue
@@ -91,7 +74,7 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 				log.Warnf("Message too large for buffer")
 				continue
 			}
-			return nil, 0, 0, time.Time{}, err
+			return nil, time.Time{}, err
 		}
 		log.Tracef("Got packet %+v", buf[:n])
 
@@ -108,8 +91,6 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		// the response was received, if it matches, we will
 		// return this timestamp
 		received := time.Now()
-		// TODO: remove listener constraint and parse all packets
-		// in the same function return a succinct struct here
 		if header.Protocol == windows.IPPROTO_ICMP {
 			icmpResponse, err := common.ParseICMP(header, packet)
 			if err != nil {
@@ -117,7 +98,7 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 				continue
 			}
 			if common.ICMPMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
-				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
+				return icmpResponse.SrcIP, received, nil
 			}
 		} else if header.Protocol == windows.IPPROTO_TCP {
 			// don't even bother parsing the packet if the src/dst ip don't match
@@ -130,7 +111,7 @@ func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 				continue
 			}
 			if tcpMatch(localIP, localPort, remoteIP, remotePort, seqNum, tcpResp) {
-				return tcpResp.SrcIP, uint16(tcpResp.TCPResponse.SrcPort), 0, received, nil
+				return tcpResp.SrcIP, received, nil
 			}
 		} else {
 			continue
