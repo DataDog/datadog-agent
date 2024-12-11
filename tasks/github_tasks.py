@@ -161,8 +161,7 @@ def trigger_buildenv(
     new_version=None,
 ):
     if new_version is None:
-        major_version = get_version_major(release_branch)
-        new_version = current_version(ctx, major_version)
+        new_version = current_version(ctx, 7)
 
     conclusion = _trigger_buildenv_workflow(new_version, datadog_agent_ref)
     if conclusion != "success":
