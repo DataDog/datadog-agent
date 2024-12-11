@@ -11,13 +11,6 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.release import _get_release_json_value
 
 
-def _get_build_images(ctx):
-    # We intentionally include both build images & their test suffixes in the pattern
-    # as a test image and the merged version shouldn't share their cache
-    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
-    return (t.strip() for t in tags.splitlines())
-
-
 def _get_omnibus_commits(field):
     if 'RELEASE_VERSION' in os.environ:
         release_version = os.environ['RELEASE_VERSION']
@@ -211,9 +204,7 @@ def omnibus_compute_cache_key(ctx):
     h = hashlib.sha1()
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
-    buildimages_hash = _get_build_images(ctx)
-    for img_hash in buildimages_hash:
-        h.update(str.encode(img_hash))
+    h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
     omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
     omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
