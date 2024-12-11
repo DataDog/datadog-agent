@@ -92,8 +92,9 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) (*istioMonitor, err
 	}
 
 	m := &istioMonitor{
-		envoyCmd: c.EnvoyPath,
-		attacher: nil,
+		envoyCmd:       c.EnvoyPath,
+		attacher:       nil,
+		processMonitor: monitor.GetProcessMonitor(),
 	}
 
 	attachCfg := uprobes.AttacherConfig{
@@ -113,7 +114,6 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) (*istioMonitor, err
 	}
 
 	m.attacher = attacher
-	m.processMonitor = monitor.GetProcessMonitor()
 
 	return m, nil
 }
