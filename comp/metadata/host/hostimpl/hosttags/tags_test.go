@@ -137,3 +137,14 @@ func TestHostTagsCache(t *testing.T) {
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 2, nbCall)
 }
+
+func TestHaAgentTags(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+
+	mockConfig.SetWithoutSource("ha_agent.enabled", true)
+	mockConfig.SetWithoutSource("ha_agent.group", "my-group")
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, []string{}, hostTags.System)
+}
