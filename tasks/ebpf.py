@@ -724,7 +724,6 @@ def generate_complexity_summary_for_pr(
 
     current_branch_artifacts_path = Path(current_branch_artifacts_path)
     complexity_files = list(current_branch_artifacts_path.glob("verifier-complexity-*.tar.gz"))
-    print(complexity_files)
     if len(complexity_files) == 0:
         _try_delete_github_comment(
             f"No complexity data found for the current branch at {current_branch_artifacts_path}"
