@@ -47,7 +47,7 @@ const (
 )
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
-var tlsTagsMapTTL = 30 * time.Minute.Nanoseconds()
+var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
 
 var EbpfTracerTelemetry = struct { //nolint:revive // TODO
 	connections       telemetry.Gauge
@@ -744,7 +744,8 @@ func (t *ebpfTracer) setupTLSTagsMapCleaner(m *manager.Manager) {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
-	TLSTagsMapCleaner.Clean(time.Minute*1, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.TLSTagsWrapper) bool {
+	// slight jitter to avoid all maps being cleaned at the same time
+	TLSTagsMapCleaner.Clean(time.Second*70, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.TLSTagsWrapper) bool {
 		ts := int64(val.Updated)
 		return ts > 0 && now-ts > tlsTagsMapTTL
 	})

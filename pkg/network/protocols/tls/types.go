@@ -121,7 +121,7 @@ func hexCipherSuiteTag(cipherSuite uint16) string {
 func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
 	tags := make(map[string]struct{})
 	if tls == nil {
-		return tags
+		return nil
 	}
 
 	// Server chosen version

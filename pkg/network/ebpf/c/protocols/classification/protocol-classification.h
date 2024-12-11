@@ -63,6 +63,7 @@
 // updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
+    // Mark the current layer as known except for TLS, since there is still metadata to be extracted
     if (proto != PROTOCOL_TLS) {
         usm_ctx->routing_skip_layers |= proto;
     }

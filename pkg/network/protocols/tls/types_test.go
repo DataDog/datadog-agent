@@ -48,7 +48,7 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		{
 			name:     "Nil_TLSTags",
 			tlsTags:  nil,
-			expected: map[string]struct{}{},
+			expected: nil,
 		},
 		{
 			name: "All_Fields_Populated",
