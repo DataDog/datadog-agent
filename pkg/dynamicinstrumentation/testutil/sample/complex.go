@@ -25,15 +25,15 @@ type inner struct {
 //go:noinline
 func test_multiple_dereferences(o outer) {}
 
-type big_struct struct {
-	x []*string
-	z int
-	io.Writer
+type bigStruct struct {
+	x      []*string
+	z      int
+	writer io.Writer
 }
 
 //nolint:all
 //go:noinline
-func test_big_struct(b big_struct) {}
+func test_big_struct(b bigStruct) {}
 
 //nolint:all
 func ExecuteComplexFuncs() {
@@ -46,6 +46,14 @@ func ExecuteComplexFuncs() {
 			},
 		},
 	}
-	test_big_struct(big_struct{})
+
+	str := "abc"
+	s := []*string{&str}
+
+	test_big_struct(bigStruct{
+		x:      s,
+		z:      5,
+		writer: io.Discard,
+	})
 	test_multiple_dereferences(o)
 }
