@@ -1,27 +1,30 @@
 Param(
-    [Parameter(Mandatory=$true,Position=0)]
+    [Parameter(Mandatory=$true)]
     [ValidateSet("offline", "online")]
     [String]
     $installMethod,
 
-    [Parameter(Mandatory=$false,Position=1)]
+    [Parameter(Mandatory=$false)]
     [String]
     $msiDirectory,
 
     [Parameter(Mandatory=$false)]
     [ValidateSet("datadog-agent", "datadog-fips-agent")]
     [String]
-    $Flavor = "datadog-agent"
+    $Flavor = "datadog-agent",
+
+    [bool] $InstallDeps = $true
 )
 
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
-# Install chocolatey binary
-$env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-
-# Install dev tools, including invoke
-pip3 install -r requirements.txt
+if ($InstallDeps) {
+    # Install chocolatey
+    $env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    # Install dev tools, including invoke
+    pip3 install -r requirements.txt
+}
 
 $repoRoot = "C:\mnt"
 $outputDirectory = "$repoRoot\build-out"
