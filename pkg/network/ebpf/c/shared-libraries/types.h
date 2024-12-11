@@ -4,7 +4,7 @@
 #include "ktypes.h"
 
 #define LIB_SO_SUFFIX_SIZE 9
-#define LIB_PATH_MAX_SIZE 120
+#define LIB_PATH_MAX_SIZE 220
 
 typedef struct {
     __u32 pid;

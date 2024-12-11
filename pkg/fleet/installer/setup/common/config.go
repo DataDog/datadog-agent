@@ -15,10 +15,9 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"gopkg.in/yaml.v2"
 )
 
@@ -27,7 +26,7 @@ var (
 	datadogConfFile        = filepath.Join(configDir, "datadog.yaml")
 	logsConfFile           = filepath.Join(configDir, "conf.d/configured_at_install_logs.yaml")
 	sparkConfigFile        = filepath.Join(configDir, "conf.d/spark.d/spark.yaml")
-	injectTracerConfigFile = filepath.Join(configDir, "/etc/datadog-agent/inject/tracer.yaml")
+	injectTracerConfigFile = filepath.Join(configDir, "inject/tracer.yaml")
 )
 
 // HostInstaller is a struct that represents the agent agentConfiguration
@@ -61,21 +60,21 @@ type logsConfig struct {
 type LogConfig struct {
 	Type    string `yaml:"type"`
 	Path    string `yaml:"path"`
-	Service string `yaml:"service"`
-	Source  string `yaml:"source"`
+	Service string `yaml:"service,omitempty"`
+	Source  string `yaml:"source,omitempty"`
 }
 
 type sparkConfig struct {
-	InitConfig interface{}     `yaml:"init_config"`
+	InitConfig interface{}     `yaml:"init_config,omitempty"`
 	Instances  []SparkInstance `yaml:"instances"`
 }
 
 // SparkInstance is a struct that represents a single spark instance
 type SparkInstance struct {
 	SparkURL         string `yaml:"spark_url"`
-	SparkClusterMode string `yaml:"spark_cluster_mode"`
+	SparkClusterMode string `yaml:"spark_cluster_mode,omitempty"`
 	ClusterName      string `yaml:"cluster_name"`
-	StreamingMetrics bool   `yaml:"streaming_metrics"`
+	StreamingMetrics bool   `yaml:"streaming_metrics,omitempty"`
 }
 
 type injectorConfig struct {
@@ -100,7 +99,7 @@ func NewHostInstaller(env *env.Env) (*HostInstaller, error) {
 }
 
 func newHostInstaller(env *env.Env, ddUID, ddGID int) (*HostInstaller, error) {
-	i := &HostInstaller{}
+	i := &HostInstaller{agentConfig: make(map[string]interface{})}
 	if env.APIKey == "" {
 		return nil, fmt.Errorf("DD_API key is required")
 	}
@@ -220,7 +219,11 @@ func (i *HostInstaller) ConfigureAndInstall(ctx context.Context) error {
 		return fmt.Errorf("failed to write configurations: %w", err)
 	}
 
-	cmd := exec.NewInstallerExec(i.env, paths.StableInstallerPath)
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+	cmd := exec.NewInstallerExec(i.env, exePath)
 
 	if i.injectorVersion != "" {
 		if err := cmd.Install(ctx, oci.PackageURL(i.env, "datadog-apm-inject", i.injectorVersion), nil); err != nil {
