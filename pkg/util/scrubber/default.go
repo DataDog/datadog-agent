@@ -32,7 +32,7 @@ var (
 	dynamicReplacers      = []Replacer{}
 	dynamicReplacersMutex = sync.Mutex{}
 
-	// defaultVersion is the version were all old replacers were migrated to the first version of the agent scrubber.
+	// defaultVersion is the first version of the agent scrubber.
 	// https://github.com/DataDog/datadog-agent/pull/9618
 	defaultVersion = parseVersion("7.33.0")
 )
