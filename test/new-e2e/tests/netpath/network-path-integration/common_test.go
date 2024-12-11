@@ -34,7 +34,7 @@ type baseNetworkPathIntegrationTestSuite struct {
 func assertMetrics(fakeIntake *components.FakeIntake, t *testing.T, c *assert.CollectT, metricTags [][]string) {
 	fakeClient := fakeIntake.Client()
 
-	t.Log("try assert metrics")
+	t.Log("assert metrics")
 	metrics, err := fakeClient.FilterMetrics("datadog.network_path.path.monitored")
 	require.NoError(c, err)
 	assert.NotEmpty(c, metrics)
