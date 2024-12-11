@@ -7,6 +7,7 @@
 package devicecheck
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +19,9 @@ import (
 	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -252,9 +253,9 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
-	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
-	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
+	hosttags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, hosttags.System)
+	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, hosttags.System)
 }
 
 func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
