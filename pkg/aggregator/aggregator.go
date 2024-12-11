@@ -7,6 +7,7 @@
 package aggregator
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"sync"
@@ -14,7 +15,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -409,8 +410,12 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() eventplatform.Component {
-	return agg.eventPlatformForwarder
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
+		return nil, errors.New("event platform forwarder not initialized")
+	}
+	return forwarder, nil
 }
 
 func (agg *BufferedAggregator) registerSender(id checkid.ID) error {
@@ -459,9 +464,13 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 }
 
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
+		return errors.New("event platform forwarder not initialized")
+	}
 	m := message.NewMessage(event.rawEvent, nil, "", 0)
 	// eventPlatformForwarder is threadsafe so no locking needed here
-	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
+	return forwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -601,6 +610,19 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		SourceTypeName: "System",
 	})
 
+	if agg.haAgent.Enabled() {
+		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
+		// Send along a metric to show if HA Agent is running with agent_state tag.
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(haAgentTags),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
@@ -680,7 +702,11 @@ func (agg *BufferedAggregator) GetEvents() event.Events {
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
 // Note that this works only if using the 'noop' event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
-	return agg.eventPlatformForwarder.Purge()
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
+		return nil
+	}
+	return forwarder.Purge()
 }
 
 func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {

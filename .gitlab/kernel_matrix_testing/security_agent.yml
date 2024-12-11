@@ -361,7 +361,7 @@ kmt_run_secagent_tests_arm64_fentry:
   parallel:
     matrix:
       - TAG:
-          - "amazon_2023"
+          - "ubuntu_24.04"
         TEST_SET: [cws_fentry]
   after_script:
     - !reference [.collect_outcomes_kmt]

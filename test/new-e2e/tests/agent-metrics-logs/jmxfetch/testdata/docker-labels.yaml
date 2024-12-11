@@ -1,0 +1,43 @@
+---
+services:
+
+  jmx-test-app:
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "test": {
+            "init_config": {
+              "is_jmx": true,
+              "collect_default_metrics": true,
+              "new_gc_metrics": true,
+              "conf": [
+                {
+                  "include": {
+                    "domain": "dd.test.sample",
+                    "type": "simple",
+                    "attribute": {
+                      "ShouldBe100": {
+                        "metric_type": "gauge",
+                        "alias": "test.e2e.jmxfetch.counter_100"
+                      },
+                      "ShouldBe200": {
+                        "metric_type": "gauge",
+                        "alias": "test.e2e.jmxfetch.gauge_200"
+                      },
+                      "IncrementCounter": {
+                        "metric_type": "counter",
+                        "alias": "test.e2e.jmxfetch.increment_counter"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": "9010"
+              }
+            ]
+          }
+        }

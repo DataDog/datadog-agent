@@ -8,11 +8,12 @@
 package gpu
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
+func Factory(_ tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }
