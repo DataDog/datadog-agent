@@ -24,21 +24,20 @@ type windowsNetworkPathIntegrationTestSuite struct {
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-
-	suite := &windowsNetworkPathIntegrationTestSuite{
-		baseNetworkPathIntegrationTestSuite: baseNetworkPathIntegrationTestSuite{
-			destinationsTagsToAssert: [][]string{
-				{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
-				// TODO: Test UDP once implemented for windows
-				//{"destination_hostname:8.8.8.8", "protocol:UDP"},
-			},
-		},
-	}
-	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
 		),
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 	)))
+}
+
+func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
+	s.assertMetrics([][]string{
+		{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
+
+		// TODO: Test UDP once implemented for windows
+		//{"destination_hostname:8.8.8.8", "protocol:UDP"},
+	})
 }

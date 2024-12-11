@@ -22,19 +22,18 @@ type linuxNetworkPathIntegrationTestSuite01 struct {
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	suite := &linuxNetworkPathIntegrationTestSuite01{
-		baseNetworkPathIntegrationTestSuite: baseNetworkPathIntegrationTestSuite{
-			destinationsTagsToAssert: [][]string{
-				{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
-				{"destination_hostname:8.8.8.8", "protocol:UDP"},
-			},
-		},
-	}
-	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite01{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
 		)),
 	))
 
+}
+
+func (s *baseNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
+	s.assertMetrics([][]string{
+		{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
+		{"destination_hostname:8.8.8.8", "protocol:UDP"},
+	})
 }
