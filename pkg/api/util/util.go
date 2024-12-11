@@ -22,8 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type source int
+
 const (
-	uninitialized = iota
+	uninitialized source = iota
 	setAuthToken
 	createAndSetAuthToken
 )
@@ -40,7 +42,7 @@ var (
 		InsecureSkipVerify: true,
 	}
 	serverTLSConfig *tls.Config
-	initSource      int
+	initSource      source
 )
 
 // SetAuthToken sets the session token and IPC certificate
