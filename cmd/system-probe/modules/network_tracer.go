@@ -4,17 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -22,13 +22,21 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding"
-	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
+	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
+	postgresdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/debugging"
+	redisdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/redis/debugging"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,29 +46,40 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-// NetworkTracer is a factory for NPM's tracer
-var NetworkTracer = module.Factory{
-	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
-		ncfg := networkconfig.New()
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, msg := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
-		}
+const maxConntrackDumpSize = 3000
 
-		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	ncfg := networkconfig.New()
 
-		t, err := tracer.NewTracer(ncfg)
-		return &networkTracer{tracer: t}, err
-	},
+	// Checking whether the current OS + kernel version is supported by the tracer
+	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+	}
+
+	if ncfg.NPMEnabled {
+		log.Info("enabling network performance monitoring (NPM)")
+	}
+	if ncfg.ServiceMonitoringEnabled {
+		log.Info("enabling universal service monitoring (USM)")
+	}
+
+	t, err := tracer.NewTracer(ncfg, deps.Telemetry)
+
+	done := make(chan struct{})
+	if err == nil {
+		startTelemetryReporter(cfg, done)
+	}
+
+	return &networkTracer{tracer: t, done: done}, err
 }
 
 var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
 	tracer       *tracer.Tracer
+	done         chan struct{}
 	restartTimer *time.Timer
 }
 
@@ -83,7 +102,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
 		if nt.restartTimer != nil {
@@ -91,6 +110,16 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
+	}))
+
+	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id, err := nt.tracer.GetNetworkID(req.Context())
+		if err != nil {
+			log.Errorf("unable to retrieve network_id: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		io.WriteString(w, id)
 	}))
 
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
@@ -114,7 +143,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 	})
 
@@ -130,6 +159,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http_monitoring") {
+			writeDisabledProtocolMessage("http", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -138,7 +171,71 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+	})
+
+	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_kafka_monitoring") {
+			writeDisabledProtocolMessage("kafka", w)
+			return
+		}
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
+	})
+
+	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_postgres_monitoring") {
+			writeDisabledProtocolMessage("postgres", w)
+			return
+		}
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres))
+	})
+
+	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_redis_monitoring") {
+			writeDisabledProtocolMessage("redis", w)
+			return
+		}
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis))
+	})
+
+	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http2_monitoring") {
+			writeDisabledProtocolMessage("http2", w)
+			return
+		}
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -149,14 +246,12 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			maps = strings.Split(listMaps, ",")
 		}
 
-		ebpfMaps, err := nt.tracer.DebugEBPFMaps(maps...)
+		err := nt.tracer.DebugEBPFMaps(w, maps...)
 		if err != nil {
 			log.Errorf("unable to retrieve eBPF maps: %s", err)
 			w.WriteHeader(500)
 			return
 		}
-
-		utils.WriteAsJSON(w, ebpfMaps)
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
@@ -169,11 +264,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 10*time.Second)
 		defer cancelFunc()
 		table, err := nt.tracer.DebugHostConntrack(ctx)
 		if err != nil {
@@ -182,8 +277,28 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
+
+	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancelFunc()
+		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
+		if err != nil {
+			log.Errorf("unable to dump tracer process cache: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, cache)
+	})
+
+	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
+	httpMux.HandleFunc("/debug/usm/traced_programs", usm.GetTracedProgramsEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.GetBlockedPathIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.GetClearBlockedEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/attach-pid", usm.GetAttachPIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/detach-pid", usm.GetDetachPIDEndpoint(usmconsts.USMModuleName))
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
@@ -207,11 +322,12 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	close(nt.done)
 	nt.tracer.Stop()
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Now().Sub(start)}
+	args := []interface{}{client, count, connectionsCount, time.Since(start)}
 	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
 	switch {
 	case count <= 5, count%20 == 0:
@@ -229,17 +345,55 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	buf, err := marshaler.Marshal(cs)
+	w.Header().Set("Content-type", marshaler.ContentType())
+
+	connectionsModeler := marshal.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	err := marshaler.Marshal(cs, w, connectionsModeler)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
 
-	w.Header().Set("Content-type", marshaler.ContentType())
-	w.Write(buf) //nolint:errcheck
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("/connections: %d connections", len(cs.Conns))
+}
+
+func startTelemetryReporter(_ *sysconfigtypes.Config, done <-chan struct{}) {
+	telemetry.SetStatsdClient(statsd.Client)
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				telemetry.ReportStatsd()
+			case <-done:
+				return
+			}
+		}
+	}()
+}
+
+func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
+	log.Warnf("%s monitoring is disabled", protocolName)
+	w.WriteHeader(404)
+	// Writing JSON to ensure compatibility when using the jq bash utility for output
+	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
+	// We are marshaling a static string, so we can ignore the error
+	buf, _ := json.Marshal(outputString)
+	w.Write(buf)
+}
+
+func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {
+	err := table.WriteTo(w, maxConntrackDumpSize)
+	if err != nil {
+		log.Errorf("unable to dump conntrack: %s", err)
+		w.WriteHeader(500)
+	}
 }

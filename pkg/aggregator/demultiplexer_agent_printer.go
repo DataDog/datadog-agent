@@ -11,17 +11,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // AgentDemultiplexerPrinter is used to output series, sketches, service checks
 // and events.
 // Today, this is only used by the `agent check` command.
 type AgentDemultiplexerPrinter struct {
-	*AgentDemultiplexer
+	DemultiplexerWithAggregator
 }
 
 type eventPlatformDebugEvent struct {
@@ -33,9 +32,9 @@ type eventPlatformDebugEvent struct {
 // PrintMetrics prints metrics aggregator in the Demultiplexer's check samplers (series and sketches),
 // service checks buffer, events buffers.
 func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, formatTable bool) {
-	series, sketches := p.aggregator.GetSeriesAndSketches(time.Now())
+	series, sketches := p.Aggregator().GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Series"))
 
 		if formatTable {
 			headers, data := series.MarshalStrings()
@@ -66,15 +65,15 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		}
 	}
 	if len(sketches) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Sketches"))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
 		fmt.Println(string(j))
 		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
-	serviceChecks := p.aggregator.GetServiceChecks()
+	serviceChecks := p.Aggregator().GetServiceChecks()
 	if len(serviceChecks) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Service Checks"))
 
 		if formatTable {
 			headers, data := serviceChecks.MarshalStrings()
@@ -105,9 +104,9 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		}
 	}
 
-	events := p.aggregator.GetEvents()
+	events := p.Aggregator().GetEvents()
 	if len(events) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Events"))
 		checkFileOutput.WriteString("=== Events ===\n")
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
@@ -116,10 +115,10 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 
 	for k, v := range p.toDebugEpEvents() {
 		if len(v) > 0 {
-			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
+			if translated, ok := stats.EventPlatformNameTranslations[k]; ok {
 				k = translated
 			}
-			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))
+			fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString(k))
 			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
 			j, _ := json.MarshalIndent(v, "", "  ")
 			fmt.Println(string(j))
@@ -130,12 +129,12 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 
 // toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
 func (p AgentDemultiplexerPrinter) toDebugEpEvents() map[string][]eventPlatformDebugEvent {
-	events := p.aggregator.GetEventPlatformEvents()
+	events := p.Aggregator().GetEventPlatformEvents()
 	result := make(map[string][]eventPlatformDebugEvent)
 	for eventType, messages := range events {
 		var events []eventPlatformDebugEvent
 		for _, m := range messages {
-			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.GetContent())}
 			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
 			if err == nil {
 				e.RawEvent = ""
@@ -159,6 +158,7 @@ func (p AgentDemultiplexerPrinter) GetMetricsDataForPrint() map[string]interface
 		// Workaround to get the sequence of metrics as plain interface{}
 		for i, serie := range series {
 			serie.PopulateDeviceField()
+			serie.PopulateResources()
 			sj, _ := json.Marshal(serie)
 			json.Unmarshal(sj, &metrics[i]) //nolint:errcheck
 		}

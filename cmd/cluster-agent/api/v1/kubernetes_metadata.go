@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package v1
 
@@ -13,38 +12,48 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/gorilla/mux"
-
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func installKubernetesMetadataEndpoints(r *mux.Router) {
-	r.HandleFunc("/annotations/node/{nodeName}", api.WithTelemetryWrapper("getNodeAnnotations", getNodeAnnotations)).Methods("GET")
+func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Component) {
+	r.HandleFunc("/annotations/node/{nodeName}", api.WithTelemetryWrapper(
+		"getNodeAnnotations",
+		func(w http.ResponseWriter, r *http.Request) { getNodeAnnotations(w, r, wmeta) },
+	)).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", api.WithTelemetryWrapper("getPodMetadata", getPodMetadata)).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}", api.WithTelemetryWrapper("getPodMetadataForNode", getPodMetadataForNode)).Methods("GET")
 	r.HandleFunc("/tags/pod", api.WithTelemetryWrapper("getAllMetadata", getAllMetadata)).Methods("GET")
-	r.HandleFunc("/tags/node/{nodeName}", api.WithTelemetryWrapper("getNodeLabels", getNodeLabels)).Methods("GET")
-	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", getNamespaceLabels)).Methods("GET")
+	r.HandleFunc("/tags/node/{nodeName}", api.WithTelemetryWrapper(
+		"getNodeLabels",
+		func(w http.ResponseWriter, r *http.Request) { getNodeLabels(w, r, wmeta) },
+	)).Methods("GET")
+	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
+	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
-// getNodeMetadata is only used when the node agent hits the DCA for the list of labels
-func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClient, string) (map[string]string, error), what string, filterList []string) {
+// getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) map[string]string, what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
 		Outputs
 			Status: 200
 			Returns: []string
-			Example: ["label1:value1", "label2:value2"]
+			Example: ["key1:value1", "key2:value2"]
 
 			Status: 404
 			Returns: string
@@ -55,24 +64,19 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 			Example: "no cached metadata found for the node localhost"
 	*/
 
-	// As HTTP query handler, we do not retry getting the APIServer
-	// Client will have to retry query in case of failure
-	cl, err := as.GetAPIClient()
-	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	vars := mux.Vars(r)
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
-	nodeData, err := f(cl, nodeName)
+
+	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
+	nodeMetadata, err := wmeta.GetKubernetesMetadata(entityID)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	nodeData := f(nodeMetadata)
 
 	// Filter data to avoid returning too big useless data
 	if filterList != nil {
@@ -100,16 +104,45 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 	fmt.Fprintf(w, "Could not find %s on the node: %s", what, nodeName)
 }
 
-func getNodeLabels(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeLabels, "labels", nil)
+func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Labels }, "labels", nil)
 }
 
-func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+}
+
+// getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
+// ATTENTION: T should be marshable to json
+func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) T, what string) {
+	vars := mux.Vars(r)
+	var metadataBytes []byte
+	nsName := vars["ns"]
+	namespaceMetadata, err := wmeta.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "namespaces", "", nsName))
+	if err != nil {
+		log.Debugf("Could not retrieve the %s of namespace %s: %v", what, nsName, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	metadata := f(namespaceMetadata)
+	metadataBytes, err = json.Marshal(metadata)
+	if err != nil {
+		log.Errorf("Failed to marshal %s %+v of namespace %s from the workload metadata store: %v", what, metadata, nsName, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(metadataBytes) > 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(metadataBytes)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	fmt.Fprintf(w, "Could not find %s of the namespace: %s", what, nsName)
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
-func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
+func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/namespace/default
@@ -124,31 +157,34 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
 
 			Status: 500
 			Returns: string
+			Example: "no cached labels found for the namespace default"
+	*/
+	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespaceMetadata *workloadmeta.KubernetesMetadata) map[string]string {
+		return namespaceMetadata.Labels
+	}, "labels")
+}
+
+// getNamespaceMetadata is used when the node agent hits the DCA metadata (annotations and labels) of a specific namespace
+func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	/*
+		Input
+			localhost:5001/api/v1/metadata/namespace/default
+		Outputs
+			Status: 200
+			Returns: []string
+			Example: { labels { "key": "value" }, annotations { "key": "value" }, name "default", namespace ""}
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
 			Example: "no cached metadata found for the namespace default"
 	*/
-
-	vars := mux.Vars(r)
-	var labelBytes []byte
-	nsName := vars["ns"]
-	nsLabels, err := as.GetNamespaceLabels(nsName)
-	if err != nil {
-		log.Errorf("Could not retrieve the namespace labels of %s: %v", nsName, err.Error()) //nolint:errcheck
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	labelBytes, err = json.Marshal(nsLabels)
-	if err != nil {
-		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(labelBytes) > 0 {
-		w.WriteHeader(http.StatusOK)
-		w.Write(labelBytes)
-		return
-	}
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "Could not find labels on the namespace: %s", nsName)
+	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespaceMetadata *workloadmeta.KubernetesMetadata) workloadmeta.EntityMeta {
+		return namespaceMetadata.EntityMeta
+	}, "metadata")
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -176,7 +212,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
 	ns := vars["ns"]
-	metaList, errMetaList := as.GetPodMetadataNames(nodeName, ns, podName)
+	metaList, errMetaList := controllers.GetPodMetadataNames(nodeName, ns, podName)
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName) //nolint:errcheck
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
@@ -219,10 +255,11 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	return
 }
 
 // getAllMetadata is used by the svcmap command.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
@@ -267,10 +304,11 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	return
 }
 
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func getClusterID(w http.ResponseWriter, r *http.Request) {
 	// As HTTP query handler, we do not retry getting the APIServer
 	// Client will have to retry query in case of failure
@@ -297,5 +335,4 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(j)
-	return
 }

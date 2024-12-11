@@ -1,0 +1,7 @@
+---
+# Define preliminary jobs, which can start as soon as possible
+
+include:
+  - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/.pre/create_release_qa_cards.yml
+  - .gitlab/.pre/gitlab_configuration.yml

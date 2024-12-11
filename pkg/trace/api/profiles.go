@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -19,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -77,16 +76,25 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if err != nil {
 		return errorHandler(err)
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
+	var tags strings.Builder
+	tags.WriteString(fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion))
+
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
-		tags = tags + "," + tag
+		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_%s", strings.ToLower(string(orch))))
 	}
-	return newProfileProxy(r.conf, targets, keys, tags)
+	if r.conf.LambdaFunctionName != "" {
+		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
+		tags.WriteString("_dd.origin:lambda")
+	}
+	if r.conf.AzureContainerAppTags != "" {
+		tags.WriteString(r.conf.AzureContainerAppTags)
+	}
+
+	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
 }
 
 func errorHandler(err error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		msg := fmt.Sprintf("Profile forwarder is OFF: %v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})
@@ -100,7 +108,8 @@ func errorHandler(err error) http.Handler {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
+func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -109,12 +118,15 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
-		containerID := req.Header.Get(headerContainerID)
+		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
-			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			ctagsHeader := normalizeHTTPHeader(ctags)
+			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for profiles proxy", ctagsHeader)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
-		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
+		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for profiles proxy", tags)
+		_ = statsd.Count("datadog.trace_agent.profile", 1, nil, 1)
 		// URL, Host and key are set in the transport for each outbound request
 	}
 	transport := conf.NewHTTPTransport()
@@ -165,13 +177,13 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
 	}
-	slurp, err := ioutil.ReadAll(req.Body)
+	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
-		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
@@ -182,7 +194,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 
 		if resp, err := m.rt.RoundTrip(newreq); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

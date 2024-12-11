@@ -6,14 +6,19 @@
 package ad
 
 import (
+	"fmt"
 	"testing"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -47,6 +52,54 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
+func TestScheduleTCPConfig(t *testing.T) {
+	scheduler, spy := setup()
+	configSource := integration.Config{
+		LogsConfig:    []byte(`[{"service":"foo","source":"bar", "type":"tcp"}]`),
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck:  false,
+	}
+
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
+	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, sourcesPkg.SourceType(""), logSource.GetSourceType())
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, "tcp", logSource.Config.Type)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
+func TestScheduleUDPConfig(t *testing.T) {
+	scheduler, spy := setup()
+	configSource := integration.Config{
+		LogsConfig:    []byte(`[{"service":"foo","source":"bar", "type":"udp"}]`),
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck:  false,
+	}
+
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
+	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, sourcesPkg.SourceType(""), logSource.GetSourceType())
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, "udp", logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
@@ -102,34 +155,6 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestScheduleConfigCreatesNewService(t *testing.T) {
-	scheduler, spy := setup()
-	configService := integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ClusterCheck: false,
-	}
-
-	scheduler.Schedule([]integration.Config{configService})
-
-	require.Equal(t, 1, len(spy.Events))
-	require.True(t, spy.Events[0].Add)
-	svc := spy.Events[0].Service
-
-	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
-
-	// shouldn't consider pods
-	configService = integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ClusterCheck: false,
-	}
-	scheduler.Schedule([]integration.Config{configService})
-	require.Equal(t, 1, len(spy.Events)) // no new events
-}
-
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	scheduler, spy := setup()
 	configSource := integration.Config{
@@ -142,7 +167,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	}
 
 	// We need to have a source to remove
-	sources, _ := scheduler.toSources(configSource)
+	sources, _ := CreateSources(configSource)
 	spy.Sources = sources
 
 	scheduler.Unschedule([]integration.Config{configSource})
@@ -159,33 +184,6 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestUnscheduleConfigRemovesService(t *testing.T) {
-	scheduler, spy := setup()
-	configService := integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ClusterCheck: false,
-	}
-
-	scheduler.Unschedule([]integration.Config{configService})
-	require.Equal(t, 1, len(spy.Events))
-	require.False(t, spy.Events[0].Add)
-	svc := spy.Events[0].Service
-	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
-
-	// shouldn't consider pods
-	configService = integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ClusterCheck: false,
-	}
-
-	scheduler.Unschedule([]integration.Config{configService})
-	require.Equal(t, 1, len(spy.Events)) // no new events
-}
-
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	scheduler, spy := setup()
 	configService := integration.Config{
@@ -199,4 +197,38 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	scheduler.Schedule([]integration.Config{configService})
 	scheduler.Unschedule([]integration.Config{configService})
 	require.Equal(t, 0, len(spy.Events)) // no events
+}
+
+func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
+	for _, rcLogCfgSchedEnabled := range []bool{true, false} {
+		testName := fmt.Sprintf("allow_log_config_scheduling=%t", rcLogCfgSchedEnabled)
+		t.Run(testName, func(t *testing.T) {
+			scheduler, spy := setup()
+			configSource := integration.Config{
+				LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
+				ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+				Provider:      names.RemoteConfig,
+				TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+				ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+				ClusterCheck:  false,
+			}
+			configmock.New(t)
+			pkgconfigsetup.Datadog().Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
+			scheduler.Schedule([]integration.Config{configSource})
+			if rcLogCfgSchedEnabled {
+				require.Equal(t, 1, len(spy.Events))
+				require.True(t, spy.Events[0].Add)
+				logSource := spy.Events[0].Source
+				assert.Equal(t, config.DockerType, logSource.Name)
+				// We use the docker socket, not sourceType here
+				assert.Equal(t, sourcesPkg.SourceType(""), logSource.GetSourceType())
+				assert.Equal(t, "foo", logSource.Config.Service)
+				assert.Equal(t, "bar", logSource.Config.Source)
+				assert.Equal(t, config.DockerType, logSource.Config.Type)
+				assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+			} else {
+				require.Equal(t, 0, len(spy.Events)) // no events
+			}
+		})
+	}
 }

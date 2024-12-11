@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -16,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -62,6 +62,15 @@ func TestExtractReplicaSet(t *testing.T) {
 					FullyLabeledReplicas: 2,
 					ReadyReplicas:        1,
 					AvailableReplicas:    1,
+					Conditions: []appsv1.ReplicaSetCondition{
+						{
+							Type:               appsv1.ReplicaSetReplicaFailure,
+							Status:             v1.ConditionFalse,
+							LastTransitionTime: timestamp,
+							Reason:             "test reason",
+							Message:            "test message",
+						},
+					},
 				},
 			}, expected: model.ReplicaSet{
 				Metadata: &model.Metadata{
@@ -73,6 +82,16 @@ func TestExtractReplicaSet(t *testing.T) {
 					Annotations:       []string{"annotation:bar"},
 					ResourceVersion:   "1234",
 				},
+				Conditions: []*model.ReplicaSetCondition{
+					{
+						Type:               string(appsv1.ReplicaSetReplicaFailure),
+						Status:             string(v1.ConditionFalse),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "test reason",
+						Message:            "test message",
+					},
+				},
+				Tags: []string{"kube_condition_replicafailure:false"},
 				Selectors: []*model.LabelSelectorRequirement{
 					{
 						Key:      "app",

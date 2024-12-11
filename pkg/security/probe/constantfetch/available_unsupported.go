@@ -4,29 +4,27 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux && !linux_bpf
-// +build linux,!linux_bpf
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd.ClientInterface) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
-
-	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
-		fetchers = append(fetchers, coreFetcher)
-	}
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
 	if err != nil {
-		log.Debugf("failed to create btfhub constant fetcher: %v", err)
+		seclog.Debugf("failed to create btfhub constant fetcher: %v", err)
 	} else {
 		fetchers = append(fetchers, btfhubFetcher)
 	}
@@ -35,4 +33,14 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 	fetchers = append(fetchers, fallbackConstantFetcher)
 
 	return fetchers
+}
+
+// GetHasUsernamespaceFirstArgWithBtf not available
+func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}
+
+// GetHasVFSRenameStructArgs not available
+func GetHasVFSRenameStructArgs() (bool, error) {
+	return false, errors.New("unsupported BTF request")
 }

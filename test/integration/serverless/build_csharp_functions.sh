@@ -14,4 +14,4 @@ else
     CONVERTED_ARCH="x86_64"
 fi
 
-dotnet lambda package --configuration Release --framework net6.0 --verbosity quiet --output-package bin/Release/net6.0/handler.zip --function-architecture $CONVERTED_ARCH
+PATH="${PATH}:${HOME}/.dotnet/tools" dotnet lambda package --configuration Release --framework net6.0 --verbosity quiet --output-package bin/Release/net6.0/handler.zip --function-architecture $CONVERTED_ARCH

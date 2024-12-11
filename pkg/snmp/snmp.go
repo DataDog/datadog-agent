@@ -10,16 +10,17 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
-	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/DataDog/viper"
 	"github.com/gosnmp/gosnmp"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
 const (
@@ -30,15 +31,17 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers               int      `mapstructure:"workers"`
-	DiscoveryInterval     int      `mapstructure:"discovery_interval"`
-	AllowedFailures       int      `mapstructure:"discovery_allowed_failures"`
-	Loader                string   `mapstructure:"loader"`
-	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
-	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
-	Namespace             string   `mapstructure:"namespace"`
-	UseDeviceISAsHostname bool     `mapstructure:"use_device_id_as_hostname"`
-	Configs               []Config `mapstructure:"configs"`
+	Workers               int                        `mapstructure:"workers"`
+	DiscoveryInterval     int                        `mapstructure:"discovery_interval"`
+	AllowedFailures       int                        `mapstructure:"discovery_allowed_failures"`
+	Loader                string                     `mapstructure:"loader"`
+	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
+	CollectTopology       bool                       `mapstructure:"collect_topology"`
+	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
+	Namespace             string                     `mapstructure:"namespace"`
+	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
+	Configs               []Config                   `mapstructure:"configs"`
+	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -65,11 +68,18 @@ type Config struct {
 	Loader                      string          `mapstructure:"loader"`
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
+	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
+	CollectTopology             bool
 	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
 	UseDeviceIDAsHostname       bool
 	Namespace                   string   `mapstructure:"namespace"`
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
+
+	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
+	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
+
+	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -81,29 +91,30 @@ type Config struct {
 	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
 }
 
+type intOrBoolPtr interface {
+	*int | *bool
+}
+
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
 	var snmpConfig ListenerConfig
-	opt := viper.DecodeHook(
-		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
-			// Turn an array into a map for ignored addresses
-			if rf != reflect.Slice {
-				return data, nil
-			}
-			if rt != reflect.Map {
-				return data, nil
-			}
-			newData := map[interface{}]bool{}
-			for _, i := range data.([]interface{}) {
-				newData[i] = true
-			}
-			return newData, nil
-		},
-	)
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
-	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
-		return snmpConfig, err
+	snmpConfig.CollectTopology = true
+
+	ddcfg := pkgconfigsetup.Datadog()
+	if ddcfg.IsSet("network_devices.autodiscovery") {
+		err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
+		if err != nil {
+			return snmpConfig, err
+		}
+	} else if ddcfg.IsSet("snmp_listener") {
+		err := structure.UnmarshalKey(ddcfg, "snmp_listener", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
+		if err != nil {
+			return snmpConfig, err
+		}
+	} else {
+		return snmpConfig, errors.New("no config given for snmp_listener")
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
@@ -128,6 +139,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 		} else {
 			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
 		}
+		if config.CollectTopologyConfig != nil {
+			config.CollectTopology = *config.CollectTopologyConfig
+		} else {
+			config.CollectTopology = snmpConfig.CollectTopology
+		}
 
 		if config.UseDeviceIDAsHostnameConfig != nil {
 			config.UseDeviceIDAsHostname = *config.UseDeviceIDAsHostnameConfig
@@ -143,7 +159,14 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}
 
-		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, coreconfig.Datadog.GetString("network_devices.namespace"))
+		// Ping config
+		config.PingConfig.Enabled = firstNonNil(config.PingConfig.Enabled, snmpConfig.PingConfig.Enabled)
+		config.PingConfig.Linux.UseRawSocket = firstNonNil(config.PingConfig.Linux.UseRawSocket, snmpConfig.PingConfig.Linux.UseRawSocket)
+		config.PingConfig.Interval = firstNonNil(config.PingConfig.Interval, snmpConfig.PingConfig.Interval)
+		config.PingConfig.Timeout = firstNonNil(config.PingConfig.Timeout, snmpConfig.PingConfig.Timeout)
+		config.PingConfig.Count = firstNonNil(config.PingConfig.Count, snmpConfig.PingConfig.Count)
+
+		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, pkgconfigsetup.Datadog().GetString("network_devices.namespace"))
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
 		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
 		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)
@@ -203,36 +226,14 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
 	}
 
-	var authProtocol gosnmp.SnmpV3AuthProtocol
-	lowerAuthProtocol := strings.ToLower(c.AuthProtocol)
-	if lowerAuthProtocol == "" {
-		authProtocol = gosnmp.NoAuth
-	} else if lowerAuthProtocol == "md5" {
-		authProtocol = gosnmp.MD5
-	} else if lowerAuthProtocol == "sha" {
-		authProtocol = gosnmp.SHA
-	} else {
-		return nil, fmt.Errorf("Unsupported authentication protocol: %s", c.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(c.AuthProtocol)
+	if err != nil {
+		return nil, err
 	}
 
-	var privProtocol gosnmp.SnmpV3PrivProtocol
-	lowerPrivProtocol := strings.ToLower(c.PrivProtocol)
-	if lowerPrivProtocol == "" {
-		privProtocol = gosnmp.NoPriv
-	} else if lowerPrivProtocol == "des" {
-		privProtocol = gosnmp.DES
-	} else if lowerPrivProtocol == "aes" {
-		privProtocol = gosnmp.AES
-	} else if lowerPrivProtocol == "aes192" {
-		privProtocol = gosnmp.AES192
-	} else if lowerPrivProtocol == "aes192c" {
-		privProtocol = gosnmp.AES192C
-	} else if lowerPrivProtocol == "aes256" {
-		privProtocol = gosnmp.AES256
-	} else if lowerPrivProtocol == "aes256c" {
-		privProtocol = gosnmp.AES256C
-	} else {
-		return nil, fmt.Errorf("Unsupported privacy protocol: %s", c.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(c.PrivProtocol)
+	if err != nil {
+		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
@@ -278,4 +279,14 @@ func firstNonEmpty(strings ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonNil[T intOrBoolPtr](params ...T) T {
+	for _, p := range params {
+		if p != nil {
+			return p
+		}
+	}
+
+	return nil
 }

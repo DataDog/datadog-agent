@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -56,7 +55,6 @@ func TestExtractNode(t *testing.T) {
 						OSImage:                 "os1",
 						ContainerRuntimeVersion: "docker1",
 						KubeletVersion:          "1.18",
-						KubeProxyVersion:        "11",
 						OperatingSystem:         "linux",
 						Architecture:            "amd64",
 					},
@@ -118,7 +116,6 @@ func TestExtractNode(t *testing.T) {
 					OsImage:                 "os1",
 					ContainerRuntimeVersion: "docker1",
 					KubeletVersion:          "1.18",
-					KubeProxyVersion:        "11",
 					OperatingSystem:         "linux",
 					Architecture:            "amd64",
 					Conditions: []*model.NodeCondition{{

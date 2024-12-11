@@ -4,32 +4,32 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type containerdCustomMetricsExtension struct {
 	sender    generic.SenderFunc
-	aggSender aggregator.Sender
+	aggSender sender.Sender
 }
 
-func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	cext.sender = sender
 	cext.aggSender = aggSender
 }
 
-func (cext *containerdCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
+func (cext *containerdCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
@@ -66,6 +66,6 @@ func (cext *containerdCustomMetricsExtension) Process(tags []string, container *
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (cext *containerdCustomMetricsExtension) PostProcess() {
+func (cext *containerdCustomMetricsExtension) PostProcess(tagger.Component) {
 	// Nothing to do here
 }

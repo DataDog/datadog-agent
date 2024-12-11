@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -19,17 +19,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestLink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `link.file.path == "{{.Root}}/test-link" && link.file.destination.path == "{{.Root}}/test2-link" && link.file.uid == 98 && link.file.gid == 99 && link.file.destination.uid == 98 && link.file.destination.gid == 99`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,20 +56,22 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
+			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 			assertNearTime(t, event.Link.Source.MTime)
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
-			assert.Equal(t, event.Async, false)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateLinkSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.link.path")
+			validateSyscallContext(t, event, "$.syscall.link.destination_path")
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -82,20 +86,22 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
+			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 			assertNearTime(t, event.Link.Source.MTime)
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
-			assert.Equal(t, event.Async, false)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateLinkSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.link.path")
+			validateSyscallContext(t, event, "$.syscall.link.destination_path")
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -104,6 +110,7 @@ func TestLink(t *testing.T) {
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {
@@ -138,7 +145,7 @@ func TestLink(t *testing.T) {
 				return fmt.Errorf("failed to create a link with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -147,7 +154,9 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
-			assert.Equal(t, event.Async, true)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
 			if err != nil {

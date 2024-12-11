@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package lutgen provides tools to generate lookup tables for Go binaries.
 package lutgen
 
 import (
@@ -11,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/goversion"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 )
 
 // LookupFunction configures a single lookup table
@@ -30,23 +31,23 @@ type LookupFunction struct {
 // (map of architecture,version pairs to inspection results)
 // to the template arguments, ready to render the lookup table implementation.
 // To do this, it:
-// - converts each result to the specific "value" for the function
-//   by running the "ExtractValue" function, if given.
-//   If used, this lets a single run of the matrix runner
-//   generate multiple lookup functions, each working with different values
-//   that get derived from the inspection result values.
-// - bin the results by architecture,
-//   since the lookup tables are generated with a top-level "switch...case"
-//   on the architectures.
-// - for each architecture, sort the values by the Go version
-//   and drop any non-unique values.
-//   Then, reverse the list of Go version, value pairs
-//   to generate the list of cases used to render the lookup table.
-//   This works because the lookup table generates a list of
-//   "if $inputVersion > $caseVersion { return $caseValue }" statements for each case,
-//   so by reverse-sorting the list of cases, the appropriate case will always be taken.
-//   This has the added benefit of gracefully handling unknown/newer Go versions
-//   than the lookup table was generated with; they will take the first branch.
+//   - converts each result to the specific "value" for the function
+//     by running the "ExtractValue" function, if given.
+//     If used, this lets a single run of the matrix runner
+//     generate multiple lookup functions, each working with different values
+//     that get derived from the inspection result values.
+//   - bin the results by architecture,
+//     since the lookup tables are generated with a top-level "switch...case"
+//     on the architectures.
+//   - for each architecture, sort the values by the Go version
+//     and drop any non-unique values.
+//     Then, reverse the list of Go version, value pairs
+//     to generate the list of cases used to render the lookup table.
+//     This works because the lookup table generates a list of
+//     "if $inputVersion > $caseVersion { return $caseValue }" statements for each case,
+//     so by reverse-sorting the list of cases, the appropriate case will always be taken.
+//     This has the added benefit of gracefully handling unknown/newer Go versions
+//     than the lookup table was generated with; they will take the first branch.
 func (f *LookupFunction) argsFromResultTable(resultTable map[architectureVersion]interface{}) lookupFunctionTemplateArgs {
 	valueTable := f.convertResultToValueTable(resultTable)
 	architectureValueSets := f.binArchitectures(valueTable)

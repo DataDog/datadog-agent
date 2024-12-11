@@ -9,17 +9,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
+func getNewHostname(name hostnameinterface.MockHostname) hostnameinterface.Mock {
+	_, mock := hostnameinterface.NewMock(name)
+	return mock
+}
+
 func TestEnableDisable(t *testing.T) {
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	assert.True(t, b.SetEnabled(true))
 	assert.False(t, b.SetEnabled(true))
 
-	b.HandleMessage(newMessage("", "", "", ""), []byte("a"))
+	b.HandleMessage(newMessage("", "", "", ""), []byte("a"), "")
 
 	done := make(chan struct{})
 	defer close(done)
@@ -36,7 +42,7 @@ func TestEnableDisable(t *testing.T) {
 	default:
 	}
 
-	b.HandleMessage(newMessage("", "", "", ""), []byte("a"))
+	b.HandleMessage(newMessage("", "", "", ""), []byte("a"), "")
 
 	select {
 	case <-lineChan:
@@ -48,13 +54,13 @@ func TestEnableDisable(t *testing.T) {
 
 func TestFilterAll(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test1", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test1", "1", "2", "service_b"), []byte("a"))
-		b.HandleMessage(newMessage("test2", "a", "b", "service_c"), []byte("a"))
+		b.HandleMessage(newMessage("test1", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test1", "1", "2", "service_b"), []byte("a"), "")
+		b.HandleMessage(newMessage("test2", "a", "b", "service_c"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -68,12 +74,12 @@ func TestFilterAll(t *testing.T) {
 
 func TestFilterTypeAndSource(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "1", "2", "service_b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "1", "2", "service_b"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -86,12 +92,12 @@ func TestFilterTypeAndSource(t *testing.T) {
 
 func TestFilterTypeAndService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "1", "2", "service_b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "1", "2", "service_b"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -104,12 +110,12 @@ func TestFilterTypeAndService(t *testing.T) {
 
 func TestFilterSourceAndService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "1", "2", "service_b"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "1", "2", "service_b"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -122,13 +128,13 @@ func TestFilterSourceAndService(t *testing.T) {
 
 func TestFilterName(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test1", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test2", "a", "2", "service_b"), []byte("a"))
-		b.HandleMessage(newMessage("test2", "b", "2", "service_c"), []byte("a"))
+		b.HandleMessage(newMessage("test1", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test2", "a", "2", "service_b"), []byte("a"), "")
+		b.HandleMessage(newMessage("test2", "b", "2", "service_c"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -140,13 +146,13 @@ func TestFilterName(t *testing.T) {
 
 func TestFilterSource(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"))
-		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -158,13 +164,13 @@ func TestFilterSource(t *testing.T) {
 
 func TestFilterType(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"))
-		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -176,13 +182,13 @@ func TestFilterType(t *testing.T) {
 
 func TestFilterService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"))
-		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -194,13 +200,13 @@ func TestFilterService(t *testing.T) {
 
 func TestNoFilters(t *testing.T) {
 
-	b := NewBufferedMessageReceiver()
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
-		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"))
-		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"))
-		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"))
+		b.HandleMessage(newMessage("test", "a", "b", "service_a"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "a", "2", "service_b"), []byte("a"), "")
+		b.HandleMessage(newMessage("test", "b", "2", "service_c"), []byte("a"), "")
 	}
 
 	filters := Filters{
@@ -213,7 +219,7 @@ func TestNoFilters(t *testing.T) {
 	readFilteredLines(t, b, &filters, 15)
 }
 
-func newMessage(name, typ, source, service string) message.Message {
+func newMessage(name, typ, source, service string) *message.Message {
 	cfg := &config.LogsConfig{
 		Type:    typ,
 		Source:  source,
@@ -221,7 +227,7 @@ func newMessage(name, typ, source, service string) message.Message {
 	}
 	src := sources.NewLogSource(name, cfg)
 	origin := message.NewOrigin(src)
-	return *message.NewMessage([]byte("a"), origin, "", 0)
+	return message.NewMessage([]byte("a"), origin, "", 0)
 }
 
 func readFilteredLines(t *testing.T, b *BufferedMessageReceiver, filters *Filters, expectedLineCount int) {

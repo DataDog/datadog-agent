@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build !kubelet
-// +build !kubelet
 
 package kubernetes
 
@@ -18,6 +17,6 @@ var (
 )
 
 // GetHostAliases returns the host aliases from the Kubernetes node annotations
-func GetHostAliases(ctx context.Context) ([]string, error) {
+func GetHostAliases(_ context.Context) ([]string, error) {
 	return nil, nil
 }

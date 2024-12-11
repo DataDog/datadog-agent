@@ -3,36 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
+//go:build orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package collectors
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"fmt"
+
 	"go.uber.org/atomic"
 
-	"k8s.io/client-go/tools/cache"
+	model "github.com/DataDog/agent-payload/v5/process"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 // Collector is an interface that represents the collection process for a
 // resource type.
 type Collector interface {
-	// Informer returns the shared informer for that resource.
-	Informer() cache.SharedInformer
-
 	// Init is where the collector initialization happens. It is used to create
 	// informers and listers.
 	Init(*CollectorRunConfig)
-
-	// IsAvailable returns whether a collector is available.
-	// A typical use-case is checking whether the targeted apiGroup version
-	// used by the collector is available in the cluster.
-	// Should be called after Init.
-	IsAvailable() bool
 
 	// Metadata is used to access information describing the collector.
 	Metadata() *CollectorMetadata
@@ -44,15 +38,47 @@ type Collector interface {
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsStable bool
-	Name     string
-	NodeType orchestrator.NodeType
+	IsDefaultVersion          bool
+	IsMetadataProducer        bool
+	IsManifestProducer        bool
+	IsStable                  bool
+	SupportsManifestBuffering bool
+	Name                      string
+	NodeType                  pkgorchestratormodel.NodeType
+	Version                   string
+	IsSkipped                 bool
+	SkippedReason             string
+}
+
+// FullName returns a string that contains the collector name and version.
+func (cm CollectorMetadata) FullName() string {
+	if cm.Version != "" {
+		return fmt.Sprintf("%s/%s", cm.Version, cm.Name)
+	}
+	return cm.Name
+}
+
+// K8sCollectorRunConfig is the configuration used to initialize or run the kubernetes collector.
+type K8sCollectorRunConfig struct {
+	APIClient                   *apiserver.APIClient
+	OrchestratorInformerFactory *OrchestratorInformerFactory
+}
+
+// ECSCollectorRunConfig is the configuration used to initialize or run the ECS collector.
+type ECSCollectorRunConfig struct {
+	WorkloadmetaStore workloadmeta.Component
+	AWSAccountID      int
+	Region            string
+	ClusterName       string
+	SystemInfo        *model.SystemInfo
+	HostName          string
 }
 
 // CollectorRunConfig is the configuration used to initialize or run the
 // collector.
 type CollectorRunConfig struct {
-	APIClient   *apiserver.APIClient
+	K8sCollectorRunConfig
+	ECSCollectorRunConfig
 	ClusterID   string
 	Config      *config.OrchestratorConfig
 	MsgGroupRef *atomic.Int32

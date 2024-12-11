@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -19,6 +18,7 @@ type cgroupV2 struct {
 	controllers  map[string]struct{}
 	fr           fileReader
 	pidMapper    pidMapper
+	inode        uint64
 }
 
 func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[string]struct{}, pidMapper pidMapper) *cgroupV2 {
@@ -29,6 +29,7 @@ func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[st
 		controllers:  controllers,
 		pidMapper:    pidMapper,
 		fr:           defaultFileReader,
+		inode:        inodeForPath(filepath.Join(cgroupRoot, relativePath)),
 	}
 }
 
@@ -36,45 +37,13 @@ func (c *cgroupV2) Identifier() string {
 	return c.identifier
 }
 
+func (c *cgroupV2) Inode() uint64 {
+	return c.inode
+}
+
 func (c *cgroupV2) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.relativePath, "/..")
 	return newCgroupV2(filepath.Base(parentPath), c.cgroupRoot, parentPath, c.controllers, c.pidMapper), nil
-}
-
-func (c *cgroupV2) GetStats(stats *Stats) error {
-	if stats == nil {
-		return &InvalidInputError{Desc: "input stats cannot be nil"}
-	}
-
-	cpuStats := CPUStats{}
-	err := c.GetCPUStats(&cpuStats)
-	if err != nil {
-		return err
-	}
-	stats.CPU = &cpuStats
-
-	memoryStats := MemoryStats{}
-	err = c.GetMemoryStats(&memoryStats)
-	if err != nil {
-		return err
-	}
-	stats.Memory = &memoryStats
-
-	ioStats := IOStats{}
-	err = c.GetIOStats(&ioStats)
-	if err != nil {
-		return err
-	}
-	stats.IO = &ioStats
-
-	pidStats := PIDStats{}
-	err = c.GetPIDStats(&pidStats)
-	if err != nil {
-		return err
-	}
-	stats.PID = &pidStats
-
-	return nil
 }
 
 func (c *cgroupV2) controllerActivated(controller string) bool {

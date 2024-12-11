@@ -4,17 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package webhook
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,34 +20,164 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
+	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Controller is an interface implemeted by ControllerV1 and ControllerV1beta1.
+// Controller is an interface implemented by ControllerV1 and ControllerV1beta1.
 type Controller interface {
 	Run(stopCh <-chan struct{})
+	EnabledWebhooks() []Webhook
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) Controller {
+func NewController(
+	client kubernetes.Interface,
+	secretInformer coreinformers.SecretInformer,
+	validatingInformers admissionregistration.Interface,
+	mutatingInformers admissionregistration.Interface,
+	isLeaderFunc func() bool,
+	isLeaderNotif <-chan struct{},
+	config Config,
+	wmeta workloadmeta.Component,
+	pa workload.PodPatcher,
+	datadogConfig config.Component,
+	demultiplexer demultiplexer.Component,
+) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+	}
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+}
+
+// Webhook represents an admission webhook
+type Webhook interface {
+	// Name returns the name of the webhook
+	Name() string
+	// WebhookType Type returns the type of the webhook
+	WebhookType() common.WebhookType
+	// IsEnabled returns whether the webhook is enabled
+	IsEnabled() bool
+	// Endpoint returns the endpoint of the webhook
+	Endpoint() string
+	// Resources returns the kubernetes resources for which the webhook should
+	// be invoked.
+	// The key is the API group, and the value is a list of resources.
+	Resources() map[string][]string
+	// Operations returns the operations on the resources specified for which
+	// the webhook should be invoked
+	Operations() []admiv1.OperationType
+	// LabelSelectors returns the label selectors that specify when the webhook
+	// should be invoked
+	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
+	// MatchConditions returns the Match Conditions used for fine-grained
+	// request filtering
+	MatchConditions() []admiv1.MatchCondition
+	// WebhookFunc runs the logic of the webhook and returns the admission response
+	WebhookFunc() admission.WebhookFunc
+}
+
+// generateWebhooks returns the list of webhooks. The order of the webhooks returned
+// is the order in which they will be executed. For now, the only restriction is that
+// the agent sidecar webhook needs to go after the configWebhook one.
+// The reason is that the volume mount for the APM socket added by the configWebhook webhook
+// doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
+// the agent sidecar webhook needs to remove it.
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+	// Note: the auto_instrumentation pod injection filter is used across
+	// multiple mutating webhooks, so we add it as a hard dependency to each
+	// of the components that use it via the injectionFilter parameter.
+	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
+	//       in the admission controller section in agent status.
+	injectionFilter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
+
+	var webhooks []Webhook
+	var validatingWebhooks []Webhook
+	var mutatingWebhooks []Webhook
+
+	// Add Validating webhooks.
+	if c.config.isValidationEnabled() {
+		// Future validating webhooks can be added here.
+		validatingWebhooks = []Webhook{
+			kubernetesadmissionevents.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
+		}
+		webhooks = append(webhooks, validatingWebhooks...)
 	}
 
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
+	// Add Mutating webhooks.
+	if c.config.isMutationEnabled() {
+		mutatingWebhooks = []Webhook{
+			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
+			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
+			agentsidecar.NewWebhook(datadogConfig),
+			autoscaling.NewWebhook(pa),
+		}
+		webhooks = append(webhooks, mutatingWebhooks...)
+
+		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
+		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, injectionFilter)
+		if err == nil {
+			webhooks = append(webhooks, apm)
+		} else {
+			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
+		}
+
+		isCWSInstrumentationEnabled := pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled")
+		if isCWSInstrumentationEnabled {
+			cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
+			if err == nil {
+				webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
+			} else {
+				log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
+			}
+		}
+	}
+
+	return webhooks
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.
 // It contains the shared fields and provides shared methods.
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
-	clientSet      kubernetes.Interface //nolint:structcheck
-	config         Config
-	secretsLister  corelisters.SecretLister
-	secretsSynced  cache.InformerSynced //nolint:structcheck
-	webhooksSynced cache.InformerSynced //nolint:structcheck
-	queue          workqueue.RateLimitingInterface
-	isLeaderFunc   func() bool
-	isLeaderNotif  <-chan struct{}
+	clientSet                kubernetes.Interface //nolint:structcheck
+	config                   Config
+	secretsLister            corelisters.SecretLister
+	secretsSynced            cache.InformerSynced //nolint:structcheck
+	validatingWebhooksSynced cache.InformerSynced //nolint:structcheck
+	mutatingWebhooksSynced   cache.InformerSynced //nolint:structcheck
+	queue                    workqueue.TypedRateLimitingInterface[string]
+	isLeaderFunc             func() bool
+	isLeaderNotif            <-chan struct{}
+	webhooks                 []Webhook
+}
+
+// EnabledWebhooks returns the list of enabled webhooks.
+func (c *controllerBase) EnabledWebhooks() []Webhook {
+	var res []Webhook
+
+	for _, webhook := range c.webhooks {
+		if webhook.IsEnabled() {
+			res = append(res, webhook)
+		}
+	}
+
+	return res
 }
 
 // enqueueOnLeaderNotif watches leader notifications and triggers a
@@ -143,7 +269,7 @@ func (c *controllerBase) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Debugf("Couldn't get key for object %v: %v, adding it to the queue with an unnamed key", obj, err)
-		c.queue.Add(struct{}{})
+		c.queue.Add("")
 		return
 	}
 	log.Debugf("Adding object with key %s to the queue", key)
@@ -152,7 +278,7 @@ func (c *controllerBase) enqueue(obj interface{}) {
 
 // requeue adds an object's key to the work queue for
 // a retry if the rate limiter allows it.
-func (c *controllerBase) requeue(key interface{}) {
+func (c *controllerBase) requeue(key string) {
 	c.queue.AddRateLimited(key)
 }
 
@@ -168,7 +294,7 @@ func (c *controllerBase) processNextWorkItem(reconcile func() error) bool {
 
 	if err := reconcile(); err != nil {
 		c.requeue(key)
-		log.Infof("Couldn't reconcile Webhook %s: %v", c.config.getWebhookName(), err)
+		log.Errorf("Couldn't reconcile webhook %s: %v", c.config.getWebhookName(), err)
 		metrics.ReconcileErrors.Inc(metrics.WebhooksControllerName)
 		return true
 	}

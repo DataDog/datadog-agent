@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package cca
 
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,7 +20,7 @@ import (
 // Scheduler creates a single source to represent all containers collected due to
 // the `logs_config.container_collect_all` configuration.
 type Scheduler struct {
-	ac *autodiscovery.AutoConfig
+	ac autodiscovery.Component
 	// added is closed when the source is added (for testing)
 	added chan struct{}
 }
@@ -27,7 +28,7 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+func New(ac autodiscovery.Component) schedulers.Scheduler {
 	return &Scheduler{
 		ac:    ac,
 		added: make(chan struct{}),
@@ -36,7 +37,7 @@ func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
-	if !coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
+	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 	// source to collect all logs from all containers
@@ -51,7 +52,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	// a hack!
 	go func() {
 		s.blockUntilAutoConfigRanOnce(
-			time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+			time.Millisecond * time.Duration(pkgconfigsetup.Datadog().GetInt("ac_load_timeout")))
 		log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 		sourceMgr.AddSource(source)
 		close(s.added)

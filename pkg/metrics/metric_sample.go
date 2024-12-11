@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/tagger"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -24,6 +24,8 @@ const (
 	HistorateType
 	SetType
 	DistributionType
+	GaugeWithTimestampType
+	CountWithTimestampType
 
 	// NumMetricTypes is the number of metric types; must be the last item here
 	NumMetricTypes
@@ -35,6 +37,9 @@ var (
 		DistributionType: {},
 	}
 )
+
+// EnrichTagsfn can be used to Enrich tags with origin detection tags.
+type EnrichTagsfn func(tb tagset.TagsAccumulator, origin taggertypes.OriginInfo)
 
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
@@ -57,25 +62,12 @@ func (m MetricType) String() string {
 		return "Set"
 	case DistributionType:
 		return "Distribution"
+	case GaugeWithTimestampType:
+		return "GaugeWithTimestamp"
+	case CountWithTimestampType:
+		return "CountWithTimestamp"
 	default:
 		return ""
-	}
-}
-
-// ToAPIType returns the equivalent of MetricType in APIMetricType type.
-// APIMetricType only supports gauges, counts and rates and will default on gauges
-// for every other inputs.
-// This is used by the no-aggregation pipeline to infer an API type from a MetricType.
-func (m MetricType) ToAPIType() APIMetricType {
-	switch m {
-	case GaugeType:
-		return APIGaugeType
-	case CounterType:
-		return APICountType
-	case RateType:
-		return APIRateType
-	default:
-		return APIGaugeType
 	}
 }
 
@@ -89,26 +81,33 @@ type MetricSampleContext interface {
 	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
 	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
 	// should be appended to the metricBuffer.
-	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator)
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn)
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
+
+	// IsNoIndex returns true if the metric must not be indexed.
+	IsNoIndex() bool
+
+	// GetMetricSource returns the metric source for this metric. This is used to define the Origin
+	GetSource() MetricSource
 }
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {
-	Name             string
-	Value            float64
-	RawValue         string
-	Mtype            MetricType
-	Tags             []string
-	Host             string
-	SampleRate       float64
-	Timestamp        float64
-	FlushFirstValue  bool
-	OriginFromUDS    string
-	OriginFromClient string
-	Cardinality      string
+	Name            string
+	Value           float64
+	RawValue        string
+	Mtype           MetricType
+	Tags            []string
+	Host            string
+	SampleRate      float64
+	Timestamp       float64
+	FlushFirstValue bool
+	OriginInfo      taggertypes.OriginInfo
+	ListenerID      string
+	NoIndex         bool
+	Source          MetricSource
 }
 
 // Implement the MetricSampleContext interface
@@ -124,9 +123,9 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
+func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn) {
 	metricBuffer.Append(m.Tags...)
-	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
+	fn(taggerBuffer, m.OriginInfo)
 }
 
 // GetMetricType implements MetricSampleContext#GetMetricType.
@@ -141,4 +140,14 @@ func (m *MetricSample) Copy() *MetricSample {
 	dst.Tags = make([]string, len(m.Tags))
 	copy(dst.Tags, m.Tags)
 	return dst
+}
+
+// IsNoIndex returns true if the metric must not be indexed.
+func (m *MetricSample) IsNoIndex() bool {
+	return m.NoIndex
+}
+
+// GetSource returns the currently set MetricSource
+func (m *MetricSample) GetSource() MetricSource {
+	return m.Source
 }

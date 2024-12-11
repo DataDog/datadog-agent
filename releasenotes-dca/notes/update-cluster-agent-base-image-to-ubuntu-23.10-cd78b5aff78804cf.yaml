@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Datadog cluster-agent container image is now using Ubuntu 23.10 mantic
+    as the base image.

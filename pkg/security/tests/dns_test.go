@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -18,19 +18,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestDNS(t *testing.T) {
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
-	})
+	SkipIfNotAvailable(t)
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	checkNetworkCompatibility(t)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -52,7 +50,7 @@ func TestDNS(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,13 +63,11 @@ func TestDNS(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_dns")
 			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
 
-			if !validateDNSSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateDNSSchema(t, event)
 		})
 	})
 
@@ -82,13 +78,11 @@ func TestDNS(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_dns")
 			assert.Equal(t, "GOOGLE.COM", event.DNS.Name, "wrong domain name")
 
-			if !validateDNSSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateDNSSchema(t, event)
 		})
 	})
 
@@ -97,14 +91,12 @@ func TestDNS(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			net.LookupIP(longDomain)
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_long_query")
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, longDomain, event.DNS.Name, "wrong domain name")
 
-			if !validateDNSSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateDNSSchema(t, event)
 		})
 	})
 }

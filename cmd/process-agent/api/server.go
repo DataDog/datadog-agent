@@ -7,51 +7,51 @@ package api
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
+	"go.uber.org/fx"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-func setupHandlers(r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetFull("process_config")).Methods("GET") // Get only settings in the process_config namespace
-	r.HandleFunc("/config/all", settingshttp.Server.GetFull("")).Methods("GET")           // Get all fields from process-agent Config object
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
-	r.HandleFunc("/agent/status", statusHandler).Methods("GET")
-	r.HandleFunc("/agent/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
+//nolint:revive // TODO(PROC) Fix revive linter
+type APIServerDeps struct {
+	fx.In
+
+	Config       config.Component
+	Log          log.Component
+	WorkloadMeta workloadmeta.Component
+	Status       status.Component
+	Settings     settings.Component
+	Tagger       tagger.Component
 }
 
-// StartServer starts the config server
-func StartServer() error {
-	// Set up routes
-	r := mux.NewRouter()
-	setupHandlers(r)
-
-	addr, err := ddconfig.GetProcessAPIAddressPort()
-	if err != nil {
-		return err
+func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(writer http.ResponseWriter, req *http.Request) {
+		handler(deps, writer, req)
 	}
-	log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
-	srv := &http.Server{
-		Handler:      r,
-		Addr:         addr,
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-		IdleTimeout:  timeout,
-	}
+}
 
-	go func() {
-		err := srv.ListenAndServe()
-		if err != nil {
-			_ = log.Error(err)
-		}
-	}()
-	return nil
+//nolint:revive // TODO(PROC) Fix revive linter
+func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
+	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
+	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
+	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", deps.Settings.SetValue).Methods("POST")
+
+	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
+	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
+	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
+		workloadList(w, false, deps.WorkloadMeta)
+	}).Methods("GET")
+	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, _ *http.Request) {
+		workloadList(w, true, deps.WorkloadMeta)
+	}).Methods("GET")
+	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 }

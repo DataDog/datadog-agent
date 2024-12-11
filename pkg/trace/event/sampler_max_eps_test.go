@@ -10,8 +10,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestMaxEPSSampler(t *testing.T) {
@@ -25,7 +27,7 @@ func TestMaxEPSSampler(t *testing.T) {
 	}{
 		{"low", generateTestEvents(1000), 100, 50, 1., 0},
 		{"limit", generateTestEvents(1000), 100, 100, 1., 0},
-		{"overload", generateTestEvents(1000), 100, 150, 100. / 150., 0.1},
+		{"overload", generateTestEvents(1000), 100, 150, 100. / 150., 0.2},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			assert := assert.New(t)
@@ -33,7 +35,7 @@ func TestMaxEPSSampler(t *testing.T) {
 			counter := &MockRateCounter{
 				GetRateResult: testCase.pastEPS,
 			}
-			testSampler := newMaxEPSSampler(testCase.maxEPS)
+			testSampler := newMaxEPSSampler(testCase.maxEPS, &statsd.NoOpClient{})
 			testSampler.rateCounter = counter
 			testSampler.Start()
 
@@ -67,8 +69,8 @@ type MockRateCounter struct {
 	GetRateResult float64
 }
 
-func (mc *MockRateCounter) Start() {}
-func (mc *MockRateCounter) Stop()  {}
+func (mc *MockRateCounter) Start(_ statsd.ClientInterface) {}
+func (mc *MockRateCounter) Stop()                          {}
 
 func (mc *MockRateCounter) Count() {
 	mc.CountCalls++

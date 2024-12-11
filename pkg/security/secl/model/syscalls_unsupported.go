@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux || !(amd64 || arm64)
-// +build !linux !amd64,!arm64
 
 package model
 

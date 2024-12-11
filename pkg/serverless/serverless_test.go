@@ -9,55 +9,21 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
-func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
-	d := daemon.StartDaemon("http://localhost:8124")
-	defer d.Stop()
-
-	d.WaitForDaemon()
-
-	d.TellDaemonRuntimeStarted()
-
-	//deadline = current time + 20 ms
-	deadlineMs := (time.Now().UnixNano())/1000000 + 20
-
-	//setting DD_TAGS and DD_EXTRA_TAGS
-	os.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
-	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
-
-	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
-	architecture := fmt.Sprintf("architecture:%s", tags.ResolveRuntimeArch())
-
-	assert.Equal(t, 14, len(d.ExtraTags.Tags))
-
-	sort.Strings(d.ExtraTags.Tags)
-	assert.Equal(t, "a1:valuea1", d.ExtraTags.Tags[0])
-	assert.Equal(t, "a2:valuea2", d.ExtraTags.Tags[1])
-	assert.Equal(t, "a3:valuea3", d.ExtraTags.Tags[2])
-	assert.Equal(t, "a4:valuea4", d.ExtraTags.Tags[3])
-	assert.Equal(t, "a_maj:valueamaj", d.ExtraTags.Tags[4])
-	assert.Equal(t, "account_id:123456789012", d.ExtraTags.Tags[5])
-	assert.Equal(t, architecture, d.ExtraTags.Tags[6])
-	assert.Equal(t, "aws_account:123456789012", d.ExtraTags.Tags[7])
-	assert.Equal(t, "dd_extension_version:xxx", d.ExtraTags.Tags[8])
-	assert.Equal(t, "function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExtraTags.Tags[9])
-	assert.Equal(t, "functionname:my-function", d.ExtraTags.Tags[10])
-	assert.Equal(t, "region:us-east-1", d.ExtraTags.Tags[11])
-	assert.Equal(t, "resource:my-function", d.ExtraTags.Tags[12])
-	assert.True(t, d.ExtraTags.Tags[13] == "runtime:unknown" || d.ExtraTags.Tags[13] == "runtime:provided.al2")
-
-	ecs := d.ExecutionContext.GetCurrentState()
-	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", ecs.ARN)
-	assert.Equal(t, "myRequestID", ecs.LastRequestID)
+func TestMain(m *testing.M) {
+	origShutdownDelay := daemon.ShutdownDelay
+	daemon.ShutdownDelay = 0
+	defer func() { daemon.ShutdownDelay = origShutdownDelay }()
+	os.Exit(m.Run())
 }
 
 func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
@@ -69,6 +35,7 @@ func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 			assert.Fail(t, "Expected no panic, instead got ", r)
 		}
 	}()
+
 	for i := 0; i < 10; i++ { // each one of these takes about a second on my laptop
 		fmt.Printf("Running this test the %d time\n", i)
 		d := daemon.StartDaemon("http://localhost:8124")
@@ -93,14 +60,50 @@ func TestComputeTimeout(t *testing.T) {
 }
 
 func TestRemoveQualifierFromArnWithAlias(t *testing.T) {
-	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls:$latest"
+	invokedFunctionArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls:$latest"
 	functionArn := removeQualifierFromArn(invokedFunctionArn)
-	expectedArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
+	expectedArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls"
 	assert.Equal(t, functionArn, expectedArn)
 }
 
 func TestRemoveQualifierFromArnWithoutAlias(t *testing.T) {
-	invokedFunctionArn := "arn:aws:lambda:eu-south-1:601427279990:function:inferred-spans-function-urls-dev-harv-function-urls"
+	invokedFunctionArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls"
 	functionArn := removeQualifierFromArn(invokedFunctionArn)
 	assert.Equal(t, functionArn, invokedFunctionArn)
+}
+
+type mockLifecycleProcessor struct {
+	isError         bool
+	isTimeout       bool
+	isColdStart     bool
+	isProactiveInit bool
+}
+
+func (m *mockLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return &invocationlifecycle.ExecutionStartInfo{}
+}
+func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationStartDetails) {}
+func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
+	m.isError = endDetails.IsError
+	m.isTimeout = endDetails.IsTimeout
+	m.isColdStart = endDetails.ColdStart
+	m.isProactiveInit = endDetails.ProactiveInit
+}
+
+func TestFinishTimeoutExecutionSpan(t *testing.T) {
+	port := testutil.FreeTCPPort(t)
+	d := daemon.StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	mock := &mockLifecycleProcessor{}
+	d.InvocationProcessor = mock
+	defer d.Stop()
+
+	assert.False(t, d.IsExecutionSpanIncomplete())
+	d.SetExecutionSpanIncomplete(true)
+	assert.True(t, d.IsExecutionSpanIncomplete())
+	finishTimeoutExecutionSpan(d, true, true)
+	assert.False(t, d.IsExecutionSpanIncomplete())
+	assert.True(t, mock.isError)
+	assert.True(t, mock.isTimeout)
+	assert.True(t, mock.isColdStart)
+	assert.True(t, mock.isProactiveInit)
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows || darwin || linux
-// +build windows darwin linux
 
 package executable
 
@@ -24,7 +23,7 @@ func TestResolvePath(t *testing.T) {
 	}
 
 	actualPath, err := ResolvePath(testProgram)
-	if !assert.Nil(t, err) {
+	if !assert.NoError(t, err) {
 		return
 	}
 
@@ -44,12 +43,12 @@ func TestResolvePathIsAbsolute(t *testing.T) {
 	}
 
 	actualPath, err := ResolvePath(testProgram)
-	if !assert.Nil(t, err) {
+	if !assert.NoError(t, err) {
 		return
 	}
 
 	absPath, err := filepath.Abs(actualPath)
-	if !assert.Nil(t, err) {
+	if !assert.NoError(t, err) {
 		return
 	}
 

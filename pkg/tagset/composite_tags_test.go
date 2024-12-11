@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package tagset
 
@@ -55,7 +54,7 @@ func TestCompositeTagsForEach(t *testing.T) {
 	}))
 	require.EqualValues(t, expectedTags, tags)
 
-	r.Error(compositeTags.ForEachErr(func(tag string) error {
+	r.Error(compositeTags.ForEachErr(func(_ string) error {
 		return errors.New("error")
 	}))
 }

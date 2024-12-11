@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -78,6 +79,10 @@ func TestPatternMatches(t *testing.T) {
 		if PatternMatches("*t*9*3", "atest123", false) {
 			t.Error("shouldn't match")
 		}
+
+		if PatternMatches("*.c", "test.ct", false) {
+			t.Error("shouldn't match")
+		}
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
@@ -101,4 +106,13 @@ func TestPatternMatches(t *testing.T) {
 			t.Error("should match")
 		}
 	})
+}
+
+func BenchmarkNextSegment(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		star, segment, _ := nextSegment("*test*123*")
+		if !star || segment != "test" {
+			b.Fatalf("expected segment not found: %v, %v", star, segment)
+		}
+	}
 }

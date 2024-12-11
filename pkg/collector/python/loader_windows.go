@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && windows
-// +build python,windows
 
 package python
 
@@ -12,6 +11,7 @@ import (
 	"github.com/go-ole/go-ole"
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 const S_FALSE = 0x00000001
 
 func platformLoaderPrep() error {

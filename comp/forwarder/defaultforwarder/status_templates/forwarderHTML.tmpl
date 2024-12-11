@@ -1,0 +1,91 @@
+{{- with .forwarderStats -}}
+<div class="stat">
+  <span class="stat_title">Forwarder</span>
+  <span class="stat_data">
+      {{- range $key, $value := .Transactions }}
+          {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+        {{formatTitle $key}}: {{humanize $value}}<br>
+          {{- end}}
+      {{- end}}
+      {{- if .Transactions.Success }}
+        <span class="stat_subtitle">Transaction Successes</span>
+          <span class="stat_subdata">
+            Total number: {{.Transactions.Success}}<br>
+            Successes By Endpoint:<br>
+            <span class="stat_subdata">
+              {{- range $type, $count := .Transactions.SuccessByEndpoint }}
+                {{- if $count}}
+                  {{$type}}: {{humanize $count}}<br>
+                {{- end}}
+              {{- end}}
+            </span>
+          </span>
+        </span>
+      {{- end}}
+      {{- if .Transactions.Errors }}
+        <span class="stat_subtitle">Transaction Errors</span>
+          <span class="stat_subdata">
+            Total number: {{.Transactions.Errors}}<br>
+            Errors By Type:<br>
+            <span class="stat_subdata">
+              {{- range $type, $count := .Transactions.ErrorsByType }}
+                {{- if $count}}
+                  {{$type}}: {{humanize $count}}<br>
+                {{- end}}
+              {{- end}}
+            </span>
+          </span>
+        </span>
+      {{- end}}
+      {{- if .Transactions.HTTPErrors }}
+        <span class="stat_subtitle">HTTP Errors</span>
+          <span class="stat_subdata">
+            Total number: {{.Transactions.HTTPErrors}}<br>
+            HTTP Errors By Code:<br>
+            <span class="stat_subdata">
+              {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+                {{- if $count}}
+                  {{$code}}: {{humanize $count}}<br>
+                {{- end}}
+              {{- end}}
+            </span>
+          </span>
+        </span>
+      {{- end}}
+    {{- end -}}
+    {{- with .forwarderStats -}}
+      <span class="stat_subtitle">On-disk storage</span>
+      <span class="stat_subdata">
+      {{- if .forwarder_storage_max_size_in_bytes }}
+        {{- if .FileStorage.CurrentSizeInBytes }}
+        Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}<br>
+        Number of files: {{ .FileStorage.FilesCount }}<br>
+        Number of files dropped: {{ .FileStorage.FilesRemovedCount }}<br>
+        Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}<br>
+        Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}<br>
+        {{- else }}
+        Enabled, not in-use.<br>
+        {{- end}}
+      {{- else }}
+        On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
+      {{- end}}
+      </span>
+      {{- if .APIKeyStatus}}
+        <span class="stat_subtitle">API Keys Status</span>
+        <span class="stat_subdata">
+          {{- range $key, $value := .APIKeyStatus}}
+            {{$key}}: {{$value}}<br>
+          {{- end -}}
+        </span>
+      {{- end}}
+      {{- if .APIKeyFailure}}
+        <span class="stat_subtitle">API Keys Errors</span>
+        <span class="stat_subdata">
+          {{ range $key, $value := .APIKeyFailure}}
+            <span class="warning"> {{$key}}: {{$value}} <span> <br>
+          {{- end -}}
+        </span>
+      {{- end}}
+    </span>
+  </div>
+{{- end -}}

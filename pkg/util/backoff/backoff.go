@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package backoff provides backoff mechanisms
 package backoff
 
 import (
@@ -11,9 +12,9 @@ import (
 	"time"
 )
 
-// Policy contains parameters and logic necessary to implement an exponential backoff
+// ExpBackoffPolicy contains parameters and logic necessary to implement an exponential backoff
 // strategy when handling errors.
-type Policy struct {
+type ExpBackoffPolicy struct {
 	// MinBackoffFactor controls the overlap between consecutive retry interval ranges. When
 	// set to `2`, there is a guarantee that there will be no overlap. The overlap
 	// will asymptotically approach 50% the higher the value is set.
@@ -42,15 +43,15 @@ func randomBetween(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min
 }
 
-// NewPolicy constructs new Backoff object with given parameters
-func NewPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool) Policy {
+// NewExpBackoffPolicy constructs new Backoff object with given parameters
+func NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool) Policy {
 	maxErrors := int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
 
 	if recoveryReset {
 		recoveryInterval = maxErrors
 	}
 
-	return Policy{
+	return &ExpBackoffPolicy{
 		MinBackoffFactor: minBackoffFactor,
 		BaseBackoffTime:  baseBackoffTime,
 		MaxBackoffTime:   maxBackoffTime,
@@ -60,17 +61,17 @@ func NewPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recove
 }
 
 // GetBackoffDuration returns amount of time to sleep after numErrors error
-func (b *Policy) GetBackoffDuration(numErrors int) time.Duration {
+func (e *ExpBackoffPolicy) GetBackoffDuration(numErrors int) time.Duration {
 	var backoffTime float64
 
 	if numErrors > 0 {
-		backoffTime = b.BaseBackoffTime * math.Pow(2, float64(numErrors))
+		backoffTime = e.BaseBackoffTime * math.Pow(2, float64(numErrors))
 
-		if backoffTime > b.MaxBackoffTime {
-			backoffTime = b.MaxBackoffTime
+		if backoffTime > e.MaxBackoffTime {
+			backoffTime = e.MaxBackoffTime
 		} else {
-			min := backoffTime / b.MinBackoffFactor
-			max := math.Min(b.MaxBackoffTime, backoffTime)
+			min := backoffTime / e.MinBackoffFactor
+			max := math.Min(e.MaxBackoffTime, backoffTime)
 			backoffTime = randomBetween(min, max)
 		}
 	}
@@ -80,17 +81,17 @@ func (b *Policy) GetBackoffDuration(numErrors int) time.Duration {
 }
 
 // IncError increments the error counter up to MaxErrors
-func (b *Policy) IncError(numErrors int) int {
+func (e *ExpBackoffPolicy) IncError(numErrors int) int {
 	numErrors++
-	if numErrors > b.MaxErrors {
-		return b.MaxErrors
+	if numErrors > e.MaxErrors {
+		return e.MaxErrors
 	}
 	return numErrors
 }
 
 // DecError decrements the error counter down to zero at RecoveryInterval rate
-func (b *Policy) DecError(numErrors int) int {
-	numErrors -= b.RecoveryInterval
+func (e *ExpBackoffPolicy) DecError(numErrors int) int {
+	numErrors -= e.RecoveryInterval
 	if numErrors < 0 {
 		return 0
 	}

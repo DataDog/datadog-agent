@@ -4,172 +4,186 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package network
 
 import (
-	"log"
-	"net"
-	"net/url"
+	"bufio"
+	"fmt"
+	"os"
 	"os/exec"
+	"regexp"
+	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var testRootNs uint32
-
 func TestMain(m *testing.M) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
-	if err != nil {
-		log.Fatal(err)
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
 	}
-	testRootNs, err = util.GetInoForNs(rootNs)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.SetupLogger(log.Default(), logLevel)
 
-	m.Run()
+	os.Exit(m.Run())
 }
 
-func TestReadInitialTCPState(t *testing.T) {
-	nsName := netlinktestutil.AddNS(t)
-	t.Cleanup(func() {
-		err := exec.Command("testdata/teardown_netns.sh").Run()
-		assert.NoError(t, err, "failed to teardown netns")
+var (
+	ip4Re = regexp.MustCompile(`.+listening on.+0.0.0.0:([0-9]+)`)
+	ip6Re = regexp.MustCompile(`.+listening on.+\[0000:0000:0000:0000:0000:0000:0000:0000\]:([0-9]+)`)
+)
+
+// runServerProcess runs a server using `socat` externally
+//
+// `proto` can be "tcp4", "tcp6", "udp4", or "udp6"
+// `port` can be `0` in which case the os assigned port is returned
+func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle) (uint16, *os.Process) {
+	var re *regexp.Regexp
+	address := fmt.Sprintf("%s-listen:%d", proto, port)
+	switch proto {
+	case "tcp4", "udp4":
+		re = ip4Re
+	case "tcp6", "udp6":
+		re = ip6Re
+	default:
+		require.FailNow(t, "unrecognized protocol")
+	}
+
+	var proc *os.Process
+	kernel.WithNS(ns, func() error {
+		cmd := exec.Command("socat", "-d", "-d", "STDIO", address)
+		stderr, err := cmd.StderrPipe()
+		require.NoError(t, err, "error getting stderr pipe for command %s", cmd)
+		require.NoError(t, cmd.Start())
+		proc = cmd.Process
+		if port != 0 {
+			return nil
+		}
+
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			matches := re.FindStringSubmatch(scanner.Text())
+			if len(matches) == 0 {
+				continue
+			}
+
+			require.Len(t, matches, 2)
+			_port, err := strconv.ParseUint(matches[1], 10, 16)
+			require.NoError(t, err)
+			port = uint16(_port)
+			break
+		}
+
+		return nil
 	})
 
-	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
-	require.NoError(t, err, "setup_netns.sh failed")
-
-	l, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
-
-	l6, err := net.Listen("tcp6", ":0")
-	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
-
-	ports := []uint16{
-		getPort(t, l),
-		getPort(t, l6),
-		34567,
-		34568,
-	}
-
-	ns, err := netns.GetFromName(nsName)
-	require.NoError(t, err)
-	defer ns.Close()
-
-	nsIno, err := util.GetInoForNs(ns)
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		initialPorts, err := ReadInitialState("/proc", TCP, true, true)
-		require.NoError(t, err)
-		for _, p := range ports[:2] {
-			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
-				t.Errorf("PortMapping(testRootNs) returned false for port %d", p)
-				return false
-			}
-		}
-		for _, p := range ports[2:] {
-			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
-				t.Errorf("PortMapping(test ns) returned false for port %d", p)
-				return false
-			}
-		}
-
-		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
-			t.Errorf("expected PortMapping(testRootNs, 999) to not be in the map, but it was")
-			return false
-		}
-		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
-			t.Errorf("expected PortMapping(nsIno, 999) to not be in the map, but it was")
-			return false
-		}
-
-		return true
-	}, 3*time.Second, time.Second, "tcp/tcp6 ports are listening")
+	return port, proc
 }
 
-func TestReadInitialUDPState(t *testing.T) {
-	nsName := netlinktestutil.AddNS(t)
-	t.Cleanup(func() {
-		err := exec.Command("testdata/teardown_netns.sh").Run()
-		assert.NoError(t, err, "failed to teardown netns")
+func TestReadListeningPorts(t *testing.T) {
+	t.Run("TCP", func(t *testing.T) {
+		testReadListeningPorts(t, "tcp")
 	})
+	t.Run("UDP", func(t *testing.T) {
+		testReadListeningPorts(t, "udp")
+	})
+}
 
-	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
-	require.NoError(t, err, "setup_netns.sh failed")
-
-	l, err := net.ListenUDP("udp", &net.UDPAddr{})
+func testReadListeningPorts(t *testing.T, proto string) {
+	var ns, rootNs netns.NsHandle
+	var err error
+	nsName := netlinktestutil.AddNS(t)
+	ns, err = netns.GetFromName(nsName)
 	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
-
-	l6, err := net.ListenUDP("udp6", &net.UDPAddr{})
+	t.Cleanup(func() { ns.Close() })
+	rootNs, err = kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
+	t.Cleanup(func() { rootNs.Close() })
 
-	ports := []uint16{
-		getPortUDP(t, l),
-		getPortUDP(t, l6),
-		34567,
-		34568,
+	var protos []string
+	switch proto {
+	case "tcp":
+		protos = []string{"tcp4", "tcp6", "udp4", "udp6"}
+	case "udp":
+		protos = []string{"udp4", "udp6", "tcp4", "tcp6"}
 	}
 
-	ns, err := netns.GetFromName(nsName)
-	require.NoError(t, err)
-	defer ns.Close()
-
-	nsIno, err := util.GetInoForNs(ns)
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		initialPorts, err := ReadInitialState("/proc", UDP, true, true)
-		require.NoError(t, err)
-		for _, p := range ports[:2] {
-			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
-				t.Errorf("PortMapping(testRootNs, p) returned false for port %d", p)
-				return false
+	var ports []uint16
+	for _, proto := range protos {
+		i := 0
+		for ; i < 5; i++ {
+			port, proc := runServerProcess(t, proto, 0, rootNs)
+			if !slices.Contains(ports, port) {
+				t.Cleanup(func() { proc.Kill() })
+				ports = append(ports, port)
+				break
 			}
+
+			require.NoError(t, proc.Kill())
 		}
-		for _, p := range ports[2:] {
-			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
-				t.Errorf("PortMapping(nsIno, p) returned false for port %d", p)
-				return false
+		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
+	}
+
+	for _, proto := range protos {
+		i := 0
+		for ; i < 5; i++ {
+			port, proc := runServerProcess(t, proto, 0, ns)
+			if !slices.Contains(ports, port) {
+				t.Cleanup(func() { proc.Kill() })
+				ports = append(ports, port)
+				break
 			}
-		}
 
-		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
-			return false
+			require.NoError(t, proc.Kill())
 		}
-		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
-			return false
-		}
+		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
+	}
 
-		return true
-	}, 3*time.Second, time.Second, "udp/udp6 ports are listening")
-}
-
-func getPort(t *testing.T, listener net.Listener) uint16 {
-	addr := listener.Addr()
-	listenerURL := url.URL{Scheme: addr.Network(), Host: addr.String()}
-	port, err := strconv.Atoi(listenerURL.Port())
+	rootNsIno, err := kernel.GetInoForNs(rootNs)
 	require.NoError(t, err)
-	return uint16(port)
-}
+	nsIno, err := kernel.GetInoForNs(ns)
+	require.NoError(t, err)
 
-func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
-	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
+	connType := TCP
+	otherConnType := UDP
+	if proto == "udp" {
+		connType, otherConnType = otherConnType, connType
+	}
+
+	initialPorts, err := ReadListeningPorts("/proc", connType, true)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	// check ports corresponding to proto in root ns
+	for _, p := range ports[:2] {
+		assert.Containsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should exist for %s port %d in root ns", connType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", connType, p)
+	}
+
+	// check ports not corresponding to proto in root ns
+	for _, p := range ports[2:4] {
+		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", otherConnType, p)
+	}
+
+	// check ports corresponding to proto in test ns
+	for _, p := range ports[4:6] {
+		assert.Containsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should exist for %s port %d in test ns", connType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", connType, p)
+	}
+
+	// check ports not corresponding to proto in test ns
+	for _, p := range ports[6:8] {
+		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", otherConnType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+	}
 }

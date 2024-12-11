@@ -11,11 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
 )
 
 // SourceType used for log line parsing logic.
@@ -27,6 +25,8 @@ const (
 	DockerSourceType SourceType = "docker"
 	// KubernetesSourceType kubernetes source type
 	KubernetesSourceType SourceType = "kubernetes"
+	// IntegrationSourceType integration source type
+	IntegrationSourceType SourceType = "integration"
 )
 
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and
@@ -43,30 +43,33 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
-	info       map[string]status.InfoProvider
+	info       *status.InfoRegistry
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
-	LatencyStats     *util.StatsTracker
-	BytesRead        *atomic.Int64
+	LatencyStats     *statstracker.Tracker
+	BytesRead        *status.CountInfo
 	hiddenFromStatus bool
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
-	return &LogSource{
+	source := &LogSource{
 		Name:             name,
 		Config:           cfg,
 		Status:           status.NewLogStatus(),
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
-		BytesRead:        atomic.NewInt64(0),
-		info:             make(map[string]status.InfoProvider),
-		LatencyStats:     util.NewStatsTracker(time.Hour*24, time.Hour),
+		BytesRead:        status.NewCountInfo("Bytes Read"),
+		info:             status.NewInfoRegistry(),
+		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
+	source.RegisterInfo(source.BytesRead)
+	source.RegisterInfo(source.LatencyStats)
+	return source
 }
 
 // AddInput registers an input as being handled by this source.
@@ -112,29 +115,21 @@ func (s *LogSource) GetSourceType() SourceType {
 func (s *LogSource) RegisterInfo(i status.InfoProvider) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.info[i.InfoKey()] = i
+	s.info.Register(i)
 }
 
 // GetInfo gets an InfoProvider instance by the key
 func (s *LogSource) GetInfo(key string) status.InfoProvider {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.info[key]
+	return s.info.Get(key)
 }
 
 // GetInfoStatus returns a primitive representation of the info for the status page
 func (s *LogSource) GetInfoStatus() map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	info := make(map[string][]string)
-
-	for _, v := range s.info {
-		if len(v.Info()) == 0 {
-			continue
-		}
-		info[v.InfoKey()] = v.Info()
-	}
-	return info
+	return s.info.Rendered()
 }
 
 // HideFromStatus hides the source from the status output
@@ -200,7 +195,6 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("info: %#v,"), s.info)
 	fmt.Fprintf(&b, ws("parentSource: %p,"), s.ParentSource)
 	fmt.Fprintf(&b, ws("LatencyStats: %#v,"), s.LatencyStats)
-	fmt.Fprintf(&b, ws("BytesRead: %d,"), s.BytesRead.Load())
 	fmt.Fprintf(&b, ws("hiddenFromStatus: %t}"), s.hiddenFromStatus)
 	return b.String()
 }

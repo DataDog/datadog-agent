@@ -8,12 +8,12 @@ package sampler
 import (
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Signature is a hash representation of trace or a service, used to identify
-// simlar signatures.
+// similar signatures.
 type Signature uint64
 
 // spanHash is the type of the hashes used during the computation of a signature

@@ -8,7 +8,6 @@ package apiutil
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +48,7 @@ func (f *fileMock) Close() error {
 
 func TestLimitedReader(t *testing.T) {
 	buf := bytes.NewBufferString("foobar")
-	r := ioutil.NopCloser(buf)
+	r := io.NopCloser(buf)
 	lr := NewLimitedReader(r, 3)
 
 	tmp := make([]byte, 1)
@@ -74,7 +73,7 @@ func TestLimitedReader(t *testing.T) {
 
 func TestLimitedReaderEOFBuffer(t *testing.T) {
 	buf := bytes.NewBufferString("foobar")
-	r := ioutil.NopCloser(buf)
+	r := io.NopCloser(buf)
 	lr := NewLimitedReader(r, 12)
 
 	tmp := make([]byte, 6)

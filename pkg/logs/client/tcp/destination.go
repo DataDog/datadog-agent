@@ -11,10 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,21 +30,37 @@ type Destination struct {
 	shouldRetry         bool
 	retryLock           sync.Mutex
 	lastRetryError      error
+	isMRF               bool
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool) *Destination {
-	prefix := endpoint.APIKey + string(' ')
+func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool, status statusinterface.Status) *Destination {
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 	return &Destination{
-		prefixer:            newPrefixer(prefix),
+		prefixer:            newPrefixer(endpoint.GetAPIKey),
 		delimiter:           NewDelimiter(useProto),
-		connManager:         NewConnectionManager(endpoint),
+		connManager:         NewConnectionManager(endpoint, status),
 		destinationsContext: destinationsContext,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
+		isMRF:               endpoint.IsMRF,
 	}
+}
+
+// IsMRF indicates that this destination is a Multi-Region Failover destination.
+func (d *Destination) IsMRF() bool {
+	return d.isMRF
+}
+
+// Target is the address of the destination.
+func (d *Destination) Target() string {
+	return d.connManager.address()
+}
+
+// Metadata is not supported for TCP destinations
+func (d *Destination) Metadata() *client.DestinationMetadata {
+	return client.NewNoopDestinationMetadata()
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,

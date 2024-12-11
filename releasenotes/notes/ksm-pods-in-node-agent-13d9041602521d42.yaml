@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The Kubernetes State Metrics (KSM) check can now be configured to collect
+    pods from the Kubelet in node agents instead of collecting them from the API
+    Server in the Cluster Agent or the Cluster check runners. This is useful in
+    clusters with a large number of pods where emitting pod metrics from a
+    single check instance can cause performance issues due to the large number
+    of metrics emitted.

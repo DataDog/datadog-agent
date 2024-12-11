@@ -4,16 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // LockdownMode defines a lockdown type
@@ -48,7 +45,7 @@ func getLockdownMode(data string) LockdownMode {
 
 // GetLockdownMode returns the lockdown
 func GetLockdownMode() LockdownMode {
-	data, err := ioutil.ReadFile(filepath.Join(util.GetSysRoot(), "kernel/security/lockdown"))
+	data, err := os.ReadFile(filepath.Join(SysFSRoot(), "kernel/security/lockdown"))
 	if err != nil {
 		return Unknown
 	}

@@ -13,13 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -47,25 +49,22 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{})
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	for round := 0; round < 3; round++ {
 		m := message.NewMessage([]byte("a"), nil, "", 0)
 		input <- m
 
-		// it should have flushed in this time
+		// it should flush in this time
 		clk.Add(2 * timerInterval)
 
-		select {
-		case payload := <-output:
-			assert.EqualValues(t, m, payload.Messages[0])
-		default:
-			assert.Fail(t, "the output channel should not be empty")
-		}
+		payload := <-output
+		assert.EqualValues(t, m, payload.Messages[0])
 	}
 	s.Stop()
 	if _, isOpen := <-input; isOpen {
@@ -76,9 +75,10 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -101,8 +101,9 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -122,10 +123,11 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 	input := make(chan *message.Message)
 	// output needs to be buffered so the flush has somewhere to write to without blocking
 	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -161,4 +163,55 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		assert.Fail(t, "the output channel should still be empty")
 	default:
 	}
+}
+
+func TestBatchStrategyFlushChannel(t *testing.T) {
+	input := make(chan *message.Message)
+	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
+
+	// batch size is large so it will not flush until we trigger it manually
+	// flush time is large so it won't automatically trigger during this test
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{}, metrics.NewNoopPipelineMonitor(""))
+	strategy.Start()
+
+	// all of these messages will get buffered
+	messages := []*message.Message{
+		message.NewMessage([]byte("a"), nil, "", 0),
+		message.NewMessage([]byte("b"), nil, "", 0),
+		message.NewMessage([]byte("c"), nil, "", 0),
+	}
+	for _, m := range messages {
+		input <- m
+	}
+
+	// since the batch size is large there should be nothing on the output yet
+	select {
+	case <-output:
+		assert.Fail(t, "there should be nothing on the output channel yet")
+	default:
+	}
+
+	// Trigger a manual flush
+	flushChan <- struct{}{}
+
+	assert.ElementsMatch(t, messages, (<-output).Messages)
+
+	// Ensure we read all of the messages
+	select {
+	case <-output:
+		assert.Fail(t, "the output channel should still be empty")
+	default:
+	}
+
+	// End the test strategy
+	go func() {
+		// Stop triggers the flush and make sure we can read the messages out now
+		strategy.Stop()
+	}()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
+
 }

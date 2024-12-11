@@ -8,7 +8,7 @@ package filters
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +34,7 @@ func TestBlacklister(t *testing.T) {
 		{[]string{"\\[123"}, "[123", false},
 		{[]string{"ABC+", "W+"}, "ABCCCC", false},
 		{[]string{"ABC+", "W+"}, "WWW", false},
+		{[]string{".*"}, "foo", false},
 	}
 
 	for _, test := range tests {

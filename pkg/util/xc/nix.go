@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && cgo
-// +build !windows,cgo
 
 package xc
 
@@ -17,8 +16,6 @@ import "C"
 
 // GetSystemFreq grabs the system clock frequency
 func GetSystemFreq() (int64, error) {
-	var scClkTck C.long
-
-	scClkTck = C.sysconf(C._SC_CLK_TCK)
+	var scClkTck C.long = C.sysconf(C._SC_CLK_TCK)
 	return int64(scClkTck), nil
 }

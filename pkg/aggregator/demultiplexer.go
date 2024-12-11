@@ -6,26 +6,24 @@
 package aggregator
 
 import (
-	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DemultiplexerInstance is a shared global demultiplexer instance.
-// Initialized by InitAndStartAgentDemultiplexer or InitAndStartServerlessDemultiplexer,
-// could be nil otherwise.
-//
-// The plan is to deprecated this global instance at some point.
-var demultiplexerInstance Demultiplexer
-
-var demultiplexerInstanceMu sync.Mutex
+const (
+	// AutoAdjustStrategyMaxThroughput will adapt the number of pipelines for maximum throughput
+	AutoAdjustStrategyMaxThroughput = "max_throughput"
+	// AutoAdjustStrategyPerOrigin will adapt the number of pipelines for better container isolation
+	AutoAdjustStrategyPerOrigin = "per_origin"
+)
 
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
 // a shared forwarder, the event platform forwarder, orchestrator data buffers
@@ -34,30 +32,24 @@ var demultiplexerInstanceMu sync.Mutex
 type Demultiplexer interface {
 	// General
 	// --
-
-	// Run runs all demultiplexer parts
-	Run()
-	// Stop stops the demultiplexer.
-	// Resources are released, the instance should not be used after a call to `Stop()`.
-	Stop(flush bool)
 	// Serializer returns the serializer used by the Demultiplexer instance.
 	Serializer() serializer.MetricSerializer
 
-	// Aggregation API
+	// Samples API
 	// --
 
-	// AddTimeSample sends a MetricSample to the time sampler.
+	// AggregateSample sends a MetricSample to the DogStatsD time sampler.
 	// In sharded implementation, the metric is sent to the first time sampler.
-	AddTimeSample(sample metrics.MetricSample)
-	// AddTimeSampleBatch sends a batch of MetricSample to the given time
-	// sampler shard.
+	AggregateSample(sample metrics.MetricSample)
+	// AggregateSamples sends a batch of MetricSample to the given DogStatsD
+	// time sampler shard.
 	// Implementation not supporting sharding may ignore the `shard` parameter.
-	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
+	AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch)
 
-	// AddLateMetrics pushes metrics in the no-aggregation pipeline: a pipeline
+	// SendSamplesWithoutAggregation pushes metrics in the no-aggregation pipeline: a pipeline
 	// where the metrics are not sampled and sent as-is.
 	// This is the method to use to send metrics with a valid timestamp attached.
-	AddLateMetrics(metrics metrics.MetricSampleBatch)
+	SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch)
 
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
 	// the serialization/forwarding parts.
@@ -71,13 +63,7 @@ type Demultiplexer interface {
 
 	// Senders API, mainly used by collectors/checks
 	// --
-
-	GetSender(id check.ID) (Sender, error)
-	SetSender(sender Sender, id check.ID) error
-	DestroySender(id check.ID)
-	GetDefaultSender() (Sender, error)
-	ChangeAllSendersDefaultHostname(hostname string)
-	cleanSenders()
+	sender.SenderManager
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
@@ -109,19 +95,23 @@ func createIterableMetrics(
 	serializer serializer.MetricSerializer,
 	logPayloads bool,
 	isServerless bool,
+	hostTagProvider *HostTagProvider,
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
-
+	hostTags := hostTagProvider.GetHostTags()
 	if serializer.AreSeriesEnabled() {
 		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
 			if logPayloads {
 				log.Debugf("Flushing serie: %s", se)
 			}
+
+			if hostTags != nil {
+				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
+			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
-
 	if serializer.AreSketchesEnabled() {
 		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
 			if logPayloads {
@@ -129,6 +119,9 @@ func createIterableMetrics(
 			}
 			if isServerless {
 				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			}
+			if hostTags != nil {
+				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
@@ -153,13 +146,21 @@ func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time,
 // GetDogStatsDWorkerAndPipelineCount returns how many routines should be spawned
 // for the DogStatsD workers and how many DogStatsD pipeline should be running.
 func GetDogStatsDWorkerAndPipelineCount() (int, int) {
-	return getDogStatsDWorkerAndPipelineCount(agentruntime.NumVCPU())
+	work, pipe := getDogStatsDWorkerAndPipelineCount(agentruntime.NumVCPU())
+	log.Infof("Dogstatsd configured to run with %d workers and %d pipelines", work, pipe)
+	return work, pipe
 }
 
 func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	var dsdWorkerCount int
 	var pipelineCount int
-	autoAdjust := config.Datadog.GetBool("dogstatsd_pipeline_autoadjust")
+	autoAdjust := pkgconfigsetup.Datadog().GetBool("dogstatsd_pipeline_autoadjust")
+	autoAdjustStrategy := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy")
+
+	if autoAdjustStrategy != AutoAdjustStrategyMaxThroughput && autoAdjustStrategy != AutoAdjustStrategyPerOrigin {
+		log.Warnf("Invalid value for 'dogstatsd_pipeline_autoadjust_strategy', using default value: %s", AutoAdjustStrategyMaxThroughput)
+		autoAdjustStrategy = AutoAdjustStrategyMaxThroughput
+	}
 
 	// no auto-adjust of the pipeline count:
 	// we use the pipeline count configuration
@@ -167,7 +168,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	// ------------------------------------
 
 	if !autoAdjust {
-		pipelineCount = config.Datadog.GetInt("dogstatsd_pipeline_count")
+		pipelineCount = pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
 		if pipelineCount <= 0 { // guard against configuration mistakes
 			pipelineCount = 1
 		}
@@ -181,37 +182,53 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 		if dsdWorkerCount < 2 {
 			dsdWorkerCount = 2
 		}
+	} else if autoAdjustStrategy == AutoAdjustStrategyMaxThroughput {
+		// we will auto-adjust the pipeline and workers count to maximize throughput
+		//
+		// Benchmarks have revealed that 3 very busy workers can be processed
+		// by 2 pipelines DogStatsD and have a good ratio execution / scheduling / waiting.
+		// To keep this simple for now, we will try running 1 less pipeline than workers.
+		// (e.g. for 4 workers, 3 pipelines)
+		// Use Go routines analysis with pprof to look at execution time if you want
+		// adapt this heuristic.
+		//
+		// Basically the formula is:
+		//  - half the amount of vCPUS for the amount of workers routines
+		//  - half the amount of vCPUS - 1 for the amount of pipeline routines
+		//  - this last routine for the listener routine
 
-		return dsdWorkerCount, pipelineCount
+		dsdWorkerCount = vCPUs / 2
+		if dsdWorkerCount < 2 { // minimum 2 workers
+			dsdWorkerCount = 2
+		}
+
+		pipelineCount = dsdWorkerCount - 1
+		if pipelineCount <= 0 { // minimum 1 pipeline
+			pipelineCount = 1
+		}
+
+		if pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count") > 1 {
+			log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
+		}
+	} else if autoAdjustStrategy == AutoAdjustStrategyPerOrigin {
+		// we will auto-adjust the pipeline and workers count to isolate the pipelines
+		//
+		// The goal here is to have many pipelines to isolate the processing of the
+		// different samplers and avoid contention between them.
+		//
+		// This also has the benefit of increasing compression efficiency by having
+		// similarly tagged metrics flushed together.
+
+		dsdWorkerCount = vCPUs / 2
+		if dsdWorkerCount < 2 {
+			dsdWorkerCount = 2
+		}
+
+		pipelineCount = pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
+		if pipelineCount <= 0 { // guard against configuration mistakes
+			pipelineCount = vCPUs * 2
+		}
 	}
-
-	// we will auto-adjust the pipeline and workers count
-	//
-	// Benchmarks have revealed that 3 very busy workers can be processed
-	// by 2 pipelines DogStatsD and have a good ratio execution / scheduling / waiting.
-	// To keep this simple for now, we will try running 1 less pipeline than workers.
-	// (e.g. for 4 workers, 3 pipelines)
-	// Use Go routines analysis with pprof to look at execution time if you want
-	// adapt this heuristic.
-	//
-	// Basically the formula is:
-	//  - half the amount of vCPUS for the amount of workers routines
-	//  - half the amount of vCPUS - 1 for the amount of pipeline routines
-	//  - this last routine for the listener routine
-
-	dsdWorkerCount = vCPUs / 2
-	if dsdWorkerCount < 2 { // minimum 2 workers
-		dsdWorkerCount = 2
-	}
-
-	pipelineCount = dsdWorkerCount - 1
-	if pipelineCount <= 0 { // minimum 1 pipeline
-		pipelineCount = 1
-	}
-
-	if config.Datadog.GetInt("dogstatsd_pipeline_count") > 1 {
-		log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
-	}
-
+	log.Info("Dogstatsd workers and pipelines count: ", dsdWorkerCount, " workers, ", pipelineCount, " pipelines")
 	return dsdWorkerCount, pipelineCount
 }

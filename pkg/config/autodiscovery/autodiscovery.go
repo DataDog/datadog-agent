@@ -3,32 +3,41 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package autodiscovery contains helper function that return autodiscovery
+// providers from the config and from the environment where the Agent is
+// running.
 package autodiscovery
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DiscoverComponentsFromConfig returns a list of AD Providers and Listeners based on the agent configuration
-func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.Listeners) {
-	detectedProviders := []config.ConfigurationProviders{}
-	detectedListeners := []config.Listeners{}
+func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []pkgconfigsetup.Listeners) {
+	detectedProviders := []pkgconfigsetup.ConfigurationProviders{}
+	detectedListeners := []pkgconfigsetup.Listeners{}
 
 	// Auto-add Prometheus config provider based on `prometheus_scrape.enabled`
-	if config.Datadog.GetBool("prometheus_scrape.enabled") {
-		var prometheusProvider config.ConfigurationProviders
+	if pkgconfigsetup.Datadog().GetBool("prometheus_scrape.enabled") {
+		var prometheusProvider pkgconfigsetup.ConfigurationProviders
 		if flavor.GetFlavor() == flavor.ClusterAgent {
-			prometheusProvider = config.ConfigurationProviders{Name: "prometheus_services", Polling: true}
+			prometheusProvider = pkgconfigsetup.ConfigurationProviders{Name: "prometheus_services", Polling: true}
 		} else {
-			prometheusProvider = config.ConfigurationProviders{Name: "prometheus_pods", Polling: true}
+			prometheusProvider = pkgconfigsetup.ConfigurationProviders{Name: "prometheus_pods", Polling: true}
 		}
 		log.Infof("Prometheus scraping is enabled: Adding the Prometheus config provider '%s'", prometheusProvider.Name)
 		detectedProviders = append(detectedProviders, prometheusProvider)
+	}
+	// Add database-monitoring aurora listener if the feature is enabled
+	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.aurora.enabled") {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-aurora"})
+		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
 	}
 
 	// Auto-add file-based kube service and endpoints config providers based on check config files.
@@ -46,7 +55,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 					log.Info("Configs with advanced kube service identifiers detected: Adding the 'kube service file' config provider")
 					// Polling is set to false because kube_services_file is a static config provider.
 					// It generates entity IDs based on the provided advanced config: kube_service://<namespace>/<name>
-					detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeServicesFileRegisterName, Polling: false})
+					detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeServicesFileRegisterName, Polling: false})
 				}
 
 				if !epFound && !adv.KubeEndpoints.IsEmpty() {
@@ -55,7 +64,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 					// Polling is set to true because kube_endpoints_file is a dynamic config provider.
 					// It generates entity IDs based on the provided advanced config + the IPs found in the corresponding Endpoints object: kube_endpoint://<namespace>/<name>/<ip>
 					// The generated entity IDs are subject to change, thus the continuous polling.
-					detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeEndpointsFileRegisterName, Polling: true})
+					detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeEndpointsFileRegisterName, Polling: true})
 				}
 			}
 
@@ -65,55 +74,52 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		}
 	}
 
+	// Auto-activate autodiscovery without listeners: - snmp
+	snmpConfig, err := snmplistener.NewListenerConfig()
+
+	if err != nil {
+		log.Errorf("Error unmarshalling snmp listener config. Error: %v", err)
+	} else if len(snmpConfig.Configs) > 0 {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "snmp"})
+		log.Info("Configs for autodiscovery detected: Adding the snmp listener")
+	}
+
 	return detectedProviders, detectedListeners
 }
 
 // DiscoverComponentsFromEnv returns a list of AD Providers and Listeners based on environment characteristics
-func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.Listeners) {
-	detectedProviders := []config.ConfigurationProviders{}
-	detectedListeners := []config.Listeners{}
+func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkgconfigsetup.Listeners) {
+	detectedProviders := []pkgconfigsetup.ConfigurationProviders{}
+	detectedListeners := []pkgconfigsetup.Listeners{}
 
 	// When using automatic discovery of providers/listeners
-	// We automatically activate the environment listener
-	detectedListeners = append(detectedListeners, config.Listeners{Name: "environment"})
+	// We automatically activate the environment and static config listener
+	detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "environment"})
+	detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "static config"})
 
-	// Automatic handling of AD providers/listeners should only run in Core agent.
-	if flavor.GetFlavor() != flavor.DefaultAgent {
+	// Automatic handling of AD providers/listeners should only run in the core or process agent.
+	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.ProcessAgent {
 		return detectedProviders, detectedListeners
 	}
 
-	// Upon retiring this flag, see comment in `KubeContainerConfigProvider`
-	kubeContainerOn := util.CcaInAD()
-	isContainerEnv := config.IsFeaturePresent(config.Docker) ||
-		config.IsFeaturePresent(config.Containerd) ||
-		config.IsFeaturePresent(config.Podman) ||
-		config.IsFeaturePresent(config.ECSFargate)
-	isKubeEnv := config.IsFeaturePresent(config.Kubernetes)
+	isContainerEnv := env.IsFeaturePresent(env.Docker) ||
+		env.IsFeaturePresent(env.Containerd) ||
+		env.IsFeaturePresent(env.Podman) ||
+		env.IsFeaturePresent(env.ECSFargate)
+	isKubeEnv := env.IsFeaturePresent(env.Kubernetes)
 
-	if kubeContainerOn && (isContainerEnv || isKubeEnv) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer})
+	if isContainerEnv || isKubeEnv {
+		detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeContainer})
 		log.Info("Adding KubeContainer provider from environment")
 	}
 
-	if isContainerEnv {
-		if !kubeContainerOn {
-			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
-			log.Info("Adding Container provider from environment")
-		}
-
-		if !isKubeEnv {
-			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
-			log.Info("Adding Container listener from environment")
-		}
+	if isContainerEnv && !isKubeEnv {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: names.Container})
+		log.Info("Adding Container listener from environment")
 	}
 
 	if isKubeEnv {
-		if !kubeContainerOn {
-			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
-			log.Info("Adding Kubelet provider from environment")
-		}
-
-		detectedListeners = append(detectedListeners, config.Listeners{Name: "kubelet"})
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet listener from environment")
 	}
 

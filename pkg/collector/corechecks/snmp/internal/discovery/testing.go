@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package discovery
 
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // SetTestRunPath sets run_path for testing
 func SetTestRunPath() {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path"))
-	config.Datadog.Set("run_path", path)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", path)
 }

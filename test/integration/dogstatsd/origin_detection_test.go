@@ -8,19 +8,36 @@ package dogstatsd
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
-func TestUDSOriginDetection(t *testing.T) {
-	config.SetupLogger(
-		config.LoggerName("test"),
+func TestUDSOriginDetectionDatagram(t *testing.T) {
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 
-	testUDSOriginDetection(t)
+	testUDSOriginDetection(t, "unixgram")
+}
+
+func TestUDSOriginDetectionStream(t *testing.T) {
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
+		"debug",
+		"",
+		"",
+		false,
+		true,
+		false,
+		pkgconfigsetup.Datadog(),
+	)
+
+	testUDSOriginDetection(t, "unix")
 }

@@ -9,67 +9,42 @@ import (
 	"regexp"
 	"time"
 
-	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	//nolint:revive // TODO(AML) Fix revive linter
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultContentLenLimit represents the max size for a line,
-// if a line is bigger than this limit, it will be truncated.
-const defaultContentLenLimit = 256 * 1000
-
-// Input represents a chunk of line.
-type Input struct {
-	content []byte
-}
-
-// NewInput returns a new input.
-func NewInput(content []byte) *Input {
-	return &Input{
-		content: content,
-	}
-}
-
-// Message represents a structured line.
-type Message struct {
-	Content            []byte
-	Status             string
-	RawDataLen         int
-	Timestamp          string
-	IngestionTimestamp int64
-}
-
-// NewMessage returns a new output.
-func NewMessage(content []byte, status string, rawDataLen int, timestamp string) *Message {
-	return &Message{
-		Content:            content,
-		Status:             status,
-		RawDataLen:         rawDataLen,
-		Timestamp:          timestamp,
-		IngestionTimestamp: time.Now().UnixNano(),
-	}
+// NewInput returns a new decoder input.
+// A decoder input is an unstructured message of raw bytes as the content.
+// Some of the tailers using this are the file tailers and socket tailers
+// as these logs don't have any structure, they're just raw bytes log.
+// See message.Message / message.MessageContent comment for more information.
+func NewInput(content []byte) *message.Message {
+	return message.NewMessage(content, nil, "", time.Now().UnixNano())
 }
 
 // Decoder translates a sequence of byte buffers (such as from a file or a
 // network socket) into log messages.
 //
-// Decoder is structured as an actor with InputChan of type *decoder.Input and
-// OutputChan of type *decoder.Message.
+// Decoder is structured as an actor receiving messages on `InputChan` and
+// writing its output in `OutputChan`
 //
 // The Decoder's run() takes data from InputChan, uses a Framer to break it into frames.
-// The LineBreaker passes that data to a LineParser, which uses a Parser to convert it to
-// parsers.Message, converts that to decoder.Message, and passes that to the LineHandler.
+// The Framer passes that data to a LineParser, which uses a Parser to parse it and
+// to pass it to the LineHander.
 //
 // The LineHandler processes the messages it as necessary (as single lines,
 // multiple lines, or auto-detecting the two), and sends the result to the
 // Decoder's output channel.
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Message
+	InputChan  chan *message.Message
+	OutputChan chan *message.Message
 
 	framer      *framer.Framer
 	lineParser  LineParser
@@ -82,8 +57,8 @@ type Decoder struct {
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *sources.ReplaceableSource, parser parsers.Parser) *Decoder {
-	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil)
+func InitializeDecoder(source *sources.ReplaceableSource, parser parsers.Parser, tailerInfo *status.InfoRegistry) *Decoder {
+	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil, tailerInfo)
 }
 
 // Since a single source can have multiple file tailers - each with their own decoder instance:
@@ -105,25 +80,29 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
-func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
-	inputChan := make(chan *Input)
-	outputChan := make(chan *Message)
-	lineLimit := defaultContentLenLimit
+func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
+	inputChan := make(chan *message.Message)
+	outputChan := make(chan *message.Message)
+	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	detectedPattern := &DetectedPattern{}
 
-	outputFn := func(m *Message) { outputChan <- m }
+	outputFn := func(m *message.Message) { outputChan <- m }
 
 	// construct the lineHandler
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(), lineLimit, false)
+			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, false, tailerInfo, "multi_line")
 			syncSourceInfo(source, lh)
 			lineHandler = lh
 		}
 	}
 	if lineHandler == nil {
-		if source.Config().AutoMultiLineEnabled() {
+		if source.Config().ExperimentalAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+			log.Infof("Experimental Auto multi line log detection enabled")
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo)
+
+		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
@@ -132,41 +111,41 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(), lineLimit, true)
+				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, true, tailerInfo, "legacy_auto_multi_line")
 				syncSourceInfo(source, lh)
 				lineHandler = lh
 			} else {
-				lineHandler = buildAutoMultilineHandlerFromConfig(outputFn, lineLimit, source, detectedPattern)
+				lineHandler = buildLegacyAutoMultilineHandlerFromConfig(outputFn, maxContentSize, source, detectedPattern, tailerInfo)
 			}
 		} else {
-			lineHandler = NewSingleLineHandler(outputFn, lineLimit)
+			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
 	}
 
 	// construct the lineParser, wrapping the parser
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(lineHandler.process, config.AggregationTimeout(), parser, lineLimit)
+		lineParser = NewMultiLineParser(lineHandler, config.AggregationTimeout(pkgconfigsetup.Datadog()), parser, maxContentSize)
 	} else {
-		lineParser = NewSingleLineParser(lineHandler.process, parser)
+		lineParser = NewSingleLineParser(lineHandler, parser)
 	}
 
 	// construct the framer
-	framer := framer.NewFramer(lineParser.process, framing, lineLimit)
+	framer := framer.NewFramer(lineParser.process, framing, maxContentSize)
 
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
+func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {
 	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
-		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
+		linesToSample = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line_default_sample_size")
 	}
 	matchThreshold := source.Config().AutoMultiLineMatchThreshold
 	if matchThreshold == 0 {
-		matchThreshold = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+		matchThreshold = pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line_default_match_threshold")
 	}
-	additionalPatterns := dd_conf.Datadog.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
+	additionalPatterns := pkgconfigsetup.Datadog().GetStringSlice("logs_config.auto_multi_line_extra_patterns")
 	additionalPatternsCompiled := []*regexp.Regexp{}
 
 	for _, p := range additionalPatterns {
@@ -178,21 +157,23 @@ func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int,
 		additionalPatternsCompiled = append(additionalPatternsCompiled, compiled)
 	}
 
-	matchTimeout := time.Second * dd_conf.Datadog.GetDuration("logs_config.auto_multi_line_default_match_timeout")
-	return NewAutoMultilineHandler(
+	matchTimeout := time.Second * pkgconfigsetup.Datadog().GetDuration("logs_config.auto_multi_line_default_match_timeout")
+	return NewLegacyAutoMultilineHandler(
 		outputFn,
-		lineLimit,
+		maxContentSize,
 		linesToSample,
 		matchThreshold,
 		matchTimeout,
-		config.AggregationTimeout(),
+		config.AggregationTimeout(pkgconfigsetup.Datadog()),
 		source,
 		additionalPatternsCompiled,
-		detectedPattern)
+		detectedPattern,
+		tailerInfo,
+	)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
+func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
 	return &Decoder{
 		InputChan:       InputChan,
 		OutputChan:      OutputChan,
@@ -225,13 +206,13 @@ func (d *Decoder) run() {
 	}()
 	for {
 		select {
-		case data, isOpen := <-d.InputChan:
+		case msg, isOpen := <-d.InputChan:
 			if !isOpen {
 				// InputChan has been closed, no more lines are expected
 				return
 			}
 
-			d.framer.Process(data.content)
+			d.framer.Process(msg)
 
 		case <-d.lineParser.flushChan():
 			log.Debug("Flushing line parser because the flush timeout has been reached.")

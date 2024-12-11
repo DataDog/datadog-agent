@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -75,7 +74,7 @@ func (cfs *cgroupMemoryFS) deleteCgroupV1File(cg *cgroupV1, controller, name str
 
 // for cgroup v1 only
 func (cfs *cgroupMemoryFS) createCgroupV1(id, path string) *cgroupV1 {
-	cg := newCgroupV1(id, path, cfs.mountPoints, nil)
+	cg := newCgroupV1(id, path, defaultBaseController, cfs.mountPoints, nil)
 	cg.fr = cfs
 	return cg
 }

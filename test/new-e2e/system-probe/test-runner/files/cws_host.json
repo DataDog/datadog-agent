@@ -1,0 +1,7 @@
+{
+	"filters": {
+		"*": {
+			"exclude": false
+		}
+	}
+}

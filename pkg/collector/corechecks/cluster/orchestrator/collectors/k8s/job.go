@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -20,6 +19,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewJobCollectorVersions builds the group of collector versions.
+func NewJobCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewJobCollector(),
+	)
+}
+
 // JobCollector is a collector for Kubernetes Jobs.
 type JobCollector struct {
 	informer  batchv1Informers.JobInformer
@@ -32,9 +38,14 @@ type JobCollector struct {
 func NewJobCollector() *JobCollector {
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "jobs",
-			NodeType: orchestrator.K8sJob,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "jobs",
+			NodeType:                  orchestrator.K8sJob,
+			Version:                   "batch/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}
@@ -47,12 +58,9 @@ func (c *JobCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *JobCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Batch().V1().Jobs()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Batch().V1().Jobs()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *JobCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *JobCollector) Metadata() *collectors.CollectorMetadata {
@@ -66,13 +74,7 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

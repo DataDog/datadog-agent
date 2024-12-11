@@ -6,7 +6,6 @@
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
-#include "rtloader_mem.h"
 #include "rtloader_types.h"
 
 #include <map>
@@ -33,12 +32,7 @@ class RtLoader
 {
 public:
     //! Constructor.
-    RtLoader(cb_memory_tracker_t memtrack_cb)
-        : _error()
-        , _errorFlag(false)
-    {
-        _set_memory_tracker_cb(memtrack_cb);
-    };
+    RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     virtual ~RtLoader(){};
@@ -127,6 +121,13 @@ public:
       \return An array of C-strings containing all warnings presently set for the check instance.
     */
     virtual char **getCheckWarnings(RtLoaderPyObject *check) = 0;
+
+    //! Pure virtual getCheckDiagnoses member.
+    /*!
+      \param check The python object pointer to the check we wish to collect diagnoses for.
+      \return serialized diagnoses for the check as a C-string or NULL if none exists or an error occurred.
+    */
+    virtual char *getCheckDiagnoses(RtLoaderPyObject *check) = 0;
 
     //! clearError member.
     /*!
@@ -307,6 +308,15 @@ public:
     */
     virtual void setGetHostnameCb(cb_get_hostname_t) = 0;
 
+    //! setGetHostTagsCb member.
+    /*!
+      \param A cb_get_host_tags_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will provide the host tags from
+      the agent.
+    */
+    virtual void setGetHostTagsCb(cb_get_host_tags_t) = 0;
+
     //! setGetTracemallocEnabledCb member.
     /*!
       \param A cb_tracemalloc_enabled_t function pointer to the CGO callback.
@@ -334,6 +344,15 @@ public:
       providing a single logging subsystem.
     */
     virtual void setLogCb(cb_log_t) = 0;
+
+    //! sendLogCb member.
+    /*!
+      \param A cb_send_log_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow for sending a log for
+      eventual submission for a specific check instance.
+    */
+    virtual void setSendLogCb(cb_send_log_t) = 0;
 
     //! setCheckMetadataCb member.
     /*!
@@ -449,6 +468,51 @@ public:
       specific check instances.
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
+
+    //! initPymemStats member.
+    /*!
+      Install python allocator hooks.
+    */
+    virtual void initPymemStats()
+    {
+    }
+
+    //! getPymemStats member.
+    /*!
+      \param stats Stats snapshot output.
+
+      Retrieve a snapshot python allocator statistics.
+    */
+    virtual void getPymemStats(pymem_stats_t &stats)
+    {
+    }
+
+    //! setObfuscateMongoDBStringCb member.
+    /*!
+      \param A cb_obfuscate_mongodb_string_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t) = 0;
+
+    //! setEmitAgentTelemetryCb member.
+    /*!
+      \param A cb_emit_agent_telemetry_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow emitting a metric for
+      specific check instances.
+    */
+    virtual void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t) = 0;
+
+protected:
+    //! _allocateInternalErrorDiagnoses member.
+    /*!
+      \param A C-string representation of the error message
+
+      This creates diagnoses indicating problem with get_diagnoses call in the same format as its regular output.
+    */
+    static char *_createInternalErrorDiagnoses(const char *errorMsg);
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

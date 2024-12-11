@@ -9,12 +9,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestAdd(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	demux := createDemultiplexer(t)
 	timestamp := time.Now()
 	add("a.super.metric", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
@@ -29,9 +37,9 @@ func TestAdd(t *testing.T) {
 }
 
 func TestAddColdStartMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	AddColdStartMetric([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddColdStartMetric("gcp.run", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -43,9 +51,9 @@ func TestAddColdStartMetric(t *testing.T) {
 }
 
 func TestAddShutdownMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	AddShutdownMetric([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddShutdownMetric("gcp.run", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -54,4 +62,8 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, 2, len(metric.Tags))
 	assert.Equal(t, metric.Tags[0], "taga:valuea")
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

@@ -8,7 +8,6 @@ package clusteragent
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -27,7 +26,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,7 +44,7 @@ type dummyClusterAgent struct {
 	redirectURL string
 }
 
-func newDummyClusterAgent() (*dummyClusterAgent, error) {
+func newDummyClusterAgent(conf model.Config) (*dummyClusterAgent, error) {
 	resetGlobalClusterAgentClient()
 	dca := &dummyClusterAgent{
 		nodeLabels: map[string]map[string]string{
@@ -76,18 +76,18 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 				"node1": {
 					Services: apiv1.NamespacesPodsStringsSet{
 						"foo": {
-							"pod-00001": sets.NewString("kube_service:svc1"),
-							"pod-00002": sets.NewString("kube_service:svc1", "kube_service:svc2"),
+							"pod-00001": sets.New("kube_service:svc1"),
+							"pod-00002": sets.New("kube_service:svc1", "kube_service:svc2"),
 						},
 						"bar": {
-							"pod-00004": sets.NewString("kube_service:svc2"),
+							"pod-00004": sets.New("kube_service:svc2"),
 						},
 					},
 				},
 				"node2": {
 					Services: apiv1.NamespacesPodsStringsSet{
 						"foo": {
-							"pod-00003": sets.NewString("kube_service:svc1"),
+							"pod-00003": sets.New("kube_service:svc1"),
 						},
 					},
 				},
@@ -97,13 +97,13 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"/version":           `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 			"/api/v1/cluster/id": `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
 		},
-		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		token:    conf.GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
 	}
 	return dca, nil
 }
 
-func newDummyClusterAgentWithCFMetadata() (*dummyClusterAgent, error) {
+func newDummyClusterAgentWithCFMetadata(conf model.Config) (*dummyClusterAgent, error) {
 	resetGlobalClusterAgentClient()
 	dca := &dummyClusterAgent{
 		rawResponses: map[string]string{
@@ -113,7 +113,7 @@ func newDummyClusterAgentWithCFMetadata() (*dummyClusterAgent, error) {
 			"/version":                   `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 		},
 		requests: make(chan *http.Request, 100),
-		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		token:    conf.GetString("cluster_agent.auth_token"),
 	}
 
 	return dca, nil
@@ -275,160 +275,88 @@ func (d *dummyClusterAgent) PopRequest() *http.Request {
 type clusterAgentSuite struct {
 	suite.Suite
 	authTokenPath string
+	config        model.Config
 }
 
-var mockConfig = config.Mock(nil)
-
 const (
-	clusterAgentServiceName = "DATADOG_CLUSTER_AGENT"
-	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
-	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
-	clusterAgentTokenValue  = "01234567890123456789012345678901"
-	clcRunnerIP             = "10.92.1.39"
+	clusterAgentTokenValue = "01234567890123456789012345678901"
+	clcRunnerIP            = "10.92.1.39"
 )
 
 func (suite *clusterAgentSuite) SetupTest() {
 	os.Remove(suite.authTokenPath)
-	mockConfig.Set("cluster_agent.auth_token", clusterAgentTokenValue)
-	mockConfig.Set("cluster_agent.url", "")
-	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
-	mockConfig.Set("clc_runner_host", clcRunnerIP)
-	os.Unsetenv(clusterAgentServiceHost)
-	os.Unsetenv(clusterAgentServicePort)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointEmpty() {
-	mockConfig.Set("cluster_agent.url", "")
-	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
-
-	_, err := getClusterAgentEndpoint()
-	require.NotNil(suite.T(), err)
+	suite.config.SetWithoutSource("cluster_agent.auth_token", clusterAgentTokenValue)
+	suite.config.SetWithoutSource("cluster_agent.url", "")
+	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
+	suite.config.SetWithoutSource("clc_runner_host", clcRunnerIP)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
-	mockConfig.Set("cluster_agent.auth_token", "")
+	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
 
-	_, err := security.CreateOrGetClusterAgentAuthToken()
+	_, err := security.CreateOrGetClusterAgentAuthToken(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmptyFile() {
-	mockConfig.Set("cluster_agent.auth_token", "")
-	err := ioutil.WriteFile(suite.authTokenPath, []byte(""), os.ModePerm)
+	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	err := os.WriteFile(suite.authTokenPath, []byte(""), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	_, err = security.GetClusterAgentAuthToken()
+	_, err = security.GetClusterAgentAuthToken(suite.config)
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenFileInvalid() {
-	mockConfig.Set("cluster_agent.auth_token", "")
-	err := ioutil.WriteFile(suite.authTokenPath, []byte("tooshort"), os.ModePerm)
+	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	err := os.WriteFile(suite.authTokenPath, []byte("tooshort"), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	_, err = security.GetClusterAgentAuthToken()
+	_, err = security.GetClusterAgentAuthToken(suite.config)
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthToken() {
 	const tokenFileValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
-	mockConfig.Set("cluster_agent.auth_token", "")
-	err := ioutil.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
+	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	err := os.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	t, err := security.GetClusterAgentAuthToken()
+	t, err := security.GetClusterAgentAuthToken(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), tokenFileValue, t)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenConfigPriority() {
 	const tokenFileValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
-	mockConfig.Set("cluster_agent.auth_token", clusterAgentTokenValue)
-	err := ioutil.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
+	suite.config.SetWithoutSource("cluster_agent.auth_token", clusterAgentTokenValue)
+	err := os.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	// load config token value instead of filesystem
-	t, err := security.GetClusterAgentAuthToken()
+	t, err := security.GetClusterAgentAuthToken(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), clusterAgentTokenValue, t)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenTooShort() {
 	const tokenValue = "tooshort"
-	mockConfig.Set("cluster_agent.auth_token", "")
-	err := ioutil.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
+	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
+	err := os.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	_, err = security.GetClusterAgentAuthToken()
-	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrl() {
-	mockConfig.Set("cluster_agent.url", "https://127.0.0.1:8080")
-	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
-	_, err := getClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-
-	mockConfig.Set("cluster_agent.url", "https://127.0.0.1")
-	_, err = getClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-
-	mockConfig.Set("cluster_agent.url", "127.0.0.1")
-	endpoint, err := getClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "https://127.0.0.1", endpoint)
-
-	mockConfig.Set("cluster_agent.url", "127.0.0.1:1234")
-	endpoint, err = getClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "https://127.0.0.1:1234", endpoint)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrlInvalid() {
-	mockConfig.Set("cluster_agent.url", "http://127.0.0.1:8080")
-	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
-	_, err := getClusterAgentEndpoint()
-	require.NotNil(suite.T(), err)
-
-	mockConfig.Set("cluster_agent.url", "tcp://127.0.0.1:8080")
-	_, err = getClusterAgentEndpoint()
-	require.NotNil(suite.T(), err)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
-	mockConfig.Set("cluster_agent.url", "")
-	mockConfig.Set("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	os.Setenv(clusterAgentServiceHost, "127.0.0.1")
-	os.Setenv(clusterAgentServicePort, "443")
-
-	endpoint, err := getClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "https://127.0.0.1:443", endpoint)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpty() {
-	mockConfig.Set("cluster_agent.url", "")
-	mockConfig.Set("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	os.Setenv(clusterAgentServiceHost, "127.0.0.1")
-	os.Setenv(clusterAgentServicePort, "")
-
-	_, err := getClusterAgentEndpoint()
-	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
-
-	os.Setenv(clusterAgentServiceHost, "")
-	os.Setenv(clusterAgentServicePort, "443")
-	_, err = getClusterAgentEndpoint()
+	_, err = security.GetClusterAgentAuthToken(suite.config)
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
 func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -474,14 +402,14 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 }
 
 func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -519,14 +447,14 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 }
 
 func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -589,14 +517,14 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 }
 
 func (suite *clusterAgentSuite) TestGetCFAppsMetadataForNode() {
-	dca, err := newDummyClusterAgentWithCFMetadata()
+	dca, err := newDummyClusterAgentWithCFMetadata(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -631,14 +559,14 @@ func (suite *clusterAgentSuite) TestGetCFAppsMetadataForNode() {
 }
 
 func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -654,11 +582,11 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 			nodeName: "node1",
 			expectedMetadatas: apiv1.NamespacesPodsStringsSet{
 				"foo": apiv1.MapStringSet{
-					"pod-00001": sets.NewString("kube_service:svc1"),
-					"pod-00002": sets.NewString("kube_service:svc1", "kube_service:svc2"),
+					"pod-00001": sets.New("kube_service:svc1"),
+					"pod-00002": sets.New("kube_service:svc1", "kube_service:svc2"),
 				},
 				"bar": {
-					"pod-00004": sets.NewString("kube_service:svc2"),
+					"pod-00004": sets.New("kube_service:svc2"),
 				},
 			},
 		},
@@ -667,7 +595,7 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 			nodeName: "node2",
 			expectedMetadatas: apiv1.NamespacesPodsStringsSet{
 				"foo": apiv1.MapStringSet{
-					"pod-00003": sets.NewString("kube_service:svc1"),
+					"pod-00003": sets.New("kube_service:svc1"),
 				},
 			},
 		},
@@ -692,8 +620,8 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 				require.Equal(t, len(testCase.expectedMetadatas), len(metadatas))
 				for ns, expectedNSValues := range testCase.expectedMetadatas {
 					for podName, expectedMetadatas := range expectedNSValues {
-						for _, elt := range expectedMetadatas.List() {
-							assert.Contains(t, metadatas[ns][podName].List(), elt)
+						for _, elt := range sets.List(expectedMetadatas) {
+							assert.Contains(t, sets.List(metadatas[ns][podName]), elt)
 						}
 					}
 				}
@@ -703,14 +631,14 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 }
 
 func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -725,12 +653,12 @@ func TestClusterAgentSuite(t *testing.T) {
 
 	fakeDir := t.TempDir()
 
-	f, err := ioutil.TempFile(fakeDir, "fake-datadog-yaml-")
+	f, err := os.CreateTemp(fakeDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	defer os.Remove(f.Name())
 
-	s := &clusterAgentSuite{}
-	config.Datadog.SetConfigFile(f.Name())
+	s := &clusterAgentSuite{config: configmock.New(t)}
+	s.config.SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clusterAgentAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))

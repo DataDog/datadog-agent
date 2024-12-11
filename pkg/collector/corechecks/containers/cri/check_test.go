@@ -4,18 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
 package cri
 
 import (
 	"testing"
 
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 
 	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
 
@@ -37,10 +37,11 @@ func TestCriCheck(t *testing.T) {
 		"cID100": mock.GetFullSampleContainerEntry(),
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	// Inject mock processor in check
 	mockCri := &crimock.MockCRIClient{}
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
 	processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) { return mockCri, nil }})
 
 	mockCri.On("ListContainerStats").Return(map[string]*criTypes.ContainerStats{

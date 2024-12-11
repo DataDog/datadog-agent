@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package bytecode
 
@@ -13,6 +12,6 @@ import (
 )
 
 // VerifyAssetPermissions is for verifying the permissions of bpf programs
-func VerifyAssetPermissions(assetPath string) error {
+func VerifyAssetPermissions(_ string) error {
 	return fmt.Errorf("verification of bpf assets is not supported on windows")
 }

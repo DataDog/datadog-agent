@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11711
+      - image: gcr.io/datadoghq/agent-circleci-runner:v50263243-1a30c934
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-main-
     - save_cache: &save_deps
-        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -59,28 +59,13 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup python deps
+          name: check go version
           command: |
-            python3 -m pip install wheel
-            python3 -m pip install -r requirements.txt
-            python3 -m pip install -r .circleci/requirements.txt
+            inv -e check-go-version
       - run:
           name: grab go deps
           command: |
             inv -e deps
-      - run:
-          name: build rtloader
-          command: |
-            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
-      - run:
-          name: lint rtloader
-          command: |
-            inv rtloader.format --raise-if-changed
-      - run:
-          name: test rtloader
-          command: |
-            inv rtloader.test
       - run:
           name: install go tooling
           command: |
@@ -91,25 +76,11 @@ jobs:
             - /go/pkg/mod
             - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
-
-  unit_tests:
-    <<: *job_template
-    resource_class: large
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run unit tests
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
-      - run:
-          name: upload code coverage results
-          # Never fail on coverage upload
-          command: codecov -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
@@ -117,92 +88,6 @@ jobs:
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
-
-  release_note:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-releasenote
-          name: run PR check for release note
-
-  team_label:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-teamassignment
-          name: run PR check for team assignment labels
-
-  milestone:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-milestone
-          name: run PR check for milestone assignment
-
-  licenses_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run license linting
-          command: inv -e lint-licenses
-
-  copyrights_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run copyrights linting
-          command: inv -e lint-copyrights
-
-  filename_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run filename linting
-          command: inv -e lint-filenames
-
-  shell_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: Install shellcheck
-          command: inv -e install-shellcheck
-      - run:
-          name: Print shellcheck version
-          command: shellcheck --version
-      - run:
-          name: Run shellcheck
-          #Excludes:
-          #SC2028: echo may not expand escape sequences. Use printf.
-          #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
-          command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
-
-  python_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: setting env vars for click
-          command: |
-              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
-      - run:
-          name: lint python files
-          command: inv -e lint-python
 
   docker_tests:
     <<: *job_template
@@ -217,39 +102,6 @@ jobs:
           name: run docker image integration tests
           command: inv -e docker.integration-tests
 
-  build_binaries:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build dogstatsd
-          command: inv -e dogstatsd.build --static
-      - run:
-          name: build agent
-          command: inv -e agent.build --exclude-rtloader
-
-  build_iot_agent:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build iot agent
-          command: inv -e agent.build --flavor iot
-      - run:
-          name: test iot agent
-          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
-
-  documentation_generation:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: generate doxygen documentation
-          command: inv -e rtloader.generate-doc
-
 workflows:
   version: 2
   test_and_build:
@@ -258,61 +110,9 @@ workflows:
       - dependencies:
           requires:
             - checkout_code
-      - unit_tests:
-          requires:
-            - dependencies
       - integration_tests:
-          requires:
-            - dependencies
-      - release_note:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - team_label:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - milestone:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - licenses_linting:
-          requires:
-            - dependencies
-      - copyrights_linting:
-          requires:
-            - dependencies
-      - filename_linting:
-          requires:
-            - dependencies
-      - shell_linting:
-          requires:
-            - dependencies
-      - python_linting:
           requires:
             - dependencies
       - docker_tests:
           requires:
             - dependencies
-      - documentation_generation:
-          requires:
-            - dependencies
-      - build_binaries:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
-      - build_iot_agent:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests

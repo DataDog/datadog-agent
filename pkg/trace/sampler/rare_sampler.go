@@ -12,15 +12,14 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
-	// priorityTTL allows to blacklist p1 spans that are sampled entirely, for this period.
-	priorityTTL = 10 * time.Minute
 	// ttlRenewalPeriod specifies the frequency at which we will upload cached entries.
 	ttlRenewalPeriod = 1 * time.Minute
 	// rareSamplerBurst sizes the token store used by the rate limiter.
@@ -35,6 +34,7 @@ const (
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
 type RareSampler struct {
+	enabled *atomic.Bool
 	hits    *atomic.Int64
 	misses  *atomic.Int64
 	shrinks *atomic.Int64
@@ -43,28 +43,27 @@ type RareSampler struct {
 	tickStats   *time.Ticker
 	limiter     *rate.Limiter
 	ttl         time.Duration
-	priorityTTL time.Duration
 	cardinality int
 	seen        map[Signature]*seenSpans
+	statsd      statsd.ClientInterface
 }
 
 // NewRareSampler returns a NewRareSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
-func NewRareSampler(conf *config.AgentConfig) *RareSampler {
+func NewRareSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *RareSampler {
 	e := &RareSampler{
+		enabled:     atomic.NewBool(conf.RareSamplerEnabled),
 		hits:        atomic.NewInt64(0),
 		misses:      atomic.NewInt64(0),
 		shrinks:     atomic.NewInt64(0),
 		limiter:     rate.NewLimiter(rate.Limit(conf.RareSamplerTPS), rareSamplerBurst),
 		ttl:         conf.RareSamplerCooldownPeriod,
-		priorityTTL: priorityTTL,
 		cardinality: conf.RareSamplerCardinality,
 		seen:        make(map[Signature]*seenSpans),
 		tickStats:   time.NewTicker(10 * time.Second),
+		statsd:      statsd,
 	}
-	if e.ttl > e.priorityTTL {
-		e.priorityTTL = e.ttl
-	}
+
 	go func() {
 		for range e.tickStats.C {
 			e.report()
@@ -75,8 +74,8 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
-	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
-		e.handlePriorityTrace(now, env, t, e.priorityTTL)
+
+	if !e.enabled.Load() {
 		return false
 	}
 	return e.handleTrace(now, env, t)
@@ -85,6 +84,16 @@ func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
 // Stop stops reporting stats
 func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
+}
+
+// SetEnabled marks the sampler as enabled or disabled
+func (e *RareSampler) SetEnabled(enabled bool) {
+	e.enabled.Store(enabled)
+}
+
+// IsEnabled returns whether the sampler is enabled
+func (e *RareSampler) IsEnabled() bool {
+	return e.enabled.Load()
 }
 
 func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
@@ -107,6 +116,7 @@ func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) b
 			break
 		}
 	}
+
 	if sampled {
 		e.handlePriorityTrace(now, env, t, e.ttl)
 	}
@@ -160,9 +170,9 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 }
 
 func (e *RareSampler) report() {
-	metrics.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
+	_ = e.statsd.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
+	_ = e.statsd.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
+	_ = e.statsd.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.

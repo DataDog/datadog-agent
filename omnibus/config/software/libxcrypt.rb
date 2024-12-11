@@ -4,11 +4,13 @@
 # Copyright 2022-present Datadog, Inc.
 
 name "libxcrypt"
-default_version "4.4.28"
+default_version "4.4.36"
 
-version "4.4.28" do
-    source sha256: "9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87"
+version "4.4.36" do
+    source sha256: "e5e1f4caee0a01de2aee26e3138807d6d3ca2b8e67287966d1fefd65e1fd8943"
 end
+
+ship_source_offer true
 
 source url: "https://github.com/besser82/libxcrypt/releases/download/v#{version}/libxcrypt-#{version}.tar.xz",
        extract: :seven_zip
@@ -21,20 +23,15 @@ build do
 
     env = with_standard_compiler_flags
 
-    if redhat? && !arm?
-        # On the CentOS 6 builder, use gcc 4.9.2 in the devtoolset-3 env,
-        # and ignore sign conversion warnings.
-        env["CC"] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"
-        env["CPP"] = "/opt/rh/devtoolset-3/root/usr/bin/cpp"
-        env["CFLAGS"] += " -Wno-sign-conversion"
-    end
-
     # This builds libcrypt.so.2
     # To build libcrypt.so.1, the --disable-obsolete-api option
     # needs to be removed.
-    command ["./configure",
-        "--prefix=#{install_dir}/embedded",
-        "--disable-obsolete-api"].join(" "), env: env
+    configure_options = [
+        "--disable-obsolete-api",
+        "--disable-static",
+        "--enable-shared",
+    ]
+    configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
     command "make -j #{workers} install"
 end

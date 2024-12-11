@@ -3,19 +3,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -output event_common_string.go -type=ConnectionType,ConnectionFamily,ConnectionDirection,EphemeralPortType -linecomment
+
 package network
 
 import (
 	"encoding/binary"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+)
+
+const (
+	// 100Gbps * 30s = 375GB
+	maxByteCountChange uint64 = 375 << 30
+	// use typical small MTU size, 1300, to get max packet count
+	maxPacketCountChange uint64 = maxByteCountChange / 1300
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // ConnectionType will be either TCP or UDP
@@ -29,90 +47,69 @@ const (
 	UDP ConnectionType = 1
 )
 
-func (c ConnectionType) String() string {
-	if c == TCP {
-		return "TCP"
+var (
+	tcpLabels = map[string]string{"ip_proto": TCP.String()}
+	udpLabels = map[string]string{"ip_proto": UDP.String()}
+)
+
+// Tags returns `ip_proto` tags for use in hot-path telemetry
+func (c ConnectionType) Tags() map[string]string {
+	switch c {
+	case TCP:
+		return tcpLabels
+	case UDP:
+		return udpLabels
+	default:
+		return nil
 	}
-	return "UDP"
 }
 
 const (
 	// AFINET represents v4 connections
-	AFINET ConnectionFamily = 0
+	AFINET ConnectionFamily = 0 // v4
 
 	// AFINET6 represents v6 connections
-	AFINET6 ConnectionFamily = 1
+	AFINET6 ConnectionFamily = 1 // v6
 )
 
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
-
-func (c ConnectionFamily) String() string {
-	if c == AFINET {
-		return "v4"
-	}
-	return "v6"
-}
 
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
 type ConnectionDirection uint8
 
 const (
 	// INCOMING represents connections inbound to the host
-	INCOMING ConnectionDirection = 1
+	INCOMING ConnectionDirection = 1 // incoming
 
 	// OUTGOING represents outbound connections from the host
-	OUTGOING ConnectionDirection = 2
+	OUTGOING ConnectionDirection = 2 // outgoing
 
 	// LOCAL represents connections that don't leave the host
-	LOCAL ConnectionDirection = 3
+	LOCAL ConnectionDirection = 3 // local
 
 	// NONE represents connections that have no direction (udp, for example)
-	NONE ConnectionDirection = 4
+	NONE ConnectionDirection = 4 // none
 )
-
-func (d ConnectionDirection) String() string {
-	switch d {
-	case OUTGOING:
-		return "outgoing"
-	case LOCAL:
-		return "local"
-	case NONE:
-		return "none"
-	default:
-		return "incoming"
-	}
-}
 
 // EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
 type EphemeralPortType uint8
 
 const (
 	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
-	EphemeralUnknown EphemeralPortType = 0
+	EphemeralUnknown EphemeralPortType = 0 // unspecified
 
 	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
-	EphemeralTrue EphemeralPortType = 1
+	EphemeralTrue EphemeralPortType = 1 // ephemeral
 
 	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
-	EphemeralFalse EphemeralPortType = 2
+	EphemeralFalse EphemeralPortType = 2 // not ephemeral
 )
-
-func (e EphemeralPortType) String() string {
-	switch e {
-	case EphemeralTrue:
-		return "ephemeral"
-	case EphemeralFalse:
-		return "not ephemeral"
-	default:
-		return "unspecified"
-	}
-}
 
 // BufferedData encapsulates data whose underlying memory can be recycled
 type BufferedData struct {
 	Conns  []ConnectionStats
-	buffer *clientBuffer
+	buffer *ClientBuffer
 }
 
 // Connections wraps a collection of ConnectionStats
@@ -121,8 +118,24 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	KernelHeaderFetchResult     int32
+	CORETelemetryByAsset        map[string]int32
+	PrebuiltAssets              []string
 	HTTP                        map[http.Key]*http.RequestStats
-	DNSStats                    dns.StatsByKeyByNameByType
+	HTTP2                       map[http.Key]*http.RequestStats
+	Kafka                       map[kafka.Key]*kafka.RequestStats
+	Postgres                    map[postgres.Key]*postgres.RequestStat
+	Redis                       map[redis.Key]*redis.RequestStat
+}
+
+// NewConnections create a new Connections object
+func NewConnections(buffer *ClientBuffer) *Connections {
+	return &Connections{
+		BufferedData: BufferedData{
+			Conns:  buffer.Connections(),
+			buffer: buffer,
+		},
+	}
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
@@ -141,13 +154,14 @@ const (
 	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
-	HTTPRequestsDropped             ConnTelemetryType = "http_requests_dropped"
-	HTTPRequestsMissed              ConnTelemetryType = "http_requests_missed"
+
+	// USM Payload Telemetry
+	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -156,12 +170,10 @@ var (
 	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
 	// into the network connections payload
 	ConnTelemetryTypes = []ConnTelemetryType{
+		DNSStatsDropped,
 		ConnsBpfMapSize,
 		ConntrackSamplingPercent,
-		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
-		HTTPRequestsDropped,
-		HTTPRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
@@ -171,13 +183,18 @@ var (
 		MonotonicKprobesMissed,
 		MonotonicClosedConnDropped,
 		MonotonicConnDropped,
+		MonotonicConnsClosed,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed,
+		MonotonicPerfLost,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-		MonotonicPerfLost,
+	}
+
+	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
+	USMPayloadTelemetry = []ConnTelemetryType{
+		USMHTTPHits,
 	}
 )
 
@@ -185,7 +202,6 @@ var (
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
-	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
@@ -202,99 +218,88 @@ type StatCounters struct {
 	// * Value 1 represents a connection that was established after system-probe started;
 	// * Values greater than 1 should be rare, but can occur when multiple connections
 	//   are established with the same tuple between two agent checks;
-	TCPEstablished uint32
-	TCPClosed      uint32
+	TCPEstablished uint16
+	TCPClosed      uint16
 }
 
-// StatCountersByCookie stores StatCounters by unique cookie
-type StatCountersByCookie []*struct {
-	StatCounters
-	Cookie uint32
+// IsZero returns whether all the stat counter values are zeroes
+func (s StatCounters) IsZero() bool {
+	return s == StatCounters{}
 }
 
-// Get returns a StatCounters object for a cookie
-func (s StatCountersByCookie) Get(cookie uint32) (StatCounters, bool) {
-	for _, c := range s {
-		if c.Cookie == cookie {
-			return c.StatCounters, true
-		}
-	}
+// StatCookie A 64-bit hash designed to uniquely identify a connection.
+// In eBPF this is 32 bits but it gets re-hashed to 64 bits in userspace to
+// reduce collisions; see PR #17197 for more info.
+type StatCookie = uint64
 
-	return StatCounters{}, false
+// ConnectionTuple represents the unique network key for a connection
+type ConnectionTuple struct {
+	Source util.Address
+	Dest   util.Address
+	Pid    uint32
+	NetNS  uint32
+	SPort  uint16
+	DPort  uint16
+	Type   ConnectionType
+	Family ConnectionFamily
 }
 
-// Put adds or sets a StatCounters object for a cookie
-func (s *StatCountersByCookie) Put(cookie uint32, sc StatCounters) {
-	for _, c := range *s {
-		if c.Cookie == cookie {
-			c.StatCounters = sc
-			return
-		}
-	}
-
-	*s = append(*s, &struct {
-		StatCounters
-		Cookie uint32
-	}{
-		StatCounters: sc,
-		Cookie:       cookie,
-	})
+func (c ConnectionTuple) String() string {
+	return fmt.Sprintf(
+		"[%s%s] [PID: %d] [ns: %d] [%s:%d ⇄ %s:%d] ",
+		c.Type,
+		c.Family,
+		c.Pid,
+		c.NetNS,
+		c.Source,
+		c.SPort,
+		c.Dest,
+		c.DPort,
+	)
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
-	Source util.Address
-	Dest   util.Address
-
+	// move pointer fields first to reduce number of bytes GC has to scan
 	IPTranslation *IPTranslation
 	Via           *Via
+	Tags          []*intern.Value
+	ContainerID   struct {
+		Source, Dest *intern.Value
+	}
+	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+	// TCPFailures stores the number of failures for a POSIX error code
+	TCPFailures map[uint16]uint32
 
-	// Monotonic stores a list of StatCounters
-	// each identified by a unique "cookie"
-	//
-	// this is necessary because we use connection
-	// info like src/dst address/port to uniquely
-	// identify a connection and port reuse or
-	// races in the ebpf code may occur that would
-	// make conflicts in the stats per connection
-	// impossible to resolve/detect
-	//
-	// the "cookie" is generated in the ebpf code
-	// when we first create counters for a connection;
-	// see the get_conn_stats() function
-	Monotonic StatCountersByCookie
+	ConnectionTuple
 
-	Last StatCounters
-
-	// Last time the stats for this connection were updated
+	Monotonic StatCounters
+	Last      StatCounters
+	Cookie    StatCookie
+	// LastUpdateEpoch is the last time the stats for this connection were updated
 	LastUpdateEpoch uint64
+	Duration        time.Duration
+	RTT             uint32 // Stored in µs
+	RTTVar          uint32
+	StaticTags      uint64
+	ProtocolStack   protocols.Stack
 
-	RTT    uint32 // Stored in µs
-	RTTVar uint32
-
-	Pid   uint32
-	NetNS uint32
-
-	SPort            uint16
-	DPort            uint16
-	Type             ConnectionType
-	Family           ConnectionFamily
+	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	Tags             uint64
-
-	IntraHost bool
-	IsAssured bool
+	IntraHost        bool
+	IsAssured        bool
+	IsClosed         bool
 }
 
 // Via has info about the routing decision for a flow
 type Via struct {
-	Subnet Subnet
+	Subnet Subnet `json:"subnet,omitempty"`
 }
 
 // Subnet stores info about a subnet
 type Subnet struct {
-	Alias string
+	Alias string `json:"alias,omitempty"`
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -314,11 +319,23 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }
 
+// IsEmpty returns whether the connection has any statistics
+func (c ConnectionStats) IsEmpty() bool {
+	// TODO why does this not include TCPEstablished and TCPClosed?
+	return c.Monotonic.RecvBytes == 0 &&
+		c.Monotonic.RecvPackets == 0 &&
+		c.Monotonic.SentBytes == 0 &&
+		c.Monotonic.SentPackets == 0 &&
+		c.Monotonic.Retransmits == 0 &&
+		len(c.TCPFailures) == 0
+}
+
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
-//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
-//    32b     16b     16b      4b      4b     32/128b      32/128b
+//	 4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
+//	32b     16b     16b      4b      4b     32/128b      32/128b
+//
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)
@@ -332,30 +349,13 @@ func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
 }
 
-// IsShortLived returns true when a connection went through its whole lifecycle
-// between two connection checks
-func (c ConnectionStats) IsShortLived() bool {
-	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
-}
-
-// MonotonicSum returns the sum of all the monotonic stats
-func (c ConnectionStats) MonotonicSum() StatCounters {
-	var stc StatCounters
-	for _, st := range c.Monotonic {
-		stc = stc.Add(st.StatCounters)
-	}
-
-	return stc
-}
-
-func (c ConnectionStats) clone() ConnectionStats {
-	cl := c
-	cl.Monotonic = make(StatCountersByCookie, 0, len(c.Monotonic))
-	for _, s := range c.Monotonic {
-		cl.Monotonic.Put(s.Cookie, s.StatCounters)
-	}
-
-	return cl
+// IsValid returns `true` if the connection has a valid source and dest
+// ports and IPs
+func (c ConnectionStats) IsValid() bool {
+	return c.Source.IsValid() &&
+		c.Dest.IsValid() &&
+		c.SPort > 0 &&
+		c.DPort > 0
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -365,10 +365,8 @@ const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 // Note: This is only used in /debug/* endpoints
 func BeautifyKey(key string) string {
 	bytesToAddress := func(buf []byte) util.Address {
-		if len(buf) == 4 {
-			return util.V4AddressFromBytes(buf)
-		}
-		return util.V6AddressFromBytes(buf)
+		addr, _ := netip.AddrFromSlice(buf)
+		return util.Address{Addr: addr}
 	}
 
 	raw := []byte(key)
@@ -383,7 +381,7 @@ func BeautifyKey(key string) string {
 	family := (raw[8] >> 4) & 0xf
 	typ := raw[8] & 0xf
 
-	// Finally source addr, dest addr
+	// source addr, dest addr
 	addrSize := 4
 	if ConnectionFamily(family) == AFINET6 {
 		addrSize = 16
@@ -417,31 +415,28 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
-	var stc StatCounters
-	cookies := make([]uint32, 0, len(c.Monotonic))
-	for _, st := range c.Monotonic {
-		stc = stc.Add(st.StatCounters)
-		cookies = append(cookies, st.Cookie)
-	}
-
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
-		humanize.Bytes(stc.SentBytes), humanize.Bytes(c.Last.SentBytes),
-		humanize.Bytes(stc.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
+		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
+		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
 			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
-			stc.Retransmits, c.Last.Retransmits,
+			c.Monotonic.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
-			stc.TCPEstablished, c.Last.TCPEstablished,
-			stc.TCPClosed, c.Last.TCPClosed,
+			c.Monotonic.TCPEstablished, c.Last.TCPEstablished,
+			c.Monotonic.TCPClosed, c.Last.TCPClosed,
 		)
 	}
 
-	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
+	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
+	str += fmt.Sprintf(", netns: %d", c.NetNS)
+	str += fmt.Sprintf(", duration: %+v", c.Duration)
+	str += fmt.Sprintf(", failures: %v", c.TCPFailures)
 
 	return str
 }
@@ -458,29 +453,6 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 		b.WriteString(dns.ToString(s))
 	}
 	return b.String()
-}
-
-// HTTPKeyTupleFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := GetNATLocalAddress(c)
-	raddr, rport := GetNATRemoteAddress(c)
-	return HTTPKeyTupleFromConnTuple(laddr, raddr, lport, rport)
-}
-
-// HTTPKeyTupleFromConnTuple builds the key for an http connection from a
-// connection tuple of (laddr, raddr, lport, rport)
-func HTTPKeyTupleFromConnTuple(laddr, raddr util.Address, lport, rport uint16) http.KeyTuple {
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport > dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
-		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport > rport) {
-		return http.NewKeyTuple(laddr, raddr, lport, rport)
-	}
-
-	return http.NewKeyTuple(raddr, laddr, rport, lport)
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
@@ -502,41 +474,10 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += copy(buf[n:], laddr.AsSlice()) // 4 or 16 bytes
+	n += copy(buf[n:], raddr.AsSlice()) // 4 or 16 bytes
+
 	return buf[:n]
-}
-
-// Sub returns s-other
-func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
-	if s.RecvBytes < other.RecvBytes ||
-		s.RecvPackets < other.RecvPackets ||
-		(s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
-		s.SentBytes < other.SentBytes ||
-		s.SentPackets < other.SentPackets ||
-		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
-		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
-		return sc, true
-	}
-
-	sc = StatCounters{
-		RecvBytes:   s.RecvBytes - other.RecvBytes,
-		RecvPackets: s.RecvPackets - other.RecvPackets,
-		SentBytes:   s.SentBytes - other.SentBytes,
-		SentPackets: s.SentPackets - other.SentPackets,
-	}
-
-	if s.Retransmits > 0 {
-		sc.Retransmits = s.Retransmits - other.Retransmits
-	}
-	if s.TCPEstablished > 0 {
-		sc.TCPEstablished = s.TCPEstablished - other.TCPEstablished
-	}
-	if s.TCPClosed > 0 {
-		sc.TCPClosed = s.TCPClosed - other.TCPClosed
-	}
-
-	return sc, false
 }
 
 // Add returns s+other
@@ -552,31 +493,25 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 	}
 }
 
-func maxUint64(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func maxUint32(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
 // Max returns max(s, other)
 func (s StatCounters) Max(other StatCounters) StatCounters {
 	return StatCounters{
-		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
-		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
-		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
-		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
-		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
-		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
-		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
+		RecvBytes:      max(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    max(s.RecvPackets, other.RecvPackets),
+		Retransmits:    max(s.Retransmits, other.Retransmits),
+		SentBytes:      max(s.SentBytes, other.SentBytes),
+		SentPackets:    max(s.SentPackets, other.SentPackets),
+		TCPClosed:      max(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: max(s.TCPEstablished, other.TCPEstablished),
 	}
+}
+
+// isUnderflow checks if a metric has "underflowed", i.e.
+// the most recent value is less than what was seen
+// previously. We distinguish between an "underflow" and
+// an integer overflow if the change is greater than
+// some preset max value; if the change is greater, then
+// its an underflow
+func isUnderflow(previous, current, maxChange uint64) bool {
+	return current < previous && (current-previous) > maxChange
 }

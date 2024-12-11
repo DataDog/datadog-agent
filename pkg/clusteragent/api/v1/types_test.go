@@ -22,58 +22,58 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 		{
 			name: "nil input map",
 			m: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
 			},
 			old: nil,
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
 			},
 		},
 		{
 			name: "base case",
 			m:    NamespacesPodsStringsSet{},
 			old: &NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
 			},
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
 			},
 		},
 		{
 			name: "merge case",
 			m: NamespacesPodsStringsSet{
-				"fuu": map[string]sets.String{"bur": sets.NewString("buz")},
+				"fuu": map[string]sets.Set[string]{"bur": sets.New("buz")},
 			},
 			old: &NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
 			},
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
-				"fuu": map[string]sets.String{"bur": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
+				"fuu": map[string]sets.Set[string]{"bur": sets.New("buz")},
 			},
 		},
 		{
 			name: "merge service case",
 			m: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bur": sets.NewString("boz")},
+				"foo": map[string]sets.Set[string]{"bur": sets.New("boz")},
 			},
 			old: &NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz")},
 			},
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz"), "bur": sets.NewString("boz")},
+				"foo": map[string]sets.Set[string]{"bar": sets.New("buz"), "bur": sets.New("boz")},
 			},
 		},
 		{
 			name: "union case",
 			m: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bur": sets.NewString("boz")},
+				"foo": map[string]sets.Set[string]{"bur": sets.New("boz")},
 			},
 			old: &NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bur": sets.NewString("buz")},
+				"foo": map[string]sets.Set[string]{"bur": sets.New("buz")},
 			},
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bur": sets.NewString("buz", "boz")},
+				"foo": map[string]sets.Set[string]{"bur": sets.New("buz", "boz")},
 			},
 		},
 	}

@@ -249,13 +249,15 @@ func TestIINIsSensitive(t *testing.T) {
 			"4199 3500 0000 0002",
 			"4001 0200 0000 0009",
 		} {
+			cco := &creditCard{luhn: true}
 			t.Run("", func(t *testing.T) {
-				assert.True(t, IsCardNumber(valid, true), i)
+				assert.True(t, cco.IsCardNumber(valid), i)
 			})
 		}
 	})
 
 	t.Run("invalid", func(t *testing.T) {
+		cco := &creditCard{luhn: false}
 		for i, invalid := range []string{
 			"37828224631000521389798", // valid but too long
 			"37828224631",             // valid but too short
@@ -266,16 +268,25 @@ func TestIINIsSensitive(t *testing.T) {
 			"7712378231899",
 			"   -  ",
 		} {
-			assert.False(t, IsCardNumber(invalid, false), i)
+			assert.False(t, cco.IsCardNumber(invalid), i)
 		}
 	})
 }
 
+func TestCCKeepValues(t *testing.T) {
+	possibleCard := "378282246310005"
+	o := NewObfuscator(Config{CreditCard: CreditCardsConfig{Enabled: true, KeepValues: []string{"skip_me"}}})
+
+	assert.Equal(t, possibleCard, o.ObfuscateCreditCardNumber("skip_me", possibleCard))
+	assert.Equal(t, "?", o.ObfuscateCreditCardNumber("obfuscate_me", possibleCard))
+}
+
 func BenchmarkIsSensitive(b *testing.B) {
 	run := func(str string, luhn bool) func(b *testing.B) {
+		cco := &creditCard{luhn: luhn}
 		return func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				IsCardNumber(str, luhn)
+				cco.IsCardNumber(str)
 			}
 		}
 	}

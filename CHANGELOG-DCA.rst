@@ -2,10 +2,965 @@
 Release Notes
 =============
 
+.. _Release Notes_7.59.1:
+
+7.59.1
+======
+
+.. _Release Notes_7.59.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-12-02
+Pinned to datadog-agent v7.59.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7591>`_.
+
+.. _Release Notes_7.59.0:
+
+7.59.0
+======
+
+.. _Release Notes_7.59.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-11-07
+Pinned to datadog-agent v7.59.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7590>`_.
+
+.. _Release Notes_7.58.2:
+
+7.58.2
+======
+
+.. _Release Notes_7.58.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-11-04
+Pinned to datadog-agent v7.58.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7582>`_.
+
+.. _Release Notes_7.58.1:
+
+7.58.1
+======
+
+.. _Release Notes_7.58.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-10-24
+Pinned to datadog-agent v7.58.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7581>`_.
+
+.. _Release Notes_7.58.0:
+
+7.58.0
+======
+
+.. _Release Notes_7.58.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-10-21
+Pinned to datadog-agent v7.58.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7580>`_.
+
+.. _Release Notes_7.58.0_New Features:
+
+New Features
+------------
+
+- Added capability to tag any Kubernetes resource based on labels and annotations.
+  This feature can be configured with `kubernetes_resources_annotations_as_tags` and `kubernetes_resources_labels_as_tags`.
+  These feature configurations are associate group resources with annotations-to-tags (or labels-to-tags) map
+  For example, `deployments.apps` can be associated with an annotations-to-tags map to configure annotations as tags for deployments.
+  Example:
+  {`deployments.apps`: {`annotationKey1`: `tag1`, `annotationKey2`: `tag2`}}
+
+- The Kubernetes State Metrics (KSM) check can now be configured to collect
+  pods from the Kubelet in node agents instead of collecting them from the API
+  Server in the Cluster Agent or the Cluster check runners. This is useful in
+  clusters with a large number of pods where emitting pod metrics from a
+  single check instance can cause performance issues due to the large number
+  of metrics emitted.
+
+
+.. _Release Notes_7.58.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a new option for the Cluster Agent
+  ("admission_controller.inject_config.type_socket_volumes") to specify that
+  injected volumes should be of type "Socket". This option is disabled by
+  default. When set to true, injected pods will not start until the Agent
+  creates the DogstatsD and trace-agent sockets. This ensures no traces or
+  DogstatsD metrics are lost, but it can cause the pod to wait if the Agent
+  has issues creating the sockets.
+
+
+.. _Release Notes_7.58.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue that prevented the Kubernetes autoscaler from evicting pods
+  injected by the Admission Controller.
+  
+
+.. _Release Notes_7.57.1:
+
+7.57.1
+======
+
+.. _Release Notes_7.57.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-17
+Pinned to datadog-agent v7.57.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7571>`_.
+
+.. _Release Notes_7.57.0:
+
+
+7.57.0
+======
+
+.. _Release Notes_7.57.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-09
+Pinned to datadog-agent v7.57.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7570>`_.
+
+.. _Release Notes_7.57.0_New Features:
+
+New Features
+------------
+
+- The Cluster Agent now supports activating Continuous Profiling
+  using Admission Controller.
+
+- ``LimitRange`` and ``StorageClass`` resources are now collected by the orchestrator check.
+
+
+.. _Release Notes_7.57.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The auto-instrumentation webhook (beta) uses a new injector library.
+
+
+.. _Release Notes_7.57.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a rare bug where some Kubernetes events would be emitted
+  without a timestamp and would be dropped upstream as a result.
+
+- Library package versions for auto-instrumentation are now set to the latest major
+  version of the library-package instead of `latest`.
+  
+  * java:v1
+  * dotnet:v2
+  * python:v2
+  * ruby:v2
+  * js:v5
+
+- Fix APIServer error logs generated when external metrics endpoint is activated
+
+
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-02
+Pinned to datadog-agent v7.56.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7562>`_.
+
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-29
+Pinned to datadog-agent v7.56.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7561>`_.
+
+.. _Release Notes_7.56.0:
+
+7.56.0
+======
+
+.. _Release Notes_7.56.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-16
+Pinned to datadog-agent v7.56.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7560>`_.
+
+.. _Release Notes_7.56.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Disables default injection of the .NET profiler dependency for Kubernetes auto_instrumentation.
+
+
+.. _Release Notes_7.56.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Mark the NetworkPolicy collector as stable in the Cluster Agent
+
+- Enabled language detection automatically in the injected agent sidecar on EKS Fargate when APM SSI is enabled.
+  This is only available for users using the admission controller to automatically inject the agent sidecar.
+
+- The orchestrator check can now scrub sensitive data from probes in pods specifications.
+
+
+.. _Release Notes_7.56.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where the external metrics server would sometimes return metrics which had not
+  been updated for longer than the configured `external_metrics_provider.max_age` as valid.
+  In connection with this fix, a new config (`external_metrics_provider.query_validity_period`)
+  has been added to account for the delay between when metrics are resolved and when they
+  are queried by the various autoscaling controllers. It is set to 30 seconds by default.
+
+.. _Release Notes_7.55.3:
+
+7.55.3
+================
+
+.. _Release Notes_7.55.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-01
+Pinned to datadog-agent v7.55.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7553>`_.
+
+.. _Release Notes_7.55.2:
+
+7.55.2
+================
+
+.. _Release Notes_7.55.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-07-25
+Pinned to datadog-agent v7.55.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7552>`_.
+
+.. _Release Notes_7.55.1:
+
+7.55.1
+================
+
+.. _Release Notes_7.55.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-07-12
+Pinned to datadog-agent v7.55.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7551>`_.
+
+.. _Release Notes_7.55.0:
+
+7.55.0
+======
+
+.. _Release Notes_7.55.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-07-11
+Pinned to datadog-agent v7.55.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7550>`_.
+
+.. _Release Notes_7.55.0_New Features:
+
+New Features
+------------
+
+- Add support for `kubernetes_namespace_annotations_as_tags`.
+  This new option is equivalent to the existing `kubernetes_namespace_labels_as_tags`,
+  but it considers namespace annotations instead of namespace labels.
+  With this new option, users can enrich tagging based on namespace annotations.
+
+- Support namespace labels as tags on kubernetes events.
+
+
+.. _Release Notes_7.55.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add ``reason:backofflimitexceeded,deadlineexceeded`` to the
+  ``kubernetes_state.job.failed`` metric to help users understand why a job failed.
+
+- Reduced the memory used to store the tags.
+
+- The Datadog cluster-agent container image is now using Ubuntu 24.04 noble
+  as the base image.
+
+
+.. _Release Notes_7.55.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue with large clusters where the Cluster
+  Agent fails to collect all tags when
+  `cluster_agent.collect_kubernetes_tags` is enabled.
+
+
+.. _Release Notes_7.54.1:
+
+7.54.1
+================
+
+.. _Release Notes_7.54.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-06-18
+Pinned to datadog-agent v7.54.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7541>`_.
+
+.. _Release Notes_7.54.0:
+
+7.54.0
+================
+
+.. _Release Notes_7.54.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-05-29
+Pinned to datadog-agent v7.54.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7540>`_.
+
+
+.. _Release Notes_7.54.0_New Features:
+
+New Features
+------------
+
+- Add `LimitRange` and `StorageClass` collection in the orchestrator check.
+
+
+.. _Release Notes_7.54.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added retry mechanism to language detection patcher in order to retry failed patching operations.
+
+
+.. _Release Notes_7.54.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix collection of numeric rolling update options in Kubernetes deployments
+  and daemonsets.
+
+- Fixed initialization of language expiration time for detected languages.
+
+
+.. _Release Notes_7.53.0:
+
+7.53.0 / 6.53.0
+================
+
+.. _Release Notes_7.53.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-04-30
+Pinned to datadog-agent v7.53.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7530>`_.
+
+
+.. _Release Notes_7.53.0_New Features:
+
+New Features
+------------
+
+- APM library injection now works on EKS Fargate when the admission controller
+  is configured to add an Agent sidecar in EKS Fargate.
+
+- Cluster Agent now supports activating Application Security Management, Code Vulnerabilities, and
+  Software Composition Analysis via Helm charts.
+
+
+.. _Release Notes_7.53.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the `mutation_webhook` tag to `admission_webhooks.webhooks_received` and `admission_webhooks.response_duration` Cluster Agent telemetry.
+
+- When using the admission controller to inject an Agent sidecar on EKS
+  Fargate, `shareProcessNamespace` is now set to `true` automatically. This is
+  to ensure that the process collection feature works.
+
+
+.. _Release Notes_7.52.0:
+
+7.52.0 / 6.52.0
+================
+
+.. _Release Notes_7.52.0_New Features:
+
+New Features
+------------
+
+- Add agent sidecar injection webhook in `cluster-agent` Kubernetes admission controller. This new webhook adds the Agent as sidecar container in applicative Pods when it is required by the environment. For example with the EKS Fargate environment.
+
+
+.. _Release Notes_7.52.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Introduces a new config option in the Cluster Agent to set the rebalance
+  period when advanced dispatching is enabled:
+  ``cluster_checks.rebalance_period``. The default value is 10 min.
+
+
+.. _Release Notes_7.52.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where the admission controller would remove the field `restartPolicy`
+  from native sidecar containers, preventing pod creation on Kubernetes 1.29+.
+
+- Fix missing `kube_api_version` tag on HPA and VPA resources.
+
+
+.. _Release Notes_7.51.0:
+
+7.51.0 / 6.51.0
+================
+
+.. _Release Notes_7.51.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-02-19
+Pinned to datadog-agent v7.51.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7510>`_.
+
+.. _Release Notes_7.51.0_New Features:
+
+New Features
+------------
+
+- Enable Horizontal Pod Autoscaler collection for the Orchestrator by default
+
+- Add isolate command to clusterchecks to make it easier to pinpoint
+  a check that that is causing high CPU/memory usage. Command can be
+  run in the cluster agent with:
+  `datadog-cluster-agent clusterchecks isolate --checkID=<checkID>`
+
+
+.. _Release Notes_7.51.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Enable CRD collection by default in the orchestrator check.
+
+
+.. _Release Notes_7.51.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug that would trigger unnecessary APIServer `List` requests from the Cluster Agent or Cluster Checks Runner.
+
+
+.. _Release Notes_7.50.1:
+
+7.50.1 / 6.50.1
+================
+
+.. _Release Notes_7.50.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
+
+
+.. _Release Notes_7.50.0:
+
+7.50.0 / 6.50.0
+================
+
+.. _Release Notes_7.50.0_New Features:
+
+New Features
+------------
+
+- Add language detection API handler to the cluster-agent.
+
+- Report `rate_limit_queries_remaining_min` telemetry from `external-metrics` server.
+
+- Added a new `--force` option to the `datadog-cluster-agent clusterchecks rebalance` command that allows you to force clustercheck rebalancing with utilization.
+
+- [Beta] Enable `APM` library injection in `cluster-agent` admission controller based on automatic language detection annotations.
+
+
+.. _Release Notes_7.50.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Show Autodiscovery information in the output of ``datadog-cluster-agent status``.
+
+- Added CreateContainerConfigError wait reason to the `kubernetes_state.container.status_report.count.waiting` metric
+  reported by the kubernetes_state_core check.
+
+- Release the Leader Election Lock on shutdown to make the initialization of future cluster-agents faster.
+
+- The Datadog cluster-agent container image is now using Ubuntu 23.10 mantic
+  as the base image.
+
+
+.. _Release Notes_7.50.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a bug in the ``kubernetes_state_core`` check that caused tag corruption when ``telemetry`` was set to ``true``.
+
+- Fix stale metrics being reported by kubernetes_state_core check in some rare cases.
+
+- Fixed a bug in the rebalancing of cluster checks. Checks that contained
+  secrets were never rebalanced when the Cluster Agent was configured to not
+  resolve check secrets (option ``secret_backend_skip_checks`` set to true).
+
+
+.. _Release Notes_7.49.0:
+
+7.49.0 / 6.49.0
+================
+
+.. _Release Notes_7.49.0_New Features:
+
+New Features
+------------
+
+- Added option to attach profiling data to a flare.
+
+- Increment cluster agent admission controller mutation attempts metric when library is auto-injected.
+
+
+.. _Release Notes_7.49.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added the ``check_name`` tag to the ``cluster_checks.configs_info`` metric emitted by the Cluster Agent telemetry.
+
+- Sensitive information is now scrubbed from pod annotations.
+
+- Skip collections for resources missing RBACs in orchestrator check
+
+
+.. _Release Notes_7.49.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Remove openmetrics endpoint default value from `containerd` check default configuration.
+
+- Resolved a conflict between the admission controller and the AKS admissions enforcer that previously led to a loop in reconciling the webhook.
+
+- Fixes a panic in the Cluster Agent that happens when trying to unschedule a
+  check that has not been dispatched to any runner.
+
+
+.. _Release Notes_7.48.0:
+
+7.48.0 / 6.48.0
+================
+
+.. _Release Notes_7.48.0_New Features:
+
+New Features
+------------
+
+- Added the kubernetes_state.pod.tolerations metric to the KSM core check
+
+- Add ``HorizontalPodAutoscaler`` collection in the orchestrator check.
+
+
+.. _Release Notes_7.48.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add safeguards for orchestrator CRD collection.
+
+- The Datadog cluster-agent container image is now using Ubuntu 23.04 lunar
+  as the base image.
+
+
+.. _Release Notes_7.48.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an error in the calculations performed by the algorithm that rebalances cluster checks. Cluster checks are now more evenly distributed when advanced dispatching is enabled (``cluster_checks.advanced_dispatching_enabled`` is set to true).
+
+- Service checks are no longer excluded from rebalancing decisions when advanced dispatching is enabled (``cluster_checks.advanced_dispatching_enabled`` is set to true).
+
+- Fixes a rare bug in the Kubernetes State check that causes the Agent to incorrectly tag the ``kubernetes_state.job.complete`` service check.
+
+- Removes an incorrect warning log message that mentions that the DD_POD_NAME
+  env var is unknown.
+
+- Fixes the KSM check to support HPA v2beta2 again. This stopped working in Agent v7.44.0.
+
+- Adds the `kube_cluster_name` tag as a static global tag to the cluster agent when the `DD_CLUSTER_NAME` config option is set.
+  This should fix an issue where the tag is not being attached to metrics in certain environments, such as EKS Fargate.
+
+- Fixed a bug in the advanced dispatching of cluster checks. All the checks
+  scheduled since the last rebalance were being scheduled in the same node.
+  Now they should be distributed among the available nodes.
+
+
+.. _Release Notes_7.47.0:
+
+7.47.0 / 6.47.0
+================
+
+.. _Release Notes_7.47.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Add support for leases in leader election which can be enabled by setting
+  ``leader_election_default_resource`` to ``leases``, available since Kubernetes version 1.14.
+  If this parameter is empty, leader election automatically detects if leases
+  are available and uses them.
+  Set ``leader_election_default_resource`` to ``configmap`` on clusters running
+  Kubernetes versions previous to 1.14.
+
+
+.. _Release Notes_7.47.0_New Features:
+
+New Features
+------------
+
+- Auto-instrumentation admission controller now automatically activates crash tracking for Java applications
+
+
+.. _Release Notes_7.47.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Expose to cluster-agent HistogramBuckets and Events check stats.
+  It should help the cluster-agent to define a better cluster-checks
+  dispatching.
+
+
+.. _Release Notes_7.47.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Cluster Agent Admission Controller now injects DD_DOGSTATSD_URL when used in `socket` mode (default), allowing DogStatsD clients to work without configuration.
+
+- Fix persistent volume type for local volumes.
+
+
+.. _Release Notes_7.46.0:
+
+7.46.0 / 6.46.0
+================
+
+.. _Release Notes_7.46.0_New Features:
+
+New Features
+------------
+
+- Enable collection of Vertical Pod Autoscalers by default in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect conditions for a variety of Kubernetes resources.
+
+- Collect persistent volume source in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the timeout for idle HTTP connections.
+
+- When the cluster-agent is started with ``hostNetwork: true``, the leader election mechanism was using a node name instead of the pod name. This was breaking the “follower to leader” forwarding mechanism.
+  This change introduce the ``DD_POD_NAME`` environment variable as a more reliable way to set the cluster-agent pod name. It is supposed to be filled by the Kubernetes downward API.
+
+
+.. _Release Notes_7.45.0:
+
+7.45.0 / 6.45.0
+================
+
+.. _Release Notes_7.45.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add "active" tag on the telemetry datadog.cluster_agent.external_metrics.datadog_metrics tag.
+  The label active is true if DatadogMetrics CR is used, false otherwise.
+
+- Library injection via Admission Controller: Allow configuring the CPU and Memory requests/limits for library init containers.
+
+- Validate the orchestration config provided by the user.
+
+
+.. _Release Notes_7.45.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the admission controller in socket mode for pods with init containers.
+
+- Fix resource requirements detection for containers without any request and
+  limit set.
+
+- The KSM core check now correctly handles labels and annotations with
+  uppercase letters defined in the "labels_as_tags" and "annotations_as_tags"
+  config attributes.
+
+
+.. _Release Notes_7.44.0:
+
+7.44.0 / 6.44.0
+================
+
+.. _Release Notes_7.44.0_New Features:
+
+New Features
+------------
+
+- Add conditions to Vertical Pod Autoscalers
+
+- Experimental: Support Ruby library injection through the Admission Controller on Kubernetes.
+
+
+.. _Release Notes_7.44.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add new metrics for the KSM Core check for extended resources:
+  - Pod requests and limits of the network bandwidth extended resource: `kubernetes_state.container.network_bandwidth_limit`, `kubernetes_state.container.network_bandwidth_requested`
+  - The capacity and allocatable network bandwidth extended resource of a node: `kubernetes_state.node.network_bandwidth_allocatable`, `kubernetes_state.node.network_bandwidth_capacity`
+
+- Admission Controller: Add telemetry around auto-instrumentation via remote config.
+
+- The UDS socket volume when using the Admission Controller is now mounted in readOnly mode.
+
+
+.. _Release Notes_7.43.0:
+
+7.43.0 / 6.43.0
+================
+
+.. _Release Notes_7.43.0_New Features:
+
+New Features
+------------
+
+- Starts the collecting of Vertical Pod Autoscalers within Kubernetes clusters.
+
+- Enable orchestrator manifest collection by default
+
+
+.. _Release Notes_7.43.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Make the cluster-agent admission controller able to inject libraries for several languages in a single pod.
+
+
+.. _Release Notes_7.42.0:
+
+7.42.0 / 6.42.0
+================
+
+.. _Release Notes_7.42.0_New Features:
+
+New Features
+------------
+
+- Supports the collection of custom resource definition and custom resource manifests for the orchestrator explorer.
+
+
+.. _Release Notes_7.42.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collects Unified Service Tags for the orchestrator explorer product.
+
+
+.. _Release Notes_7.41.0:
+
+7.41.0 / 6.41.0
+================
+
+.. _Release Notes_7.41.0_New Features:
+
+New Features
+------------
+
+- Add ``Namespace`` collection in the orchestrator check and enable it by default.
+
+
+.. _Release Notes_7.41.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Improves performance of the Cluster Agent admission controller on large pods.
+
+
+.. _Release Notes_7.40.0:
+
+7.40.0 / 6.40.0
+================
+
+.. _Release Notes_7.40.0_New Features:
+
+New Features
+------------
+
+- Experimental: The Datadog Admission Controller can inject the Python APM library into Kubernetes containers for auto-instrumentation.
+
+- The orchestrator check is now able to discover resources to collect based
+  on API groups available in the Kubernetes cluster.
+
+
+.. _Release Notes_7.40.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The admission controller now injects variables and volume mounts to init containers in addition to regular containers.
+
+- Chunk orchestrator payloads by size and weight
+
+- KSM Core check: Add the ``helm_chart`` tag automatically from the standard helm label ``helm.sh/chart``.
+
+- Helm check: Add a ``helm_chart`` tag, equivalent to the standard helm label ``helm.sh/chart`` (see https://helm.sh/docs/chart_best_practices/labels/).
+
+
+.. _Release Notes_7.40.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an edge case in the Admission Controller when ``mutateUnlabelled`` is enabled and ``configMode`` is set to ``socket``.
+  This combination could prevent the creation of new DaemonSet Agent pods.
+
+- Fixed a resource leak in the helm check.
+
+
+.. _Release Notes_7.39.0:
+
+7.39.0 / 6.39.0
+================
+
+.. _Release Notes_7.39.0_New Features:
+
+New Features
+------------
+
+- Experimental: The Datadog Admission Controller can inject the Node and Java APM libraries into Kubernetes containers for auto-instrumentation.
+
+
+.. _Release Notes_7.39.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- When injecting env vars with the admission controller, env
+  vars are now prepended instead of appended, meaning that
+  Kubernetes [dependent environment variables](https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/)
+  can now depend on these injected vars.
+
+- The ``helm`` check has new configuration parameters:
+  - ``extra_sync_timeout_seconds`` (default 120)
+  - ``informers_resync_interval_minutes`` (default 10)
+
+- Improves the `labelsAsTags` feature of the Kubernetes State Metrics core check by performing the transformations of characters ['/' , '-' , '.']
+  to underscores ['_'] within the Datadog agent.
+  Previously users had to perform these conversions manually in order to discover the labels on their resources.
+
+
+.. _Release Notes_7.39.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the DCA ``leader_election_is_leader`` metric that could sometimes report ``is_leader="false"`` on the leader instance
+
+- Fixed an error when running ``datadog-cluster-agent status`` with
+  ``DD_EXTERNAL_METRICS_PROVIDER_ENABLED=true`` and no app key set.
+
+- The KSM Core check now handles cron job schedules with time zones.
+
+
+.. _Release Notes_7.39.0_Other Notes:
+
+Other Notes
+-----------
+
+- Align Cluster Agent version to Agent version. Cluster Agent will now be released with 7.x.y tags
+
+
 .. _Release Notes_dca-1.22.0_dca-1.22.X:
 
 dca-1.22.0
-======
+==========
 
 .. _Release Notes_dca-1.22.0_dca-1.22.X_Prelude:
 
@@ -201,7 +1156,7 @@ Pinned to datadog-agent v7.34.0: `CHANGELOG <https://github.com/DataDog/datadog-
 New Features
 ------------
 
-- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints. 
+- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints.
 If the first one fails, the DCA will query the next ones.
 - Support file-based endpoint checks.
 - Enable collection of PV/PVCs by default in the orchestrator check
@@ -212,7 +1167,7 @@ If the first one fails, the DCA will query the next ones.
 Bug Fixes
 ---------
 
-- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+. 
+- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+.
 Although the cluster agent was able to register its webhook with both the ``v1beta1`` and the ``v1`` version of the Administrationregistration API, the ``agent status`` command was always using the ``v1beta1``, which has been removed in Kubernetes 1.22.
 - Improve error handling of deleted HPA objects.
 - Fix an issue where scrubbing custom sensitive words would not work as intended for the orchestrator check.
@@ -289,7 +1244,7 @@ Bug Fixes
 ---------
 
 - Fix tags for PV resources in the Orchestrator Explorer (type and phase).
-- Fix an edge case in which the Cluster Agent's Admission Controller doesn't update the Webhook object according to specified configuration. 
+- Fix an edge case in which the Cluster Agent's Admission Controller doesn't update the Webhook object according to specified configuration.
 
 .. _Release Notes_dca-1.15.0_dca-1.15.X:
 

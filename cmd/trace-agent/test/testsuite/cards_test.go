@@ -14,8 +14,8 @@ import (
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -42,8 +42,18 @@ func TestCreditCards(t *testing.T) {
 		version api.Version
 	}{
 		{
-			conf:    []byte(""),
+			conf: []byte(`
+apm_config:
+  env: my-env
+  obfuscation:
+    credit_cards:
+      enabled: false`),
 			out:     "4166 6766 6766 6746",
+			version: "v0.4",
+		},
+		{
+			conf:    []byte(``),
+			out:     "?",
 			version: "v0.4",
 		},
 		{
@@ -52,13 +62,13 @@ apm_config:
   env: my-env
   obfuscation:
     credit_cards:
-      enabled: true`),
-			out:     "?",
-			version: "v0.4",
+      enabled: false`),
+			out:     "4166 6766 6766 6746",
+			version: "v0.5",
 		},
 		{
-			conf:    []byte(""),
-			out:     "4166 6766 6766 6746",
+			conf:    []byte(``),
+			out:     "?",
 			version: "v0.5",
 		},
 		{
@@ -67,13 +77,13 @@ apm_config:
   env: my-env
   obfuscation:
     credit_cards:
-      enabled: true`),
-			out:     "?",
-			version: "v0.5",
+      enabled: false`),
+			out:     "4166 6766 6766 6746",
+			version: "v0.7",
 		},
 		{
-			conf:    []byte(""),
-			out:     "4166 6766 6766 6746",
+			conf:    []byte(``),
+			out:     "?",
 			version: "v0.7",
 		},
 		{
@@ -82,9 +92,10 @@ apm_config:
   env: my-env
   obfuscation:
     credit_cards:
-      enabled: true`),
-			out:     "?",
-			version: "v0.7",
+      enabled: false
+      keep_values: ["credit_card_number"]`),
+			out:     "4166 6766 6766 6746",
+			version: "v0.5",
 		},
 	} {
 		t.Run(string(tt.version)+"/"+tt.out, func(t *testing.T) {
@@ -97,9 +108,9 @@ apm_config:
 			if err := r.PostMsgpack("/"+string(tt.version)+"/traces", payload); err != nil {
 				t.Fatal(err)
 			}
-			waitForTrace(t, &r, func(v pb.AgentPayload) {
+			waitForTrace(t, &r, func(v *pb.AgentPayload) {
 				payloadsEqual(t, traces, v)
-				assert.Equal(t, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"], tt.out)
+				assert.Equal(t, tt.out, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"])
 			})
 		})
 	}

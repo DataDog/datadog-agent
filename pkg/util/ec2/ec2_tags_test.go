@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ec2
-// +build ec2
 
 package ec2
 
@@ -12,15 +11,16 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -38,11 +38,11 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := getIAMRole(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 }
 
@@ -54,20 +54,20 @@ func TestGetSecurityCreds(t *testing.T) {
 			io.WriteString(w, "test-role")
 		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
-			content, err := ioutil.ReadFile("payloads/security_cred.json")
-			require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
-			io.WriteString(w, string(content))
+			content, err := os.ReadFile("payloads/security_cred.json")
+			require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
+			w.Write(content)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	cred, err := getSecurityCreds(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "123456", cred.AccessKeyID)
 	assert.Equal(t, "secret access key", cred.SecretAccessKey)
 	assert.Equal(t, "secret token", cred.Token)
@@ -75,21 +75,22 @@ func TestGetSecurityCreds(t *testing.T) {
 
 func TestGetInstanceIdentity(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		content, err := ioutil.ReadFile("payloads/instance_indentity.json")
-		require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
-		io.WriteString(w, string(content))
+		content, err := os.ReadFile("payloads/instance_indentity.json")
+		require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
+		w.Write(content)
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	val, err := getInstanceIdentity(ctx)
-	require.Nil(t, err)
+	val, err := GetInstanceIdentity(ctx)
+	require.NoError(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
+	assert.Equal(t, "REMOVED", val.AccountID)
 }
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {
@@ -98,22 +99,27 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.RequestURI {
 		case "/tags/instance":
-			io.WriteString(w, "Name\nPurpose") // no trailing newline
+			io.WriteString(w, "Name\nPurpose\nExcludedTag") // no trailing newline
 		case "/tags/instance/Name":
 			io.WriteString(w, "some-vm")
 		case "/tags/instance/Purpose":
 			io.WriteString(w, "mining")
+		case "/tags/instance/ExcludedTag":
+			io.WriteString(w, "testing")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
+	confMock := configmock.New(t)
+	confMock.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
+
 	tags, err := fetchEc2TagsFromIMDS(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"Name:some-vm",
 		"Purpose:mining",
@@ -122,25 +128,23 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 
 func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := fetchEc2TagsFromIMDS(ctx)
 	require.Error(t, err)
 }
 
-func mockFetchTagsSuccess(ctx context.Context) ([]string, error) {
-	fmt.Printf("mockFetchTagsSuccess !!!!!!!!\n")
+func mockFetchTagsSuccess(_ context.Context) ([]string, error) {
 	return []string{"tag1", "tag2"}, nil
 }
 
-func mockFetchTagsFailure(ctx context.Context) ([]string, error) {
-	fmt.Printf("mockFetchTagsFailure !!!!!!!!\n")
+func mockFetchTagsFailure(_ context.Context) ([]string, error) {
 	return nil, fmt.Errorf("could not fetch tags")
 }
 
@@ -153,7 +157,7 @@ func TestGetTags(t *testing.T) {
 	fetchTags = mockFetchTagsSuccess
 
 	tags, err := GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }
 
@@ -177,7 +181,7 @@ func TestGetTagsErrorFullCache(t *testing.T) {
 	fetchTags = mockFetchTagsFailure
 
 	tags, err := GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"cachedTag"}, tags)
 }
 
@@ -191,16 +195,16 @@ func TestGetTagsFullWorkflow(t *testing.T) {
 	fetchTags = mockFetchTagsFailure
 
 	tags, err := GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"oldTag"}, tags)
 
 	fetchTags = mockFetchTagsSuccess
 	tags, err = GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 
 	fetchTags = mockFetchTagsFailure
 	tags, err = GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }

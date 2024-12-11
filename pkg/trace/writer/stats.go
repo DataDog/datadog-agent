@@ -11,16 +11,19 @@ import (
 	"io"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // pathStats is the target host API path for delivering stats.
@@ -37,9 +40,9 @@ const (
 	maxEntriesPerPayload = 4000
 )
 
-// StatsWriter ingests stats buckets and flushes them to the API.
-type StatsWriter struct {
-	in      <-chan pb.StatsPayload
+// DatadogStatsWriter ingests stats buckets, combining them over time and flushing them to the API.
+// This implements the stats.Writer interface.
+type DatadogStatsWriter struct {
 	senders []*sender
 	stop    chan struct{}
 	stats   *info.StatsWriterInfo
@@ -47,28 +50,35 @@ type StatsWriter struct {
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
-	payloads  []pb.StatsPayload // payloads buffered for sync mode
+	payloads  []*pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
 	easylog *log.ThrottledLogger
+	statsd  statsd.ClientInterface
+	timing  timing.Reporter
+	mu      sync.Mutex
 }
 
-// NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWriter {
-	sw := &StatsWriter{
-		in:        in,
+// NewStatsWriter returns a new DatadogStatsWriter. It must be started using Run.
+func NewStatsWriter(
+	cfg *config.AgentConfig,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter,
+) *DatadogStatsWriter {
+	sw := &DatadogStatsWriter{
 		stats:     &info.StatsWriterInfo{},
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
 		syncMode:  cfg.SynchronousFlushing,
 		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 		conf:      cfg,
+		statsd:    statsd,
+		timing:    timing,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
-		// Allow 1% of the connection limit to outgoing sends. The original
-		// connection limit was removed and used to be 2000 (1% = 20)
-		climit = 20
+		climit = 5
 	}
 	qsize := cfg.StatsWriter.QueueSize
 	if qsize == 0 {
@@ -82,22 +92,27 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWr
 		qsize = int(math.Max(1, maxmem/payloadSize))
 	}
 	log.Debugf("Stats writer initialized (climit=%d qsize=%d)", climit, qsize)
-	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize)
+	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize, telemetryCollector, statsd)
 	return sw
 }
 
-// Run starts the StatsWriter, making it ready to receive stats and report metrics.
-func (w *StatsWriter) Run() {
+// UpdateAPIKey updates the API Key, if needed, on Stats Writer senders.
+func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
+	for _, s := range w.senders {
+		if oldKey == s.cfg.apiKey {
+			log.Debugf("API Key updated for stats endpoint=%s", s.cfg.url)
+			s.cfg.apiKey = newKey
+		}
+	}
+}
+
+// Run starts the DatadogStatsWriter, making it ready to receive stats and report w.statsd.
+func (w *DatadogStatsWriter) Run() {
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
 	defer close(w.stop)
 	for {
 		select {
-		case stats := <-w.in:
-			w.addStats(stats)
-			if !w.syncMode {
-				w.sendPayloads()
-			}
 		case notify := <-w.flushChan:
 			w.sendPayloads()
 			notify <- struct{}{}
@@ -110,7 +125,7 @@ func (w *StatsWriter) Run() {
 }
 
 // FlushSync blocks and sends pending payloads when syncMode is true
-func (w *StatsWriter) FlushSync() error {
+func (w *DatadogStatsWriter) FlushSync() error {
 	if !w.syncMode {
 		return errors.New("not flushing; sync mode not enabled")
 	}
@@ -122,21 +137,31 @@ func (w *StatsWriter) FlushSync() error {
 	return nil
 }
 
-// Stop stops a running StatsWriter.
-func (w *StatsWriter) Stop() {
+// Stop stops a running DatadogStatsWriter.
+func (w *DatadogStatsWriter) Stop() {
 	w.stop <- struct{}{}
 	<-w.stop
 	stopSenders(w.senders)
 }
 
-func (w *StatsWriter) addStats(sp pb.StatsPayload) {
-	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
+// Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
+func (w *DatadogStatsWriter) Write(sp *pb.StatsPayload) {
+	w.addStats(sp)
+	if !w.syncMode {
+		w.sendPayloads()
+	}
+}
+
+func (w *DatadogStatsWriter) addStats(sp *pb.StatsPayload) {
+	defer w.timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 	payloads := w.buildPayloads(sp, maxEntriesPerPayload)
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.payloads = append(w.payloads, payloads...)
 }
 
 // SendPayload sends a stats payload to the Datadog backend.
-func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
+func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),
 		"Content-Type":     "application/msgpack",
@@ -149,19 +174,19 @@ func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
 	sendPayloads(w.senders, req, w.syncMode)
 }
 
-func (w *StatsWriter) sendPayloads() {
+func (w *DatadogStatsWriter) sendPayloads() {
 	for _, p := range w.payloads {
 		w.SendPayload(p)
 	}
 	w.resetBuffer()
 }
 
-func (w *StatsWriter) resetBuffer() {
-	w.payloads = make([]pb.StatsPayload, 0, len(w.payloads))
+func (w *DatadogStatsWriter) resetBuffer() {
+	w.payloads = make([]*pb.StatsPayload, 0, len(w.payloads))
 }
 
 // encodePayload encodes the payload as Gzipped msgPack into w.
-func encodePayload(w io.Writer, payload pb.StatsPayload) error {
+func encodePayload(w io.Writer, payload *pb.StatsPayload) error {
 	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
 		return err
@@ -171,15 +196,15 @@ func encodePayload(w io.Writer, payload pb.StatsPayload) error {
 			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
 		}
 	}()
-	return msgp.Encode(gz, &payload)
+	return msgp.Encode(gz, payload)
 }
 
 // buildPayloads splits pb.ClientStatsPayload that have more than maxEntriesPerPayload
 // and then groups them into pb.StatsPayload with less than maxEntriesPerPayload
-func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int) []pb.StatsPayload {
+func (w *DatadogStatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload int) []*pb.StatsPayload {
 	split := splitPayloads(sp.Stats, maxEntriesPerPayload)
-	grouped := make([]pb.StatsPayload, 0, len(sp.Stats))
-	current := pb.StatsPayload{
+	grouped := make([]*pb.StatsPayload, 0, len(sp.Stats))
+	current := &pb.StatsPayload{
 		AgentHostname:  sp.AgentHostname,
 		AgentEnv:       sp.AgentEnv,
 		AgentVersion:   sp.AgentVersion,
@@ -192,9 +217,14 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		w.stats.ClientPayloads.Add(int64(len(current.Stats)))
 		w.stats.StatsEntries.Add(int64(nbEntries))
 		grouped = append(grouped, current)
-		current.Stats = nil
 		nbEntries = 0
 		nbBuckets = 0
+		current = &pb.StatsPayload{
+			AgentHostname:  sp.AgentHostname,
+			AgentEnv:       sp.AgentEnv,
+			AgentVersion:   sp.AgentVersion,
+			ClientComputed: sp.ClientComputed,
+		}
 	}
 	for _, p := range split {
 		if nbEntries+p.nbEntries > maxEntriesPerPayload {
@@ -202,7 +232,7 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		}
 		nbEntries += p.nbEntries
 		nbBuckets += len(p.Stats)
-		w.resolveContainerTags(&p.ClientStatsPayload)
+		w.resolveContainerTags(p.ClientStatsPayload)
 		current.Stats = append(current.Stats, p.ClientStatsPayload)
 	}
 	if nbEntries > 0 {
@@ -210,14 +240,21 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 	}
 	if len(grouped) > 1 {
 		w.stats.Splits.Inc()
+		for _, g := range grouped {
+			g.SplitPayload = true
+		}
 	}
 	return grouped
 }
 
 // resolveContainerTags takes any ContainerID found in p to fill in the appropriate tags.
-func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
+func (w *DatadogStatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	if p.ContainerID == "" {
 		p.Tags = nil
+		return
+	}
+	if p.ContainerID != "" && p.Tags != nil {
+		// We already have tags, no need to resolve them.
 		return
 	}
 	ctags, err := w.conf.ContainerTags(p.ContainerID)
@@ -229,11 +266,13 @@ func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	case len(ctags) == 0:
 		p.Tags = nil
 	default:
+		// TODO: Once we can deprecate the `enable_cid_stats` feature flag, let's make sure to not duplicate
+		// the addition of `image_sha` to these tags since it'll already be in a separate field in the payload.
 		p.Tags = ctags
 	}
 }
 
-func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+func splitPayloads(payloads []*pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
 	split := make([]clientStatsPayload, 0, len(payloads))
 	for _, p := range payloads {
 		split = append(split, splitPayload(p, maxEntriesPerPayload)...)
@@ -244,7 +283,7 @@ func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) [
 type timeWindow struct{ start, duration uint64 }
 
 type clientStatsPayload struct {
-	pb.ClientStatsPayload
+	*pb.ClientStatsPayload
 	nbEntries int
 	// bucketIndexes maps from a timeWindow to a bucket in the ClientStatsPayload.
 	// it allows quick checking of what bucket to add a payload to.
@@ -252,7 +291,7 @@ type clientStatsPayload struct {
 }
 
 // splitPayload splits a stats payload to ensure that each stats payload has less than maxEntriesPerPayload entries.
-func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+func splitPayload(p *pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
 	if len(p.Stats) == 0 {
 		return nil
 	}
@@ -276,7 +315,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 	for i := 0; i < nbPayloads; i++ {
 		payloads[i] = clientStatsPayload{
 			bucketIndexes: make(map[timeWindow]int, 1),
-			ClientStatsPayload: pb.ClientStatsPayload{
+			ClientStatsPayload: &pb.ClientStatsPayload{
 				Hostname:         p.Hostname,
 				Env:              p.Env,
 				Version:          p.Version,
@@ -287,7 +326,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 				Sequence:         p.Sequence,
 				AgentAggregation: p.AgentAggregation,
 				ContainerID:      p.ContainerID,
-				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
+				Stats:            make([]*pb.ClientStatsBucket, 0, maxEntriesPerPayload),
 			},
 		}
 	}
@@ -303,7 +342,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 			if !ok {
 				bi = len(payloads[j].Stats)
 				payloads[j].bucketIndexes[tw] = bi
-				payloads[j].Stats = append(payloads[j].Stats, pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
+				payloads[j].Stats = append(payloads[j].Stats, &pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
 			}
 			// here, we can just append the group, because there are no duplicate groups in the original stats payloads sent to the writer.
 			payloads[j].Stats[bi].Stats = append(payloads[j].Stats[bi].Stats, g)
@@ -314,24 +353,24 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 	return payloads
 }
 
-var _ eventRecorder = (*StatsWriter)(nil)
+var _ eventRecorder = (*DatadogStatsWriter)(nil)
 
-func (w *StatsWriter) report() {
-	metrics.Count("datadog.trace_agent.stats_writer.client_payloads", w.stats.ClientPayloads.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.stats_buckets", w.stats.StatsBuckets.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.stats_entries", w.stats.StatsEntries.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.retries", w.stats.Retries.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.splits", w.stats.Splits.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.errors", w.stats.Errors.Swap(0), nil, 1)
+func (w *DatadogStatsWriter) report() {
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.client_payloads", w.stats.ClientPayloads.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_buckets", w.stats.StatsBuckets.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_entries", w.stats.StatsEntries.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.retries", w.stats.Retries.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.splits", w.stats.Splits.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.errors", w.stats.Errors.Swap(0), nil, 1)
 }
 
 // recordEvent implements eventRecorder.
-func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
+func (w *DatadogStatsWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
-		metrics.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
-		metrics.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
+		_ = w.statsd.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
+		_ = w.statsd.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
 	}
 	switch t {
 	case eventTypeRetry:
@@ -340,7 +379,7 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeSent:
 		log.Debugf("Flushed stats to the API; time: %s, bytes: %d", data.duration, data.bytes)
-		timing.Since("datadog.trace_agent.stats_writer.flush_duration", time.Now().Add(-data.duration))
+		w.timing.Since("datadog.trace_agent.stats_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
 
@@ -350,7 +389,7 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeDropped:
 		w.easylog.Warn("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
-		metrics.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
-		metrics.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
+		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
+		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
 }

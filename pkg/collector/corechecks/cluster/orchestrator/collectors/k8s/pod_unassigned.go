@@ -4,11 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -19,6 +21,13 @@ import (
 	corev1Listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
+
+// NewUnassignedPodCollectorVersions builds the group of collector versions.
+func NewUnassignedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewUnassignedPodCollector(cfg, store, tagger),
+	)
+}
 
 // UnassignedPodCollector is a collector for Kubernetes Pods that are not
 // assigned to a node yet.
@@ -31,14 +40,19 @@ type UnassignedPodCollector struct {
 
 // NewUnassignedPodCollector creates a new collector for the Kubernetes Pod
 // resource that is not assigned to any node.
-func NewUnassignedPodCollector() *UnassignedPodCollector {
+func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *UnassignedPodCollector {
 	return &UnassignedPodCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "pods",
-			NodeType: orchestrator.K8sPod,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "pods",
+			NodeType:                  orchestrator.K8sPod,
+			Version:                   "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
 }
 
@@ -49,12 +63,9 @@ func (c *UnassignedPodCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *UnassignedPodCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.UnassignedPodInformerFactory.Core().V1().Pods()
+	c.informer = rcfg.OrchestratorInformerFactory.UnassignedPodInformerFactory.Core().V1().Pods()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *UnassignedPodCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *UnassignedPodCollector) Metadata() *collectors.CollectorMetadata {
@@ -68,13 +79,7 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

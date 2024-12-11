@@ -3,109 +3,78 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package log is responsible for settings around logging output from customer functions
+// to be sent to Datadog (logs monitoring product).
+// It does *NOT* control the internal debug logging of the agent.
 package log
 
 import (
-	"bufio"
-	"bytes"
-	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metadata"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
 const (
 	defaultFlushTimeout = 5 * time.Second
-	defaultSource       = "cloudrun"
-	loggerName          = "DD_CLOUDRUN_LOG_AGENT"
-	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
+	envVarTailFilePath  = "DD_SERVERLESS_LOG_PATH"
 	sourceEnvVar        = "DD_SOURCE"
-	sourceName          = "Google Cloud Run"
+	sourceName          = "Datadog Agent"
 )
 
 // Config holds the log configuration
 type Config struct {
 	FlushTimeout time.Duration
-	Metadata     *metadata.Metadata
-	channel      chan *logConfig.ChannelMessage
+	Channel      chan *logConfig.ChannelMessage
 	source       string
-	loggerName   config.LoggerName
-	isEnabled    bool
-}
-
-// CustomWriter wraps the log config to allow stdout/stderr redirection
-type CustomWriter struct {
-	LogConfig  *Config
-	LineBuffer bytes.Buffer
-	IsError    bool
+	IsEnabled    bool
 }
 
 // CreateConfig builds and returns a log config
-func CreateConfig(metadata *metadata.Metadata) *Config {
+func CreateConfig(origin string) *Config {
 	var source string
 	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
-		source = defaultSource
+		source = origin
 	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
-		Metadata:     metadata,
-		channel:      make(chan *logConfig.ChannelMessage),
-		source:       source,
-		loggerName:   loggerName,
-		isEnabled:    isEnabled(os.Getenv(logEnabledEnvVar)),
+		// Use a buffered channel with size 10000
+		Channel:   make(chan *logConfig.ChannelMessage, 10000),
+		source:    source,
+		IsEnabled: isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
 }
 
-// Write writes the log message to the log message channel for processing
-func Write(conf *Config, msgToSend []byte, isError bool) {
-	if conf.isEnabled {
-		logMessage := &logConfig.ChannelMessage{
-			Content: msgToSend,
-			IsError: isError,
-		}
-		conf.channel <- logMessage
-	}
+// SetupLogAgent creates the log agent and sets the base tags
+func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component) logsAgent.ServerlessLogsAgent {
+	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger)
+
+	tagsArray := serverlessTag.MapToArray(tags)
+
+	addFileTailing(logsAgent, conf.source, tagsArray)
+
+	serverlessLogs.SetLogsTags(tagsArray)
+	return logsAgent
 }
 
-// SetupLog creates the log agent and sets the base tags
-func SetupLog(conf *Config) {
-	if err := config.SetupLogger(
-		conf.loggerName,
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
-	); err != nil {
-		log.Errorf("Unable to setup logger: %s", err)
+func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string) {
+	if filePath, set := os.LookupEnv(envVarTailFilePath); set {
+		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
+			Type:    logConfig.FileType,
+			Path:    filePath,
+			Service: os.Getenv("DD_SERVICE"),
+			Tags:    tags,
+			Source:  source,
+		})
+		logsAgent.GetSources().AddSource(src)
 	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("Unable to change the log level: %s", err)
-		}
-	}
-	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
-	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
-}
-
-func (cw *CustomWriter) Write(p []byte) (n int, err error) {
-	fmt.Print(string(p))
-	cw.LineBuffer.Write(p)
-	scanner := bufio.NewScanner(&cw.LineBuffer)
-	for scanner.Scan() {
-		Write(cw.LogConfig, scanner.Bytes(), cw.IsError)
-	}
-	return len(p), nil
 }
 
 func isEnabled(envValue string) bool {

@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package driver
 
@@ -16,14 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/windows"
 )
-
-func dnsSupported(t *testing.T) bool {
-	return true
-}
-
-func httpSupported(t *testing.T) bool {
-	return false
-}
 
 func TestDriverRequiresPath(t *testing.T) {
 	p, err := windows.UTF16PtrFromString(deviceName)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubernetes
 
@@ -18,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -39,14 +39,14 @@ func (suite *SecureTestSuite) SetupTest() {
 // - cacert
 func (suite *SecureTestSuite) TestWithTLSCA() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
-	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
-	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
-	mockConfig.Set("kubelet_auth_token_path", "")
-	mockConfig.Set("kubelet_tls_verify", true)
-	mockConfig.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
+	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetWithoutSource("kubelet_tls_verify", true)
+	mockConfig.SetWithoutSource("kubelet_client_ca", suite.certsConfig.CertFilePath)
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
@@ -78,16 +78,16 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 // - tls_verify
 // - WITHOUT cacert (expecting failure)
 func (suite *SecureTestSuite) TestTLSWithoutCA() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
-	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
-	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
-	mockConfig.Set("kubelet_auth_token_path", "")
-	mockConfig.Set("kubelet_client_crt", "")
-	mockConfig.Set("kubelet_client_key", "")
-	mockConfig.Set("kubelet_tls_verify", true)
-	mockConfig.Set("kubelet_client_ca", "")
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
+	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetWithoutSource("kubelet_client_crt", "")
+	mockConfig.SetWithoutSource("kubelet_client_key", "")
+	mockConfig.SetWithoutSource("kubelet_tls_verify", true)
+	mockConfig.SetWithoutSource("kubelet_client_ca", "")
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
@@ -101,16 +101,16 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 // - certificate
 func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
-	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
-	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
-	mockConfig.Set("kubelet_auth_token_path", "")
-	mockConfig.Set("kubelet_tls_verify", true)
-	mockConfig.Set("kubelet_client_crt", suite.certsConfig.CertFilePath)
-	mockConfig.Set("kubelet_client_key", suite.certsConfig.KeyFilePath)
-	mockConfig.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
+	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetWithoutSource("kubelet_tls_verify", true)
+	mockConfig.SetWithoutSource("kubelet_client_crt", suite.certsConfig.CertFilePath)
+	mockConfig.SetWithoutSource("kubelet_client_key", suite.certsConfig.KeyFilePath)
+	mockConfig.SetWithoutSource("kubelet_client_ca", suite.certsConfig.CertFilePath)
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
@@ -140,6 +140,8 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 }
 
 func TestSecureKubeletSuite(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
 	compose, certsConfig, err := initSecureKubelet()
 	defer os.Remove(certsConfig.CertFilePath)
 	defer os.Remove(certsConfig.KeyFilePath)

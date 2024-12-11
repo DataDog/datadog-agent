@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type ctnDef struct {
@@ -330,12 +330,12 @@ func TestFilter(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			f, err := NewFilter(tc.includeList, tc.excludeList)
+			f, err := NewFilter(GlobalFilter, tc.includeList, tc.excludeList)
 			require.Nil(t, err, "case %d", i)
 
 			var allowed []string
 			for _, c := range containers {
-				if !f.IsExcluded(c.c.Name, c.c.Image, c.ns) {
+				if !f.IsExcluded(nil, c.c.Name, c.c.Image, c.ns) {
 					allowed = append(allowed, c.c.ID)
 				}
 			}
@@ -344,119 +344,192 @@ func TestFilter(t *testing.T) {
 	}
 }
 
+func TestIsExcludedByAnnotation(t *testing.T) {
+	containerExcludeName := "foo"
+	containerIncludeName := "bar"
+	containerNoMentionName := "other"
+	annotations := map[string]string{
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerExcludeName):         `true`,
+		fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerExcludeName): `true`,
+		fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerExcludeName):    `true`,
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerIncludeName):         `false`,
+		fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerIncludeName): `false`,
+		fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerIncludeName):    `false`,
+	}
+
+	containerlessAnnotations := map[string]string{
+		"ad.datadoghq.com/exclude":         `true`,
+		"ad.datadoghq.com/metrics_exclude": `true`,
+		"ad.datadoghq.com/logs_exclude":    `true`,
+	}
+
+	globalExcludeContainerLess := map[string]string{
+		"ad.datadoghq.com/exclude": `true`,
+	}
+
+	globalExclude := map[string]string{
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerIncludeName): `true`,
+	}
+
+	globalFilter, err := NewFilter(GlobalFilter, nil, nil)
+	require.NoError(t, err)
+	metricsFilter, err := NewFilter(MetricsFilter, nil, nil)
+	require.NoError(t, err)
+	logsFilter, err := NewFilter(LogsFilter, nil, nil)
+	require.NoError(t, err)
+
+	// Container-specific annotations
+	assert.True(t, globalFilter.isExcludedByAnnotation(annotations, containerExcludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(annotations, containerExcludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(annotations, containerExcludeName))
+
+	assert.False(t, globalFilter.isExcludedByAnnotation(annotations, containerIncludeName))
+	assert.False(t, metricsFilter.isExcludedByAnnotation(annotations, containerIncludeName))
+	assert.False(t, logsFilter.isExcludedByAnnotation(annotations, containerIncludeName))
+
+	assert.False(t, globalFilter.isExcludedByAnnotation(annotations, containerNoMentionName))
+	assert.False(t, metricsFilter.isExcludedByAnnotation(annotations, containerNoMentionName))
+	assert.False(t, logsFilter.isExcludedByAnnotation(annotations, containerNoMentionName))
+
+	// Container-less annotations
+	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerExcludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerExcludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerExcludeName))
+
+	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerIncludeName))
+
+	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
+
+	// Container-less global exclude
+	assert.True(t, globalFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+
+	// Global exclude
+	assert.True(t, globalFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+
+	assert.False(t, logsFilter.isExcludedByAnnotation(nil, containerExcludeName))
+}
+
 func TestNewMetricFilterFromConfig(t *testing.T) {
-	config.Datadog.SetDefault("exclude_pause_container", true)
-	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
-	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", true)
+	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd-.*"})
 
 	f, err := newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.True(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 
-	config.Datadog.SetDefault("exclude_pause_container", false)
+	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", false)
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 
-	config.Datadog.SetDefault("exclude_pause_container", true)
-	config.Datadog.SetDefault("ac_include", []string{})
-	config.Datadog.SetDefault("ac_exclude", []string{})
+	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", true)
+	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{})
+	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{})
 
-	config.Datadog.SetDefault("exclude_pause_container", false)
-	config.Datadog.SetDefault("container_include", []string{"image:apache.*"})
-	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*"})
-	config.Datadog.SetDefault("container_include_metrics", []string{"image:nginx.*"})
-	config.Datadog.SetDefault("container_exclude_metrics", []string{"name:ddmetric-.*"})
+	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", false)
+	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{"image:nginx.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{"name:ddmetric-.*"})
 
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.True(t, f.IsExcluded("ddmetric-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("ddmetric-152462", "nginx:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.True(t, f.IsExcluded(nil, "ddmetric-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "ddmetric-152462", "nginx:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
 }
 
 func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Global - legacy config
-	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
-	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd-.*"})
 
 	f, err := NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Global - new config - legacy config ignored
-	config.Datadog.SetDefault("container_include", []string{"image:apache.*"})
-	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*"})
-	config.Datadog.SetDefault("ac_include", []string{"image:apache/legacy.*"})
-	config.Datadog.SetDefault("ac_exclude", []string{"name:dd/legacy-.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache/legacy.*"})
+	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd/legacy-.*"})
 
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd/legacy-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd/legacy-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Metrics
-	config.Datadog.SetDefault("container_include_metrics", []string{"image:apache.*"})
-	config.Datadog.SetDefault("container_exclude_metrics", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{"name:dd-.*"})
 
 	f, err = NewAutodiscoveryFilter(MetricsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Logs
-	config.Datadog.SetDefault("container_include_logs", []string{"image:apache.*"})
-	config.Datadog.SetDefault("container_exclude_logs", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_include_logs", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude_logs", []string{"name:dd-.*"})
 
 	f, err = NewAutodiscoveryFilter(LogsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Filter errors - non-duplicate error messages
-	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "invalid"})
-	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "invalid"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	fe := map[string]struct{}{
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}
@@ -465,8 +538,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Filter errors - invalid regex
-	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
-	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
@@ -505,7 +578,7 @@ func TestValidateFilter(t *testing.T) {
 		{
 			desc:           "kube_namespace filter",
 			filter:         "kube_namespace:monitoring",
-			prefix:         kubeNamespaceFilterPrefix,
+			prefix:         KubeNamespaceFilterPrefix,
 			expectedRegexp: regexp.MustCompile("monitoring"),
 			expectedErr:    nil,
 		},
@@ -599,13 +672,13 @@ func TestParseFilters(t *testing.T) {
 }
 
 func resetConfig() {
-	config.Datadog.SetDefault("exclude_pause_container", true)
-	config.Datadog.SetDefault("container_include", []string{})
-	config.Datadog.SetDefault("container_exclude", []string{})
-	config.Datadog.SetDefault("container_include_metrics", []string{})
-	config.Datadog.SetDefault("container_exclude_metrics", []string{})
-	config.Datadog.SetDefault("container_include_logs", []string{})
-	config.Datadog.SetDefault("container_exclude_logs", []string{})
-	config.Datadog.SetDefault("ac_include", []string{})
-	config.Datadog.SetDefault("ac_exclude", []string{})
+	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", true)
+	pkgconfigsetup.Datadog().SetDefault("container_include", []string{})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{})
+	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{})
+	pkgconfigsetup.Datadog().SetDefault("container_include_logs", []string{})
+	pkgconfigsetup.Datadog().SetDefault("container_exclude_logs", []string{})
+	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{})
+	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{})
 }

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
+//go:build kubeapiserver && orchestrator && test
 
 package orchestrator
 
@@ -14,55 +13,106 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	crd "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
+
+func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := mock.SetupFakeTagger(t)
+
+	bundle := &CollectorBundle{
+		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:              chk,
+		inventory:          inventory.NewCollectorInventory(cfg, mockStore, fakeTagger),
+		runCfg: &collectors.CollectorRunConfig{
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   chk.apiClient,
+				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			},
+			ClusterID:   chk.clusterID,
+			Config:      chk.orchestratorConfig,
+			MsgGroupRef: chk.groupID,
+		},
+		stopCh:              chk.stopCh,
+		manifestBuffer:      NewManifestBuffer(chk),
+		activatedCollectors: map[string]struct{}{},
+	}
+	bundle.importCollectorsFromInventory()
+	bundle.prepareExtraSyncTimeout()
+	return bundle
+}
 
 // TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
 func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var wg sync.WaitGroup
 
 	client := fake.NewSimpleClientset()
-	informerFactory := informers.NewSharedInformerFactory(client, 0)
-	cl := &apiserver.APIClient{Cl: client, InformerFactory: informerFactory, UnassignedPodInformerFactory: informerFactory}
-	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
+	vpaClient := vpa.NewSimpleClientset()
+	crdClient := crd.NewSimpleClientset()
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
+
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := mock.SetupFakeTagger(t)
+
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
-	bundle := NewCollectorBundle(orchCheck)
+	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
+	bundle := newCollectorBundle(t, orchCheck)
 	err := bundle.Initialize()
 	assert.NoError(t, err)
 
 	wg.Add(2)
 
-	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
-	nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+	// getting rescheduled.
+	orchCheck.Cancel()
+
+	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
+	bundle.stopCh = make(chan struct{})
+	err = bundle.Initialize()
+	assert.NoError(t, err)
+
+	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
+		AddFunc: func(_ interface{}) {
 			wg.Done()
 		},
 	})
+	assert.NoError(t, err)
 
 	writeNode(t, client, "1")
-
-	// getting rescheduled.
-	orchCheck.Cancel()
-	// This part is not optimal as the cancel closes a channel which gets propagated everywhere that might take some time.
-	// If things are too fast the close is not getting propagated fast enough.
-	// But even if we are too fast and don't catch that part it will not lead to a false positive
-	time.Sleep(1 * time.Millisecond)
-	err = bundle.Initialize()
-	assert.NoError(t, err)
 	writeNode(t, client, "2")
 
-	wg.Wait()
+	assert.True(t, waitTimeout(&wg, 2*time.Second))
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {
@@ -75,4 +125,19 @@ func writeNode(t *testing.T, client *fake.Clientset, version string) {
 	}
 	_, err := client.CoreV1().Nodes().Create(context.TODO(), &kubeN, metav1.CreateOptions{})
 	assert.NoError(t, err)
+}
+
+// waitTimeout returns true if wg is completed and false if time is up
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }

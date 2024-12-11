@@ -1,0 +1,2 @@
+-r requirements-ci.txt
+libvirt-python==10.9.0

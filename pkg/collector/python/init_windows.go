@@ -4,21 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && windows
-// +build python,windows
 
 package python
 
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Any platform-specific initialization belongs here.
 func initializePlatform() error {
 	// On Windows, it's not uncommon to have a system-wide PYTHONPATH env var set.
 	// Unset it, so our embedded python doesn't try to load things from the system.
-	if !config.Datadog.GetBool("windows_use_pythonpath") {
+	if !pkgconfigsetup.Datadog().GetBool("windows_use_pythonpath") {
 		os.Unsetenv("PYTHONPATH")
 	}
 

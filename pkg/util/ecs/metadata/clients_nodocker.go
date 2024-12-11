@@ -4,14 +4,13 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build !docker
-// +build !docker
 
 package metadata
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
@@ -30,7 +29,7 @@ func V1() (*v1.Client, error) {
 // V2 returns a client for the ECS metadata API v2 that uses the default
 // endpoint address.
 func V2() (*v2.Client, error) {
-	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 

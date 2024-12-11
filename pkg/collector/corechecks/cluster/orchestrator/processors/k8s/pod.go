@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -14,61 +13,83 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	podtagprovider "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s/pod_tag_provider"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
-type PodHandlers struct{}
+type PodHandlers struct {
+	common.BaseHandlers
+	tagProvider podtagprovider.PodTagProvider
+}
+
+// NewPodHandlers creates and returns a new PodHanlders object
+func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *PodHandlers {
+	podHandlers := new(PodHandlers)
+
+	// initialise tag provider
+	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store, tagger)
+
+	return podHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (h *PodHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Pod)
 	m.Yaml = yaml
 	return
 }
 
 // BeforeCacheCheck is a handler called before cache lookup.
-func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*corev1.Pod)
 	m := resourceModel.(*model.Pod)
 
 	// static pods "uid" are actually not unique across nodes.
 	// we differ from the k8 uuid format in purpose to differentiate those static pods.
 	if kubetypes.IsStaticPod(r) {
-		newUID := k8sTransformers.GenerateUniqueK8sStaticPodHash(ctx.HostName, r.Name, r.Namespace, ctx.Cfg.KubeClusterName)
+		newUID := k8sTransformers.GenerateUniqueK8sStaticPodHash(pctx.HostName, r.Name, r.Namespace, pctx.Cfg.KubeClusterName)
 		// modify it in the original pod for the YAML and in our model
 		r.UID = types.UID(newUID)
 		m.Metadata.Uid = newUID
 	}
 
 	// insert tagger tags
-	tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
+	taggerTags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
 	if err != nil {
-		log.Debugf("Could not retrieve tags for pod: %s", err)
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
 		return
 	}
 
+	m.Tags = append(m.Tags, taggerTags...)
+
 	// additional tags
-	m.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
+	m.Tags = append(m.Tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
 
 	// tags that should be on the tagger
-	if len(tags) == 0 {
+	if len(taggerTags) == 0 {
 		// Tags which should be on the tagger
 		for _, volume := range r.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
-				tag := fmt.Sprintf("%s:%s", kubernetes.PersistentVolumeClaimTagName, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
+				tag := fmt.Sprintf("%s:%s", tags.KubePersistentVolumeClaim, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
 				m.Tags = append(m.Tags, tag)
 			}
 		}
@@ -76,7 +97,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 
 	// Custom resource version to work around kubelet issues.
 	if err := k8sTransformers.FillK8sPodResourceVersion(m); err != nil {
-		log.Warnf("Failed to compute pod resource version: %s", err)
+		log.Warnc(fmt.Sprintf("Failed to compute pod resource version: %s", err.Error()), orchestrator.ExtraLogContext)
 		skip = true
 		return
 	}
@@ -84,14 +105,10 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 	return
 }
 
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *PodHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *PodHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.Pod, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -99,25 +116,30 @@ func (h *PodHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 	}
 
 	return &model.CollectorPod{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		GroupId:     ctx.MsgGroupID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
-		HostName:    ctx.HostName,
+		HostName:    pctx.HostName,
 		Pods:        models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Info:        pctx.SystemInfo,
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (h *PodHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Pod)
 	return k8sTransformers.ExtractPod(r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (h *PodHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.Pod)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -129,27 +151,53 @@ func (h *PodHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Pod).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *PodHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
+}
+
+// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
+	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+		return nil
+	}
+	return tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (h *PodHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
-func (h *PodHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*corev1.Pod)
-	if ctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodSpec(&r.Spec, ctx.Cfg.Scrubber)
+	if pctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubPod(r, pctx.Cfg.Scrubber)
 	}
 }

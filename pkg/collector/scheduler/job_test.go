@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -21,7 +21,7 @@ type TestJobCheck struct {
 	id string
 }
 
-func (c *TestJobCheck) ID() check.ID { return check.ID(c.id) }
+func (c *TestJobCheck) ID() checkid.ID { return checkid.ID(c.id) }
 
 func TestBucket_RemoveJob(t *testing.T) {
 	bucket := &jobBucket{}
@@ -34,7 +34,7 @@ func TestBucket_RemoveJob(t *testing.T) {
 	// Add a check with a finalizer to the bucket, then remove it
 	finalized := make(chan struct{}, 1)
 	checkWithFinalizer := &TestJobCheck{id: "withFinalizer"}
-	runtime.SetFinalizer(checkWithFinalizer, func(c *TestJobCheck) {
+	runtime.SetFinalizer(checkWithFinalizer, func(*TestJobCheck) {
 		finalized <- struct{}{}
 	})
 	bucket.addJob(checkWithFinalizer)
@@ -55,7 +55,7 @@ func TestBucket_RemoveJob(t *testing.T) {
 		10*time.Second,
 		func() bool {
 			select {
-			case _ = <-finalized:
+			case <-finalized:
 				return true
 			default:
 				return false

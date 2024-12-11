@@ -4,19 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
-	"bytes"
-	"errors"
+	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,12 +23,12 @@ import (
 var RuntimeArch string
 
 func resolveRuntimeArch() {
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
+	machine, err := utilkernel.Machine()
+	if err != nil {
 		panic(err)
 	}
 
-	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
+	switch machine {
 	case "x86_64":
 		RuntimeArch = "x64"
 	case "aarch64":
@@ -37,18 +36,6 @@ func resolveRuntimeArch() {
 	default:
 		RuntimeArch = "ia32"
 	}
-}
-
-// currentKernelVersion is the current kernel version
-var currentKernelVersion *kernel.Version
-
-func resolveCurrentKernelVersion() error {
-	var err error
-	currentKernelVersion, err = kernel.NewKernelVersion()
-	if err != nil {
-		return errors.New("couldn't resolve kernel version")
-	}
-	return nil
 }
 
 // cache of the syscall prefix depending on kernel version
@@ -73,7 +60,8 @@ func getSyscallPrefix() string {
 	return syscallPrefix
 }
 
-func getSyscallFnName(name string) string {
+// GetSyscallFnName returns the hook point for the provided syscall name
+func GetSyscallFnName(name string) string {
 	return getSyscallPrefix() + name
 }
 
@@ -88,32 +76,63 @@ func getCompatSyscallFnName(name string) string {
 // ShouldUseSyscallExitTracepoints returns true if the kernel version is old and we need to use tracepoints to handle syscall exits
 // instead of kretprobes
 func ShouldUseSyscallExitTracepoints() bool {
-	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
+	currentKernelVersion, err := kernel.NewKernelVersion()
+	if err != nil || currentKernelVersion == nil {
+		return false
+	}
+
+	return currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel()
 }
 
-func expandKprobe(hookpoint string, syscallName string, flag int) []string {
+// ShouldUseModuleLoadTracepoint returns true if we should use module load tracepoint
+func ShouldUseModuleLoadTracepoint() bool {
+	currentKernelVersion, err := kernel.NewKernelVersion()
+	// the condition may need to be fine-tuned based on the kernel version
+	return err == nil && currentKernelVersion != nil && currentKernelVersion.IsRH7Kernel()
+}
+
+func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 	var sections []string
 	if flag&Entry == Entry {
-		sections = append(sections, "kprobe/"+hookpoint)
-	}
-	if flag&Exit == Exit {
-		if len(syscallName) > 0 && ShouldUseSyscallExitTracepoints() {
-			sections = append(sections, "tracepoint/syscalls/sys_exit_"+syscallName)
-		} else {
-			sections = append(sections, "kretprobe/"+hookpoint)
+		prefix := "kprobe"
+		if fentry {
+			prefix = "fentry"
 		}
+
+		sections = append(sections, fmt.Sprintf("%s/%s", prefix, hookpoint))
 	}
+	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
+		prefix := "kretprobe"
+		if fentry {
+			prefix = "fexit"
+		}
+
+		sections = append(sections, fmt.Sprintf("%s/%s", prefix, hookpoint))
+	}
+
 	return sections
 }
 
-func expandSyscallSections(syscallName string, flag int, compat ...bool) []string {
-	sections := expandKprobe(getSyscallFnName(syscallName), syscallName, flag)
+func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...bool) []string {
+	sections := expandKprobeOrFentry(GetSyscallFnName(syscallName), fentry, flag)
 
+	shouldUseCompat := len(compat) > 0 && compat[0]
 	if RuntimeArch == "x64" {
-		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
-			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), "", flag)...)
+		// HACK: split entry and exit because we currently do not support compat syscall ret hooks
+		// entry
+		entryFlag := flag & ^Exit
+		if shouldUseCompat && !fentry && syscallPrefix != "sys_" {
+			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, entryFlag)...)
 		} else {
-			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), "", flag)...)
+			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, entryFlag)...)
+		}
+
+		// exit
+		exitFlag := flag & ^Entry
+		if shouldUseCompat && !fentry && syscallPrefix != "sys_" {
+			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, exitFlag)...)
+		} else {
+			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, exitFlag)...)
 		}
 	}
 
@@ -153,17 +172,13 @@ func getFunctionNameFromSection(section string) string {
 }
 
 // ExpandSyscallProbes returns the list of available hook probes for the syscall func name of the provided probe
-func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*manager.Probe {
+func ExpandSyscallProbes(probe *manager.Probe, fentry bool, flag int, compat ...bool) []*manager.Probe {
 	var probes []*manager.Probe
 	syscallName := probe.SyscallFuncName
 	probe.SyscallFuncName = ""
 
 	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
-	}
-
-	if currentKernelVersion == nil {
-		_ = resolveCurrentKernelVersion()
 	}
 
 	if flag&ExpandTime32 == ExpandTime32 {
@@ -174,9 +189,8 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 		syscallName += "_time32"
 	}
 
-	for _, section := range expandSyscallSections(syscallName, flag, compat...) {
+	for _, section := range expandSyscallSections(syscallName, fentry, flag, compat...) {
 		probeCopy := probe.Copy()
-		probeCopy.EBPFSection = section
 		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
 		probes = append(probes, probeCopy)
 	}
@@ -185,15 +199,11 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 }
 
 // ExpandSyscallProbesSelector returns the list of a ProbesSelector required to query all the probes available for a syscall
-func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, compat ...bool) []manager.ProbesSelector {
+func ExpandSyscallProbesSelector(UID string, section string, fentry bool, flag int, compat ...bool) []manager.ProbesSelector {
 	var selectors []manager.ProbesSelector
 
 	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
-	}
-
-	if currentKernelVersion == nil {
-		_ = resolveCurrentKernelVersion()
 	}
 
 	if flag&ExpandTime32 == ExpandTime32 {
@@ -201,11 +211,11 @@ func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, c
 		if getSyscallPrefix() == "sys_" {
 			return selectors
 		}
-		id.EBPFSection += "_time32"
+		section += "_time32"
 	}
 
-	for _, section := range expandSyscallSections(id.EBPFSection, flag, compat...) {
-		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: id.UID, EBPFSection: section, EBPFFuncName: getFunctionNameFromSection(section)}}
+	for _, esection := range expandSyscallSections(section, fentry, flag, compat...) {
+		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: UID, EBPFFuncName: getFunctionNameFromSection(esection)}}
 		selectors = append(selectors, selector)
 	}
 

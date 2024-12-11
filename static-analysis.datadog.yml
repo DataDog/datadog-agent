@@ -1,0 +1,5 @@
+rulesets:
+  - sit-ci-best-practices:
+    only:
+      - ".github/workflows"
+

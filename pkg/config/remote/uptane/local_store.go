@@ -22,7 +22,7 @@ var (
 // Its goal is to persist TUF metadata. This implementation of the local store
 // also saves every root ever validated by go-tuf. This is needed to update the roots
 // of tracers and other partial clients.
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#LocalStore
 type localStore struct {
 	// metasBucket stores metadata saved by go-tuf
 	metasBucket string
@@ -33,11 +33,11 @@ type localStore struct {
 	store *transactionalStore
 }
 
-func newLocalStore(db *transactionalStore, repository string, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
+func newLocalStore(db *transactionalStore, repository string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
 	s := &localStore{
 		store:       db,
-		metasBucket: fmt.Sprintf("%s_%s_metas", cacheKey, repository),
-		rootsBucket: fmt.Sprintf("%s_%s_roots", cacheKey, repository),
+		metasBucket: fmt.Sprintf("%s_metas", repository),
+		rootsBucket: fmt.Sprintf("%s_roots", repository),
 	}
 	err := s.init(initialRoots)
 	return s, err
@@ -79,7 +79,7 @@ func (s *localStore) writeRoot(tx *transaction, root json.RawMessage) error {
 }
 
 // GetMeta implements go-tuf's LocalStore.GetTarget
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#LocalStore
 func (s *localStore) GetMeta() (map[string]json.RawMessage, error) {
 	meta := make(map[string]json.RawMessage)
 	err := s.store.view(func(tx *transaction) error {
@@ -96,7 +96,7 @@ func (s *localStore) GetMeta() (map[string]json.RawMessage, error) {
 }
 
 // DeleteMeta implements go-tuf's LocalStore.DeleteMeta
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#LocalStore
 func (s *localStore) DeleteMeta(name string) error {
 	return s.store.update(func(tx *transaction) error {
 		tx.delete(s.metasBucket, name)
@@ -105,7 +105,7 @@ func (s *localStore) DeleteMeta(name string) error {
 }
 
 // SetMeta implements go-tuf's LocalStore.SetMeta
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#LocalStore
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#LocalStore
 func (s *localStore) SetMeta(name string, meta json.RawMessage) error {
 	return s.store.update(func(tx *transaction) error {
 		if name == metaRoot {
@@ -173,10 +173,10 @@ func (s *localStore) Flush() error {
 	return s.store.commit()
 }
 
-func newLocalStoreDirector(db *transactionalStore, cacheKey string) (*localStore, error) {
-	return newLocalStore(db, "director", cacheKey, meta.RootsDirector())
+func newLocalStoreDirector(db *transactionalStore, site string, directorRootOverride string) (*localStore, error) {
+	return newLocalStore(db, "director", meta.RootsDirector(site, directorRootOverride))
 }
 
-func newLocalStoreConfig(db *transactionalStore, cacheKey string) (*localStore, error) {
-	return newLocalStore(db, "config", cacheKey, meta.RootsConfig())
+func newLocalStoreConfig(db *transactionalStore, site string, configRootOverride string) (*localStore, error) {
+	return newLocalStore(db, "config", meta.RootsConfig(site, configRootOverride))
 }

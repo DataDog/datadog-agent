@@ -4,32 +4,32 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
 package cri
 
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 type criCustomMetricsExtension struct {
 	sender            generic.SenderFunc
-	aggSender         aggregator.Sender
+	aggSender         sender.Sender
 	criGetter         func() (cri.CRIClient, error)
 	criContainerStats map[string]*criTypes.ContainerStats
 }
 
-func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	cext.sender = sender
 	cext.aggSender = aggSender
 
@@ -45,7 +45,8 @@ func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, agg
 	}
 }
 
-func (cext *criCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
+//nolint:revive // TODO(CINT) Fix revive linter
+func (cext *criCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	if cext.criContainerStats == nil {
 		return
 	}
@@ -56,11 +57,11 @@ func (cext *criCustomMetricsExtension) Process(tags []string, container *workloa
 		return
 	}
 
-	cext.sender(cext.aggSender.Gauge, "cri.disk.used", pointer.UIntToFloatPtr(criStats.GetWritableLayer().GetUsedBytes().GetValue()), tags)
-	cext.sender(cext.aggSender.Gauge, "cri.disk.inodes", pointer.UIntToFloatPtr(criStats.GetWritableLayer().GetInodesUsed().GetValue()), tags)
+	cext.sender(cext.aggSender.Gauge, "cri.disk.used", pointer.Ptr(float64(criStats.GetWritableLayer().GetUsedBytes().GetValue())), tags)
+	cext.sender(cext.aggSender.Gauge, "cri.disk.inodes", pointer.Ptr(float64(criStats.GetWritableLayer().GetInodesUsed().GetValue())), tags)
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (cext *criCustomMetricsExtension) PostProcess() {
+func (cext *criCustomMetricsExtension) PostProcess(tagger.Component) {
 	cext.criContainerStats = nil
 }

@@ -4,14 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !kubeapiserver
-// +build !kubeapiserver
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
 
 import "context"
 
 // GetStatus returns status info for the orchestrator explorer.
-func GetStatus(ctx context.Context, apiCl interface{}) map[string]interface{} {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func GetStatus(_ context.Context, _ interface{}) map[string]interface{} {
 	status := make(map[string]interface{})
 	status["Disabled"] = "The orchestrator explorer is not compiled-in"
 	return status

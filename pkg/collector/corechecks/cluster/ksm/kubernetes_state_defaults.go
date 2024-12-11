@@ -4,9 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
+
+import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+)
 
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
@@ -14,6 +18,8 @@ const ksmMetricPrefix = "kubernetes_state."
 // defaultMetricNamesMapper returns a map that translates KSM metric names to Datadog metric names
 func defaultMetricNamesMapper() map[string]string {
 	return map[string]string{
+		"kube_apiservice_status_condition":                                                         "apiservice.condition",
+		"kube_customresourcedefinition_status_condition":                                           "crd.condition",
 		"kube_daemonset_status_current_number_scheduled":                                           "daemonset.scheduled",
 		"kube_daemonset_status_desired_number_scheduled":                                           "daemonset.desired",
 		"kube_daemonset_status_number_misscheduled":                                                "daemonset.misscheduled",
@@ -24,6 +30,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_deployment_spec_strategy_rollingupdate_max_unavailable":                              "deployment.rollingupdate.max_unavailable",
 		"kube_deployment_spec_strategy_rollingupdate_max_surge":                                    "deployment.rollingupdate.max_surge",
 		"kube_deployment_status_replicas":                                                          "deployment.replicas",
+		"kube_deployment_status_replicas_ready":                                                    "deployment.replicas_ready",
 		"kube_deployment_status_replicas_available":                                                "deployment.replicas_available",
 		"kube_deployment_status_replicas_unavailable":                                              "deployment.replicas_unavailable",
 		"kube_deployment_status_replicas_updated":                                                  "deployment.replicas_updated",
@@ -34,10 +41,8 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
-		"kube_pod_container_resource_requests_cpu_cores":                                           "container.cpu_requested",
-		"kube_pod_container_resource_limits_cpu_cores":                                             "container.cpu_limit",
-		"kube_pod_container_resource_limits_memory_bytes":                                          "container.memory_limit",
-		"kube_pod_container_resource_requests_memory_bytes":                                        "container.memory_requested",
+		"kube_pod_init_container_status_waiting":                                                   "initcontainer.waiting",
+		"kube_pod_init_container_status_restarts_total":                                            "initcontainer.restarts",
 		"kube_persistentvolumeclaim_status_phase":                                                  "persistentvolumeclaim.status",
 		"kube_persistentvolumeclaim_access_mode":                                                   "persistentvolumeclaim.access_mode",
 		"kube_persistentvolumeclaim_resource_requests_storage_bytes":                               "persistentvolumeclaim.request_storage",
@@ -49,6 +54,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_pod_status_scheduled":                                                                "pod.scheduled",
 		"kube_pod_spec_volumes_persistentvolumeclaims_readonly":                                    "pod.volumes.persistentvolumeclaims_readonly",
 		"kube_pod_status_unschedulable":                                                            "pod.unschedulable",
+		"kube_pod_tolerations":                                                                     "pod.tolerations",
 		"kube_poddisruptionbudget_status_current_healthy":                                          "pdb.pods_healthy",
 		"kube_poddisruptionbudget_status_desired_healthy":                                          "pdb.pods_desired",
 		"kube_poddisruptionbudget_status_pod_disruptions_allowed":                                  "pdb.disruptions_allowed",
@@ -70,10 +76,11 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_statefulset_status_replicas_updated":                                                 "statefulset.replicas_updated",
 		"kube_horizontalpodautoscaler_spec_min_replicas":                                           "hpa.min_replicas",
 		"kube_horizontalpodautoscaler_spec_max_replicas":                                           "hpa.max_replicas",
+		"kube_horizontalpodautoscaler_spec_target_metric":                                          "hpa.spec_target_metric",
 		"kube_horizontalpodautoscaler_status_condition":                                            "hpa.condition",
 		"kube_horizontalpodautoscaler_status_desired_replicas":                                     "hpa.desired_replicas",
 		"kube_horizontalpodautoscaler_status_current_replicas":                                     "hpa.current_replicas",
-		"kube_horizontalpodautoscaler_spec_target_metric":                                          "hpa.spec_target_metric",
+		"kube_horizontalpodautoscaler_status_target_metric":                                        "hpa.status_target_metric",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_lowerbound":     "vpa.lower_bound",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_target":         "vpa.target",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_uncappedtarget": "vpa.uncapped_target",
@@ -90,56 +97,65 @@ func defaultMetricNamesMapper() map[string]string {
 // defaultLabelsMapper returns a map that contains the default labels to tag names mapping
 func defaultLabelsMapper() map[string]string {
 	return map[string]string{
-		"namespace":                           "kube_namespace",
-		"job_name":                            "kube_job",
-		"cronjob":                             "kube_cronjob",
-		"pod":                                 "pod_name",
-		"priority_class":                      "kube_priority_class",
-		"daemonset":                           "kube_daemon_set",
-		"replicationcontroller":               "kube_replication_controller",
-		"replicaset":                          "kube_replica_set",
-		"statefulset":                         "kube_stateful_set",
-		"deployment":                          "kube_deployment",
-		"service":                             "kube_service",
+		"namespace":                           tags.KubeNamespace,
+		"job_name":                            tags.KubeJob,
+		"cronjob":                             tags.KubeCronjob,
+		"pod":                                 tags.KubePod,
+		"priority_class":                      tags.KubePriorityClass,
+		"daemonset":                           tags.KubeDaemonSet,
+		"replicationcontroller":               tags.KubeReplicationController,
+		"replicaset":                          tags.KubeReplicaSet,
+		"statefulset":                         tags.KubeStatefulSet,
+		"deployment":                          tags.KubeDeployment,
+		"container":                           tags.KubeContainerName,
+		"container_id":                        tags.ContainerID,
+		"image":                               tags.ImageName,
 		"endpoint":                            "kube_endpoint",
-		"container":                           "kube_container_name",
-		"container_id":                        "container_id",
-		"image":                               "image_name",
-		"label_tags_datadoghq_com_env":        "env",
-		"label_tags_datadoghq_com_service":    "service",
-		"label_tags_datadoghq_com_version":    "version",
 		"label_topology_kubernetes_io_region": "kube_region",
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
 		"ingress": "kube_ingress",
 
+		// Standard Datadog labels
+		"label_tags_datadoghq_com_env":     tags.Env,
+		"label_tags_datadoghq_com_service": tags.Service,
+		"label_tags_datadoghq_com_version": tags.Version,
+
 		// Standard Kubernetes labels
-		"label_app_kubernetes_io_name":       "kube_app_name",
-		"label_app_kubernetes_io_instance":   "kube_app_instance",
-		"label_app_kubernetes_io_version":    "kube_app_version",
-		"label_app_kubernetes_io_component":  "kube_app_component",
-		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
-		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
+		"label_app_kubernetes_io_name":       tags.KubeAppName,
+		"label_app_kubernetes_io_instance":   tags.KubeAppInstance,
+		"label_app_kubernetes_io_version":    tags.KubeAppVersion,
+		"label_app_kubernetes_io_component":  tags.KubeAppComponent,
+		"label_app_kubernetes_io_part_of":    tags.KubeAppPartOf,
+		"label_app_kubernetes_io_managed_by": tags.KubeAppManagedBy,
+
+		// Standard Helm labels
+		"label_helm_sh_chart": "helm_chart",
 	}
 }
 
 // defaultLabelJoins returns a map that contains the default label joins configuration
-func defaultLabelJoins() map[string]*JoinsConfig {
+func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 	defaultStandardLabels := []string{
+		// Standard Datadog labels
 		"label_tags_datadoghq_com_env",
 		"label_tags_datadoghq_com_service",
 		"label_tags_datadoghq_com_version",
 
+		// Standard Kubernetes labels
 		"label_app_kubernetes_io_name",
 		"label_app_kubernetes_io_instance",
 		"label_app_kubernetes_io_version",
 		"label_app_kubernetes_io_component",
 		"label_app_kubernetes_io_part_of",
 		"label_app_kubernetes_io_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart",
 	}
 
-	return map[string]*JoinsConfig{
+	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"phase"},
@@ -211,6 +227,10 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 // label or and because some other resource doesn't need the `namespace` label.
 func getLabelToMatchForKind(kind string) []string {
 	switch kind {
+	case "apiservice": // API Services are not namespaced
+		return []string{"apiservice"}
+	case "customresourcedefinition": // CRD are not namespaced
+		return []string{"customresourcedefinition"}
 	case "job": // job metrics use specific label
 		return []string{"job_name", "namespace"}
 	case "node": // persistent nodes are not namespaced
@@ -219,5 +239,12 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"persistentvolume"}
 	default:
 		return []string{kind, "namespace"}
+	}
+}
+
+func defaultAnnotationsAsTags() map[string]map[string]string {
+	return map[string]map[string]string{
+		"pod":        {kubernetes.RcIDAnnotKey: tags.RemoteConfigID, kubernetes.RcRevisionAnnotKey: tags.RemoteConfigRevision},
+		"deployment": {kubernetes.RcIDAnnotKey: tags.RemoteConfigID, kubernetes.RcRevisionAnnotKey: tags.RemoteConfigRevision},
 	}
 }

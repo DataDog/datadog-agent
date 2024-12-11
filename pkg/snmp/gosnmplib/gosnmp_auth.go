@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package gosnmplib provides helpers to go with gosnmp.
 package gosnmplib
 
 import (

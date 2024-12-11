@@ -4,8 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package secret implements the secret controller of the Cluster Agent's
+// Admission Controller.
 package secret
 
 import (
@@ -39,7 +40,7 @@ type Controller struct {
 	config         Config
 	dnsNames       []string
 	dnsNamesDigest uint64
-	queue          workqueue.RateLimitingInterface
+	queue          workqueue.TypedRateLimitingInterface[string]
 	isLeaderFunc   func() bool
 	isLeaderNotif  <-chan struct{}
 }
@@ -54,15 +55,21 @@ func NewController(client kubernetes.Interface, secretInformer coreinformers.Sec
 		secretsSynced:  secretInformer.Informer().HasSynced,
 		dnsNames:       dnsNames,
 		dnsNamesDigest: digestDNSNames(dnsNames),
-		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secrets"),
-		isLeaderFunc:   isLeaderFunc,
-		isLeaderNotif:  isLeaderNotif,
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "secrets"},
+		),
+		isLeaderFunc:  isLeaderFunc,
+		isLeaderNotif: isLeaderNotif,
 	}
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleObject,
 		UpdateFunc: controller.handleUpdate,
 		DeleteFunc: controller.handleObject,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+		return controller
+	}
 	return controller
 }
 
@@ -123,7 +130,7 @@ func (c *Controller) handleObject(obj interface{}) {
 
 // handleUpdate handles the new object reported in update events.
 // It can be a callback function for update events.
-func (c *Controller) handleUpdate(oldObj, newObj interface{}) {
+func (c *Controller) handleUpdate(_, newObj interface{}) {
 	if !c.isLeaderFunc() {
 		return
 	}
@@ -135,7 +142,7 @@ func (c *Controller) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Debugf("Couldn't get key for object %v: %v, adding it to the queue with an unnamed key", obj, err)
-		c.queue.Add(struct{}{})
+		c.queue.Add("")
 		return
 	}
 	log.Debugf("Adding object with key %s to the queue", key)
@@ -144,7 +151,7 @@ func (c *Controller) enqueue(obj interface{}) {
 
 // requeue adds an object's key to the work queue for
 // a retry if the rate limiter allows it.
-func (c *Controller) requeue(key interface{}) {
+func (c *Controller) requeue(key string) {
 	c.queue.AddRateLimited(key)
 }
 

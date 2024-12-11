@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed bug in kubelet check when running in core agent that 
+    was causing `kubernetes.kubelet.container.log_filesystem.used_bytes` 
+    to be reported by the check for excluded/non-existing containers. 
+    The metric was being reported in this case without tags. 
+    This bug does not exist in the python integration version of the 
+    kubelet check.

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -13,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Containerd availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Containerd availability", diagnose)
 }
 
 // diagnose the Containerd socket connectivity

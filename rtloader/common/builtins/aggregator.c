@@ -48,7 +48,6 @@ static void add_constants(PyObject *m)
     PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_RTLOADER_HISTORATE);
 }
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_aggregator(void)
@@ -57,16 +56,6 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     add_constants(m);
     return m;
 }
-#elif defined(DATADOG_AGENT_TWO)
-// module object storage
-static PyObject *module;
-
-void Py2_init_aggregator()
-{
-    module = Py_InitModule(AGGREGATOR_MODULE_NAME, methods);
-    add_constants(module);
-}
-#endif
 
 void _set_submit_metric_cb(cb_submit_metric_t cb)
 {
@@ -425,15 +414,22 @@ static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
 
     PyObject *check = NULL;
     char *check_id = NULL;
-    char *raw_event = NULL;
+    char *raw_event_ptr = NULL;
+    Py_ssize_t raw_event_sz = 0;
     char *event_type = NULL;
 
-    if (!PyArg_ParseTuple(args, "Osss", &check, &check_id, &raw_event, &event_type)) {
+    if (!PyArg_ParseTuple(args, "Oss#s", &check, &check_id, &raw_event_ptr, &raw_event_sz, &event_type)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
-    cb_submit_event_platform_event(check_id, raw_event, event_type);
+    if (raw_event_sz > INT_MAX) {
+        PyErr_SetString(PyExc_ValueError, "event is too large");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    cb_submit_event_platform_event(check_id, raw_event_ptr, raw_event_sz, event_type);
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
 }

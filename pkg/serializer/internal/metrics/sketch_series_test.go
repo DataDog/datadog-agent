@@ -3,20 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-// +build test
+//go:build test && zlib && zstd
 
 package metrics
 
 import (
-	"bytes"
-	"compress/zlib"
-	"io/ioutil"
 	"testing"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -84,156 +82,247 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 	}
 }
 
-func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
-
+func TestSketchSeriesSplitEmptyPayload(t *testing.T) {
 	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
-	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	pieces, err := sl.SplitPayload(10)
+	require.Len(t, pieces, 0)
+	require.Nil(t, err)
+}
 
-	assert.Nil(t, err)
+func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
+			payload, _ := sl.Marshal()
+			strategy := selector.NewCompressor(mockConfig)
+			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 
-	reader := bytes.NewReader(*payloads[0])
-	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
-	r.Close()
+			assert.Nil(t, err)
 
-	// Check that we encoded the protobuf correctly
-	assert.Equal(t, decompressed, payload)
+			firstPayload := payloads[0]
+			assert.Equal(t, 0, firstPayload.GetPointCount())
+
+			decompressed, _ := strategy.Decompress(firstPayload.GetContent())
+			// Check that we encoded the protobuf correctly
+			assert.Equal(t, decompressed, payload)
+		})
+	}
 }
 
 func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
+	tests := map[string]struct {
+		kind                string
+		maxUncompressedSize int
+	}{
+		"zlib": {kind: common.ZlibKind, maxUncompressedSize: 100},
+		"zstd": {kind: common.ZstdKind, maxUncompressedSize: 200},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
-	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
+			sl := metrics.NewSketchesSourceTest()
+			// A big item (to be dropped)
+			sl.Append(Makeseries(0))
 
-	sl := metrics.NewSketchesSourceTest()
-	// A big item (to be dropped)
-	sl.Append(Makeseries(0))
+			// A small item (no dropped)
+			sl.Append(&metrics.SketchSeries{
+				Name:     "small",
+				Tags:     tagset.CompositeTagsFromSlice([]string{}),
+				Host:     "",
+				Interval: 0,
+			})
 
-	// A small item (no dropped)
-	sl.Append(&metrics.SketchSeries{
-		Name:     "small",
-		Tags:     tagset.CompositeTagsFromSlice([]string{}),
-		Host:     "",
-		Interval: 0,
-	})
+			serializer := SketchSeriesList{SketchesSource: sl}
+			strategy := selector.NewCompressor(mockConfig)
+			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 
-	serializer := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+			assert.Nil(t, err)
 
-	assert.Nil(t, err)
+			firstPayload := payloads[0]
+			require.Equal(t, 0, firstPayload.GetPointCount())
 
-	reader := bytes.NewReader(*payloads[0])
-	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
-	r.Close()
+			decompressed, _ := strategy.Decompress(firstPayload.GetContent())
 
-	pl := new(gogen.SketchPayload)
-	if err := pl.Unmarshal(decompressed); err != nil {
-		t.Fatal(err)
+			pl := new(gogen.SketchPayload)
+			if err := pl.Unmarshal(decompressed); err != nil {
+				t.Fatal(err)
+			}
+
+			// Should only have 1 sketch because the the larger one was dropped.
+			require.Len(t, pl.Sketches, 1)
+		})
 	}
 
-	// Should only have 1 sketch because the the larger one was dropped.
-	require.Len(t, pl.Sketches, 1)
 }
 
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
-	sl := metrics.NewSketchesSourceTest()
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			sl := metrics.NewSketchesSourceTest()
 
-	for i := 0; i < 2; i++ {
-		sl.Append(Makeseries(i))
+			for i := 0; i < 2; i++ {
+				sl.Append(Makeseries(i))
+			}
+
+			sl.Reset()
+			serializer2 := SketchSeriesList{SketchesSource: sl}
+			strategy := selector.NewCompressor(mockConfig)
+			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
+			require.NoError(t, err)
+
+			firstPayload := payloads[0]
+			assert.Equal(t, 11, firstPayload.GetPointCount())
+
+			decompressed, _ := strategy.Decompress(firstPayload.GetContent())
+
+			pl := new(gogen.SketchPayload)
+			err = pl.Unmarshal(decompressed)
+			require.NoError(t, err)
+
+			require.Len(t, pl.Sketches, int(sl.Count()))
+
+			for i, pb := range pl.Sketches {
+				in := sl.Get(i)
+				require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+
+				assert.Equal(t, in.Host, pb.Host)
+				assert.Equal(t, in.Name, pb.Metric)
+				metrics.AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
+				assert.Len(t, pb.Distributions, 0)
+
+				require.Len(t, pb.Dogsketches, len(in.Points))
+				for j, pointPb := range pb.Dogsketches {
+
+					check(t, in.Points[j], pointPb)
+				}
+			}
+		})
 	}
 
-	serializer1 := SketchSeriesList{SketchesSource: sl}
-	payload, _ := serializer1.Marshal()
-	sl.Reset()
-	serializer2 := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer2.MarshalSplitCompress(marshaler.DefaultBufferContext())
-	require.NoError(t, err)
-
-	reader := bytes.NewReader(*payloads[0])
-	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
-	r.Close()
-
-	// Check that we encoded the protobuf correctly
-	assert.Equal(t, decompressed, payload)
-
-	pl := new(gogen.SketchPayload)
-	err = pl.Unmarshal(decompressed)
-	require.NoError(t, err)
-
-	require.Len(t, pl.Sketches, int(sl.Count()))
-
-	for i, pb := range pl.Sketches {
-		in := sl.Get(i)
-		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
-
-		assert.Equal(t, in.Host, pb.Host)
-		assert.Equal(t, in.Name, pb.Metric)
-		metrics.AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
-		assert.Len(t, pb.Distributions, 0)
-
-		require.Len(t, pb.Dogsketches, len(in.Points))
-		for j, pointPb := range pb.Dogsketches {
-
-			check(t, in.Points[j], pointPb)
-		}
-	}
 }
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
-	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
 
-	sl := metrics.NewSketchesSourceTest()
-
-	for i := 0; i < 20; i++ {
-		sl.Append(Makeseries(i))
+	tests := map[string]struct {
+		kind                string
+		maxUncompressedSize int
+	}{
+		"zlib": {kind: common.ZlibKind, maxUncompressedSize: 2000},
+		"zstd": {kind: common.ZstdKind, maxUncompressedSize: 2000},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
-	serializer := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
-	assert.Nil(t, err)
+			sl := metrics.NewSketchesSourceTest()
 
-	recoveredSketches := []gogen.SketchPayload{}
-	recoveredCount := 0
-	for _, pld := range payloads {
-		reader := bytes.NewReader(*pld)
-		r, _ := zlib.NewReader(reader)
-		decompressed, _ := ioutil.ReadAll(r)
-		r.Close()
-
-		pl := new(gogen.SketchPayload)
-		if err := pl.Unmarshal(decompressed); err != nil {
-			t.Fatal(err)
-		}
-		recoveredSketches = append(recoveredSketches, *pl)
-		recoveredCount += len(pl.Sketches)
-	}
-
-	assert.Equal(t, recoveredCount, int(sl.Count()))
-	assert.Greater(t, len(recoveredSketches), 1)
-
-	i := 0
-	for _, pl := range recoveredSketches {
-		for _, pb := range pl.Sketches {
-			in := sl.Get(i)
-			require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
-
-			assert.Equal(t, in.Host, pb.Host)
-			assert.Equal(t, in.Name, pb.Metric)
-			metrics.AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
-			assert.Len(t, pb.Distributions, 0)
-
-			require.Len(t, pb.Dogsketches, len(in.Points))
-			for j, pointPb := range pb.Dogsketches {
-
-				check(t, in.Points[j], pointPb)
+			expectedPointCount := 0
+			for i := 0; i < 20; i++ {
+				sl.Append(Makeseries(i))
+				expectedPointCount += i + 5
 			}
-			i++
-		}
+
+			serializer := SketchSeriesList{SketchesSource: sl}
+			strategy := selector.NewCompressor(mockConfig)
+			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
+			assert.Nil(t, err)
+
+			recoveredSketches := []gogen.SketchPayload{}
+			recoveredCount := 0
+			pointCount := 0
+			for _, pld := range payloads {
+				decompressed, _ := strategy.Decompress(pld.GetContent())
+
+				pl := new(gogen.SketchPayload)
+				if err := pl.Unmarshal(decompressed); err != nil {
+					t.Fatal(err)
+				}
+				recoveredSketches = append(recoveredSketches, *pl)
+				recoveredCount += len(pl.Sketches)
+				pointCount += pld.GetPointCount()
+			}
+			assert.Equal(t, expectedPointCount, pointCount)
+			assert.Equal(t, recoveredCount, int(sl.Count()))
+			assert.Greater(t, len(recoveredSketches), 1)
+
+			i := 0
+			for _, pl := range recoveredSketches {
+				for _, pb := range pl.Sketches {
+					in := sl.Get(i)
+					require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+
+					assert.Equal(t, in.Host, pb.Host)
+					assert.Equal(t, in.Name, pb.Metric)
+					metrics.AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
+					assert.Len(t, pb.Distributions, 0)
+
+					require.Len(t, pb.Dogsketches, len(in.Points))
+					for j, pointPb := range pb.Dogsketches {
+
+						check(t, in.Points[j], pointPb)
+					}
+					i++
+				}
+			}
+		})
 	}
+}
+
+func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			sl := metrics.NewSketchesSourceTest()
+
+			for i := 0; i < 2; i++ {
+				sl.Append(Makeseries(i))
+			}
+
+			sl.Reset()
+			serializer2 := SketchSeriesList{SketchesSource: sl}
+			strategy := selector.NewCompressor(mockConfig)
+			payloads, filteredPayloads, err := serializer2.MarshalSplitCompressMultiple(mockConfig, strategy, func(ss *metrics.SketchSeries) bool {
+				return ss.Name == "name.0"
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, 1, len(payloads))
+			assert.Equal(t, 1, len(filteredPayloads))
+
+			firstPayload := payloads[0]
+			assert.Equal(t, 11, firstPayload.GetPointCount())
+
+			firstFilteredPayload := filteredPayloads[0]
+			assert.Equal(t, 5, firstFilteredPayload.GetPointCount())
+		})
+	}
+
 }

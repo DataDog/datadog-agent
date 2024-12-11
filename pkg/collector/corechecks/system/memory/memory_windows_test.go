@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package memory
 
@@ -13,9 +12,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 func VirtualMemory() (*winutil.VirtualMemoryStat, error) {
@@ -61,9 +61,8 @@ func TestMemoryCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	memCheck := new(Check)
-	memCheck.Configure(nil, nil, "test")
-
 	mock := mocksender.NewMockSender(memCheck.ID())
+	memCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock.On("Gauge", "system.mem.cached", 3456789000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.committed", 2345678000.0/mbSize, "", []string(nil)).Return().Times(1)

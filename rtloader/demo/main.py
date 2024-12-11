@@ -2,7 +2,7 @@
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2019-present Datadog, Inc.
-from __future__ import print_function
+from __future__ import print_function  # noqa fmt: off
 
 import aggregator
 import tagger

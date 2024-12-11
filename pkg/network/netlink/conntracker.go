@@ -3,48 +3,62 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
-	"net"
+	"net/netip"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
-	"go.uber.org/atomic"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
+
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	compactInterval      = time.Minute
 	defaultOrphanTimeout = 2 * time.Minute
+	telemetryModuleName  = "network_tracer__conntracker"
 )
+
+var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
+
+// ErrNotPermitted is the error returned when the current process does not have the required permissions for netlink conntracker
+var ErrNotPermitted = errors.New("netlink conntracker requires NET_ADMIN capability")
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
-	DeleteTranslation(network.ConnectionStats)
-	IsSampling() bool
-	GetStats() map[string]int64
+	// Describe returns all descriptions of the collector
+	Describe(descs chan<- *prometheus.Desc)
+	// Collect returns the current state of all metrics of the collector
+	Collect(metrics chan<- prometheus.Metric)
+	GetTranslationForConn(*network.ConnectionTuple) *network.IPTranslation
+	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+	GetType() string
+	DeleteTranslation(*network.ConnectionTuple)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
 }
 
 type connKey struct {
-	src netaddr.IPPort
-	dst netaddr.IPPort
+	src netip.AddrPort
+	dst netip.AddrPort
 
 	// the transport protocol of the connection, using the same values as specified in the agent payload.
 	transport network.ConnectionType
@@ -60,17 +74,6 @@ type orphanEntry struct {
 	expires time.Time
 }
 
-type stats struct {
-	gets                 *atomic.Int64
-	getTimeTotal         *atomic.Int64
-	registers            *atomic.Int64
-	registersDropped     *atomic.Int64
-	registersTotalTime   *atomic.Int64
-	unregisters          *atomic.Int64
-	unregistersTotalTime *atomic.Int64
-	evicts               *atomic.Int64
-}
-
 type realConntracker struct {
 	sync.RWMutex
 	consumer *Consumer
@@ -81,20 +84,66 @@ type realConntracker struct {
 	maxStateSize int
 
 	compactTicker *time.Ticker
-	stats         stats
+	exit          chan struct{}
+}
+
+var conntrackerTelemetry = struct {
+	getsDuration        telemetry.Histogram
+	registersDuration   telemetry.Histogram
+	unregistersDuration telemetry.Histogram
+	getsTotal           telemetry.Counter
+	registersTotal      telemetry.Counter
+	unregistersTotal    telemetry.Counter
+	evictsTotal         telemetry.Counter
+	registersDropped    telemetry.Counter
+	stateSize           *prometheus.Desc
+	orphanSize          *prometheus.Desc
+}{
+	telemetry.NewHistogram(telemetryModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples in the map", defaultBuckets),
+	telemetry.NewHistogram(telemetryModuleName, "registers_duration_nanoseconds", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the map", defaultBuckets),
+	telemetry.NewHistogram(telemetryModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent removing connection tuples from the map", defaultBuckets),
+	telemetry.NewCounter(telemetryModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the map"),
+	telemetry.NewCounter(telemetryModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the map"),
+	telemetry.NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
+	telemetry.NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
+	telemetry.NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
+	prometheus.NewDesc(telemetryModuleName+"__state_size", "Gauge measuring the current size of the conntrack cache", nil, nil),
+	prometheus.NewDesc(telemetryModuleName+"__orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
+}
+
+// isNetlinkConntrackSupported checks if we have the right capabilities
+// for netlink conntrack; NET_ADMIN is required
+func isNetlinkConntrackSupported() bool {
+	// check if we have the right capabilities for the netlink NewConntracker
+	// NET_ADMIN is required
+	caps, err := capability.NewPid2(0)
+	if err == nil {
+		err = caps.Load()
+	}
+
+	if err != nil {
+		log.Warnf("could not check if netlink conntracker is supported: %s", err)
+		return false
+	}
+
+	return caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN)
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(config *config.Config) (Conntracker, error) {
+func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
 	)
 
+	if !isNetlinkConntrackSupported() {
+		return nil, ErrNotPermitted
+	}
+
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(config)
+		conntracker, err = newConntrackerOnce(config, telemetrycomp)
 		done <- struct{}{}
 	}()
 
@@ -106,21 +155,8 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	}
 }
 
-func newStats() stats {
-	return stats{
-		gets:                 atomic.NewInt64(0),
-		getTimeTotal:         atomic.NewInt64(0),
-		registers:            atomic.NewInt64(0),
-		registersDropped:     atomic.NewInt64(0),
-		registersTotalTime:   atomic.NewInt64(0),
-		unregisters:          atomic.NewInt64(0),
-		unregistersTotalTime: atomic.NewInt64(0),
-		evicts:               atomic.NewInt64(0),
-	}
-}
-
-func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
-	consumer, err := NewConsumer(cfg)
+func newConntrackerOnce(cfg *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
+	consumer, err := NewConsumer(cfg, telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +166,8 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 		cache:         newConntrackCache(cfg.ConntrackMaxStateSize, defaultOrphanTimeout),
 		maxStateSize:  cfg.ConntrackMaxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
+		exit:          make(chan struct{}),
 		decoder:       NewDecoder(),
-		stats:         newStats(),
 	}
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -150,19 +186,24 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
-	then := time.Now().UnixNano()
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (ctr *realConntracker) GetType() string {
+	return "netlink"
+}
+
+func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
+	then := time.Now()
 	defer func() {
-		ctr.stats.gets.Inc()
-		ctr.stats.getTimeTotal.Add(time.Now().UnixNano() - then)
+		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
+		conntrackerTelemetry.getsTotal.Inc()
 	}()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	k := connKey{
-		src:       netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
-		dst:       netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+		src:       netip.AddrPortFrom(c.Source.Addr, c.SPort),
+		dst:       netip.AddrPortFrom(c.Dest.Addr, c.DPort),
 		transport: c.Type,
 	}
 
@@ -174,75 +215,41 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	return t.IPTranslation
 }
 
-func (ctr *realConntracker) GetStats() map[string]int64 {
-	// only a few stats are locked
-	ctr.RLock()
-	size := ctr.cache.cache.Len()
-	orphanSize := ctr.cache.orphans.Len()
-	ctr.RUnlock()
-
-	m := map[string]int64{
-		"state_size":  int64(size),
-		"orphan_size": int64(orphanSize),
-	}
-
-	gets := ctr.stats.gets.Load()
-	getTimeTotal := ctr.stats.getTimeTotal.Load()
-	m["gets_total"] = gets
-	if gets != 0 {
-		m["nanoseconds_per_get"] = getTimeTotal / gets
-	}
-
-	registers := ctr.stats.registers.Load()
-	m["registers_total"] = registers
-	registersTotalTime := ctr.stats.registersTotalTime.Load()
-	if registers != 0 {
-		m["nanoseconds_per_register"] = registersTotalTime / registers
-	}
-
-	unregisters := ctr.stats.unregisters.Load()
-	unregisterTotalTime := ctr.stats.unregistersTotalTime.Load()
-	m["unregisters_total"] = unregisters
-	if unregisters != 0 {
-		m["nanoseconds_per_unregister"] = unregisterTotalTime / unregisters
-	}
-	m["evicts_total"] = ctr.stats.evicts.Load()
-
-	// Merge telemetry from the consumer
-	for k, v := range ctr.consumer.GetStats() {
-		m[k] = v
-	}
-
-	return m
+// Describe returns all descriptions of the collector
+func (ctr *realConntracker) Describe(ch chan<- *prometheus.Desc) {
+	ch <- conntrackerTelemetry.stateSize
+	ch <- conntrackerTelemetry.orphanSize
 }
 
-func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
-	then := time.Now().UnixNano()
-	defer func() {
-		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
-	}()
+// Collect returns the current state of all metrics of the collector
+func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(ctr.cache.cache.Len()))
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
+}
+
+func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionTuple) {
+	then := time.Now()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	k := connKey{
-		src:       netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
-		dst:       netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+		src:       netip.AddrPortFrom(c.Source.Addr, c.SPort),
+		dst:       netip.AddrPortFrom(c.Dest.Addr, c.DPort),
 		transport: c.Type,
 	}
 
 	if ctr.cache.Remove(k) {
-		ctr.stats.unregisters.Inc()
+		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(then).Nanoseconds()))
+		conntrackerTelemetry.unregistersTotal.Inc()
 	}
-}
-
-func (ctr *realConntracker) IsSampling() bool {
-	return ctr.consumer.GetStats()[samplingPct] < 100
 }
 
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
+	ctr.cache.Purge()
+	close(ctr.exit)
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
@@ -252,10 +259,13 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 			if !IsNAT(c) {
 				continue
 			}
+			then := time.Now()
 
 			evicts := ctr.cache.Add(c, false)
-			ctr.stats.registers.Inc()
-			ctr.stats.evicts.Add(int64(evicts))
+
+			conntrackerTelemetry.registersTotal.Inc()
+			conntrackerTelemetry.registersDuration.Observe(float64(time.Since(then).Nanoseconds()))
+			conntrackerTelemetry.evictsTotal.Add(float64(evicts))
 		}
 	}
 }
@@ -265,20 +275,19 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
 	if !IsNAT(c) {
-		ctr.stats.registersDropped.Inc()
+		conntrackerTelemetry.registersDropped.Inc()
 		return 0
 	}
-
-	then := time.Now().UnixNano()
+	then := time.Now()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	evicts := ctr.cache.Add(c, true)
 
-	ctr.stats.registers.Inc()
-	ctr.stats.evicts.Add(int64(evicts))
-	ctr.stats.registersTotalTime.Add(time.Now().UnixNano() - then)
+	conntrackerTelemetry.registersTotal.Inc()
+	conntrackerTelemetry.registersDuration.Observe(float64(time.Since(then).Nanoseconds()))
+	conntrackerTelemetry.evictsTotal.Add(float64(evicts))
 
 	return 0
 }
@@ -316,7 +325,7 @@ func (ctr *realConntracker) run() error {
 func (ctr *realConntracker) compact() {
 	var removed int64
 	defer func() {
-		ctr.stats.unregisters.Add(removed)
+		conntrackerTelemetry.unregistersTotal.Add(float64(removed))
 		log.Debugf("removed %d orphans", removed)
 	}()
 
@@ -327,7 +336,7 @@ func (ctr *realConntracker) compact() {
 }
 
 type conntrackCache struct {
-	cache         *simplelru.LRU
+	cache         *simplelru.LRU[connKey, *translationEntry]
 	orphans       *list.List
 	orphanTimeout time.Duration
 }
@@ -338,8 +347,7 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 		orphanTimeout: orphanTimeout,
 	}
 
-	c.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
-		t := value.(*translationEntry)
+	c.cache, _ = simplelru.NewLRU(maxSize, func(_ connKey, t *translationEntry) {
 		if t.orphan != nil {
 			c.orphans.Remove(t.orphan)
 		}
@@ -349,12 +357,11 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 }
 
 func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
-	v, ok := cc.cache.Get(k)
+	t, ok := cc.cache.Get(k)
 	if !ok {
 		return nil, false
 	}
 
-	t := v.(*translationEntry)
 	if t.orphan != nil {
 		cc.orphans.Remove(t.orphan)
 		t.orphan = nil
@@ -367,6 +374,11 @@ func (cc *conntrackCache) Remove(k connKey) bool {
 	return cc.cache.Remove(k)
 }
 
+func (cc *conntrackCache) Purge() {
+	cc.cache.Purge()
+	cc.orphans.Init()
+}
+
 func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 	registerTuple := func(keyTuple, transTuple *ConTuple) {
 		key, ok := formatKey(keyTuple)
@@ -374,11 +386,10 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 			return
 		}
 
-		if v, ok := cc.cache.Peek(key); ok {
+		if t, ok := cc.cache.Peek(key); ok {
 			// value is going to get replaced
 			// by the call to Add below, make
 			// sure orphan is removed
-			t := v.(*translationEntry)
 			if t.orphan != nil {
 				cc.orphans.Remove(t.orphan)
 			}
@@ -399,7 +410,9 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	log.Tracef("%s", c)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("%s", c)
+	}
 
 	registerTuple(&c.Origin, &c.Reply)
 	registerTuple(&c.Reply, &c.Origin)
@@ -419,7 +432,9 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		log.Tracef("removed orphan %+v", o.key)
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("removed orphan %+v", o.key)
+		}
 	}
 
 	return removed
@@ -427,8 +442,8 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 // IsNAT returns whether this Con represents a NAT translation
 func IsNAT(c Con) bool {
-	if c.Origin.Src.IsZero() ||
-		c.Reply.Src.IsZero() ||
+	if AddrPortIsZero(c.Origin.Src) ||
+		AddrPortIsZero(c.Reply.Src) ||
 		c.Origin.Proto == 0 ||
 		c.Reply.Proto == 0 ||
 		c.Origin.Src.Port() == 0 ||
@@ -438,35 +453,19 @@ func IsNAT(c Con) bool {
 		return false
 	}
 
-	return c.Origin.Src.IP() != c.Reply.Dst.IP() ||
-		c.Origin.Dst.IP() != c.Reply.Src.IP() ||
+	return c.Origin.Src.Addr() != c.Reply.Dst.Addr() ||
+		c.Origin.Dst.Addr() != c.Reply.Src.Addr() ||
 		c.Origin.Src.Port() != c.Reply.Dst.Port() ||
 		c.Origin.Dst.Port() != c.Reply.Src.Port()
 }
 
 func formatIPTranslation(tuple *ConTuple) *network.IPTranslation {
 	return &network.IPTranslation{
-		ReplSrcIP:   addrFromIP(tuple.Src.IP()),
-		ReplDstIP:   addrFromIP(tuple.Dst.IP()),
+		ReplSrcIP:   util.Address{Addr: tuple.Src.Addr().Unmap()},
+		ReplDstIP:   util.Address{Addr: tuple.Dst.Addr().Unmap()},
 		ReplSrcPort: tuple.Src.Port(),
 		ReplDstPort: tuple.Dst.Port(),
 	}
-}
-
-func addrFromIP(ip netaddr.IP) util.Address {
-	if ip.Is6() && !ip.Is4in6() {
-		b := ip.As16()
-		return util.V6AddressFromBytes(b[:])
-	}
-	b := ip.As4()
-	return util.V4AddressFromBytes(b[:])
-}
-
-func ipFromAddr(a util.Address) netaddr.IP {
-	if a.Len() == net.IPv6len {
-		return netaddr.IPFrom16(*(*[16]byte)(a.Bytes()))
-	}
-	return netaddr.IPFrom4(*(*[4]byte)(a.Bytes()))
 }
 
 func formatKey(tuple *ConTuple) (k connKey, ok bool) {

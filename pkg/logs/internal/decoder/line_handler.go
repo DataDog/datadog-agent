@@ -5,22 +5,16 @@
 
 package decoder
 
-import "time"
+import (
+	"time"
 
-// truncatedFlag is the flag that is added at the beginning
-// or/and at the end of every trucated lines.
-var truncatedFlag = []byte("...TRUNCATED...")
-
-// escapedLineFeed is used to escape new line character
-// for multiline message.
-// New line character needs to be escaped because they are used
-// as delimiter for transport.
-var escapedLineFeed = []byte(`\n`)
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+)
 
 // LineHandler handles raw lines to form structured lines.
 type LineHandler interface {
 	// process handles a new line (message)
-	process(*Message)
+	process(*message.Message)
 
 	// flushChan returns a channel which will deliver a message when `flush` should be called.
 	flushChan() <-chan time.Time

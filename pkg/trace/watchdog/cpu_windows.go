@@ -3,11 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package watchdog monitors the trace-agent resource usage.
 package watchdog
 
 import (
+	"os"
+
 	"golang.org/x/sys/windows"
 )
+
+func getpid() int {
+	return os.Getpid()
+}
 
 // this code was copied over from shirou/gopsutil/process because we can't import this package on Windows,
 // due to its "wmi" dependency.

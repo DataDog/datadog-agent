@@ -6,12 +6,8 @@ How to build the Agent docker image
 From the root of the repository, run the following command:
 
 ```
-docker run --rm -it -v "${pwd}:c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 -e RELEASE_VERSION=nightly -e PY_RUNTIMES=3 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
+docker run --rm -it -v "${pwd}:c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 -e RELEASE_VERSION=nightly-a7 -e PY_RUNTIMES=3 datadog/agent-buildimages-windows_x64:1809 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
 ```
-
-The above will build the Agent 7 nightly. To build the Agent 6, use the following variables:
-- MAJOR_VERSION=6
-- PY_RUNTIMES=2,3
 
 The build artifacts will be in `omnibus\pkg`.
 
@@ -39,7 +35,7 @@ From the `Dockerfiles\agent\` folder, run either of the following commands:
 a. To build the containerized Agent from a Nano Windows base image:
 ```
 # Build nano image
-docker build -t mycustomagent --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=false --build-arg VARIANT=1809 -f .\windows\amd64\Dockerfile .
+docker build -t mycustomagent --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-1809 --build-arg WITH_JMX=false --build-arg VARIANT=1809 -f .\windows\amd64\Dockerfile .
 ```
 
 a. To build the containerized Agent from a Core Windows base image:

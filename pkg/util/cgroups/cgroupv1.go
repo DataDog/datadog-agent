@@ -4,73 +4,47 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
-import "path/filepath"
+import (
+	"path/filepath"
+)
 
 type cgroupV1 struct {
-	identifier  string
-	mountPoints map[string]string
-	path        string
-	fr          fileReader
-	pidMapper   pidMapper
+	identifier     string
+	mountPoints    map[string]string
+	path           string
+	fr             fileReader
+	pidMapper      pidMapper
+	inode          uint64
+	baseController string
 }
 
-func newCgroupV1(identifier, path string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
-	return &cgroupV1{
-		identifier:  identifier,
-		mountPoints: mountPoints,
-		path:        path,
-		pidMapper:   pidMapper,
-		fr:          defaultFileReader,
+func newCgroupV1(identifier, path, baseController string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
+	cg := &cgroupV1{
+		identifier:     identifier,
+		mountPoints:    mountPoints,
+		path:           path,
+		pidMapper:      pidMapper,
+		fr:             defaultFileReader,
+		baseController: baseController,
 	}
+	cg.inode = inodeForPath(cg.pathFor(cg.baseController, ""))
+	return cg
 }
 
 func (c *cgroupV1) Identifier() string {
 	return c.identifier
 }
 
-func (c *cgroupV1) GetParent() (Cgroup, error) {
-	parentPath := filepath.Join(c.path, "/..")
-	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints, c.pidMapper), nil
+func (c *cgroupV1) Inode() uint64 {
+	return c.inode
 }
 
-func (c *cgroupV1) GetStats(stats *Stats) error {
-	if stats == nil {
-		return &InvalidInputError{Desc: "input stats cannot be nil"}
-	}
-
-	cpuStats := CPUStats{}
-	err := c.GetCPUStats(&cpuStats)
-	if err != nil {
-		return err
-	}
-	stats.CPU = &cpuStats
-
-	memoryStats := MemoryStats{}
-	err = c.GetMemoryStats(&memoryStats)
-	if err != nil {
-		return err
-	}
-	stats.Memory = &memoryStats
-
-	ioStats := IOStats{}
-	err = c.GetIOStats(&ioStats)
-	if err != nil {
-		return err
-	}
-	stats.IO = &ioStats
-
-	pidStats := PIDStats{}
-	err = c.GetPIDStats(&pidStats)
-	if err != nil {
-		return err
-	}
-	stats.PID = &pidStats
-
-	return nil
+func (c *cgroupV1) GetParent() (Cgroup, error) {
+	parentPath := filepath.Join(c.path, "/..")
+	return newCgroupV1(filepath.Base(parentPath), parentPath, c.baseController, c.mountPoints, c.pidMapper), nil
 }
 
 func (c *cgroupV1) controllerMounted(controller string) bool {

@@ -4,13 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
 import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var metricsNameMapping = map[string]string{
@@ -29,7 +28,7 @@ var metricsNameMapping = map[string]string{
 	"container.memory.cache":          "docker.mem.cache",
 	"container.memory.swap":           "docker.mem.swap",
 	"container.memory.oom_events":     "docker.mem.failed_count",
-	"container.memory.working_set":    "docker.mem.private_working_set",
+	"container.memory.working_set":    "docker.mem.working_set",
 	"container.memory.commit":         "docker.mem.commit_bytes",
 	"container.memory.commit.peak":    "docker.mem.commit_peak_bytes",
 	"container.io.read":               "docker.io.read_bytes",
@@ -61,6 +60,8 @@ var metricsValuesConverter = map[string]func(float64) float64{
 type metricsAdapter struct{}
 
 // AdaptTags can be used to change Tagger tags before submitting the metrics
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (a metricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
 	return append(tags, "runtime:docker")
 }

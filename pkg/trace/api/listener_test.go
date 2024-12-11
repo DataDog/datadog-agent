@@ -6,14 +6,17 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 )
 
 type mockNetError struct{ timeout bool }
@@ -24,7 +27,7 @@ func (e mockNetError) Temporary() bool { return !e.timeout }
 
 type mockListener struct {
 	mu  sync.RWMutex // guards below fields
-	err net.Error    // returned error, if non-nil
+	err error        // returned error
 }
 
 var _ net.Listener = (*mockListener)(nil)
@@ -51,6 +54,12 @@ func (ml *mockListener) SetTimeoutError() {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.err = mockNetError{timeout: true}
+}
+
+func (ml *mockListener) SetArbitraryError(err error) {
+	ml.mu.Lock()
+	defer ml.mu.Unlock()
+	ml.err = err
 }
 
 func (ml *mockListener) Close() error { return nil }
@@ -114,14 +123,36 @@ func TestMockListener(t *testing.T) {
 	})
 }
 
-func TestMeasuredListener(t *testing.T) {
+func TestAcceptFailure(t *testing.T) {
 	assert := assert.New(t)
-	stats := &testutil.TestStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	stats := &teststatsd.Client{}
 
 	var mockln mockListener
-	ln := NewMeasuredListener(&mockln, "test-metric").(*measuredListener)
+	mockln.SetError()
+	ln := NewMeasuredListener(&mockln, "test-metric", 5, stats).(*measuredListener)
+
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, "OK")
+		}),
+	}
+
+	expectErr := errors.New("unrecoverable error")
+	go func() {
+		time.Sleep(1 * time.Second)
+		mockln.SetArbitraryError(expectErr)
+	}()
+
+	err := srv.Serve(ln)
+	assert.Equal(expectErr, err)
+}
+
+func TestMeasuredListener(t *testing.T) {
+	assert := assert.New(t)
+	stats := &teststatsd.Client{}
+
+	var mockln mockListener
+	ln := NewMeasuredListener(&mockln, "test-metric", 1000, stats).(*measuredListener)
 	mockln.SetSuccess()
 	ln.Accept()
 	ln.Accept()
@@ -153,4 +184,20 @@ func TestMeasuredListener(t *testing.T) {
 	assert.Len(call.Calls, 1)
 	assert.EqualValues(call.Calls[0].Tags, []string{"status:timedout"})
 	assert.EqualValues(call.Calls[0].Value, 1)
+}
+
+func TestOnCloseConn(t *testing.T) {
+
+	var closed int
+	p, _ := net.Pipe()
+	c := OnCloseConn(p, func() {
+		closed++
+	})
+
+	c.Close()
+	assert.Equal(t, 1, closed)
+	// Make sure multiple close calls don't execute the
+	// callback multiple times.
+	c.Close()
+	assert.Equal(t, 1, closed)
 }

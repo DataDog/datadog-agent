@@ -10,14 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func TestTargetStore(t *testing.T) {
 	db := newTransactionalStore(getTestDB(t))
 	defer db.commit()
 
-	store := newTargetStore(db, "testcachekey")
+	store := newTargetStore(db)
 
 	target1 := &pbgo.File{
 		Path: "2/APM_SAMPLING/target1",

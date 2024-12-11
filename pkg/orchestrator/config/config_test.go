@@ -7,29 +7,30 @@ package config
 
 import (
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
 type YamlConfigTestSuite struct {
 	suite.Suite
-	config *coreConfig.MockConfig
+	config model.Config
 }
 
 func (suite *YamlConfigTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock(nil)
+	suite.config = configmock.New(suite.T())
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
 	actual, err := extractOrchestratorDDUrl()
 	suite.NoError(err)
 	expected, err := url.Parse("https://orchestrator-link.com")
@@ -38,8 +39,8 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDProcessUrl() {
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_dd_url", "https://process-link.com")
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_dd_url", "https://process-link.com")
 	actual, err := extractOrchestratorDDUrl()
 	suite.NoError(err)
 	expected, err := url.Parse("https://process-link.com")
@@ -56,9 +57,9 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDNonSet() {
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorPrecedence() {
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_dd_url", "https://process-link.com")
-	suite.config.Set("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_dd_url", "https://process-link.com")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
 	actual, err := extractOrchestratorDDUrl()
 	suite.NoError(err)
 	expected, err := url.Parse("https://orchestrator-link.com")
@@ -74,8 +75,8 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorProcessEndpoints() {
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
 	var actualEndpoints []apicfg.Endpoint
 
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
@@ -91,8 +92,8 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
 	var actualEndpoints []apicfg.Endpoint
 
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
@@ -112,9 +113,9 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	u, _ := url.Parse("https://test.com")
 	actualEndpoints := []apicfg.Endpoint{{APIKey: "test", Endpoint: u}}
 
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
-	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
@@ -123,23 +124,65 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
-	ddOrchestratorURL := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	ddOrchestratorURL := "DD_ORCHESTRATOR_URL"
 	expectedValue := "123.datadoghq.com"
-	os.Setenv(ddOrchestratorURL, expectedValue)
-	defer os.Unsetenv(ddOrchestratorURL)
+	suite.T().Setenv(ddOrchestratorURL, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
 	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+
+	// Override to make sure the precedence
+	ddOrchestratorURL = "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	expectedValue = "456.datadoghq.com"
+	suite.T().Setenv(ddOrchestratorURL, expectedValue)
+	err = orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigAdditionalEndpoints() {
+	suite.T().Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://process1.com": ["key1"], "https://process2.com": ["key2"]}`)
+
+	expected := map[string]string{
+		"key1": "process1.com",
+		"key2": "process2.com",
+	}
+
+	actualEndpoints := []apicfg.Endpoint{}
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+
+	suite.Len(actualEndpoints, len(expected))
+	for _, actual := range actualEndpoints {
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
+
+	// Override to make sure the precedence
+	suite.T().Setenv("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+
+	expected = map[string]string{
+		"key1": "orchestrator1.com",
+		"key2": "orchestrator2.com",
+		"key3": "orchestrator2.com",
+	}
+
+	actualEndpoints = []apicfg.Endpoint{}
+	err = extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+	suite.Len(actualEndpoints, len(expected))
+	for _, actual := range actualEndpoints {
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedValue := "50"
-	os.Setenv(ddMaxMessage, expectedValue)
-	defer os.Unsetenv(ddMaxMessage)
+	suite.T().Setenv(ddMaxMessage, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -154,8 +197,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedDefaultValue := 100
 
-	os.Setenv(ddMaxMessage, "150")
-	defer os.Unsetenv(ddMaxMessage)
+	suite.T().Setenv(ddMaxMessage, "150")
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -167,8 +209,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	ddSensitiveWords := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_WORDS"
 	expectedValue := "token consul"
-	os.Setenv(ddSensitiveWords, expectedValue)
-	defer os.Unsetenv(ddSensitiveWords)
+	suite.T().Setenv(ddSensitiveWords, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -179,8 +220,21 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	}
 }
 
-func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
+func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
+	ddSensitiveAnnotationsLabels := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS"
+	expectedValue := "my-sensitive-annotation my-sensitive-label"
+	suite.T().Setenv(ddSensitiveAnnotationsLabels, expectedValue)
 
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	for _, val := range strings.Split(expectedValue, " ") {
+		suite.Contains(redact.GetSensitiveAnnotationsAndLabels(), val)
+	}
+}
+
+func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
@@ -202,8 +256,7 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
-
-	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -226,8 +279,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
-
-	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()

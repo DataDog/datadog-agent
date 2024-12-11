@@ -14,138 +14,111 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
+
+always_build true
+
 build do
     license :project_license
 
+    output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
+    flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
         # Conf files
-        if windows?
+        if windows_target?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+            # delete the directory if it exists, then recreate it, because
+            # move will skip/silently fail if the destination directory exists
+            delete conf_dir
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
             end
+            if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
+              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
+              move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
+              move "#{conf_dir_root}/runtime-security.d/default.policy", "#{conf_dir_root}/runtime-security.d/default.policy.example", :force=>true
+            end
+            if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+              move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
+            end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
-            delete "#{install_dir}/bin/agent/agent.exe"
-            # TODO why does this get generated at all
-            delete "#{install_dir}/bin/agent/agent.exe~"
-
-            #remove unneccessary copies caused by blanked copy of bin to #{install_dir} in datadog-agent recipe
-            delete "#{install_dir}/bin/agent/libdatadog-agent-three.dll"
-            delete "#{install_dir}/bin/agent/libdatadog-agent-two.dll"
-            delete "#{install_dir}/bin/agent/customaction.dll"
-
-            # not sure where it's coming from, but we're being left with an `embedded` dir.
-            # delete it
-            delete "#{install_dir}/embedded"
 
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
+
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
-            # cleanup clutter
-            delete "#{install_dir}/etc"
-            delete "#{install_dir}/bin/agent/dist/conf.d"
-            delete "#{install_dir}/bin/agent/dist/*.conf*"
-            delete "#{install_dir}/bin/agent/dist/*.yaml"
-            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
+            # service_discovery isn't supported by windows
+            delete "#{conf_dir}/service_discovery.d"
 
+            # Remove .pyc files from embedded Python
+            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
-        if linux? || osx?
+        if linux_target? || osx_target?
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
             # default to `pip2` if the default Python runtime is Python 2.
-            if with_python_runtime? "2"
-                delete "#{install_dir}/embedded/bin/pip"
-                link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
+            delete "#{install_dir}/embedded/bin/pip"
+            link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
 
-                delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
-            # Caution: we don't want to do this for Agent 6.x
-            elsif with_python_runtime? "3"
-                delete "#{install_dir}/embedded/bin/pip"
-                link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
+            delete "#{install_dir}/embedded/bin/python"
+            link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
-                delete "#{install_dir}/embedded/bin/python"
-                link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
+            # Used in https://docs.datadoghq.com/agent/guide/python-3/
+            delete "#{install_dir}/embedded/bin/2to3"
+            link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
 
-                delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.8", "#{install_dir}/embedded/bin/2to3"
-            end
+            delete "#{install_dir}/embedded/lib/config_guess"
+
+            # Delete .pc files which aren't needed after building
+            delete "#{install_dir}/embedded/lib/pkgconfig"
+            # Same goes for .cmake files
+            delete "#{install_dir}/embedded/lib/cmake"
+            # and for libtool files
+            delete "#{install_dir}/embedded/lib/*.la"
         end
 
-        if linux?
-            # Fix pip after building on extended toolchain in CentOS builder
-            if redhat?
-              unless arm?
-                rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
-                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
-                # replace paths with expected target toolchain location
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
-              end
-            end
-
-            # Move system service files
-            mkdir "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
-            systemd_directory = "/usr/lib/systemd/system"
-            if debian?
-                # debian recommends using a different directory for systemd unit files
-                systemd_directory = "/lib/systemd/system"
-
-                # sysvinit support for debian only for now
-                mkdir "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
-            end
-            mkdir systemd_directory
-            move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
-
+        if linux_target?
             # Move configuration files
-            mkdir "/etc/datadog-agent"
+            mkdir "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
-            move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
-            move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
-            move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
+            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+            move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+            unless heroku_target?
+              if sysprobe_enabled?
+                move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+                # SElinux policies aren't generated when system-probe isn't built
+                # Move SELinux policy
+                if debian_target? || redhat_target?
+                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
+                end
+              end
+              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
+            end
 
-            # Move SELinux policy
-            if debian? || redhat?
-              move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+            if ot_target?
+              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
-            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
-            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
-            delete "/etc/datadog-agent/conf.d/winproc.d"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/winproc.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
@@ -191,14 +164,15 @@ build do
             strip_exclude("*aerospike*")
 
             # Do not strip eBPF programs
-            strip_exclude("*tracer*")
-            strip_exclude("*offset-guess*")
-            strip_exclude("*http*")
-            strip_exclude("*runtime-security*")
-            strip_exclude("*dns*")
+            strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
+            strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")
+
+            # Most postgres binaries are removed in postgres' own software
+            # recipe, but we need pg_config to build psycopq.
+            delete "#{install_dir}/embedded/bin/pg_config"
         end
 
-        if osx?
+        if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
 
@@ -207,6 +181,9 @@ build do
 
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
+
+            # Edit rpath from a true path to relative path for each binary
+            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
@@ -218,6 +195,7 @@ build do
                 # Codesign everything
                 command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
                 command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
                 command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
                 command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
             end

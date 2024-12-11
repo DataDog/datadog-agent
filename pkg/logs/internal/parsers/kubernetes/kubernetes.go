@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package kubernetes
 
 import (
@@ -31,7 +32,7 @@ func New() parsers.Parser {
 type kubernetesFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *kubernetesFormat) Parse(msg []byte) (parsers.Message, error) {
+func (p *kubernetesFormat) Parse(msg *message.Message) (*message.Message, error) {
 	return parseKubernetes(msg)
 }
 
@@ -40,33 +41,31 @@ func (p *kubernetesFormat) SupportsPartialLine() bool {
 	return true
 }
 
-func parseKubernetes(msg []byte) (parsers.Message, error) {
+func parseKubernetes(msg *message.Message) (*message.Message, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
 	// split '<timestamp> <stream> <flag> <content>' into its components
-	components := bytes.SplitN(msg, spaceByte, 4)
+	components := bytes.SplitN(msg.GetContent(), spaceByte, 4)
 	if len(components) < 3 {
-		return parsers.Message{
-			Content:   msg,
-			Status:    status,
-			Timestamp: timestamp,
-			IsPartial: isPartial(flag),
-		}, errors.New("cannot parse the log line")
+		return message.NewMessage(msg.GetContent(), nil, status, 0), errors.New("cannot parse the log line")
 	}
 	var content []byte
 	if len(components) > 3 {
 		content = components[3]
 	}
-	status = getStatus(components[1])
 	timestamp = string(components[0])
+	status = getStatus(components[1])
 	flag = string(components[2])
-	return parsers.Message{
-		Content:   content,
-		Status:    status,
-		Timestamp: timestamp,
+
+	msg.SetContent(content)
+	msg.Status = status
+	msg.ParsingExtra = message.ParsingExtra{
 		IsPartial: isPartial(flag),
-	}, nil
+		Timestamp: timestamp,
+	}
+
+	return msg, nil
 }
 
 func isPartial(flag string) bool {

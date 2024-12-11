@@ -4,23 +4,33 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && test
-// +build python,test
 
 package python
 
 import (
 	"testing"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // #include <datadog_agent_rtloader.h>
 import "C"
 
 func testSubmitMetric(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
@@ -92,7 +102,12 @@ func testSubmitMetric(t *testing.T) {
 }
 
 func testSubmitMetricEmptyTags(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{nil}
@@ -108,7 +123,12 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 }
 
 func testSubmitMetricEmptyHostname(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{nil}
@@ -124,7 +144,12 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 }
 
 func testSubmitServiceCheck(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
@@ -135,11 +160,16 @@ func testSubmitServiceCheck(t *testing.T) {
 		C.CString("my_hostname"),
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", metrics.ServiceCheckWarning, "my_hostname", []string{"tag1", "tag2"}, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "my_hostname", []string{"tag1", "tag2"}, "my_message")
 }
 
 func testSubmitServiceCheckEmptyTag(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{nil}
@@ -150,11 +180,16 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 		C.CString("my_hostname"),
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", metrics.ServiceCheckWarning, "my_hostname", nil, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "my_hostname", nil, "my_message")
 }
 
 func testSubmitServiceCheckEmptyHostame(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{nil}
@@ -165,11 +200,16 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 		nil,
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", metrics.ServiceCheckWarning, "", nil, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "", nil, "my_message")
 }
 
 func testSubmitEvent(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	ev := C.event_t{}
@@ -187,7 +227,7 @@ func testSubmitEvent(t *testing.T) {
 
 	SubmitEvent(C.CString("testID"), &ev)
 
-	expectedEvent := metrics.Event{
+	expectedEvent := event.Event{
 		Title:          "ev_title",
 		Text:           "ev_text",
 		Ts:             21,
@@ -202,7 +242,12 @@ func testSubmitEvent(t *testing.T) {
 }
 
 func testSubmitHistogramBucket(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 
 	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
@@ -223,12 +268,25 @@ func testSubmitHistogramBucket(t *testing.T) {
 
 func testSubmitEventPlatformEvent(t *testing.T) {
 	sender := mocksender.NewMockSender("testID")
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer release()
+
 	sender.SetupAcceptAll()
 	SubmitEventPlatformEvent(
 		C.CString("testID"),
 		C.CString("raw-event"),
+		C.int(len("raw-event")),
 		C.CString("dbm-sample"),
 	)
 
-	sender.AssertEventPlatformEvent(t, "raw-event", "dbm-sample")
+	sender.AssertEventPlatformEvent(t, []byte("raw-event"), "dbm-sample")
+}
+
+func scopeInitCheckContext(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], taggerComp tagger.Component) func() {
+	// Ensure the check context is released before initializing a new one
+	releaseCheckContext()
+	initializeCheckContext(senderManager, logReceiver, taggerComp)
+	return releaseCheckContext
 }

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Set correct tag value "otel_source:datadog_agent" for OTLP logs ingestion

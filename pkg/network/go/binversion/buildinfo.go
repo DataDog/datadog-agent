@@ -23,13 +23,18 @@
 // Build information is available for the currently running binary in
 // runtime/debug.ReadBuildInfo.
 
+// Package binversion provides access to information embedded in a Go binary about how it was built. This includes the
+// Go toolchain version, and the set of modules used (for binaries built in module mode).
 package binversion
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/binary"
 	"errors"
+	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -38,15 +43,25 @@ var (
 	// or when there are I/O errors reading the file.
 	errUnrecognizedFormat = errors.New("unrecognized file format")
 
-	// errNotGoExe is returned when a given executable file is valid but does
+	// ErrNotGoExe is returned when a given executable file is valid but does
 	// not contain Go build information.
-	errNotGoExe = errors.New("not a Go executable")
+	ErrNotGoExe = errors.New("not a Go executable")
 
 	// The build info blob left by the linker is identified by
 	// a 16-byte header, consisting of buildInfoMagic (14 bytes),
 	// the binary's pointer size (1 byte),
 	// and whether the binary is big endian (1 byte).
 	buildInfoMagic = []byte("\xff Go buildinf:")
+)
+
+const (
+	buildInfoAlign = 16
+	buildInfoSize  = 32
+	maxSizeToRead  = 64 * 1024 // 64KB
+)
+
+var (
+	dataRawBuildPool = ddsync.NewSlicePool[byte](maxSizeToRead, maxSizeToRead)
 )
 
 type exe interface {
@@ -59,34 +74,39 @@ type exe interface {
 	DataStart() uint64
 }
 
-// ReadElfBuildInfo finds and returns the Go version in the given ELF binary.
-func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
-	vers, mod, err = readRawBuildInfo(&elfExe{f: elfFile})
-	return
-}
-
-// readRawBuildInfo extracts the Go toolchain version and module information
+// ReadElfBuildInfo extracts the Go toolchain version and module information
 // strings from a Go binary. On success, vers should be non-empty. mod
 // is empty if the binary was not built with modules enabled.
-func readRawBuildInfo(x exe) (vers, mod string, err error) {
+func ReadElfBuildInfo(elfFile *safeelf.File) (vers string, err error) {
+	x := &elfExe{f: elfFile}
+
 	// Read the first 64kB of dataAddr to find the build info blob.
 	// On some platforms, the blob will be in its own section, and DataStart
 	// returns the address of that section. On others, it's somewhere in the
 	// data segment; the linker puts it near the beginning.
 	// See cmd/link/internal/ld.Link.buildinfo.
 	dataAddr := x.DataStart()
-	data, err := x.ReadData(dataAddr, 64*1024)
-	if err != nil {
-		return "", "", err
+	dataPtr := dataRawBuildPool.Get()
+	data := *dataPtr
+	defer func() {
+		data := *dataPtr
+
+		// Zeroing the array. We cannot simply do data = data[:0], as this method changes the len to 0, which messes
+		// with ReadAt.
+		for i := range data {
+			data[i] = 0
+		}
+		dataRawBuildPool.Put(dataPtr)
+	}()
+
+	if err := x.ReadDataWithPool(dataAddr, data); err != nil {
+		return "", err
 	}
-	const (
-		buildInfoAlign = 16
-		buildInfoSize  = 32
-	)
+
 	for {
 		i := bytes.Index(data, buildInfoMagic)
 		if i < 0 || len(data)-i < buildInfoSize {
-			return "", "", errNotGoExe
+			return "", ErrNotGoExe
 		}
 		if i%buildInfoAlign == 0 && len(data)-i >= buildInfoSize {
 			data = data[i:]
@@ -107,8 +127,7 @@ func readRawBuildInfo(x exe) (vers, mod string, err error) {
 	// for the two string values we care about.
 	ptrSize := int(data[14])
 	if data[15]&2 != 0 {
-		vers, data = decodeString(data[32:])
-		mod, _ = decodeString(data)
+		vers, _ = decodeString(data[32:])
 	} else {
 		bigEndian := data[15] != 0
 		var bo binary.ByteOrder
@@ -124,20 +143,12 @@ func readRawBuildInfo(x exe) (vers, mod string, err error) {
 			readPtr = bo.Uint64
 		}
 		vers = readString(x, ptrSize, readPtr, readPtr(data[16:]))
-		mod = readString(x, ptrSize, readPtr, readPtr(data[16+ptrSize:]))
 	}
 	if vers == "" {
-		return "", "", errNotGoExe
-	}
-	if len(mod) >= 33 && mod[len(mod)-17] == '\n' {
-		// Strip module framing: sentinel strings delimiting the module info.
-		// These are cmd/go/internal/modload.infoStart and infoEnd.
-		mod = mod[16 : len(mod)-16]
-	} else {
-		mod = ""
+		return "", ErrNotGoExe
 	}
 
-	return vers, mod, nil
+	return vers, nil
 }
 
 func decodeString(data []byte) (s string, rest []byte) {
@@ -165,7 +176,7 @@ func readString(x exe, ptrSize int, readPtr func([]byte) uint64, addr uint64) st
 
 // elfExe is the ELF implementation of the exe interface.
 type elfExe struct {
-	f *elf.File
+	f *safeelf.File
 }
 
 func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
@@ -186,6 +197,27 @@ func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
 	return nil, errUnrecognizedFormat
 }
 
+// ReadDataWithPool is an implementation of ReadData, but without allocating arrays, we get a pooled array from the
+// caller and spare allocations.
+func (x *elfExe) ReadDataWithPool(addr uint64, data []byte) error {
+	for _, prog := range x.f.Progs {
+		if prog.Vaddr <= addr && addr <= prog.Vaddr+prog.Filesz-1 {
+			expectedSizeToRead := prog.Vaddr + prog.Filesz - addr
+			if expectedSizeToRead > uint64(len(data)) {
+				expectedSizeToRead = uint64(len(data))
+			}
+			readSize, err := prog.ReadAt(data, int64(addr-prog.Vaddr))
+			// If there is an error, and the error is not "EOF" caused due to the fact we tried to read too much,
+			// then report an error.
+			if err != nil && (err != io.EOF && uint64(readSize) != expectedSizeToRead) {
+				return err
+			}
+			return nil
+		}
+	}
+	return errUnrecognizedFormat
+}
+
 func (x *elfExe) DataStart() uint64 {
 	for _, s := range x.f.Sections {
 		if s.Name == ".go.buildinfo" {
@@ -193,7 +225,7 @@ func (x *elfExe) DataStart() uint64 {
 		}
 	}
 	for _, p := range x.f.Progs {
-		if p.Type == elf.PT_LOAD && p.Flags&(elf.PF_X|elf.PF_W) == elf.PF_W {
+		if p.Type == safeelf.PT_LOAD && p.Flags&(safeelf.PF_X|safeelf.PF_W) == safeelf.PF_W {
 			return p.Vaddr
 		}
 	}

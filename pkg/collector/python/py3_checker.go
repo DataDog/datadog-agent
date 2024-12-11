@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -17,11 +16,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
-	linterTimeout = time.Duration(config.Datadog.GetInt("python3_linter_timeout")) * time.Second
+	linterTimeout = time.Duration(pkgconfigsetup.Datadog().GetInt("python3_linter_timeout")) * time.Second
 )
 
 type warning struct {
@@ -34,6 +33,8 @@ type warning struct {
 }
 
 // validatePython3 checks that a check can run on python 3.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()

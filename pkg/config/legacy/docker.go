@@ -4,20 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package legacy
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -66,7 +63,7 @@ type legacyDockerInstance struct {
 // ImportDockerConf read the configuration from docker_daemon check (agent5)
 // and create the configuration for the new docker check (agent 6) and move
 // needed option to datadog.yaml
-func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
+func ImportDockerConf(src, dst string, overwrite bool, converter *ConfigConverter) error {
 	fmt.Printf("%s\n", warningNewCheck)
 
 	// read docker_daemon.yaml
@@ -126,7 +123,7 @@ func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyC
 		return err
 	}
 
-	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
+	if err := os.WriteFile(dst, data, 0640); err != nil {
 		return fmt.Errorf("Could not write new docker configuration to %s: %s", dst, err)
 	}
 

@@ -4,22 +4,29 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
-import "time"
+import (
+	"time"
+)
 
 // MockCgroup is a mock implementing the Cgroup interface
 type MockCgroup struct {
-	ID       string
-	Parent   Cgroup
-	CPU      *CPUStats
-	Memory   *MemoryStats
-	IOStats  *IOStats
-	PIDStats *PIDStats
-	PIDs     []int
-	Error    error
+	ID          string
+	In          uint64
+	Parent      Cgroup
+	ParentError error
+	CPU         *CPUStats
+	CPUError    error
+	Memory      *MemoryStats
+	MemoryError error
+	IOStats     *IOStats
+	IOError     error
+	PIDStats    *PIDStats
+	PIDError    error
+	PIDs        []int
+	PIDsError   error
 }
 
 // Identifier mock
@@ -27,18 +34,14 @@ func (mc *MockCgroup) Identifier() string {
 	return mc.ID
 }
 
-// GetParent mock
-func (mc *MockCgroup) GetParent() (Cgroup, error) {
-	return mc.Parent, mc.Error
+// Inode mock
+func (mc *MockCgroup) Inode() uint64 {
+	return mc.In
 }
 
-// GetStats mock
-func (mc *MockCgroup) GetStats(stats *Stats) error {
-	stats.CPU = mc.CPU
-	stats.Memory = mc.Memory
-	stats.IO = mc.IOStats
-	stats.PID = mc.PIDStats
-	return mc.Error
+// GetParent mock
+func (mc *MockCgroup) GetParent() (Cgroup, error) {
+	return mc.Parent, mc.ParentError
 }
 
 // GetCPUStats mock
@@ -46,7 +49,7 @@ func (mc *MockCgroup) GetCPUStats(cpuStats *CPUStats) error {
 	if mc.CPU != nil {
 		*cpuStats = *mc.CPU
 	}
-	return mc.Error
+	return mc.CPUError
 }
 
 // GetMemoryStats mock
@@ -54,7 +57,7 @@ func (mc *MockCgroup) GetMemoryStats(memoryStats *MemoryStats) error {
 	if mc.Memory != nil {
 		*memoryStats = *mc.Memory
 	}
-	return mc.Error
+	return mc.MemoryError
 }
 
 // GetIOStats mock
@@ -62,7 +65,7 @@ func (mc *MockCgroup) GetIOStats(ioStats *IOStats) error {
 	if mc.IOStats != nil {
 		*ioStats = *mc.IOStats
 	}
-	return mc.Error
+	return mc.IOError
 }
 
 // GetPIDStats mock
@@ -70,10 +73,12 @@ func (mc *MockCgroup) GetPIDStats(pidStats *PIDStats) error {
 	if mc.PIDStats != nil {
 		*pidStats = *mc.PIDStats
 	}
-	return mc.Error
+	return mc.PIDError
 }
 
 // GetPIDs mock
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (mc *MockCgroup) GetPIDs(cacheValidity time.Duration) ([]int, error) {
-	return mc.PIDs, mc.Error
+	return mc.PIDs, mc.PIDsError
 }

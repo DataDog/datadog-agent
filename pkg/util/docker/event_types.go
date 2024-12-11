@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -13,52 +12,70 @@ import (
 	"sync"
 	"time"
 
+	"github.com/docker/docker/api/types/events"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-const (
-	// ContainerEventActionStart is the action of starting a docker container
-	ContainerEventActionStart = "start"
-	// ContainerEventActionDie is the action of stopping a docker container
-	ContainerEventActionDie = "die"
-	// ContainerEventActionDied is the action of stopping a podman container
-	ContainerEventActionDied = "died"
-	// ContainerEventActionRename is the action of renaming a docker container
-	ContainerEventActionRename = "rename"
-	// ContainerEventActionHealthStatus is the action of changing a docker
-	// container's health status
-	ContainerEventActionHealthStatus = "health_status"
-)
+// ActionDied is a custom action for container events
+// This action is a podman-specific event
+const ActionDied = events.Action("died")
 
-// ContainerEvent describes an event from the docker daemon
+var containerEventActions = []events.Action{
+	events.ActionStart,
+	events.ActionDie,
+	events.ActionRename,
+	events.ActionHealthStatus,
+	ActionDied,
+}
+
+var imageEventActions = []events.Action{
+	events.ActionPull,
+	events.ActionDelete,
+	events.ActionTag,
+	events.ActionUnTag,
+	// TODO: consider adding more image events such as events.ActionImport
+}
+
+var actionPrefixes = []events.Action{
+	events.ActionExecDie,
+	events.ActionExecStart,
+	events.ActionExecDetach,
+	events.ActionExecCreate,
+	events.ActionHealthStatus,
+}
+
+// ContainerEvent describes a container event from the docker daemon
 type ContainerEvent struct {
 	ContainerID   string
 	ContainerName string
 	ImageName     string
-	Action        string
+	Action        events.Action
 	Timestamp     time.Time
 	Attributes    map[string]string
 }
 
-// ContainerEntityName returns the event's container as a tagger entity name
-func (ev *ContainerEvent) ContainerEntityName() string {
-	return ContainerIDToTaggerEntityName(ev.ContainerID)
+// ImageEvent describes an image event from the docker daemon
+type ImageEvent struct {
+	ImageID   string // In some events this is a sha, in others it's a name with tag
+	Action    events.Action
+	Timestamp time.Time
+	// There are more attributes in the original event. Add them here if they're needed
 }
 
 // Errors client might receive
 var (
 	ErrAlreadySubscribed = errors.New("already subscribed")
 	ErrNotSubscribed     = errors.New("not subscribed")
-	ErrEventTimeout      = errors.New("timeout on event sending, re-subscribe")
 )
 
 // eventSubscriber holds the state for a subscriber
 type eventSubscriber struct {
-	name       string
-	eventChan  chan *ContainerEvent
-	errorChan  chan error
-	cancelChan chan struct{}
-	filter     *containers.Filter
+	name                string
+	containerEventsChan chan *ContainerEvent
+	imageEventsChan     chan *ImageEvent
+	cancelChan          chan struct{}
+	filter              *containers.Filter
 }
 
 // eventStreamState holds the state for event streaming towards subscribers

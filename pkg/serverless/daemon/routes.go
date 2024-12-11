@@ -6,8 +6,9 @@
 package daemon
 
 import (
+	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -16,16 +17,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const localTestEnvVar = "DD_LOCAL_TEST"
-
 // Hello is a route called by the Datadog Lambda Library when it starts.
 // It is used to detect the Datadog Lambda Library in the environment.
 type Hello struct {
 	daemon *Daemon
 }
 
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//nolint:revive // TODO(SERV) Fix revive linter
+func (h *Hello) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
+	h.daemon.LambdaLibraryStateLock.Lock()
+	defer h.daemon.LambdaLibraryStateLock.Unlock()
 	h.daemon.LambdaLibraryDetected = true
 }
 
@@ -35,9 +37,10 @@ type Flush struct {
 	daemon *Daemon
 }
 
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//nolint:revive // TODO(SERV) Fix revive linter
+func (f *Flush) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-	if len(os.Getenv(localTestEnvVar)) > 0 {
+	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
 		// thus we canot get the REPORT log line telling that the invocation is finished
 		f.daemon.HandleRuntimeDone()
@@ -52,22 +55,18 @@ type StartInvocation struct {
 
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
+	s.daemon.SetExecutionSpanIncomplete(true)
 	startTime := time.Now()
-	reqBody, err := ioutil.ReadAll(r.Body)
+	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Error("Could not read StartInvocation request body")
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
-	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
-		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
-		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
-		SamplingPriority: r.Header.Get(invocationlifecycle.SamplingPriorityHeader),
-	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
-		InvokeEventRawPayload: string(reqBody),
-		InvokeEventHeaders:    lambdaInvokeContext,
+		InvokeEventRawPayload: reqBody,
+		InvokeEventHeaders:    r.Header,
 		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
 
@@ -79,6 +78,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Debug("a context has been found, sending the context to the tracer")
 		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().TraceID))
 		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().SamplingPriority))
+		if s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex != "" {
+			w.Header().Set(invocationlifecycle.TraceTagsHeader, fmt.Sprintf("%s=%s", invocationlifecycle.Upper64BitsTag, s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex))
+		}
 	}
 }
 
@@ -90,19 +92,39 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
+	e.daemon.SetExecutionSpanIncomplete(false)
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
-	responseBody, err := ioutil.ReadAll(r.Body)
+	coldStartTags := e.daemon.ExecutionContext.GetColdStartTagsForRequestID(ecs.LastRequestID)
+	responseBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := log.Error("Could not read EndInvocation request body")
 		http.Error(w, err.Error(), 400)
 		return
 	}
+
+	errorMsg := r.Header.Get(invocationlifecycle.InvocationErrorMsgHeader)
+	errorType := r.Header.Get(invocationlifecycle.InvocationErrorTypeHeader)
+	errorStack := r.Header.Get(invocationlifecycle.InvocationErrorStackHeader)
+	if decodedStack, err := base64.StdEncoding.DecodeString(errorStack); err != nil {
+		log.Debug("Could not decode error stack header")
+	} else {
+		errorStack = string(decodedStack)
+	}
+	// If any error metadata is received, always mark the span as an error
+	isError := r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true" || len(errorMsg) > 0 || len(errorType) > 0 || len(errorStack) > 0
+
 	var endDetails = invocationlifecycle.InvocationEndDetails{
 		EndTime:            endTime,
-		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
+		IsError:            isError,
 		RequestID:          ecs.LastRequestID,
-		ResponseRawPayload: string(responseBody),
+		ResponseRawPayload: responseBody,
+		ColdStart:          coldStartTags.IsColdStart,
+		ProactiveInit:      coldStartTags.IsProactiveInit,
+		Runtime:            ecs.Runtime,
+		ErrorMsg:           errorMsg,
+		ErrorType:          errorType,
+		ErrorStack:         errorStack,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
@@ -118,7 +140,8 @@ type TraceContext struct {
 	daemon *Daemon
 }
 
-func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//nolint:revive // TODO(SERV) Fix revive linter
+func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionInfo.TraceID))

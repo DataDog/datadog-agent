@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -16,18 +16,16 @@ import (
 )
 
 // syscallMonitorProbes holds the list of probes used to track syscall events
-var syscallMonitorProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
-			EBPFFuncName: "sys_enter",
-		},
-	},
-}
 
 func getSyscallMonitorProbes() []*manager.Probe {
-	return syscallMonitorProbes
+	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "sys_enter",
+			},
+		},
+	}
 }
 
 func getSyscallTableMap() *manager.Map {

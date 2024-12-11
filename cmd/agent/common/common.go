@@ -8,48 +8,17 @@
 package common
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-var (
-	// AC is the global object orchestrating checks' loading and running
-	AC *autodiscovery.AutoConfig
-
-	// Coll is the global collector instance
-	Coll *collector.Collector
-
-	// DSD is the global dogstatsd instance
-	DSD *dogstatsd.Server
-
-	// ExpvarServer is the global expvar server
-	ExpvarServer *http.Server
-
-	// MetadataScheduler is responsible to orchestrate metadata collection
-	MetadataScheduler *metadata.Scheduler
-
-	// MainCtx is the main agent context passed to components
-	MainCtx context.Context
-
-	// MainCtxCancel cancels the main agent context
-	MainCtxCancel context.CancelFunc
-
-	// utility variables
-	_here, _ = executable.Folder()
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
@@ -57,15 +26,15 @@ var (
 func GetPythonPaths() []string {
 	// wheels install in default site - already in sys.path; takes precedence over any additional location
 	return []string{
-		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
-		PyChecksPath,                                   // integrations-core legacy checks
-		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
-		config.Datadog.GetString("additional_checksd"), // custom checks, least precedent check location
+		defaultpaths.GetDistPath(),                               // common modules are shipped in the dist path directly or under the "checks/" sub-dir
+		defaultpaths.PyChecksPath,                                // integrations-core legacy checks
+		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
+		pkgconfigsetup.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
 	}
 }
 
 // GetVersion returns the version of the agent in a http response json
-func GetVersion(w http.ResponseWriter, r *http.Request) {
+func GetVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)
@@ -74,10 +43,10 @@ func GetVersion(w http.ResponseWriter, r *http.Request) {
 
 // NewSettingsClient returns a configured runtime settings client.
 func NewSettingsClient() (settings.Client, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent"), nil
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

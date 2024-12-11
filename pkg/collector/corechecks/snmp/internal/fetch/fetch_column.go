@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
@@ -104,7 +104,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 		}
 		results = getNextResults
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
 		}
 	} else {
@@ -114,7 +114,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 		}
 		results = getBulkResults
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))
 		}
 	}

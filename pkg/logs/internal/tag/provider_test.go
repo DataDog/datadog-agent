@@ -13,31 +13,36 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
-	m := coreConfig.Mock(t)
+	m := configmock.New(t)
 	clock := clock.NewMock()
+	fakeTagger := mock.SetupFakeTagger(t)
 
-	oldStartTime := coreConfig.StartTime
+	oldStartTime := pkgconfigsetup.StartTime
 	then := clock.Now()
-	coreConfig.StartTime = then
+	pkgconfigsetup.StartTime = then
 	defer func() {
-		coreConfig.StartTime = oldStartTime
+		pkgconfigsetup.StartTime = oldStartTime
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
-	m.Set("tags", tags)
-	defer m.Set("tags", nil)
+	m.SetWithoutSource("tags", tags)
+	defer m.SetWithoutSource("tags", nil)
 
-	m.Set("logs_config.tagger_warmup_duration", "2")
+	m.SetWithoutSource("logs_config.tagger_warmup_duration", "2")
 
 	expectedTagsDuration := 5 * time.Second
-	m.Set("logs_config.expected_tags_duration", "5s")
-	defer m.Set("logs_config.expected_tags_duration", 0)
+	m.SetWithoutSource("logs_config.expected_tags_duration", "5s")
+	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
-	p := newProviderWithClock("foo", clock)
+	p := newProviderWithClock(types.NewEntityID(types.ContainerID, "foo"), clock, fakeTagger)
 	pp := p.(*provider)
 
 	var tt []string

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix to the process-agent from picking up processes which are kernel
+    threads due integer overflow when parsing ``/proc/<pid>/stat``.

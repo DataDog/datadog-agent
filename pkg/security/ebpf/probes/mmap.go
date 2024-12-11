@@ -4,36 +4,37 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// mmapProbes holds the list of probes used to track mmap events
-var mmapProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/fget",
-			EBPFFuncName: "kretprobe_fget",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "tracepoint/syscalls/sys_enter_mmap",
-			EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap",
-		},
-	},
-}
-
 func getMMapProbes() []*manager.Probe {
-	mmapProbes = append(mmapProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
+	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_security_mmap_file",
+			},
 		},
-		SyscallFuncName: "mmap",
-	}, Exit)...)
-	return mmapProbes
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_vm_mmap_pgoff",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_vm_mmap_pgoff",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_get_unmapped_area",
+			},
+		},
+	}
 }

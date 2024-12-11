@@ -4,7 +4,6 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package v1
 
@@ -27,14 +26,14 @@ func TestGetInstance(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v1/metadata", "./testdata/instance.json"),
 	)
+	require.Nil(t, err)
 
-	require.Nil(t, err)
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	expected := &Instance{
 		Cluster: "ecs_cluster",
+		Version: "Amazon ECS Agent - v1.32.0 (a7f81040)",
 	}
 
 	client := NewClient(ts.URL)
@@ -58,10 +57,9 @@ func TestGetTasks(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v1/tasks", "./testdata/tasks.json"),
 	)
+	require.Nil(t, err)
 
-	require.Nil(t, err)
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	expected := []Task{
@@ -107,10 +105,9 @@ func TestGetTasksFail(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.RawHandlerOption("/v1/tasks", ""),
 	)
+	require.Nil(t, err)
 
-	require.Nil(t, err)
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	var expected []Task

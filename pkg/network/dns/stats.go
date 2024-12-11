@@ -4,16 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows || linux_bpf
-// +build windows linux_bpf
 
 package dns
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,13 +26,23 @@ const (
 	failedResponse
 	// query means the packet contains a DNS query
 	query
+	// Subsystem name for telemetry purposes
+	dnsStatKeeperModuleName = "network_tracer__dns_stat_keeper"
+	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
+	// for 10000 entries.
+	maxStateMapSize = 10000
+
+	// See WaitForDomain
+	waitForDomainTimeout = 5 * time.Second
 )
 
-// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
-// for 10000 entries.
-const (
-	maxStateMapSize = 10000
-)
+var statsTelemetry = struct {
+	processedStats telemetry.Counter
+	droppedStats   telemetry.Counter
+}{
+	telemetry.NewCounter(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
+	telemetry.NewCounter(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
+}
 
 type dnsPacketInfo struct {
 	transactionID uint16
@@ -64,14 +73,12 @@ type dnsStatKeeper struct {
 	exit             chan struct{}
 	maxSize          int // maximum size of the state map
 	deleteCount      int
-	numStats         int
-	maxStats         int
-	droppedStats     int
-	lastNumStats     *atomic.Int32
-	lastDroppedStats *atomic.Int32
+	processedStats   int64
+	droppedStats     int64
+	maxStats         int64
 }
 
-func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
+func newDNSStatkeeper(timeout time.Duration, maxStats int64) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
 		stats:            make(StatsByKeyByNameByType),
 		state:            make(map[stateKey]stateValue),
@@ -79,8 +86,6 @@ func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 		exit:             make(chan struct{}),
 		maxSize:          maxStateMapSize,
 		maxStats:         maxStats,
-		lastNumStats:     atomic.NewInt32(0),
-		lastDroppedStats: atomic.NewInt32(0),
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -136,23 +141,25 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
-		if d.numStats >= d.maxStats {
+		if d.processedStats >= d.maxStats {
 			d.droppedStats++
+			statsTelemetry.droppedStats.Inc()
 			return
 		}
 		stats = make(map[QueryType]Stats)
 	}
 	byqtype, ok := stats[start.qtype]
 	if !ok {
-		if d.numStats >= d.maxStats {
+		if d.processedStats >= d.maxStats {
 			d.droppedStats++
+			statsTelemetry.droppedStats.Inc()
 			return
 		}
 		byqtype.CountByRcode = make(map[uint32]uint32)
-		d.numStats++
+		d.processedStats++
+		statsTelemetry.processedStats.Inc()
 	}
 
-	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		byqtype.Timeouts++
 	} else {
@@ -168,23 +175,45 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
-	numStats := d.lastNumStats.Load()
-	droppedStats := d.lastDroppedStats.Load()
-	return numStats, droppedStats
-}
-
 func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
-	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
-	d.lastNumStats.Store(int32(d.numStats))
-	d.lastDroppedStats.Store(int32(d.droppedStats))
-	d.numStats = 0
+	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.processedStats, d.droppedStats)
+	d.processedStats = 0
 	d.droppedStats = 0
 	return ret
+}
+
+func (d *dnsStatKeeper) WaitForDomain(domain string) error {
+
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-time.After(waitForDomainTimeout):
+			return fmt.Errorf("domain %v did not appear within %v", domain, waitForDomainTimeout)
+		case <-tick.C:
+			if d.hasDomain(domain) {
+				return nil
+			}
+		}
+	}
+}
+
+func (d *dnsStatKeeper) hasDomain(domain string) bool {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	for _, statsByTypeByHost := range d.stats {
+		for host := range statsByTypeByHost {
+			if host.Get() == domain {
+				return true
+			}
+		}
+
+	}
+	return false
 }
 
 // Snapshot returns a deep copy of all DNS stats.
@@ -230,15 +259,17 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {
-				if d.numStats >= d.maxStats {
+				if d.processedStats >= d.maxStats {
 					d.droppedStats++
+					statsTelemetry.droppedStats.Inc()
 					continue
 				}
 				bytype = make(map[QueryType]Stats)
 			}
 			stats, ok := bytype[v.qtype]
 			if !ok {
-				d.numStats++
+				d.processedStats++
+				statsTelemetry.processedStats.Inc()
 				stats.CountByRcode = make(map[uint32]uint32)
 			}
 			stats.Timeouts++
@@ -262,5 +293,5 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 }
 
 func (d *dnsStatKeeper) Close() {
-	d.exit <- struct{}{}
+	close(d.exit)
 }

@@ -4,22 +4,27 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"testing"
 )
 
 func TestExtractDaemonset(t *testing.T) {
-	testIntOrStr := intstr.FromString("1%")
+	testIntOrStrPercent := intstr.FromString("1%")
+	testIntOrStrNumber := intstr.FromInt(1)
+	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
 	tests := map[string]struct {
 		input    v1.DaemonSet
@@ -36,6 +41,25 @@ func TestExtractDaemonset(t *testing.T) {
 				Status:   &model.DaemonSetStatus{},
 			},
 		},
+		"ds with numeric rolling update options": {
+			input: v1.DaemonSet{
+				Spec: v1.DaemonSetSpec{
+					UpdateStrategy: v1.DaemonSetUpdateStrategy{
+						Type: v1.DaemonSetUpdateStrategyType("RollingUpdate"),
+						RollingUpdate: &v1.RollingUpdateDaemonSet{
+							MaxUnavailable: &testIntOrStrNumber,
+						},
+					},
+				},
+			}, expected: model.DaemonSet{
+				Metadata: &model.Metadata{},
+				Spec: &model.DaemonSetSpec{
+					DeploymentStrategy: "RollingUpdate",
+					MaxUnavailable:     "1",
+				},
+				Status: &model.DaemonSetStatus{},
+			},
+		},
 		"partial ds": {
 			input: v1.DaemonSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -46,12 +70,20 @@ func TestExtractDaemonset(t *testing.T) {
 					UpdateStrategy: v1.DaemonSetUpdateStrategy{
 						Type: v1.DaemonSetUpdateStrategyType("RollingUpdate"),
 						RollingUpdate: &v1.RollingUpdateDaemonSet{
-							MaxSurge:       &testIntOrStr,
-							MaxUnavailable: &testIntOrStr,
+							MaxUnavailable: &testIntOrStrPercent,
 						},
 					},
 				},
 				Status: v1.DaemonSetStatus{
+					Conditions: []v1.DaemonSetCondition{
+						{
+							Type:               "Test",
+							Status:             corev1.ConditionFalse,
+							LastTransitionTime: timestamp,
+							Reason:             "test reason",
+							Message:            "test message",
+						},
+					},
 					CurrentNumberScheduled: 1,
 					NumberReady:            1,
 				},
@@ -60,6 +92,16 @@ func TestExtractDaemonset(t *testing.T) {
 					Name:      "daemonset",
 					Namespace: "namespace",
 				},
+				Conditions: []*model.DaemonSetCondition{
+					{
+						Type:               "Test",
+						Status:             string(corev1.ConditionFalse),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "test reason",
+						Message:            "test message",
+					},
+				},
+				Tags: []string{"kube_condition_test:false"},
 				Spec: &model.DaemonSetSpec{
 					DeploymentStrategy: "RollingUpdate",
 					MaxUnavailable:     "1%",

@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Support container metrics for kata containers using containerd.

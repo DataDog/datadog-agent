@@ -6,11 +6,14 @@
 package proxy
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +33,7 @@ func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -50,7 +53,7 @@ func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -65,22 +68,15 @@ func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.Ex
 	return nil
 }
 
-func TestStartTrue(t *testing.T) {
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
-	assert.True(t, Start("127.0.0.1:7000", "127.0.0.1:7001", &testProcessorResponseValid{}))
-}
-
-func TestStartFalse(t *testing.T) {
-	assert.False(t, Start("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{}))
-}
-
 func TestProxyResponseValid(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestProxyResponseValid is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	// fake the runtime API running on 5001
 	l, err := net.Listen("tcp", "127.0.0.1:5001")
 	assert.Nil(t, err)
 
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "ok")
 	}))
 	ts.Listener.Close()
@@ -88,10 +84,9 @@ func TestProxyResponseValid(t *testing.T) {
 	ts.Start()
 	defer ts.Close()
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
-	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
+	defer startServer(t, "127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})()
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
@@ -108,7 +103,7 @@ func TestProxyResponseError(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:6001")
 	assert.Nil(t, err)
 
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "ok")
 	}))
 	ts.Listener.Close()
@@ -116,10 +111,9 @@ func TestProxyResponseError(t *testing.T) {
 	ts.Start()
 	defer ts.Close()
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
-	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
+	defer startServer(t, "127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})()
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
@@ -130,4 +124,15 @@ func TestProxyResponseError(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 
 	resp.Body.Close()
+}
+
+func startServer(t *testing.T, proxyHostPort, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) func() {
+	shutdownChan := make(chan func(context.Context) error, 1)
+	go setup(proxyHostPort, originalRuntimeHostPort, processor, shutdownChan)
+	shutdown := <-shutdownChan
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		assert.NoError(t, shutdown(ctx))
+	}
 }

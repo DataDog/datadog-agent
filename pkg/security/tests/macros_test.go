@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -14,11 +14,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestMacros(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	macros := []*rules.MacroDefinition{
 		{
 			ID:         "testmacro",
@@ -37,7 +39,7 @@ func TestMacros(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, macros, ruleDefs, testOpts{})
+	test, err := newTestModule(t, macros, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,7 @@ func TestMacros(t *testing.T) {
 			return err
 		}
 		return os.Remove(testFile)
-	}, func(event *sprobe.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "mkdir", event.GetType(), "wrong event type")
 	})
 }

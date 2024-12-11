@@ -6,13 +6,12 @@
 package traceutil
 
 import (
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (
-	envKey     = "env"
-	versionKey = "version"
+	envKey = "env"
 )
 
 // GetEnv returns the first "env" tag found in trace t.
@@ -26,23 +25,6 @@ func GetEnv(root *pb.Span, t *pb.TraceChunk) string {
 			continue
 		}
 		if v, ok := s.Meta[envKey]; ok {
-			return v
-		}
-	}
-	return ""
-}
-
-// GetAppVersion returns the first "version" tag found in trace t.
-// Search starts by root
-func GetAppVersion(root *pb.Span, t *pb.TraceChunk) string {
-	if v, ok := root.Meta[versionKey]; ok {
-		return v
-	}
-	for _, s := range t.Spans {
-		if s.SpanID == root.SpanID {
-			continue
-		}
-		if v, ok := s.Meta[versionKey]; ok {
 			return v
 		}
 	}
@@ -69,9 +51,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 	}
 
 	for i := range t {
-		if _, ok := parentIDToChild[t[i].SpanID]; ok {
-			delete(parentIDToChild, t[i].SpanID)
-		}
+		delete(parentIDToChild, t[i].SpanID)
 	}
 
 	// Here, if the trace is valid, we should have len(parentIDToChild) == 1
@@ -79,7 +59,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 		log.Debugf("Didn't reliably find the root span for traceID:%v", t[0].TraceID)
 	}
 
-	// Have a safe bahavior if that's not the case
+	// Have a safe behavior if that's not the case
 	// Pick the first span without its parent
 	for parentID := range parentIDToChild {
 		return parentIDToChild[parentID]
@@ -108,25 +88,32 @@ func ChildrenMap(t pb.Trace) map[uint64][]*pb.Span {
 // ComputeTopLevel updates all the spans top-level attribute.
 //
 // A span is considered top-level if:
-// - it's a root span
-// - its parent is unknown (other part of the code, distributed trace)
-// - its parent belongs to another service (in that case it's a "local root"
-//   being the highest ancestor of other spans belonging to this service and
-//   attached to it).
-func ComputeTopLevel(t pb.Trace) {
-	// build a lookup map
-	spanIDToIdx := make(map[uint64]int, len(t))
-	for i, span := range t {
-		spanIDToIdx[span.SpanID] = i
+//   - it's a root span
+//   - OR its parent is unknown (other part of the code, distributed trace)
+//   - OR its parent belongs to another service (in that case it's a "local root"
+//     being the highest ancestor of other spans belonging to this service and
+//     attached to it).
+func ComputeTopLevel(trace pb.Trace) {
+	spanIDToIndex := make(map[uint64]int, len(trace))
+	for i, span := range trace {
+		spanIDToIndex[span.SpanID] = i
 	}
-
-	// iterate on each span and mark them as top-level if relevant
-	for _, span := range t {
-		if span.ParentID != 0 {
-			if parentIdx, ok := spanIDToIdx[span.ParentID]; ok && t[parentIdx].Service == span.Service {
-				continue
-			}
+	for _, span := range trace {
+		if span.ParentID == 0 {
+			// span is a root span
+			SetTopLevel(span, true)
+			continue
 		}
-		SetTopLevel(span, true)
+		parentIndex, ok := spanIDToIndex[span.ParentID]
+		if !ok {
+			// span has no parent in chunk
+			SetTopLevel(span, true)
+			continue
+		}
+		if trace[parentIndex].Service != span.Service {
+			// parent is not in the same service
+			SetTopLevel(span, true)
+			continue
+		}
 	}
 }

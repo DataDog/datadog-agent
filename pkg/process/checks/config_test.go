@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestEnsureValidMaxBatchSize(t *testing.T) {
@@ -21,30 +21,35 @@ func TestEnsureValidMaxBatchSize(t *testing.T) {
 		expectedMaxBatchSize int
 	}{
 		{
-			name:                 "valid batch count",
+			name:                 "valid smaller batch count",
 			maxPerMessage:        50,
 			expectedMaxBatchSize: 50,
 		},
 		{
-			name:                 "negative batch count",
+			name:                 "valid larger batch count",
+			maxPerMessage:        200,
+			expectedMaxBatchSize: 200,
+		},
+		{
+			name:                 "invalid negative batch count",
 			maxPerMessage:        -1,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			expectedMaxBatchSize: pkgconfigsetup.DefaultProcessMaxPerMessage,
 		},
 		{
-			name:                 "0 max batch size",
+			name:                 "invalid 0 max batch size",
 			maxPerMessage:        0,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			expectedMaxBatchSize: pkgconfigsetup.DefaultProcessMaxPerMessage,
 		},
 		{
-			name:                 "big max batch size",
-			maxPerMessage:        2000,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			name:                 "invalid big max batch size",
+			maxPerMessage:        20000,
+			expectedMaxBatchSize: pkgconfigsetup.DefaultProcessMaxPerMessage,
 		},
 	}
 
 	assert := assert.New(t)
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			assert.Equal(tc.expectedMaxBatchSize, ensureValidMaxBatchSize(tc.maxPerMessage))
 		})
 	}
@@ -57,30 +62,35 @@ func TestEnsureValidMaxBatchBytes(t *testing.T) {
 		expectedMaxBatchBytes int
 	}{
 		{
-			name:                  "valid batch size",
+			name:                  "valid smaller batch size",
 			maxMessageBytes:       100000,
 			expectedMaxBatchBytes: 100000,
 		},
 		{
-			name:                  "negative batch size",
-			maxMessageBytes:       -1,
-			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
-		},
-		{
-			name:                  "0 max batch size",
-			maxMessageBytes:       0,
-			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
-		},
-		{
-			name:                  "big max batch size",
+			name:                  "valid larger batch size",
 			maxMessageBytes:       2000000,
-			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+			expectedMaxBatchBytes: 2000000,
+		},
+		{
+			name:                  "invalid negative batch size",
+			maxMessageBytes:       -1,
+			expectedMaxBatchBytes: pkgconfigsetup.DefaultProcessMaxMessageBytes,
+		},
+		{
+			name:                  "invalid 0 max batch size",
+			maxMessageBytes:       0,
+			expectedMaxBatchBytes: pkgconfigsetup.DefaultProcessMaxMessageBytes,
+		},
+		{
+			name:                  "invalid big max batch size",
+			maxMessageBytes:       20000000,
+			expectedMaxBatchBytes: pkgconfigsetup.DefaultProcessMaxMessageBytes,
 		},
 	}
 
 	assert := assert.New(t)
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			assert.Equal(tc.expectedMaxBatchBytes, ensureValidMaxBatchBytes(tc.maxMessageBytes))
 		})
 	}

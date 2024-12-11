@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Perform necessary datadog-updater removal steps after package is uninstalled
+# or during the removal of the previous version after an upgrade
+#
+
+PACKAGES_DIR=/opt/datadog-packages
+INSTALL_DIR=/opt/datadog-installer
+RUN_DIR=/var/run/datadog-installer
+
+set -e
+
+if [ "$1" -ne 0 ]; then
+    # This is an upgrade, there is nothing to do now
+    exit 0
+fi
+
+datadog-installer purge || true
+rm -f "/usr/bin/datadog-bootstrap"
+echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR $RUN_DIR"
+rm -rf $PACKAGES_DIR
+rm -rf $RUN_DIR
+rm -rf $INSTALL_DIR
+
+exit 0

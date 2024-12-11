@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package writer
 
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -139,7 +141,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(ts.latency)
 	}
 
-	slurp, err := ioutil.ReadAll(req.Body)
+	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading request body: %v", err))
 	}

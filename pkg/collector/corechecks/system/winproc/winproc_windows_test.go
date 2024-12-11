@@ -3,27 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package winproc
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
 func TestWinprocCheckWindows(t *testing.T) {
-
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
 	pdhtest.SetQueryReturnValue("\\\\.\\System\\Processor Queue Length", 2.0)
 	pdhtest.SetQueryReturnValue("\\\\.\\System\\Processes", 32.0)
 
 	winprocCheck := new(processChk)
-	winprocCheck.Configure(nil, nil, "test")
-
 	mock := mocksender.NewMockSender(winprocCheck.ID())
+	winprocCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock.On("Gauge", "system.proc.queue_length", 2.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.proc.count", 32.0, "", []string(nil)).Return().Times(1)
@@ -33,5 +31,4 @@ func TestWinprocCheckWindows(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
-
 }

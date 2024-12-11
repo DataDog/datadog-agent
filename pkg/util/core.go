@@ -4,7 +4,6 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package util
 
@@ -14,12 +13,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // SetupCoreDump enables core dumps and sets the core dump size limit based on configuration
-func SetupCoreDump() error {
-	if config.Datadog.GetBool("go_core_dump") {
+func SetupCoreDump(cfg model.Reader) error {
+	if cfg.GetBool("go_core_dump") {
 		debug.SetTraceback("crash")
 
 		err := unix.Setrlimit(unix.RLIMIT_CORE, &unix.Rlimit{

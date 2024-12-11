@@ -9,8 +9,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,17 +28,17 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	// fargate (ECS or EKS) does not have host tags, so we need to
 	// add static tags to each container manually
 
-	if !fargate.IsFargateInstance(ctx) {
+	if !fargate.IsFargateInstance() {
 		return nil
 	}
 
 	tags := []string{}
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags = append(tags, config.GetConfiguredTags(false)...)
+	tags = append(tags, configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)...)
 
 	// EKS Fargate specific tags
-	if fargate.IsEKSFargateInstance() {
+	if env.IsFeaturePresent(env.EKSFargate) {
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
@@ -56,7 +60,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 		if found {
 			log.Infof("'%s' was set manually via DD_TAGS, not changing it", clusterTagNamePrefix+tag)
 		} else {
-			cluster := clustername.GetClusterName(ctx, "")
+			cluster := clustername.GetClusterNameTagValue(ctx, "")
 			if cluster == "" {
 				log.Infof("Couldn't build the %q.. tag, DD_CLUSTER_NAME can be used to set it", clusterTagNamePrefix)
 			} else {
@@ -68,19 +72,45 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	return tags
 }
 
-// GetStaticTags is similar to GetStaticTagsSlice, but returning a map[string]string containing
+// GetStaticTags is similar to GetStaticTagsSlice, but returning a map[string][]string containing
 // <key>:<value> pairs for tags.  Tags not matching this pattern are omitted.
-func GetStaticTags(ctx context.Context) map[string]string {
+func GetStaticTags(ctx context.Context) map[string][]string {
 	tags := GetStaticTagsSlice(ctx)
 	if tags == nil {
 		return nil
 	}
+	return sliceToMap(tags)
+}
 
-	rv := make(map[string]string, len(tags))
+// GetGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
+// <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
+// DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
+func GetGlobalEnvTags(config model.Reader) map[string][]string {
+	if flavor.GetFlavor() != flavor.ClusterAgent {
+		return nil
+	}
+
+	// DD_TAGS / DD_EXTRA_TAGS
+	tags := configUtils.GetConfiguredTags(config, false)
+
+	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
+	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
+
+	if tags == nil {
+		return nil
+	}
+	return sliceToMap(tags)
+}
+
+func sliceToMap(tags []string) map[string][]string {
+	rv := make(map[string][]string, len(tags))
 	for _, t := range tags {
 		tagParts := strings.SplitN(t, ":", 2)
 		if len(tagParts) == 2 {
-			rv[tagParts[0]] = tagParts[1]
+			if _, ok := rv[tagParts[0]]; !ok {
+				rv[tagParts[0]] = []string{}
+			}
+			rv[tagParts[0]] = append(rv[tagParts[0]], tagParts[1])
 		}
 	}
 	return rv

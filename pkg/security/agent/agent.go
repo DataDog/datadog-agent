@@ -3,99 +3,83 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent holds agent related files
 package agent
 
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	hostname             string
-	reporter             common.RawReporter
-	client               *RuntimeSecurityClient
-	running              *atomic.Bool
-	wg                   sync.WaitGroup
-	connected            *atomic.Bool
-	eventReceived        *atomic.Uint64
-	activityDumpReceived *atomic.Uint64
-	telemetry            *telemetry
-	endpoints            *config.Endpoints
-	cancel               context.CancelFunc
+	hostname                string
+	reporter                common.RawReporter
+	client                  *RuntimeSecurityClient
+	running                 *atomic.Bool
+	wg                      sync.WaitGroup
+	connected               *atomic.Bool
+	eventReceived           *atomic.Uint64
+	activityDumpReceived    *atomic.Uint64
+	profContainersTelemetry *profContainersTelemetry
+	endpoints               *config.Endpoints
+	cancel                  context.CancelFunc
 
 	// activity dump
-	storage *probe.ActivityDumpStorageManager
+	storage *dump.ActivityDumpStorageManager
 }
 
-// NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
-	client, err := NewRuntimeSecurityClient()
-	if err != nil {
-		return nil, err
-	}
-
-	telemetry, err := newTelemetry()
-	if err != nil {
-		return nil, errors.New("failed to initialize the telemetry reporter")
-	}
-
-	storage, err := probe.NewSecurityAgentStorageManager()
-	if err != nil {
-		return nil, err
-	}
-
-	return &RuntimeSecurityAgent{
-		client:               client,
-		hostname:             hostname,
-		telemetry:            telemetry,
-		storage:              storage,
-		running:              atomic.NewBool(false),
-		connected:            atomic.NewBool(false),
-		eventReceived:        atomic.NewUint64(0),
-		activityDumpReceived: atomic.NewUint64(0),
-	}, nil
+// RSAOptions represents the runtime security agent options
+type RSAOptions struct {
+	LogProfiledWorkloads bool
 }
 
 // Start the runtime security agent
-func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *config.Endpoints) {
+func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints) {
 	rsa.reporter = reporter
 	rsa.endpoints = endpoints
 
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
+	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
-	// Start activity dumps listener
-	go rsa.StartActivityDumpListener()
-	// Send Runtime Security Agent telemetry
-	go rsa.telemetry.run(ctx, rsa)
+
+	if runtime.GOOS == "linux" {
+		// Start activity dumps listener
+		go rsa.StartActivityDumpListener()
+		go rsa.startActivityDumpStorageTelemetry(ctx)
+	}
+
+	if rsa.profContainersTelemetry != nil {
+		// Send Profiled Containers telemetry
+		go rsa.profContainersTelemetry.run(ctx)
+	}
 }
 
 // Stop the runtime recurity agent
 func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.cancel()
 	rsa.running.Store(false)
-	rsa.wg.Wait()
 	rsa.client.Close()
+	rsa.wg.Wait()
 }
 
 // StartEventListener starts listening for new events from system-probe
@@ -107,7 +91,6 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	logTicker := newLogBackoffTicker()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
@@ -160,7 +143,6 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 	rsa.wg.Add(1)
 	defer rsa.wg.Done()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetActivityDumpStream()
 		if err != nil {
@@ -196,60 +178,24 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
 	// parse dump from message
-	dump, err := probe.NewActivityDumpFromMessage(msg.GetDump())
+	dump, err := dump.NewActivityDumpFromMessage(msg.GetDump())
 	if err != nil {
 		log.Errorf("%v", err)
 		return
 	}
+	if rsa.profContainersTelemetry != nil {
+		// register for telemetry for this container
+		imageName, imageTag := dump.GetImageNameTag()
+		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
 
-	raw := bytes.NewBuffer(msg.GetData())
+		raw := bytes.NewBuffer(msg.GetData())
 
-	for _, requests := range dump.StorageRequests {
-		if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
-			log.Errorf("%v", err)
-		}
-	}
-}
-
-// GetStatus returns the current status on the agent
-func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
-	base := map[string]interface{}{
-		"connected":            rsa.connected.Load(),
-		"eventReceived":        rsa.eventReceived.Load(),
-		"activityDumpReceived": rsa.activityDumpReceived.Load(),
-	}
-
-	if rsa.endpoints != nil {
-		base["endpoints"] = rsa.endpoints.GetStatus()
-	}
-
-	if rsa.client != nil {
-		cfStatus, err := rsa.client.GetStatus()
-		if err == nil {
-			if cfStatus.Environment != nil {
-				environment := map[string]interface{}{
-					"warnings":       cfStatus.Environment.Warnings,
-					"kernelLockdown": cfStatus.Environment.KernelLockdown,
-					"mmapableMaps":   cfStatus.Environment.UseMmapableMaps,
-					"ringBuffer":     cfStatus.Environment.UseRingBuffer,
-				}
-				if cfStatus.Environment.Constants != nil {
-					environment["constantFetchers"] = cfStatus.Environment.Constants
-				}
-				base["environment"] = environment
-			}
-			if cfStatus.SelfTests != nil {
-				selfTests := map[string]interface{}{
-					"LastTimestamp": cfStatus.SelfTests.LastTimestamp,
-					"Success":       cfStatus.SelfTests.Success,
-					"Fails":         cfStatus.SelfTests.Fails,
-				}
-				base["selfTests"] = selfTests
+		for _, requests := range dump.StorageRequests {
+			if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
+				log.Errorf("%v", err)
 			}
 		}
 	}
-
-	return base
 }
 
 // newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs
@@ -260,4 +206,20 @@ func newLogBackoffTicker() *backoff.Ticker {
 	expBackoff.MaxElapsedTime = 0
 	expBackoff.Reset()
 	return backoff.NewTicker(expBackoff)
+}
+
+func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.Context) {
+	metricsTicker := time.NewTicker(1 * time.Minute)
+	defer metricsTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-metricsTicker.C:
+			if rsa.storage != nil {
+				rsa.storage.SendTelemetry()
+			}
+		}
+	}
 }

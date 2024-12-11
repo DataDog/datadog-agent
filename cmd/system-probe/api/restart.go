@@ -12,14 +12,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
+func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, tagger tagger.Component, telemetry telemetry.Component) {
 	vars := mux.Vars(r)
-	moduleName := config.ModuleName(vars["module-name"])
+	moduleName := sysconfigtypes.ModuleName(vars["module-name"])
 
-	if moduleName == config.SecurityRuntimeModule {
+	if moduleName == config.EventMonitorModule {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -36,7 +40,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := module.RestartModule(target)
+	err := module.RestartModule(target, wmeta, tagger, telemetry)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

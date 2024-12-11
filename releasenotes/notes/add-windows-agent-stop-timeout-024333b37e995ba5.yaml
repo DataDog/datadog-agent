@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Add a stop timeout to the Windows Agent services. If an Agent service
+    does not cleanly stop within 15 seconds after receiving a stop command
+    from the Service Control Manager, the service will hard stop.
+    The timeout can be configured by setting the DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS
+    environment variable.
+    Agent stop timeouts are logged to the Windows Event Log and can be monitored and alerted on.

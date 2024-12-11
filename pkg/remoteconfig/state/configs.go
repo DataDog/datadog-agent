@@ -10,198 +10,52 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/theupdateframework/go-tuf/data"
-
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
-)
-
-/*
-	To add support for a new product:
-
-	1. Add the definition of the product to the const() block of products and the `allProducts` list.
-	2. Define the serialized configuration struct as well as a function to parse the config from a []byte.
-	3. Add the product to the `parseConfig` function
-	4. Add a method on the `Repository` to retrieved typed configs for the product.
-*/
-
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductFeatures, ProductASMDD}
-
-const (
-	// ProductAPMSampling is the apm sampling product
-	ProductAPMSampling = "APM_SAMPLING"
-	// ProductCWSDD is the cloud workload security product managed by datadog employees
-	ProductCWSDD = "CWS_DD"
-	// ProductFeatures is a pseudo-product that lists whether or not a product should be enabled in a tracer
-	ProductFeatures = "FEATURES"
-	// ProductASMDD is the application security monitoring product managed by datadog employees
-	ProductASMDD = "ASM_DD"
+	"github.com/DataDog/go-tuf/data"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
 var ErrNoConfigVersion = errors.New("version missing in custom file meta")
 
 func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, error) {
-	var c interface{}
-	var err error
+	if _, validProduct := validProducts[product]; !validProduct {
+		return nil, fmt.Errorf("unknown product: %s", product)
+	}
+
 	switch product {
-	case ProductAPMSampling:
-		c, err = parseConfigAPMSampling(raw, metadata)
-	case ProductFeatures:
-		c, err = parseFeaturesConfing(raw, metadata)
-	case ProductCWSDD:
-		c, err = parseConfigCWSDD(raw, metadata)
+	// ASM products are parsed directly in this client
+	case ProductASMFeatures:
+		return parseASMFeaturesConfig(raw, metadata)
 	case ProductASMDD:
-		c, err = parseConfigASMDD(raw, metadata)
+		return parseConfigASMDD(raw, metadata)
+	case ProductASMData:
+		return parseConfigASMData(raw, metadata)
+	// case ProductAgentTask:
+	// 	return ParseConfigAgentTask(raw, metadata)
+	// Other products are parsed separately
 	default:
-		return nil, fmt.Errorf("unknown product - %s", product)
+		return RawConfig{
+			Config:   raw,
+			Metadata: metadata,
+		}, nil
 	}
-
-	return c, err
 }
 
-// APMSamplingConfig is a deserialized APM Sampling configuration file
-// along with its associated remote config metadata.
-type APMSamplingConfig struct {
-	Config   apmsampling.APMSampling
-	Metadata Metadata
-}
-
-func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, error) {
-	var apmConfig apmsampling.APMSampling
-	_, err := apmConfig.UnmarshalMsg(data)
-	if err != nil {
-		return APMSamplingConfig{}, fmt.Errorf("could not parse apm sampling config: %v", err)
-	}
-	return APMSamplingConfig{
-		Config:   apmConfig,
-		Metadata: metadata,
-	}, nil
-}
-
-// APMConfigs returns the currently active APM configs
-func (r *Repository) APMConfigs() map[string]APMSamplingConfig {
-	typedConfigs := make(map[string]APMSamplingConfig)
-
-	configs := r.getConfigs(ProductAPMSampling)
-
-	for path, conf := range configs {
-		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(APMSamplingConfig)
-		if !ok {
-			panic("unexpected config stored as APMSamplingConfig")
-		}
-
-		typedConfigs[path] = typed
-	}
-
-	return typedConfigs
-}
-
-// ConfigCWSDD is a deserialized CWS DD configuration file along with its
-// associated remote config metadata
-type ConfigCWSDD struct {
+// RawConfig holds a config that will be parsed separately
+type RawConfig struct {
 	Config   []byte
 	Metadata Metadata
 }
 
-func parseConfigCWSDD(data []byte, metadata Metadata) (ConfigCWSDD, error) {
-	return ConfigCWSDD{
-		Config:   data,
-		Metadata: metadata,
-	}, nil
-}
-
-// CWSDDConfigs returns the currently active CWSDD config files
-func (r *Repository) CWSDDConfigs() map[string]ConfigCWSDD {
-	typedConfigs := make(map[string]ConfigCWSDD)
-
-	configs := r.getConfigs(ProductCWSDD)
+// GetConfigs returns the current configs of a given product
+func (r *Repository) GetConfigs(product string) map[string]RawConfig {
+	typedConfigs := make(map[string]RawConfig)
+	configs := r.getConfigs(product)
 
 	for path, conf := range configs {
 		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(ConfigCWSDD)
+		typed, ok := conf.(RawConfig)
 		if !ok {
-			panic("unexpected config stored as CWSDD Config")
-		}
-
-		typedConfigs[path] = typed
-	}
-
-	return typedConfigs
-}
-
-// ConfigASMDD is a deserialized ASM DD configuration file along with its
-// associated remote config metadata
-type ConfigASMDD struct {
-	Config   []byte
-	Metadata Metadata
-}
-
-func parseConfigASMDD(data []byte, metadata Metadata) (ConfigASMDD, error) {
-	return ConfigASMDD{
-		Config:   data,
-		Metadata: metadata,
-	}, nil
-}
-
-// ASMDDConfigs returns the currently active ASMDD configs
-func (r *Repository) ASMDDConfigs() map[string]ConfigASMDD {
-	typedConfigs := make(map[string]ConfigASMDD)
-
-	configs := r.getConfigs(ProductASMDD)
-
-	for path, conf := range configs {
-		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(ConfigASMDD)
-		if !ok {
-			panic("unexpected config stored as ASMDD Config")
-		}
-
-		typedConfigs[path] = typed
-	}
-
-	return typedConfigs
-}
-
-// FeaturesConfig is a deserialized configuration file that indicates what features should be enabled
-// within a tracer, along with its associated remote config metadata.
-type FeaturesConfig struct {
-	Config   FeaturesData
-	Metadata Metadata
-}
-
-// FeaturesData describes the enabled state of features
-type FeaturesData struct {
-	ASM struct {
-		Enabled bool `json:"enabled"`
-	} `json:"asm"`
-}
-
-func parseFeaturesConfing(data []byte, metadata Metadata) (FeaturesConfig, error) {
-	var f FeaturesData
-
-	err := json.Unmarshal(data, &f)
-	if err != nil {
-		return FeaturesConfig{}, nil
-	}
-
-	return FeaturesConfig{
-		Config:   f,
-		Metadata: metadata,
-	}, nil
-}
-
-// FeaturesConfigs returns the currently active Features configs
-func (r *Repository) FeaturesConfigs() map[string]FeaturesConfig {
-	typedConfigs := make(map[string]FeaturesConfig)
-
-	configs := r.getConfigs(ProductFeatures)
-
-	for path, conf := range configs {
-		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(FeaturesConfig)
-		if !ok {
-			panic("unexpected config stored as FeaturesConfig")
+			panic("unexpected config stored as RawConfig")
 		}
 
 		typedConfigs[path] = typed
@@ -212,12 +66,13 @@ func (r *Repository) FeaturesConfigs() map[string]FeaturesConfig {
 
 // Metadata stores remote config metadata for a given configuration
 type Metadata struct {
-	Product   string
-	ID        string
-	Name      string
-	Version   uint64
-	RawLength uint64
-	Hashes    map[string][]byte
+	Product     string
+	ID          string
+	Name        string
+	Version     uint64
+	RawLength   uint64
+	Hashes      map[string][]byte
+	ApplyStatus ApplyStatus
 }
 
 func newConfigMetadata(parsedPath configPath, tfm data.TargetFileMeta) (Metadata, error) {

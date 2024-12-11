@@ -7,14 +7,11 @@ updates:
       - dependencies-go
       - team/triage
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # These dependencies are replaced in the main go.mod file.
       # They are ignored since bumping them would have no effect on the build.
       # To update them automatically, it is necessary to remove the `replace` directive.
       - dependency-name: k8s.io/*
-      - dependency-name: github.com/grpc-ecosystem/grpc-gateway
-      - dependency-name: google.golang.org/grpc
       - dependency-name: github.com/cihub/seelog
       - dependency-name: github.com/containerd/cgroups
       - dependency-name: github.com/containerd/containerd
@@ -28,24 +25,21 @@ updates:
       - dependency-name: github.com/prometheus/client_golang
       - dependency-name: github.com/spf13/cast
       - dependency-name: github.com/ugorji/go
-      - dependency-name: github.com/DataDog/nikos
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/otlp/model
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-platform
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
+    open-pull-requests-limit: 100
+    groups:
+      franz-go:
+        patterns:
+          - "github.com/twmb/franz-go*"
+      bun:
+        patterns:
+          - "github.com/uptrace/bun*"
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
@@ -53,7 +47,6 @@ updates:
       - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
@@ -61,6 +54,22 @@ updates:
       - dependency-name: github.com/mailru/easyjson
     schedule:
       interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /pkg/gohai
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-shared-components
+      - changelog/no-changelog
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+      # See https://github.com/DataDog/datadog-agent/pull/10112
+      - dependency-name: github.com/mailru/easyjson
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/obfuscate
     labels:
@@ -68,7 +77,6 @@ updates:
       - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
@@ -76,19 +84,7 @@ updates:
       - dependency-name: github.com/mailru/easyjson
     schedule:
       interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/quantile
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/metrics-aggregation
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/security/secl
     labels:
@@ -96,12 +92,12 @@ updates:
       - dependencies-go
       - team/agent-security
       - changelog/no-changelog
-    milestone: 22
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
     labels:
@@ -112,33 +108,86 @@ updates:
                               # publish a new version exploiting that it runs automatically after it
                               # is updated to write to our repo.
       - dev/tooling
-      - team/agent-platform
+      - team/agent-delivery
       - changelog/no-changelog
-      - qa/skip-qa
-    milestone: 22
+      - qa/no-code-change
     schedule:
       interval: monthly
-  - package-ecosystem: "pip"
-    directory: "/.circleci"
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /pkg/networkdevice/profile
     labels:
       - dependencies
-      - python
-      - team/agent-platform
+      - dependencies-go
+      - team/network-device-monitoring
       - changelog/no-changelog
-      - qa/skip-qa
-      - dev/tooling
-    milestone: 22
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
-      interval: "monthly"
-  - package-ecosystem: "github-actions"
-    directory: "/"
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /test/new-e2e
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-e2e-test
+      - changelog/no-changelog
+      - qa/no-code-change
+      - dev/testing
+    ignore:
+      # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
+      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
+      # and dependabot isn’t able to keep those two synchronized.
+      - dependency-name: github.com/DataDog/test-infra-definitions
+      # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
+      # https://datadoghq.atlassian.net/browse/ADXT-375
+      - dependency-name: github.com/pulumi*
+
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /test/fakeintake
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-e2e-test
+      - changelog/no-changelog
+      - qa/no-code-change
+      - dev/testing
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: docker
+    directory: /test/fakeintake
+    labels:
+      - dependencies
+      - team/agent-e2e-test
+      - changelog/no-changelog
+      - qa/no-code-change
+      - dev/testing
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: github-actions
+    directory: /
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-platform
+      - team/agent-devx-infra
       - changelog/no-changelog
-      - qa/skip-qa
+      - qa/no-code-change
       - dev/tooling
-    milestone: 22
     schedule:
-      interval: "weekly"
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: maven
+    directory: Dockerfiles/agent/bouncycastle-fips
+    labels:
+      - dependencies
+      - team/agent-metrics-logs
+      - changelog/no-changelog
+    schedule:
+      interval: weekly

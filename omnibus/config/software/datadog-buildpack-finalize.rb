@@ -20,7 +20,7 @@ build do
     # TODO too many things done here, should be split
     block do
         # Conf files
-        if windows?
+        if windows_target?
             ## this section creates the parallel `bin` directory structure for the Windows
             ## CF build pack.  None of the files created here will end up in the binary
             ## (MSI) distribution.
@@ -35,7 +35,6 @@ build do
             copy "#{dsd_source_root}/agent/dogstatsd.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
-            copy "#{cf_source_root}/agent/security-agent.exe", "#{cf_bin_root_bin}/agent"
 
             delete "#{install_dir}/bin/agent/agent.exe"
         end

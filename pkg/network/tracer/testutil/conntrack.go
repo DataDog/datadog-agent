@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package testutil
 
@@ -20,7 +19,7 @@ type delayedConntracker struct {
 
 	mux          sync.Mutex
 	numDelays    int
-	delayPerConn map[string]int
+	delayPerConn map[network.ConnectionTuple]int
 }
 
 // NewDelayedConntracker returns a netlink.Conntracker that returns `nil` for `numDelays`
@@ -29,18 +28,17 @@ func NewDelayedConntracker(ctr netlink.Conntracker, numDelays int) netlink.Connt
 	return &delayedConntracker{
 		Conntracker:  ctr,
 		numDelays:    numDelays,
-		delayPerConn: make(map[string]int),
+		delayPerConn: make(map[network.ConnectionTuple]int),
 	}
 }
 
-func (ctr *delayedConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+func (ctr *delayedConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
 	ctr.mux.Lock()
 	defer ctr.mux.Unlock()
 
-	key := c.ByteKey(make([]byte, 64))
-	delays := ctr.delayPerConn[string(key)]
+	delays := ctr.delayPerConn[*c]
 	if delays < ctr.numDelays {
-		ctr.delayPerConn[string(key)]++
+		ctr.delayPerConn[*c]++
 		return nil
 	}
 

@@ -16,7 +16,6 @@ build do
     %w{embedded/lib embedded/bin embedded/etc bin}.each do |dir|
       dir_fullpath = File.expand_path(File.join(install_dir, dir))
       FileUtils.mkdir_p(dir_fullpath)
-      FileUtils.touch(File.join(dir_fullpath, ".gitkeep"))
     end
 
     # Add a README for the embedded environment's configuration folder
@@ -31,7 +30,7 @@ build do
   end
 end
 
-if windows?
+if windows_target?
   build do
     block do
       FileUtils.mkdir_p(File.expand_path(File.join(Omnibus::Config.source_dir(), "datadog-agent", "src", "github.com", "DataDog", "datadog-agent", "bin", "agent")))

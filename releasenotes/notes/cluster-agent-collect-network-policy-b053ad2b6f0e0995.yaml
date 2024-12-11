@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The cluster-agent now collects network policies from the cluster.
+

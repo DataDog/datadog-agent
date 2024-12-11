@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package dns
 
@@ -13,24 +12,27 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
-var _ packetSource = &windowsPacketSource{}
+var _ filter.PacketSource = &windowsPacketSource{}
 
 type windowsPacketSource struct {
 	di *dnsDriver
 }
 
 // newWindowsPacketSource constructs a new packet source
-func newWindowsPacketSource() (packetSource, error) {
-	di, err := newDriver()
+func newWindowsPacketSource(telemetrycomp telemetry.Component) (filter.PacketSource, error) {
+	di, err := newDriver(telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
 	return &windowsPacketSource{di: di}, nil
 }
 
-func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, filter.PacketInfo, time.Time) error) error {
 	for {
 		didReadPacket, err := p.di.ReadDNSPacket(visit)
 		if err != nil {
@@ -49,14 +51,8 @@ func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]by
 	}
 }
 
-func (p *windowsPacketSource) PacketType() gopacket.LayerType {
+func (p *windowsPacketSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeIPv4
-}
-
-func (p *windowsPacketSource) Stats() map[string]int64 {
-	// this is a no-op because all the stats are handled by driver_interface.go
-	s, _ := p.di.GetStatsForHandle()
-	return s["handle"]
 }
 
 func (p *windowsPacketSource) Close() {

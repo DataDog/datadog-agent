@@ -18,24 +18,13 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpproxy"
+	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	// NoProxyIgnoredWarningMap map containing URL's who will ignore the proxy in the future
-	NoProxyIgnoredWarningMap = make(map[string]bool)
-
-	// NoProxyUsedInFuture map containing URL's that will use a proxy in the future
-	NoProxyUsedInFuture = make(map[string]bool)
-
-	// NoProxyChanged map containing URL's whos proxy behavior will change in the future
-	NoProxyChanged = make(map[string]bool)
-
-	// NoProxyMapMutex Lock for all no proxy maps
-	NoProxyMapMutex = sync.Mutex{}
-
 	keyLogWriterInit sync.Once
 	keyLogWriter     io.Writer
 )
@@ -47,20 +36,11 @@ func logSafeURLString(url *url.URL) string {
 	return url.Scheme + "://" + url.Host
 }
 
-func warnOnce(warnMap map[string]bool, key string, format string, params ...interface{}) {
-	NoProxyMapMutex.Lock()
-	defer NoProxyMapMutex.Unlock()
-	if _, ok := warnMap[key]; !ok {
-		warnMap[key] = true
-		log.Warnf(format, params...)
-	}
-}
-
 // minTLSVersionFromConfig determines the minimum TLS version defined by the given
 // config, accounting for defaults and deprecated configuration parameters.
 //
 // The returned result is one of the `tls.VersionTLSxxx` constants.
-func minTLSVersionFromConfig(cfg config.Config) uint16 {
+func minTLSVersionFromConfig(cfg pkgconfigmodel.Reader) uint16 {
 	var min uint16
 	minTLSVersion := cfg.GetString("min_tls_version")
 	switch strings.ToLower(minTLSVersion) {
@@ -73,11 +53,7 @@ func minTLSVersionFromConfig(cfg config.Config) uint16 {
 	case "tlsv1.3":
 		min = tls.VersionTLS13
 	default:
-		if cfg.GetBool("force_tls_12") {
-			min = tls.VersionTLS12
-		} else {
-			min = tls.VersionTLS10
-		}
+		min = tls.VersionTLS12
 		if minTLSVersion != "" {
 			log.Warnf("Invalid `min_tls_version` %#v; using default", minTLSVersion)
 		}
@@ -86,15 +62,15 @@ func minTLSVersionFromConfig(cfg config.Config) uint16 {
 }
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
-func CreateHTTPTransport() *http.Transport {
+func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*http.Transport)) *http.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.
 	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
 	keyLogWriterInit.Do(func() {
-		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
+		sslKeyLogFile := cfg.GetString("sslkeylogfile")
 		if sslKeyLogFile != "" {
 			var err error
-			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 			if err != nil {
 				log.Warnf("Failed to open %s for writing NSS keys: %v", sslKeyLogFile, err)
 			}
@@ -103,10 +79,10 @@ func CreateHTTPTransport() *http.Transport {
 
 	tlsConfig := &tls.Config{
 		KeyLogWriter:       keyLogWriter,
-		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
+		InsecureSkipVerify: cfg.GetBool("skip_ssl_validation"),
 	}
 
-	tlsConfig.MinVersion = minTLSVersionFromConfig(config.Datadog)
+	tlsConfig.MinVersion = minTLSVersionFromConfig(cfg)
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general
@@ -114,25 +90,44 @@ func CreateHTTPTransport() *http.Transport {
 	// desirable side-effect of disabling http/2; if removing those fields then
 	// consider the implication of the protocol switch for intakes and other http
 	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
+
+	var tlsHandshakeTimeout time.Duration
+	if cfg.IsSet("tls_handshake_timeout") {
+		tlsHandshakeTimeout = cfg.GetDuration("tls_handshake_timeout")
+	} else {
+		tlsHandshakeTimeout = 10 * time.Second
+	}
+
+	// Control whether to disable RFC 6555 Fast Fallback ("Happy Eyeballs")
+	// By default this is disabled (set to a negative value).
+	// It can be set to 0 to use the default value, or an explicit duration.
+	fallbackDelay := -1 * time.Nanosecond
+	if cfg.IsSet("http_dial_fallback_delay") {
+		fallbackDelay = cfg.GetDuration("http_dial_fallback_delay")
+	}
+
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
 			Timeout: 30 * time.Second,
 			// Enables TCP keepalives to detect broken connections
-			KeepAlive: 30 * time.Second,
-			// Disable RFC 6555 Fast Fallback ("Happy Eyeballs")
-			FallbackDelay: -1 * time.Nanosecond,
+			KeepAlive:     30 * time.Second,
+			FallbackDelay: fallbackDelay,
 		}).DialContext,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 5,
 		// This parameter is set to avoid connections sitting idle in the pool indefinitely
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		IdleConnTimeout:       45 * time.Second,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	if proxies := config.GetProxies(); proxies != nil {
-		transport.Proxy = GetProxyTransportFunc(proxies)
+	if proxies := cfg.GetProxies(); proxies != nil {
+		transport.Proxy = GetProxyTransportFunc(proxies, cfg)
+	}
+
+	for _, transportOption := range transportOptions {
+		transportOption(transport)
 	}
 
 	return transport
@@ -140,15 +135,14 @@ func CreateHTTPTransport() *http.Transport {
 
 // GetProxyTransportFunc return a proxy function for a http.Transport that
 // would return the right proxy depending on the configuration.
-func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error) {
-
+func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) func(*http.Request) (*url.URL, error) {
 	proxyConfig := &httpproxy.Config{
 		HTTPProxy:  p.HTTP,
 		HTTPSProxy: p.HTTPS,
 		NoProxy:    strings.Join(p.NoProxy, ","),
 	}
 
-	if config.Datadog.GetBool("no_proxy_nonexact_match") {
+	if cfg.GetBool("no_proxy_nonexact_match") {
 		return func(r *http.Request) (*url.URL, error) {
 			return proxyConfig.ProxyFunc()(r.URL)
 		}
@@ -159,7 +153,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			// check no_proxy list first
 			for _, host := range p.NoProxy {
 				if r.URL.Host == host {
-					log.Debugf("URL match no_proxy list item '%s': not using any proxy", host)
+					log.Debugf("URL '%s' matches no_proxy list item '%s': not using any proxy", r.URL, host)
 					return nil, nil
 				}
 			}
@@ -209,7 +203,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
 		if url != nil && newURL == nil {
-			warnOnce(NoProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
+			warnOnce(noProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
 			return url, err
 		}
 
@@ -222,16 +216,26 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the url does not use the proxy - but will for some reason when no_proxy_nonexact_match is true
 		if url == nil && newURL != nil {
-			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
+			warnOnce(noProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
 			return url, err
 		}
 
 		// Print a warning if the url uses the proxy and still will when no_proxy_nonexact_match is true but for some reason is different
 		if url.String() != newURLString {
-			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
+			warnOnce(noProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
 			return url, err
 		}
 
 		return url, err
+	}
+}
+
+// WithHTTP2 returns a http2 as a transport option
+func WithHTTP2() func(*http.Transport) {
+	return func(transport *http.Transport) {
+		err := http2.ConfigureTransport(transport)
+		if err != nil {
+			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocol", err)
+		}
 	}
 }

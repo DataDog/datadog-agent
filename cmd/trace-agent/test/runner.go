@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"testing"
@@ -17,7 +17,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.
@@ -48,7 +48,22 @@ func (s *Runner) Start() error {
 		// respect whatever the testing framework says
 		s.Verbose = testing.Verbose()
 	}
-	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose)
+	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose, false)
+	if err != nil {
+		return err
+	}
+	s.agent = agent
+	return s.backend.Start()
+}
+
+// StartAndBuildSecretBackend initializes the runner, creates the secret binary and starts the fake backend.
+func (s *Runner) StartAndBuildSecretBackend() error {
+	s.backend = newFakeBackend(s.ChannelSize)
+	if !s.Verbose {
+		// respect whatever the testing framework says
+		s.Verbose = testing.Verbose()
+	}
+	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose, true)
 	if err != nil {
 		return err
 	}
@@ -103,6 +118,11 @@ func (s *Runner) Out() <-chan interface{} {
 		return closedCh
 	}
 	return s.backend.Out()
+}
+
+// BinDir return the binary directory where the binary, configuration and secret backend binary are stored.
+func (s *Runner) BinDir() string {
+	return s.agent.bindir
 }
 
 // PostMsgpack encodes data using msgpack and posts it to the given path. The agent
@@ -180,15 +200,16 @@ func (s *Runner) DoReq(url, method string, payload []byte) (*http.Response, erro
 
 func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
-	if err == nil {
-		defer resp.Body.Close()
+	if err != nil {
+		return err
 	}
-	if resp.StatusCode != 200 {
-		slurp, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		slurp, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
 		}
 		return fmt.Errorf("%s: %s", resp.Status, slurp)
 	}
-	return err
+	return nil
 }

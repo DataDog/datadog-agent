@@ -3,24 +3,40 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
 	"sync"
 	"time"
-	"unsafe"
 )
+
+// RegisterCacheEntry used to track the value
+type RegisterCacheEntry struct {
+	Pos   int
+	Value interface{}
+}
 
 // Context describes the context used during a rule evaluation
 type Context struct {
-	Object unsafe.Pointer
-
-	Registers Registers
+	Event Event
 
 	// cache available across all the evaluations
-	Cache map[string]unsafe.Pointer
+	StringCache map[string][]string
+	IntCache    map[string][]int
+	BoolCache   map[string][]bool
+
+	// iterator register cache. used to cache entry within a single rule evaluation
+	RegisterCache map[RegisterID]*RegisterCacheEntry
+
+	// rule register
+	Registers map[RegisterID]int
 
 	now time.Time
+
+	CachedAncestorsCount int
+
+	resolvedFields []string
 }
 
 // Now return and cache the `now` timestamp
@@ -31,28 +47,39 @@ func (c *Context) Now() time.Time {
 	return c.now
 }
 
-// SetObject set the given object to the context
-func (c *Context) SetObject(obj unsafe.Pointer) {
-	c.Object = obj
+// SetEvent set the given event to the context
+func (c *Context) SetEvent(evt Event) {
+	c.Event = evt
 }
 
 // Reset the context
 func (c *Context) Reset() {
-	c.Object = nil
-	c.Registers = nil
+	c.Event = nil
 	c.now = time.Time{}
 
-	// as the cache should be low in entry, prefer to delete than re-alloc
-	for key := range c.Cache {
-		delete(c.Cache, key)
-	}
+	clear(c.StringCache)
+	clear(c.IntCache)
+	clear(c.BoolCache)
+	clear(c.Registers)
+	clear(c.RegisterCache)
+	c.CachedAncestorsCount = 0
+	clear(c.resolvedFields)
+}
+
+// GetResolvedFields returns the resolved fields, always empty outside of functional tests
+func (c *Context) GetResolvedFields() []string {
+	return c.resolvedFields
 }
 
 // NewContext return a new Context
-func NewContext(obj unsafe.Pointer) *Context {
+func NewContext(evt Event) *Context {
 	return &Context{
-		Object: obj,
-		Cache:  make(map[string]unsafe.Pointer),
+		Event:         evt,
+		StringCache:   make(map[string][]string),
+		IntCache:      make(map[string][]int),
+		BoolCache:     make(map[string][]bool),
+		Registers:     make(map[RegisterID]int),
+		RegisterCache: make(map[RegisterID]*RegisterCacheEntry),
 	}
 }
 
@@ -61,10 +88,10 @@ type ContextPool struct {
 	pool sync.Pool
 }
 
-// Get returns a context with the given object
-func (c *ContextPool) Get(obj unsafe.Pointer) *Context {
+// Get returns a context with the given event
+func (c *ContextPool) Get(evt Event) *Context {
 	ctx := c.pool.Get().(*Context)
-	ctx.SetObject(obj)
+	ctx.SetEvent(evt)
 	return ctx
 }
 

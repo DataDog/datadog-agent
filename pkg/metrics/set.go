@@ -16,7 +16,8 @@ func NewSet() *Set {
 	return &Set{values: make(map[string]bool)}
 }
 
-func (s *Set) addSample(sample *MetricSample, timestamp float64) {
+//nolint:revive // TODO(AML) Fix revive linter
+func (s *Set) addSample(sample *MetricSample, _ float64) {
 	s.values[sample.RawValue] = true
 }
 

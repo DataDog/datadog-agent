@@ -6,7 +6,7 @@
 // Package scrubber implements support for cleaning sensitive information out of strings
 // and files.
 //
-// Compatibility
+// # Compatibility
 //
 // This module's API is not yet stable, and may change incompatibly from version to version.
 package scrubber
@@ -17,12 +17,21 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
 type Replacer struct {
 	// Regex must match the sensitive information
 	Regex *regexp.Regexp
+	// YAMLKeyRegex matches the key of sensitive information in a dict/map. This is used when iterating over a
+	// map[string]interface{} to scrub data for all matching key before being serialized.
+	YAMLKeyRegex *regexp.Regexp
+	// ProcessValue is a callback to be executed when YAMLKeyRegex matches the key of a map/dict in a YAML object. The
+	// value is passed to the function and replaced by the returned interface. This is useful to produce custom
+	// scrubbing. Example: keeping the last 5 digit of an api key.
+	ProcessValue func(data interface{}) interface{}
 	// Hints, if given, are strings which must also be present in the text for the regexp to match.
 	// Especially in single-line replacers, this can be used to limit the contexts where an otherwise
 	// very broad Regex is actually replaced.
@@ -33,6 +42,18 @@ type Replacer struct {
 	// ReplFunc, if set, is called with the matched bytes (see regexp#Regexp.ReplaceAllFunc). Only
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
+
+	// LastUpdated is the last version when the replacer was updated.
+	// This is used to track when a replacer was last updated to compare with the flare version on the rapid side to decide to apply the replacer or not.
+	LastUpdated *version.Version
+}
+
+func parseVersion(versionString string) *version.Version {
+	v, err := version.New(versionString, "")
+	if err != nil {
+		panic(err)
+	}
+	return &v
 }
 
 // ReplacerKind modifies how a Replacer is applied
@@ -62,7 +83,12 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 //
 // It then applies all MultiLine replacers to the entire text of the input.
 type Scrubber struct {
-	singleLineReplacers, multiLineReplacers []Replacer
+	singleLineReplacers []Replacer
+	multiLineReplacers  []Replacer
+
+	// shouldApply is a function that can be used to conditionally apply a replacer.
+	// If the function returns false, the replacer will not be applied.
+	shouldApply func(repl Replacer) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -90,6 +116,11 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	}
 }
 
+// SetShouldApply sets a condition function to the scrubber. If the function returns false, the replacer will not be applied.
+func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
+	c.shouldApply = shouldApply
+}
+
 // ScrubFile scrubs credentials from file given by pathname
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
@@ -108,13 +139,13 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 }
 
 // ScrubBytes scrubs credentials from slice of bytes
-func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
-	r := bytes.NewReader(file)
+func (c *Scrubber) ScrubBytes(data []byte) ([]byte, error) {
+	r := bytes.NewReader(data)
 	return c.scrubReader(r, r.Len())
 }
 
 // ScrubLine scrubs credentials from a single line of text.  It can be safely
-// applied to URLs or to strings containing URLs.  It does not run multi-line
+// applied to URLs or to strings containing URLs. It does not run multi-line
 // replacers, and should not be used on multi-line inputs.
 func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
@@ -128,6 +159,10 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 	}
 
 	scanner := bufio.NewScanner(file)
+	if sizeHint+1 > bufio.MaxScanTokenSize {
+		buffer := make([]byte, 0, sizeHint+1)
+		scanner.Buffer(buffer, sizeHint+1)
+	}
 
 	// First, we go through the file line by line, applying any
 	// single-line replacer that matches the line.
@@ -160,6 +195,15 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 // scrub applies the given replacers to the given data.
 func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
+		if repl.Regex == nil {
+			// ignoring YAML only replacers
+			continue
+		}
+
+		if c.shouldApply != nil && !c.shouldApply(repl) {
+			continue
+		}
+
 		containsHint := false
 		for _, hint := range repl.Hints {
 			if bytes.Contains(data, []byte(hint)) {

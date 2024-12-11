@@ -57,12 +57,25 @@ Configure `kubectl` to connect to the new cluster:
 gcloud container clusters get-credentials "$CLUSTER" --zone "$ZONE"
 ```
 
+
+###### Install the (app.k8s.io/v1beta1) Application CRD
+
+
+Follow instructions from [here](https://github.com/kubernetes-sigs/application/blob/master/docs/quickstart.md).
+
+
 ###### Clone this repository
 
 Clone this repository.
 
 ```shell
 git clone git@github.com:DataDog/datadog-agent.git
+```
+
+Change into this directory.
+
+```shell
+cd google-marketplace
 ```
 
 ###### Deploy the application through mpdev
@@ -73,11 +86,14 @@ Before launching installation you need to setup some varaibles:
 ```
 export REGISTRY=gcr.io/$(gcloud config get-value project | tr ':' '/')
 export APP_NAME=datadog
-export TAG=0.3.1 # Datadog Operator version that will be installed
+export TAG=1.3.0 # Datadog Operator version that will be installed
 ```
 
 You may also need to customize some parameters (name, namespace, APIKey)
 
-docker build --build-arg TAG=$TAG --tag $REGISTRY/$APP_NAME/deployer . && docker push $REGISTRY/$APP_NAME/deployer && mpdev install \
+```
+kubectl create ns datadog-agent
+docker build --pull --platform linux/amd64 --build-arg TAG=$TAG --tag $REGISTRY/$APP_NAME/deployer . && docker push $REGISTRY/$APP_NAME/deployer && mpdev install \
   --deployer=$REGISTRY/$APP_NAME/deployer \
   --parameters='{"name": "datadog", "namespace": "datadog-agent", "datadog.credentials.apiKey": "<your_api_key>"}'
+```

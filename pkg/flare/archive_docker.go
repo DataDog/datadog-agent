@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package flare
 
@@ -13,28 +12,39 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"text/tabwriter"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/docker/docker/api/types"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/docker/docker/api/types/container"
 )
 
 const dockerCommandMaxLength = 29
 
-func zipDockerSelfInspect(tempDir, hostname string) error {
-	du, err := docker.GetDockerUtil()
-	if err != nil {
-		return err
+func getDockerSelfInspect(wmeta optional.Option[workloadmeta.Component]) ([]byte, error) {
+	if !env.IsContainerized() {
+		return nil, fmt.Errorf("The Agent is not containerized")
 	}
 
-	co, err := du.InspectSelf(context.TODO())
+	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	selfContainerID, err := metrics.GetProvider(wmeta).GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		return nil, fmt.Errorf("Unable to determine self container id, err: %w", err)
+	}
+
+	co, err := du.Inspect(context.TODO(), selfContainerID, false)
+	if err != nil {
+		return nil, err
 	}
 
 	// Remove the envvars section, as we already
@@ -50,7 +60,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	// Serialise as JSON
 	jsonStats, err := json.Marshal(co)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var out bytes.Buffer
 	json.Indent(&out, jsonStats, "", "\t") //nolint:errcheck
@@ -65,21 +75,20 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 	serialized = imgRx.ReplaceAllFunc(serialized, replFunc)
 
-	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-	return writeScrubbedFile(f, serialized)
+	return serialized, nil
 }
 
-func zipDockerPs(tempDir, hostname string) error {
+func getDockerPs() ([]byte, error) {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		// if we can't reach docker, let's do nothing
 		log.Debugf("Couldn't reach docker for getting `docker ps`: %s", err)
-		return nil
+		return nil, nil
 	}
-	options := types.ContainerListOptions{All: true, Limit: 500}
+	options := container.ListOptions{All: true, Limit: 500}
 	containerList, err := du.RawContainerList(context.TODO(), options)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Prepare contents
@@ -93,12 +102,11 @@ func zipDockerPs(tempDir, hostname string) error {
 	}
 	err = w.Flush()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Write to file
-	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	return writeScrubbedFile(f, output.Bytes())
+	return output.Bytes(), nil
 }
 
 // trimCommand removes arguments from command string

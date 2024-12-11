@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -21,17 +21,19 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestRename(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rename.file.path == "{{.Root}}/test-rename" && rename.file.uid == 98 && rename.file.gid == 99 && rename.file.destination.path == "{{.Root}}/test2-rename" && rename.file.destination.uid == 98 && rename.file.destination.gid == 99`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,21 +64,22 @@ func TestRename(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
-			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, false)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateRenameSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.rename.path")
+			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
 		})
 	}))
 
@@ -93,21 +96,22 @@ func TestRename(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
-			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, false)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateRenameSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.rename.path")
+			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
 		})
 	})
 
@@ -125,21 +129,22 @@ func TestRename(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
-			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
-			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, false)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateRenameSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.rename.path")
+			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
 		})
 	})
 
@@ -148,6 +153,8 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {
@@ -182,7 +189,7 @@ func TestRename(t *testing.T) {
 				return fmt.Errorf("failed to rename file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
@@ -192,7 +199,9 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, true)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
 			if err != nil {
@@ -204,12 +213,14 @@ func TestRename(t *testing.T) {
 }
 
 func TestRenameInvalidate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rename.file.path in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,13 +248,10 @@ func TestRenameInvalidate(t *testing.T) {
 	for i := 0; i != 5; i++ {
 		test.WaitSignal(t, func() error {
 			return os.Rename(testOldFile, testNewFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
-
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateRenameSchema(t, event)
 		})
 
 		// swap
@@ -254,10 +262,12 @@ func TestRenameInvalidate(t *testing.T) {
 }
 
 func TestRenameReuseInode(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// xfs has changed the inode reuse feature in 5.15
 	// https://lkml.iu.edu/hypermail/linux/kernel/2108.3/07604.html
-	checkKernelCompatibility(t, ">= 5.15 kernels", func(kv *kernel.Version) bool {
-		return kv.Code >= kernel.Kernel5_15
+	checkKernelCompatibility(t, ">= 5.15 kernels or EL9", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel5_15 || kv.IsRH9Kernel()
 	})
 
 	ruleDefs := []*rules.RuleDefinition{{
@@ -268,13 +278,13 @@ func TestRenameReuseInode(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
 	}}
 
-	testDrive, err := newTestDrive(t, "xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +318,7 @@ func TestRenameReuseInode(t *testing.T) {
 		}
 
 		return f.Close()
-	}, func(event *sprobe.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 	})
 
@@ -335,24 +345,24 @@ func TestRenameReuseInode(t *testing.T) {
 			return err
 		}
 		return f.Close()
-	}, func(event *sprobe.Event, rule *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
 		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
 
-		if !validateOpenSchema(t, event) {
-			t.Error(event.String())
-		}
+		test.validateOpenSchema(t, event)
 	})
 }
 
 func TestRenameFolder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.name == "test-rename" && (open.flags & O_CREAT) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,13 +390,10 @@ func TestRenameFolder(t *testing.T) {
 				return err
 			}
 			return testFile.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "open.file.path", filename)
-
-			if !validateOpenSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateOpenSchema(t, event)
 
 			// swap
 			if err := os.Rename(testOldFolder, testNewFolder); err != nil {

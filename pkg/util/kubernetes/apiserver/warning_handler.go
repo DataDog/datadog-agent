@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -20,6 +19,8 @@ var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
 type CustomWarningLogger struct{}
 
 // HandleWarningHeader suppresses some warning logs
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (CustomWarningLogger) HandleWarningHeader(code int, agent string, message string) {
 	if code != 299 || len(message) == 0 || supressedWarning.MatchString(message) {
 		return

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package snmp contains the SNMP corecheck integration
 package snmp
 
 import (
@@ -10,17 +11,27 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+)
+
+const (
+	// CheckName is the name of the check
+	CheckName = common.SnmpIntegrationName
 )
 
 var timeNow = time.Now
@@ -28,10 +39,11 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config         *checkconfig.CheckConfig
-	singleDeviceCk *devicecheck.DeviceCheck
-	discovery      discovery.Discovery
-	sessionFactory session.Factory
+	config                     *checkconfig.CheckConfig
+	singleDeviceCk             *devicecheck.DeviceCheck
+	discovery                  *discovery.Discovery
+	sessionFactory             session.Factory
+	workerRunDeviceCheckErrors *atomic.Uint64
 }
 
 // Run executes the check
@@ -43,8 +55,7 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.IsDiscovery() {
-		var discoveredDevices []*devicecheck.DeviceCheck
-		discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs()
+		discoveredDevices := c.discovery.GetDiscoveredDeviceConfigs()
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 
@@ -62,7 +73,8 @@ func (c *Check) Run() error {
 				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
 				continue
 			}
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname))
+			// `interface_configs` option not supported by SNMP corecheck autodiscovery
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, deviceCk.GetInterfaceBandwidthState()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -76,12 +88,13 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
 	// Commit
 	sender.Commit()
+
 	return checkErr
 }
 
@@ -90,7 +103,8 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 	for job := range jobs {
 		err := c.runCheckDevice(job)
 		if err != nil {
-			log.Errorf("worker %d : error collecting for device %s: %s", workerID, job.GetIPAddress(), err)
+			c.workerRunDeviceCheckErrors.Inc()
+			log.Errorf("worker %d : error collecting for device %s (total errors: %d): %s", workerID, job.GetIPAddress(), c.workerRunDeviceCheckErrors.Load(), err)
 		}
 	}
 }
@@ -107,7 +121,7 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 }
 
 // Configure configures the snmp checks
-func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
 
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
@@ -117,25 +131,25 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.Name == "" {
-		var checkName string
+		var CheckName string
 		// Set 'name' field of the instance if not already defined in rawInstance config.
 		// The name/device_id will be used by Check.BuildID for building the check id.
 		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
 		if c.config.IsDiscovery() {
-			checkName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
+			CheckName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
 		} else {
-			checkName = c.config.DeviceID
+			CheckName = c.config.DeviceID
 		}
-		setNameErr := rawInstance.SetNameForInstance(checkName)
+		setNameErr := rawInstance.SetNameForInstance(CheckName)
 		if setNameErr != nil {
-			log.Warnf("error setting check name (checkName=%s): %s", checkName, setNameErr)
+			log.Warnf("error setting check name (CheckName=%s): %s", CheckName, setNameErr)
 		}
 	}
 
 	// Must be called before c.CommonConfigure
-	c.BuildID(rawInstance, rawInitConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err = c.CommonConfigure(rawInitConfig, rawInstance, source)
+	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
@@ -154,7 +168,10 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 // Cancel is called when check is unscheduled
 func (c *Check) Cancel() {
-	c.discovery.Stop()
+	if c.discovery != nil {
+		c.discovery.Stop()
+		c.discovery = nil
+	}
 }
 
 // Interval returns the scheduling time for the check
@@ -162,13 +179,31 @@ func (c *Check) Interval() time.Duration {
 	return c.config.MinCollectionInterval
 }
 
-func snmpFactory() check.Check {
-	return &Check{
-		CheckBase:      core.NewCheckBase(common.SnmpIntegrationName),
-		sessionFactory: session.NewGosnmpSession,
+// GetDiagnoses collects diagnoses for diagnose CLI
+func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	if c.config.IsDiscovery() {
+		devices := c.discovery.GetDiscoveredDeviceConfigs()
+		var diagnosis []diagnosis.Diagnosis
+
+		for _, deviceCheck := range devices {
+			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)
+		}
+
+		return diagnosis, nil
 	}
+
+	return c.singleDeviceCk.GetDiagnoses(), nil
 }
 
-func init() {
-	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
+	return &Check{
+		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
+		sessionFactory:             session.NewGosnmpSession,
+		workerRunDeviceCheckErrors: atomic.NewUint64(0),
+	}
 }

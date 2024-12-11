@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package writer contains the logic for sending payloads to the Datadog intake.
 package writer
 
 import (
@@ -10,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -24,11 +24,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
-func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int) []*sender {
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) []*sender {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
@@ -38,18 +41,20 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
+			telemetryCollector.SendStartupError(telemetry.InvalidIntakeEndpoint, err)
 			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:    cfg.NewHTTPClient(),
-			maxConns:  int(maxConns),
-			maxQueued: qsize,
-			url:       url,
-			apiKey:    endpoint.APIKey,
-			recorder:  r,
-			userAgent: fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
-		})
+			client:     cfg.NewHTTPClient(),
+			maxConns:   int(maxConns),
+			maxQueued:  qsize,
+			maxRetries: cfg.MaxSenderRetries,
+			url:        url,
+			apiKey:     endpoint.APIKey,
+			recorder:   r,
+			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+		}, statsd)
 	}
 	return senders
 }
@@ -123,6 +128,9 @@ type senderConfig struct {
 	// maxQueued specifies the maximum number of payloads allowed in the queue.
 	// When it is surpassed, oldest items get dropped to make room for new ones.
 	maxQueued int
+	// maxRetries specifies the maximum number of times a payload submission to
+	// intake will be retried before being dropped.
+	maxRetries int
 	// recorder specifies the eventRecorder to use when reporting events occurring
 	// in the sender.
 	recorder eventRecorder
@@ -135,44 +143,40 @@ type senderConfig struct {
 type sender struct {
 	cfg *senderConfig
 
-	queue    chan *payload // payload queue
-	climit   chan struct{} // semaphore for limiting concurrent connections
-	inflight *atomic.Int32 // inflight payloads
-	attempt  *atomic.Int32 // active retry attempt
+	queue      chan *payload // payload queue
+	inflight   *atomic.Int32 // inflight payloads
+	maxRetries int32
 
 	mu     sync.RWMutex // guards closed
 	closed bool         // closed reports if the loop is stopped
+	statsd statsd.ClientInterface
 }
 
 // newSender returns a new sender based on the given config cfg.
-func newSender(cfg *senderConfig) *sender {
+func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
 	s := sender{
-		cfg:      cfg,
-		queue:    make(chan *payload, cfg.maxQueued),
-		climit:   make(chan struct{}, cfg.maxConns),
-		inflight: atomic.NewInt32(0),
-		attempt:  atomic.NewInt32(0),
+		cfg:        cfg,
+		queue:      make(chan *payload, cfg.maxQueued),
+		inflight:   atomic.NewInt32(0),
+		maxRetries: int32(cfg.maxRetries),
+		statsd:     statsd,
 	}
-	go s.loop()
+	for i := 0; i < cfg.maxConns; i++ {
+		go s.loop()
+	}
 	return &s
 }
 
 // loop runs the main sender loop.
 func (s *sender) loop() {
 	for p := range s.queue {
-		s.backoff()
-		s.climit <- struct{}{}
-		go func(p *payload) {
-			defer func() { <-s.climit }()
-			s.sendPayload(p)
-		}(p)
+		s.sendPayload(p)
 	}
 }
 
 // backoff triggers a sleep period proportional to the retry attempt, if any.
-func (s *sender) backoff() {
-	attempt := s.attempt.Load()
-	delay := backoffDuration(int(attempt))
+func (s *sender) backoff(attempt int) {
+	delay := backoffDuration(attempt)
 	if delay == 0 {
 		return
 	}
@@ -209,35 +213,39 @@ outer:
 
 // Push pushes p onto the sender's queue, to be written to the destination.
 func (s *sender) Push(p *payload) {
-	for {
-		select {
-		case s.queue <- p:
-			// ok
-			s.inflight.Inc()
-			return
-		default:
-			// drop the oldest item in the queue to make room
-			select {
-			case p := <-s.queue:
-				s.releasePayload(p, eventTypeDropped, &eventData{
-					bytes: p.body.Len(),
-					count: 1,
-				})
-			default:
-				// the queue got drained; not very likely to happen, but
-				// we shouldn't risk a deadlock
-				continue
-			}
-		}
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return
 	}
+	s.mu.RUnlock()
+	select {
+	case s.queue <- p:
+	default:
+		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
+		s.queue <- p
+	}
+	s.inflight.Inc()
 }
 
 // sendPayload sends the payload p to the destination URL.
 func (s *sender) sendPayload(p *payload) {
+	for attempt := 0; ; attempt++ {
+		s.backoff(attempt)
+		if s.sendOnce(p) {
+			return
+		}
+	}
+}
+
+// sendOnce attempts to send the payload one time, returning
+// whether or not the payload is "finished" either because it was
+// sent, or because sending encountered a non-retryable error.
+func (s *sender) sendOnce(p *payload) bool {
 	req, err := p.httpRequest(s.cfg.url)
 	if err != nil {
 		log.Errorf("http.Request: %s", err)
-		return
+		return true
 	}
 	start := time.Now()
 	err = s.do(req)
@@ -247,16 +255,19 @@ func (s *sender) sendPayload(p *payload) {
 		duration: time.Since(start),
 		err:      err,
 	}
+	if err != nil {
+		log.Tracef("Error submitting payload: %v\n", err)
+	}
 	switch err.(type) {
 	case *retriableError:
 		// request failed again, but can be retried
 		s.mu.RLock()
 		defer s.mu.RUnlock()
 		if s.closed {
+			s.releasePayload(p, eventTypeDropped, stats)
 			// sender is stopped
-			return
+			return true
 		}
-		s.attempt.Inc()
 
 		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 {
 			// Only log a warning if the retry attempt is a power of 2
@@ -264,29 +275,22 @@ func (s *sender) sendPayload(p *payload) {
 			// e.g. attempts 4, 8, 16, etc.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
-		select {
-		case s.queue <- p:
-			s.recordEvent(eventTypeRetry, stats)
-			return
-		default:
+		if p.retries.Load() >= s.maxRetries {
+			log.Warnf("Dropping Payload after %d retries, due to: %v.\n", p.retries.Load(), err)
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
+			return true
 		}
+		s.recordEvent(eventTypeRetry, stats)
+		return false
 	case nil:
-		// request was successful; the retry queue may have grown large - we should
-		// reduce the backoff gradually to avoid hitting the edge too hard.
-		for {
-			// interlock with other sends to avoid setting the same value
-			attempt := s.attempt.Load()
-			if s.attempt.CAS(attempt, attempt/2) {
-				break
-			}
-		}
 		s.releasePayload(p, eventTypeSent, stats)
 	default:
 		// this is a fatal error, we have to drop this payload
+		log.Warnf("Dropping Payload due to non-retryable error: %v.\n", err)
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+	return true
 }
 
 // waitForSenders blocks until all senders have sent their inflight payloads
@@ -317,7 +321,7 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 		return
 	}
 	data.host = s.cfg.url.Hostname()
-	data.connectionFill = float64(len(s.climit)) / float64(cap(s.climit))
+	data.connectionFill = float64(s.inflight.Load())
 	data.queueFill = float64(len(s.queue)) / float64(cap(s.queue))
 	s.cfg.recorder.recordEvent(t, data)
 }
@@ -345,7 +349,7 @@ func (s *sender) do(req *http.Request) error {
 	// From https://golang.org/pkg/net/http/#Response:
 	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
 	// TCP connections if the Body is not read to completion and closed.
-	if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 		log.Debugf("Error discarding request body: %v", err)
 	}
 	resp.Body.Close()
@@ -476,7 +480,9 @@ const (
 
 // backoffDuration returns the backoff duration necessary for the given attempt.
 // The formula is "Full Jitter":
-//   random_between(0, min(cap, base * 2 ** attempt))
+//
+//	random_between(0, min(cap, base * 2 ** attempt))
+//
 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
 var backoffDuration = func(attempt int) time.Duration {
 	if attempt == 0 {

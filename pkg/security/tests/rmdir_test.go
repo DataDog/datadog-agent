@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -19,17 +19,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestRmdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rmdir.file.path in ["{{.Root}}/test-rmdir", "{{.Root}}/test-unlink-rmdir"] && rmdir.file.uid == 0 && rmdir.file.gid == 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,13 +58,15 @@ func TestRmdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
 		})
 	}))
 
@@ -84,17 +88,21 @@ func TestRmdir(t *testing.T) {
 				return error(err)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
 	t.Run("unlinkat-io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		testDir, _, err := test.Path("test-unlink-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -141,13 +149,15 @@ func TestRmdir(t *testing.T) {
 				return fmt.Errorf("failed to unlink file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-			assert.Equal(t, event.Async, true)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
 			if err != nil {
@@ -159,32 +169,39 @@ func TestRmdir(t *testing.T) {
 }
 
 func TestRmdirInvalidate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	for i := 0; i != 5; i++ {
-		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
-		if err != nil {
-			t.Fatal(err)
-		}
+	ifSyscallSupported("SYS_RMDIR", func(t *testing.T, syscallNB uintptr) {
+		for i := 0; i != 5; i++ {
+			testFile, testFilePtr, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if err := syscall.Mkdir(testFile, 0777); err != nil {
-			t.Fatal(err)
-		}
+			if err := syscall.Mkdir(testFile, 0777); err != nil {
+				t.Fatal(err)
+			}
 
-		test.WaitSignal(t, func() error {
-			return syscall.Rmdir(testFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assertFieldEqual(t, event, "rmdir.file.path", testFile)
-		})
-	}
+			test.WaitSignal(t, func() error {
+				if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); errno != 0 {
+					return error(errno)
+				}
+				return nil
+			}, func(event *model.Event, _ *rules.Rule) {
+				assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
+				assertFieldEqual(t, event, "rmdir.file.path", testFile)
+			})
+		}
+	})
 }

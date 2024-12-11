@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
@@ -12,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/mdlayher/netlink"
@@ -21,10 +19,12 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -46,11 +46,6 @@ const (
 	// netlinkBufferSize is size (in bytes) of the Netlink socket receive buffer
 	// We set it to a large enough size to support bursts of Conntrack events.
 	netlinkBufferSize = 1024 * 1024
-
-	// telemetry field name used to designate the rate at which conntrack events are sampled.
-	// a value of 100 means all events are processed, whereas 0 means that all events
-	// are rejected
-	samplingPct = "sampling_pct"
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
@@ -67,7 +62,7 @@ func init() {
 type Consumer struct {
 	conn     *netlink.Conn
 	socket   *Socket
-	pool     *sync.Pool
+	pool     *ddsync.TypedPool[[]byte]
 	procRoot string
 
 	// targetRateLimit represents the maximum number of netlink messages per second
@@ -87,13 +82,6 @@ type Consumer struct {
 	// streaming is set to true after we finish the initial Conntrack dump.
 	streaming bool
 
-	// telemetry
-	enobufs     *atomic.Int64
-	throttles   *atomic.Int64
-	samplingPct *atomic.Int64
-	readErrors  *atomic.Int64
-	msgErrors   *atomic.Int64
-
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
 
@@ -108,7 +96,7 @@ type Event struct {
 	msgs   []netlink.Message
 	netns  uint32
 	buffer *[]byte
-	pool   *sync.Pool
+	pool   *ddsync.TypedPool[[]byte]
 }
 
 // Messages returned from the socket read
@@ -123,9 +111,24 @@ func (e *Event) Done() {
 	}
 }
 
+// Telemetry
+var consumerTelemetry = struct {
+	enobufs     telemetry.Counter
+	throttles   telemetry.Counter
+	samplingPct telemetry.Gauge
+	readErrors  telemetry.Counter
+	msgErrors   telemetry.Counter
+}{
+	telemetry.NewCounter(telemetryModuleName, "enobufs", []string{}, "Counter measuring the number of consumer enobufs"),
+	telemetry.NewCounter(telemetryModuleName, "throttles", []string{}, "Counter measuring the number of consumer throttles"),
+	telemetry.NewGauge(telemetryModuleName, "sampling_pct", []string{}, "Gauge measuring the percent of events sampled by the consumer"),
+	telemetry.NewCounter(telemetryModuleName, "read_errors", []string{}, "Counter measuring the number of consumer read errors"),
+	telemetry.NewCounter(telemetryModuleName, "msg_errors", []string{}, "Counter measuring the number of consumer message errors"),
+}
+
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(cfg *config.Config) (*Consumer, error) {
+func NewConsumer(cfg *config.Config, _ telemetryComp.Component) (*Consumer, error) {
 	ns, err := cfg.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -135,14 +138,9 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		procRoot:            cfg.ProcRoot,
 		pool:                newBufferPool(),
 		targetRateLimit:     cfg.ConntrackRateLimit,
-		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit)),
+		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
-		enobufs:             atomic.NewInt64(0),
-		throttles:           atomic.NewInt64(0),
-		samplingPct:         atomic.NewInt64(0),
-		readErrors:          atomic.NewInt64(0),
-		msgErrors:           atomic.NewInt64(0),
 		recvLoopRunning:     atomic.NewBool(false),
 		rootNetNs:           ns,
 	}
@@ -206,7 +204,9 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 		return false
 	}
 
-	log.Tracef("netlink reply: %v", msgs)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("netlink reply: %v", msgs)
+	}
 
 	if msgs[0].Header.Type == netlink.Error {
 		return false
@@ -238,13 +238,18 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 	var nss []netns.NsHandle
 	var err error
 	if c.listenAllNamespaces {
-		nss, err = util.GetNetNamespaces(c.procRoot)
+		nss, err = kernel.GetNetNamespaces(c.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
 	}
 
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(c.rootNetNs)})
+	var conn *netlink.Conn
+	err = kernel.WithNS(c.rootNetNs, func() error {
+		conn, err = netlink.Dial(unix.AF_UNSPEC, &netlink.Config{})
+		return err
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
@@ -288,11 +293,11 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	return util.WithNS(c.procRoot, ns, func() error {
+	return kernel.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
-		sock, err := NewSocket()
+		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
@@ -301,6 +306,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -320,7 +326,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
-		nsIno, err := util.GetInoForNs(ns)
+		nsIno, err := kernel.GetInoForNs(ns)
 		if err != nil {
 			return fmt.Errorf("netns ino: %w", err)
 		}
@@ -329,6 +335,43 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 		c.receive(output, nsIno)
 		return nil
 	})
+}
+
+// LoadNfConntrackKernelModule requests a dummy connection tuple from netlink conntrack which is discarded but has
+// the side effect of loading the nf_conntrack_netlink module
+func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
+	sock, err := NewSocket(ns)
+	if err != nil {
+		ino, errIno := kernel.GetInoForNs(ns)
+		if errIno != nil {
+			return fmt.Errorf("failed to create new socket for net ns %d and failed to get inode: %v,  %w", int(ns), errIno, err)
+		}
+		return fmt.Errorf("could not open netlink socket for net ns %d and ino %d: %w", int(ns), ino, err)
+	}
+	defer sock.Close()
+
+	conn := netlink.NewConn(sock, sock.pid)
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	// Create a dummy request to netlink for a tuple with 0 values except for the first element which specifies IPv4.
+	// The values are irrelevant, the objective is to trigger a netlink call that forces loading of the module.
+	dummyTupleData := []byte{0x2, 0, 0, 0, 0, 0, 0}
+
+	req := netlink.Message{
+		Header: netlink.Header{
+			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
+			Flags: netlink.Request,
+		},
+		Data: dummyTupleData,
+	}
+
+	if _, err = conn.Send(req); err != nil {
+		return fmt.Errorf("error while sending netlink request: %w", err)
+	}
+	_, _, _ = sock.ReceiveAndDiscard()
+	return nil
 }
 
 // DumpAndDiscardTable sends a message to netlink to dump all entries present in the Conntrack table. It
@@ -341,7 +384,7 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 	var nss []netns.NsHandle
 	var err error
 	if c.listenAllNamespaces {
-		nss, err = util.GetNetNamespaces(c.procRoot)
+		nss, err = kernel.GetNetNamespaces(c.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
@@ -389,11 +432,11 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 }
 
 func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
-	return util.WithNS(c.procRoot, ns, func() error {
+	return kernel.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
-		sock, err := NewSocket()
+		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
@@ -402,6 +445,7 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -427,17 +471,6 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 	})
 }
 
-// GetStats returns telemetry associated to the Consumer
-func (c *Consumer) GetStats() map[string]int64 {
-	return map[string]int64{
-		"enobufs":     c.enobufs.Load(),
-		"throttles":   c.throttles.Load(),
-		samplingPct:   c.samplingPct.Load(),
-		"read_errors": c.readErrors.Load(),
-		"msg_errors":  c.msgErrors.Load(),
-	}
-}
-
 // Stop the consumer
 func (c *Consumer) Stop() {
 	if c.conn != nil {
@@ -448,12 +481,8 @@ func (c *Consumer) Stop() {
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
-	err := util.WithNS(c.procRoot, c.rootNetNs, func() error {
-		var err error
-		c.socket, err = NewSocket()
-		return err
-	})
-
+	var err error
+	c.socket, err = NewSocket(c.rootNetNs)
 	if err != nil {
 		return err
 	}
@@ -479,7 +508,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	c.samplingPct.Store(int64(samplingRate * 100.0))
+	consumerTelemetry.samplingPct.Set(float64((samplingRate * 100.0)))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}
@@ -488,7 +517,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
-		c.samplingPct.Store(0)
+		consumerTelemetry.samplingPct.Set(0)
 		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 
@@ -515,7 +544,7 @@ func (c *Consumer) receive(output chan Event, ns uint32) {
 
 ReadLoop:
 	for {
-		buffer := c.pool.Get().(*[]byte)
+		buffer := c.pool.Get()
 		// ignore the netns value coming from netlink because it is a nsid NOT an inode number.
 		// once we have a mapping between nsid->ino, then we can use these values again.
 		msgs, _, err := c.socket.ReceiveInto(*buffer)
@@ -527,9 +556,9 @@ ReadLoop:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				c.enobufs.Inc()
+				consumerTelemetry.enobufs.Inc()
 			default:
-				c.readErrors.Inc()
+				consumerTelemetry.readErrors.Inc()
 			}
 		}
 
@@ -541,7 +570,7 @@ ReadLoop:
 		// Messages with error codes are simply skipped
 		for _, m := range msgs {
 			if err := checkMessage(m); err != nil {
-				c.msgErrors.Inc()
+				consumerTelemetry.msgErrors.Inc()
 				continue ReadLoop
 			}
 		}
@@ -564,7 +593,7 @@ ReadLoop:
 // receive netlink messages and discard them immediately
 func (c *Consumer) receiveAndDiscard() {
 	for {
-		done, err := c.socket.ReceiveAndDiscard()
+		done, _, err := c.socket.ReceiveAndDiscard()
 		if err != nil {
 			log.Tracef("consumer netlink socket error: %s", err)
 			switch socketError(err) {
@@ -572,9 +601,9 @@ func (c *Consumer) receiveAndDiscard() {
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				c.enobufs.Inc()
+				consumerTelemetry.enobufs.Inc()
 			default:
-				c.readErrors.Inc()
+				consumerTelemetry.readErrors.Inc()
 			}
 		}
 		if done {
@@ -605,11 +634,12 @@ func (c *Consumer) throttle(numMessages int) error {
 	if !c.breaker.IsOpen() {
 		return nil
 	}
-	c.throttles.Inc()
+	consumerTelemetry.throttles.Inc()
 
 	// Close current socket
 	c.conn.Close()
 	c.conn = nil
+	c.socket = nil
 
 	if pre315Kernel {
 		// we cannot recreate the socket and set a bpf filter on
@@ -633,14 +663,9 @@ func (c *Consumer) throttle(numMessages int) error {
 	return c.conn.JoinGroup(netlinkCtNew)
 }
 
-func newBufferPool() *sync.Pool {
+func newBufferPool() *ddsync.TypedPool[[]byte] {
 	bufferSize := os.Getpagesize()
-	return &sync.Pool{
-		New: func() interface{} {
-			b := make([]byte, bufferSize)
-			return &b
-		},
-	}
+	return ddsync.NewSlicePool[byte](bufferSize, bufferSize)
 }
 
 var (

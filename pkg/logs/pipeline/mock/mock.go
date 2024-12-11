@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mock
 
 import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -30,10 +32,33 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
+func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) (bool, error) {
+	return false, nil
+}
+
+func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
+	return false, nil
+}
+
+func (p *mockProvider) StopSDSProcessing() error {
+	return nil
+}
+
+func (p *mockProvider) GetOutputChan() chan *message.Message {
+	return nil
+}
+
 // Flush does nothing
-func (p *mockProvider) Flush(ctx context.Context) {}
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *mockProvider) Flush(_ context.Context) {}
 
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan
+}
+
+// NextPipelineChanWithInstance returns the next pipeline
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("")
 }

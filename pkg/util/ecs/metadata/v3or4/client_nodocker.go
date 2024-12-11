@@ -4,8 +4,8 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build !docker
-// +build !docker
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package v3or4
 
 // Client represents a client for a metadata v3 or v4 API endpoint.

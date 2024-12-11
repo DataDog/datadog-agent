@@ -4,50 +4,69 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux && !windows
-// +build !linux,!windows
 
 package net
 
 import (
+	"time"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
+
+var _ SysProbeUtil = &RemoteSysProbeUtil{}
+var _ SysProbeUtilGetter = GetRemoteSystemProbeUtil
 
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbePath is not supported
-func SetSystemProbePath(_ string) {
-	// no-op
-}
-
 // CheckPath is not supported
-func CheckPath() error {
-	return ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(PROC) Fix revive linter
+func CheckPath(_ string) error {
+	return ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
-func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(PROC) Fix revive linter
+func GetRemoteSystemProbeUtil(_ string) (SysProbeUtil, error) {
+	return &RemoteSysProbeUtil{}, ErrNotImplemented
 }
 
 // GetConnections is not supported
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	return nil, ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(PROC) Fix revive linter
+func (r *RemoteSysProbeUtil) GetConnections(_ string) (*model.Connections, error) {
+	return nil, ErrNotImplemented
 }
 
-// GetStats is not supported
-func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
-	return nil, ebpf.ErrNotImplemented
+// GetNetworkID is not supported
+func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
+	return "", ErrNotImplemented
 }
 
 // GetProcStats is not supported
-func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
-	return nil, ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(PROC) Fix revive linter
+func (r *RemoteSysProbeUtil) GetProcStats(_ []int32) (*model.ProcStatsWithPermByPID, error) {
+	return nil, ErrNotImplemented
 }
 
 // Register is not supported
-func (r *RemoteSysProbeUtil) Register(clientID string) error {
-	return ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(PROC) Fix revive linter
+func (r *RemoteSysProbeUtil) Register(_ string) error {
+	return ErrNotImplemented
+}
+
+// GetPing is not supported
+func (r *RemoteSysProbeUtil) GetPing(_ string, _ string, _ int, _ time.Duration, _ time.Duration) ([]byte, error) {
+	return nil, ErrNotImplemented
+}
+
+// GetTraceroute is not supported
+func (r *RemoteSysProbeUtil) GetTraceroute(_ string, _ string, _ uint16, _ nppayload.Protocol, _ uint8, _ time.Duration) ([]byte, error) {
+	return nil, ErrNotImplemented
 }

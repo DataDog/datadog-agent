@@ -5,7 +5,9 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/tagset"
+import (
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+)
 
 // HistogramBucket represents a prometheus/openmetrics histogram bucket
 type HistogramBucket struct {
@@ -18,6 +20,7 @@ type HistogramBucket struct {
 	Host            string
 	Timestamp       float64
 	FlushFirstValue bool
+	Source          MetricSource
 }
 
 // Implement the MetricSampleContext interface
@@ -33,7 +36,7 @@ func (m *HistogramBucket) GetHost() string {
 }
 
 // GetTags returns the bucket tags.
-func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
+func (m *HistogramBucket) GetTags(_, metricBuffer tagset.TagsAccumulator, _ EnrichTagsfn) {
 	// Other 'GetTags' methods for metrics support origin detections. Since
 	// HistogramBucket only come, for now, from checks we can simply return
 	// tags.
@@ -43,4 +46,14 @@ func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumula
 // GetMetricType implements MetricSampleContext#GetMetricType.
 func (m *HistogramBucket) GetMetricType() MetricType {
 	return HistogramType
+}
+
+// IsNoIndex returns if the metric must not be indexed.
+func (m *HistogramBucket) IsNoIndex() bool {
+	return false
+}
+
+// GetSource returns the currently set MetricSource
+func (m *HistogramBucket) GetSource() MetricSource {
+	return m.Source
 }

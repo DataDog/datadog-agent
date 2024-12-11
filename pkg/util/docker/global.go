@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -22,7 +21,6 @@ import (
 var (
 	globalDockerUtil      *DockerUtil
 	globalDockerUtilMutex sync.Mutex
-	invalidationInterval  = 5 * time.Minute
 )
 
 // GetDockerUtilWithRetrier returns a ready to use DockerUtil or a retrier

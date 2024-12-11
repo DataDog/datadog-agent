@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ast holds ast related files
 package ast
 
 import (
@@ -16,13 +17,22 @@ import (
 	"github.com/alecthomas/participle/lexer/ebnf"
 )
 
-var (
-	seclLexer = lexer.Must(ebnf.New(`
+// ParsingContext defines a parsing context
+type ParsingContext struct {
+	ruleParser  *participle.Parser
+	macroParser *participle.Parser
+
+	ruleCache map[string]*Rule
+}
+
+// NewParsingContext returns a new parsing context
+func NewParsingContext(withRuleCache bool) *ParsingContext {
+	seclLexer := lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 CIDR = IP "/" digit { digit } .
 IP = (ipv4 | ipv6) .
 Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
-Duration = digit { digit } ("ms" | "s" | "m" | "h" | "d") .
+Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
 Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
@@ -37,7 +47,39 @@ alpha = "a"…"z" | "A"…"Z" .
 digit = "0"…"9" .
 any = "\u0000"…"\uffff" .
 `))
-)
+
+	var ruleCache map[string]*Rule
+	if withRuleCache {
+		ruleCache = make(map[string]*Rule)
+	}
+
+	return &ParsingContext{
+		ruleParser:  buildParser(&Rule{}, seclLexer),
+		macroParser: buildParser(&Macro{}, seclLexer),
+		ruleCache:   ruleCache,
+	}
+}
+
+func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
+	parser, err := participle.Build(obj,
+		participle.Lexer(lexer),
+		participle.Elide("Whitespace", "Comment"),
+		participle.Map(unquoteLiteral, "String"),
+		participle.Map(parseDuration, "Duration"),
+		participle.Map(unquotePattern, "Pattern", "Regexp"),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return parser
+}
+
+func unquoteLiteral(t lexer.Token) (lexer.Token, error) {
+	unquoted := strings.TrimSpace(t.Value)
+	unquoted = unquoted[1 : len(unquoted)-1]
+	t.Value = unquoted
+	return t, nil
+}
 
 func unquotePattern(t lexer.Token) (lexer.Token, error) {
 	unquoted := strings.TrimSpace(t.Value[1:])
@@ -57,30 +99,24 @@ func parseDuration(t lexer.Token) (lexer.Token, error) {
 	return t, nil
 }
 
-func buildParser(obj interface{}) (*participle.Parser, error) {
-	return participle.Build(obj,
-		participle.Lexer(seclLexer),
-		participle.Elide("Whitespace", "Comment"),
-		participle.Unquote("String"),
-		participle.Map(parseDuration, "Duration"),
-		participle.Map(unquotePattern, "Pattern", "Regexp"),
-	)
-}
-
 // ParseRule parses a SECL rule.
-func ParseRule(expr string) (*Rule, error) {
-	parser, err := buildParser(&Rule{})
-	if err != nil {
-		return nil, err
+func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
+	if pc.ruleCache != nil {
+		if ast, ok := pc.ruleCache[expr]; ok {
+			return ast, nil
+		}
 	}
 
 	rule := &Rule{}
-
-	err = parser.Parse(bytes.NewBufferString(expr), rule)
+	err := pc.ruleParser.Parse(bytes.NewBufferString(expr), rule)
 	if err != nil {
 		return nil, err
 	}
 	rule.Expr = expr
+
+	if pc.ruleCache != nil {
+		pc.ruleCache[expr] = rule
+	}
 
 	return rule, nil
 }
@@ -94,15 +130,9 @@ type Rule struct {
 }
 
 // ParseMacro parses a SECL macro
-func ParseMacro(expr string) (*Macro, error) {
-	parser, err := buildParser(&Macro{})
-	if err != nil {
-		return nil, err
-	}
-
+func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
 	macro := &Macro{}
-
-	err = parser.Parse(bytes.NewBufferString(expr), macro)
+	err := pc.macroParser.Parse(bytes.NewBufferString(expr), macro)
 	if err != nil {
 		return nil, err
 	}
@@ -139,9 +169,9 @@ type Expression struct {
 type Comparison struct {
 	Pos lexer.Position
 
-	BitOperation     *BitOperation     `parser:"@@"`
-	ScalarComparison *ScalarComparison `parser:"[ @@"`
-	ArrayComparison  *ArrayComparison  `parser:"| @@ ]"`
+	ArithmeticOperation *ArithmeticOperation `parser:"@@"`
+	ScalarComparison    *ScalarComparison    `parser:"[ @@"`
+	ArrayComparison     *ArrayComparison     `parser:"| @@ ]"`
 }
 
 // ScalarComparison describes a scalar comparison : the operator with the right operand
@@ -167,6 +197,20 @@ type BitOperation struct {
 	Unary *Unary        `parser:"@@"`
 	Op    *string       `parser:"[ @( \"&\" | \"|\" | \"^\" )"`
 	Next  *BitOperation `parser:"@@ ]"`
+}
+
+// ArithmeticOperation describes an arithmetic operation
+type ArithmeticOperation struct {
+	Pos lexer.Position
+
+	First *BitOperation        `parser:"@@"`
+	Rest  []*ArithmeticElement `parser:"[ @@ { @@ } ]"`
+}
+
+// ArithmeticElement defines an arithmetic element
+type ArithmeticElement struct {
+	Op      string        `parser:"@( \"+\" | \"-\" )"`
+	Operand *BitOperation `parser:"@@"`
 }
 
 // Unary describes an unary operation like logical not, binary not, minus
@@ -222,4 +266,5 @@ type Array struct {
 	StringMembers []StringMember `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
 	CIDRMembers   []CIDRMember   `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
 	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Idents        []string       `parser:"| \"[\" @Ident { \",\" @Ident } \"]\""`
 }

@@ -9,7 +9,8 @@ package sampler
 import (
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 const (
@@ -201,4 +202,33 @@ func setMetric(s *pb.Span, key string, val float64) {
 		s.Metrics = make(map[string]float64)
 	}
 	s.Metrics[key] = val
+}
+
+// SingleSpanSampling does single span sampling on the trace, returning true if the trace was modified
+func SingleSpanSampling(pt *traceutil.ProcessedTrace) bool {
+	ssSpans := getSingleSpanSampledSpans(pt)
+	if len(ssSpans) > 0 {
+		// Span sampling has kept some spans -> update the chunk
+		pt.TraceChunk.Spans = ssSpans
+		pt.TraceChunk.Priority = int32(PriorityUserKeep)
+		pt.TraceChunk.DroppedTrace = false
+		return true
+	}
+	return false
+}
+
+// GetSingleSpanSampledSpans searches chunk for spans that have a span sampling tag set and returns them.
+func getSingleSpanSampledSpans(pt *traceutil.ProcessedTrace) []*pb.Span {
+	var sampledSpans []*pb.Span
+	for _, span := range pt.TraceChunk.Spans {
+		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
+			// Keep only those spans that have a span sampling tag.
+			sampledSpans = append(sampledSpans, span)
+		}
+	}
+	if sampledSpans == nil {
+		// No span sampling tags → no span sampling.
+		return nil
+	}
+	return sampledSpans
 }

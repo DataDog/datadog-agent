@@ -9,13 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	// KubeNamespaceFilterPrefix if the prefix used for Kubernetes namespaces
+	KubeNamespaceFilterPrefix = `kube_namespace:`
+
 	// Pause container image names that should be filtered out.
 	// Where appropriate, each constant is loosely structured as
 	// image:domain.*/pause.*
@@ -48,6 +52,8 @@ const (
 	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause.*`
 	// rancher/pause-amd64:3.0
 	pauseContainerRancher = `image:rancher/pause.*`
+	// rancher/mirrored-pause:3.7
+	pauseContainerRancherMirrored = `image:rancher/mirrored-pause.*`
 	// - mcr.microsoft.com/k8s/core/pause-amd64
 	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause.*`
 	// - aksrepos.azurecr.io/mirror/pause-amd64
@@ -60,15 +66,35 @@ const (
 	pauseContainerUpstream = `image:upstream/pause.*`
 	// - cdk/pause-amd64
 	pauseContainerCDK = `image:cdk/pause.*`
+	// - giantswarm/pause
+	pauseContainerGiantSwarm = `image:giantswarm/pause.*`
+	// - registry.k8s.io/pause
+	pauseContainerRegistryK8sIo = `image:registry\.k8s\.io/pause.*`
 
 	// filter prefixes for inclusion/exclusion
-	imageFilterPrefix         = `image:`
-	nameFilterPrefix          = `name:`
-	kubeNamespaceFilterPrefix = `kube_namespace:`
+	imageFilterPrefix = `image:`
+	nameFilterPrefix  = `name:`
+
+	// filter based on AD annotations
+	kubeAutodiscoveryAnnotation          = "ad.datadoghq.com/%sexclude"
+	kubeAutodiscoveryContainerAnnotation = "ad.datadoghq.com/%s.%sexclude"
+)
+
+// FilterType indicates the container filter type
+type FilterType string
+
+const (
+	// GlobalFilter is used to cover both MetricsFilter and LogsFilter filter types
+	GlobalFilter FilterType = "GlobalFilter"
+	// MetricsFilter refers to the Metrics filter type
+	MetricsFilter FilterType = "MetricsFilter"
+	// LogsFilter refers to the Logs filter type
+	LogsFilter FilterType = "LogsFilter"
 )
 
 // Filter holds the state for the container filtering logic
 type Filter struct {
+	FilterType           FilterType
 	Enabled              bool
 	ImageIncludeList     []*regexp.Regexp
 	NameIncludeList      []*regexp.Regexp
@@ -99,8 +125,8 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 				continue
 			}
 			nameFilters = append(nameFilters, r)
-		case strings.HasPrefix(filter, kubeNamespaceFilterPrefix):
-			r, err := filterToRegex(filter, kubeNamespaceFilterPrefix)
+		case strings.HasPrefix(filter, KubeNamespaceFilterPrefix):
+			r, err := filterToRegex(filter, KubeNamespaceFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
 				continue
@@ -108,7 +134,7 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 			namespaceFilters = append(namespaceFilters, r)
 		default:
 			warnmsg := fmt.Sprintf("Container filter %q is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'", filter)
-			log.Warnf(warnmsg)
+			log.Warn(warnmsg)
 			filterWarnings = append(filterWarnings, warnmsg)
 
 		}
@@ -147,7 +173,7 @@ func GetSharedMetricFilter() (*Filter, error) {
 // GetPauseContainerFilter returns a filter only excluding pause containers
 func GetPauseContainerFilter() (*Filter, error) {
 	var excludeList []string
-	if config.Datadog.GetBool("exclude_pause_container") {
+	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
 		excludeList = append(excludeList,
 			pauseContainerGCR,
 			pauseContainerOpenshift,
@@ -158,16 +184,19 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerECS,
 			pauseContainerEKS,
 			pauseContainerRancher,
+			pauseContainerRancherMirrored,
 			pauseContainerMCR,
 			pauseContainerWin,
 			pauseContainerAKS,
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
+			pauseContainerRegistryK8sIo,
 		)
 	}
 
-	return NewFilter(nil, excludeList)
+	return NewFilter(GlobalFilter, nil, excludeList)
 }
 
 // ResetSharedFilter is only to be used in unit tests: it resets the global
@@ -190,7 +219,7 @@ func GetFilterErrors() map[string]struct{} {
 // regexp patterns for a include list and exclude list. Each pattern should have
 // the following format: "field:pattern" where field can be: [image, name, kube_namespace].
 // An error is returned if any of the expression don't compile.
-func NewFilter(includeList, excludeList []string) (*Filter, error) {
+func NewFilter(ft FilterType, includeList, excludeList []string) (*Filter, error) {
 	imgIncl, nameIncl, nsIncl, filterErrsIncl, errIncl := parseFilters(includeList)
 	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
 
@@ -210,6 +239,7 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 	}
 
 	return &Filter{
+		FilterType:           ft,
 		Enabled:              len(includeList) > 0 || len(excludeList) > 0,
 		ImageIncludeList:     imgIncl,
 		NameIncludeList:      nameIncl,
@@ -226,21 +256,21 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 func newMetricFilterFromConfig() (*Filter, error) {
 	// We merge `container_include` and `container_include_metrics` as this filter
 	// is used by all core and python checks (so components sending metrics).
-	includeList := config.Datadog.GetStringSlice("container_include")
-	excludeList := config.Datadog.GetStringSlice("container_exclude")
-	includeList = append(includeList, config.Datadog.GetStringSlice("container_include_metrics")...)
-	excludeList = append(excludeList, config.Datadog.GetStringSlice("container_exclude_metrics")...)
+	includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
+	excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
+	includeList = append(includeList, pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")...)
+	excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
 
 	if len(includeList) == 0 {
 		// support legacy "ac_include" config
-		includeList = config.Datadog.GetStringSlice("ac_include")
+		includeList = pkgconfigsetup.Datadog().GetStringSlice("ac_include")
 	}
 	if len(excludeList) == 0 {
 		// support legacy "ac_exclude" config
-		excludeList = config.Datadog.GetStringSlice("ac_exclude")
+		excludeList = pkgconfigsetup.Datadog().GetStringSlice("ac_exclude")
 	}
 
-	if config.Datadog.GetBool("exclude_pause_container") {
+	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
 		excludeList = append(excludeList,
 			pauseContainerGCR,
 			pauseContainerOpenshift,
@@ -257,45 +287,51 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
+			pauseContainerRegistryK8sIo,
 		)
 	}
-	return NewFilter(includeList, excludeList)
+	return NewFilter(MetricsFilter, includeList, excludeList)
 }
 
 // NewAutodiscoveryFilter creates a new container filter for Autodiscovery
 // It sources patterns from the pkg/config options but ignores the exclude_pause_container options
 // It allows to filter metrics and logs separately
 // For use in autodiscovery.
-func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
+func NewAutodiscoveryFilter(ft FilterType) (*Filter, error) {
 	includeList := []string{}
 	excludeList := []string{}
-	switch filter {
+	switch ft {
 	case GlobalFilter:
-		includeList = config.Datadog.GetStringSlice("container_include")
-		excludeList = config.Datadog.GetStringSlice("container_exclude")
+		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include")
+		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
 		if len(includeList) == 0 {
 			// fallback and support legacy "ac_include" config
-			includeList = config.Datadog.GetStringSlice("ac_include")
+			includeList = pkgconfigsetup.Datadog().GetStringSlice("ac_include")
 		}
 		if len(excludeList) == 0 {
 			// fallback and support legacy "ac_exclude" config
-			excludeList = config.Datadog.GetStringSlice("ac_exclude")
+			excludeList = pkgconfigsetup.Datadog().GetStringSlice("ac_exclude")
 		}
 	case MetricsFilter:
-		includeList = config.Datadog.GetStringSlice("container_include_metrics")
-		excludeList = config.Datadog.GetStringSlice("container_exclude_metrics")
+		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")
+		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")
 	case LogsFilter:
-		includeList = config.Datadog.GetStringSlice("container_include_logs")
-		excludeList = config.Datadog.GetStringSlice("container_exclude_logs")
+		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include_logs")
+		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude_logs")
 	}
-	return NewFilter(includeList, excludeList)
+	return NewFilter(ft, includeList, excludeList)
 }
 
 // IsExcluded returns a bool indicating if the container should be excluded
-// based on the filters in the containerFilter instance.
+// based on the filters in the containerFilter instance. Consider also using
 // Note: exclude filters are not applied to empty container names, empty
 // images and empty namespaces.
-func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
+func (cf Filter) IsExcluded(annotations map[string]string, containerName, containerImage, podNamespace string) bool {
+	if cf.isExcludedByAnnotation(annotations, containerName) {
+		return true
+	}
+
 	if !cf.Enabled {
 		return false
 	}
@@ -343,4 +379,44 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	}
 
 	return false
+}
+
+// isExcludedByAnnotation identifies whether a container should be excluded
+// based on the contents of the supplied annotations.
+func (cf Filter) isExcludedByAnnotation(annotations map[string]string, containerName string) bool {
+	if annotations == nil {
+		return false
+	}
+	switch cf.FilterType {
+	case GlobalFilter:
+	case MetricsFilter:
+		if isExcludedByAnnotationInner(annotations, containerName, "metrics_") {
+			return true
+		}
+	case LogsFilter:
+		if isExcludedByAnnotationInner(annotations, containerName, "logs_") {
+			return true
+		}
+	default:
+		log.Warnf("unrecognized filter type: %s", cf.FilterType)
+	}
+	return isExcludedByAnnotationInner(annotations, containerName, "")
+}
+
+func isExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
+	var e bool
+	// try container-less annotations first
+	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, excludePrefix)]
+	if found {
+		if e, _ = strconv.ParseBool(exclude); e {
+			return true
+		}
+	}
+
+	// Check if excluded at container level
+	exclude, found = annotations[fmt.Sprintf(kubeAutodiscoveryContainerAnnotation, containerName, excludePrefix)]
+	if found {
+		e, _ = strconv.ParseBool(exclude)
+	}
+	return e
 }

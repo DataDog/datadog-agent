@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Remote Configuration for Cloud Workload Security detection rules is enabled if Remote Configuration is globally enabled for the Datadog Agent.
+    Remote Configuration for Cloud Workload Security can be disabled while Remote Configuration is globally enabled by setting the `runtime_security_config.remote_configuration.enabled` value to false.
+    Remote Configuration for Cloud Workload Security cannot be enabled if Remote Configuration is not globally enabled.

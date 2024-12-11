@@ -11,7 +11,8 @@ type Gauge struct {
 	sampled bool
 }
 
-func (g *Gauge) addSample(sample *MetricSample, timestamp float64) {
+//nolint:revive // TODO(AML) Fix revive linter
+func (g *Gauge) addSample(sample *MetricSample, _ float64) {
 	g.gauge = sample.Value
 	g.sampled = true
 }

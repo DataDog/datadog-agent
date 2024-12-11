@@ -26,30 +26,30 @@ const statsTag = "stats"
 // Such structs should tag fields to be included in the stats with `stats:""`.
 // Stats fields can be of any of the following types:
 //
-//     int
-//     int8
-//     int16
-//     int32
-//     int64
-//     uint
-//     uint8
-//     uint16
-//     uint32
-//     uint64
-//     uintptr
-//     go.uber.org/atomic.Bool
-//     go.uber.org/atomic.Duration
-//     go.uber.org/atomic.Error
-//     go.uber.org/atomic.Float64
-//     go.uber.org/atomic.Int32
-//     go.uber.org/atomic.Int64
-//     go.uber.org/atomic.String
-//     go.uber.org/atomic.Time
-//     go.uber.org/atomic.Uint32
-//     go.uber.org/atomic.Uint64
-//     go.uber.org/atomic.Uintptr
-//     go.uber.org/atomic.UnsafePointer
-//     go.uber.org/atomic.Value
+//	int
+//	int8
+//	int16
+//	int32
+//	int64
+//	uint
+//	uint8
+//	uint16
+//	uint32
+//	uint64
+//	uintptr
+//	go.uber.org/atomic.Bool
+//	go.uber.org/atomic.Duration
+//	go.uber.org/atomic.Error
+//	go.uber.org/atomic.Float64
+//	go.uber.org/atomic.Int32
+//	go.uber.org/atomic.Int64
+//	go.uber.org/atomic.String
+//	go.uber.org/atomic.Time
+//	go.uber.org/atomic.Uint32
+//	go.uber.org/atomic.Uint64
+//	go.uber.org/atomic.Uintptr
+//	go.uber.org/atomic.UnsafePointer
+//	go.uber.org/atomic.Value
 func Report(v interface{}) map[string]interface{} {
 	rep := getReporter(reflect.TypeOf(v))
 

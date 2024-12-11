@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -20,6 +19,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewRoleBindingCollectorVersions builds the group of collector versions.
+func NewRoleBindingCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewRoleBindingCollector(),
+	)
+}
+
 // RoleBindingCollector is a collector for Kubernetes RoleBindings.
 type RoleBindingCollector struct {
 	informer  rbacv1Informers.RoleBindingInformer
@@ -33,9 +39,14 @@ type RoleBindingCollector struct {
 func NewRoleBindingCollector() *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "rolebindings",
-			NodeType: orchestrator.K8sRoleBinding,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "rolebindings",
+			NodeType:                  orchestrator.K8sRoleBinding,
+			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}
@@ -48,12 +59,9 @@ func (c *RoleBindingCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *RoleBindingCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().RoleBindings()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Rbac().V1().RoleBindings()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *RoleBindingCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleBindingCollector) Metadata() *collectors.CollectorMetadata {
@@ -67,13 +75,7 @@ func (c *RoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package state provides the types and logic needed to track the current TUF repository
+// state for a client.
 package state
 
 import (
@@ -12,8 +14,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
-	"github.com/theupdateframework/go-tuf/data"
+	"github.com/DataDog/go-tuf/data"
 )
 
 var (
@@ -33,9 +36,10 @@ type RepositoryState struct {
 
 // ConfigState describes an applied config by the agent client.
 type ConfigState struct {
-	Product string
-	ID      string
-	Version uint64
+	Product     string
+	ID          string
+	Version     uint64
+	ApplyStatus ApplyStatus
 }
 
 // CachedFile describes a cached file stored by the agent client
@@ -61,6 +65,11 @@ type Update struct {
 	ClientConfigs []string
 }
 
+// isEmpty returns whether or not all the fields of `Update` are empty
+func (u *Update) isEmpty() bool {
+	return len(u.TUFRoots) == 0 && len(u.TUFTargets) == 0 && len(u.TargetFiles) == 0 && len(u.ClientConfigs) == 0
+}
+
 // Repository is a remote config client used in a downstream process to retrieve
 // remote config updates from an Agent.
 type Repository struct {
@@ -69,8 +78,12 @@ type Repository struct {
 	tufRootsClient     *tufRootsClient
 	opaqueBackendState []byte
 
+	// Unverified mode
+	tufVerificationEnabled bool
+	latestRootVersion      int64
+
 	// Config file storage
-	metadata map[string]Metadata
+	metadata sync.Map // map[string]Metadata
 	configs  map[string]map[string]interface{}
 }
 
@@ -82,7 +95,7 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 	}
 
 	configs := make(map[string]map[string]interface{})
-	for _, product := range allProducts {
+	for product := range validProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
@@ -92,36 +105,70 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 	}
 
 	return &Repository{
-		latestTargets:  data.NewTargets(),
-		tufRootsClient: tufRootsClient,
-		metadata:       make(map[string]Metadata),
-		configs:        configs,
+		latestTargets:          data.NewTargets(),
+		tufRootsClient:         tufRootsClient,
+		metadata:               sync.Map{},
+		configs:                configs,
+		tufVerificationEnabled: true,
+	}, nil
+}
+
+// NewUnverifiedRepository creates a new remote config repository that will
+// track config files for a client WITHOUT verifying any TUF related metadata.
+//
+// When creating this we pretend we have a root version of 1, as the backend expects
+// to not have to send the initial "embedded" root.
+func NewUnverifiedRepository() (*Repository, error) {
+	configs := make(map[string]map[string]interface{})
+	for product := range validProducts {
+		configs[product] = make(map[string]interface{})
+	}
+
+	return &Repository{
+		latestTargets:          data.NewTargets(),
+		metadata:               sync.Map{},
+		configs:                configs,
+		tufVerificationEnabled: false,
+		latestRootVersion:      1, // The backend expects us to start with a root version of 1.
 	}, nil
 }
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
 // configuration state
 func (r *Repository) Update(update Update) ([]string, error) {
-	// TUF: Update the roots
-	//
-	// NWe don't want to partially update the state, so we need a temporary client to hold the new root
-	// data until we know it's valid
-	tmpRootClient, err := r.tufRootsClient.clone()
-	if err != nil {
-		return nil, err
-	}
-	err = tmpRootClient.updateRoots(update.TUFRoots)
-	if err != nil {
-		return nil, err
+	var err error
+	var updatedTargets *data.Targets
+	var tmpRootClient *tufRootsClient
+
+	// If there's literally nothing in the update, it's not an error.
+	if update.isEmpty() {
+		return []string{}, nil
 	}
 
-	// 1: Validate and Deserialize the TUF Targets
+	// TUF: Update the roots and verify the TUF Targets file (optional)
 	//
-	// Note: This goes further than the RFC requires and validates the TUF targets metadata's signatures.
-	// This is NOT required for most clients per the RFC.
-	updatedTargets, err := tmpRootClient.validateTargets(update.TUFTargets)
-	if err != nil {
-		return nil, err
+	// We don't want to partially update the state, so we need a temporary client to hold the new root
+	// data until we know it's valid. Since verification is optional, if the repository was configured
+	// to not do TUF verification we only deserialize the TUF targets file.
+	if r.tufVerificationEnabled {
+		tmpRootClient, err = r.tufRootsClient.clone()
+		if err != nil {
+			return nil, err
+		}
+		err = tmpRootClient.updateRoots(update.TUFRoots)
+		if err != nil {
+			return nil, err
+		}
+
+		updatedTargets, err = tmpRootClient.validateTargets(update.TUFTargets)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		updatedTargets, err = unsafeUnmarshalTargets(update.TUFTargets)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	clientConfigsMap := make(map[string]struct{})
@@ -136,6 +183,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		for path := range configs {
 			if _, ok := clientConfigsMap[path]; !ok {
 				result.removed = append(result.removed, path)
+				parsedPath, err := parseConfigPath(path)
+				if err != nil {
+					return nil, err
+				}
+				result.productsUpdated[parsedPath.Product] = true
 			}
 		}
 	}
@@ -153,9 +205,13 @@ func (r *Repository) Update(update Update) ([]string, error) {
 			return nil, err
 		}
 
-		storedMetadata, exists := r.metadata[path]
-		if exists && hashesEqual(targetFileMetadata.Hashes, storedMetadata.Hashes) {
-			continue
+		// 3.b and 3.c: Check if this configuration is either new or has been modified
+		storedMetadata, exists := r.metadata.Load(path)
+		if exists {
+			m, ok := storedMetadata.(Metadata)
+			if ok && hashesEqual(targetFileMetadata.Hashes, m.Hashes) {
+				continue
+			}
 		}
 
 		// 3.d: Ensure that the raw configuration file is present in the
@@ -187,12 +243,21 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		}
 		result.metadata[path] = m
 		result.changed[parsedPath.Product][path] = config
+		result.productsUpdated[parsedPath.Product] = true
 	}
 
 	// 4.a: Store the new targets.signed.custom.opaque_client_state
 	// TUF: Store the updated roots now that everything has validated
+	if r.tufVerificationEnabled {
+		r.tufRootsClient = tmpRootClient
+	} else if len(update.TUFRoots) > 0 {
+		v, err := extractRootVersion(update.TUFRoots[len(update.TUFRoots)-1])
+		if err != nil {
+			return nil, err
+		}
+		r.latestRootVersion = v
+	}
 	r.latestTargets = updatedTargets
-	r.tufRootsClient = tmpRootClient
 	if r.latestTargets.Custom != nil {
 		r.opaqueBackendState = extractOpaqueBackendState(*r.latestTargets.Custom)
 	}
@@ -204,8 +269,8 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	}
 
 	changedProducts := make([]string, 0)
-	for product, configs := range result.changed {
-		if len(configs) > 0 {
+	for product, updated := range result.productsUpdated {
+		if updated {
 			changedProducts = append(changedProducts, product)
 		}
 	}
@@ -214,6 +279,20 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	r.applyUpdateResult(update, result)
 
 	return changedProducts, nil
+}
+
+// UpdateApplyStatus updates the config's metadata to reflect its processing state
+// Can be used after a call to Update() in order to tell the repository which config was acked, which
+// wasn't and which errors occurred while processing.
+// Note: it is the responsibility of the caller to ensure that no new Update() call was made between
+// the first Update() call and the call to UpdateApplyStatus() so as to keep the repository state accurate.
+func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
+	if val, ok := r.metadata.Load(cfgPath); ok {
+		if m, ok := val.(Metadata); ok {
+			m.ApplyStatus = status
+			r.metadata.Store(cfgPath, m)
+		}
+	}
 }
 
 func (r *Repository) getConfigs(product string) map[string]interface{} {
@@ -229,7 +308,7 @@ func (r *Repository) getConfigs(product string) map[string]interface{} {
 //
 // The update is guaranteed to succeed at this point, having been vetted and the details
 // needed to apply the update stored in the `updateResult`.
-func (r *Repository) applyUpdateResult(update Update, result updateResult) {
+func (r *Repository) applyUpdateResult(_ Update, result updateResult) {
 	// 4.b Save all the updated and new config files
 	for product, configs := range result.changed {
 		for path, config := range configs {
@@ -238,12 +317,12 @@ func (r *Repository) applyUpdateResult(update Update, result updateResult) {
 		}
 	}
 	for path, metadata := range result.metadata {
-		r.metadata[path] = metadata
+		r.metadata.Store(path, metadata)
 	}
 
 	// 5.b Clean up the cache of any removed configs
 	for _, path := range result.removed {
-		delete(r.metadata, path)
+		r.metadata.Delete(path)
 		for _, configs := range r.configs {
 			delete(configs, path)
 		}
@@ -256,21 +335,34 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 	var configs []ConfigState
 	var cached []CachedFile
 
-	for path, metadata := range r.metadata {
-		configs = append(configs, configStateFromMetadata(metadata))
-		cached = append(cached, cachedFileFromMetadata(path, metadata))
-	}
+	r.metadata.Range(func(path, value any) bool {
+		metadata, ok := value.(Metadata)
+		if ok {
+			configs = append(configs, configStateFromMetadata(metadata))
+			cached = append(cached, cachedFileFromMetadata(path.(string), metadata))
+		} else {
+			// Log the error but continue processing the rest of the configs
+			log.Printf("Failed to convert metadata for %s", path)
+		}
+		return true
+	})
 
-	latestRoot, err := r.tufRootsClient.latestRoot()
-	if err != nil {
-		return RepositoryState{}, err
+	var latestRootVersion int64
+	if r.tufVerificationEnabled {
+		root, err := r.tufRootsClient.latestRoot()
+		if err != nil {
+			return RepositoryState{}, err
+		}
+		latestRootVersion = root.Version
+	} else {
+		latestRootVersion = r.latestRootVersion
 	}
 
 	return RepositoryState{
 		Configs:            configs,
 		CachedFiles:        cached,
 		TargetsVersion:     r.latestTargets.Version,
-		RootsVersion:       latestRoot.Version,
+		RootsVersion:       latestRootVersion,
 		OpaqueBackendState: r.opaqueBackendState,
 	}, nil
 }
@@ -278,22 +370,24 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 // An updateResult allows the client to apply the update as a transaction
 // after validating all required preconditions
 type updateResult struct {
-	removed  []string
-	metadata map[string]Metadata
-	changed  map[string]map[string]interface{}
+	removed         []string
+	metadata        map[string]Metadata
+	changed         map[string]map[string]interface{}
+	productsUpdated map[string]bool
 }
 
 func newUpdateResult() updateResult {
 	changed := make(map[string]map[string]interface{})
 
-	for _, p := range allProducts {
-		changed[p] = make(map[string]interface{})
+	for product := range validProducts {
+		changed[product] = make(map[string]interface{})
 	}
 
 	return updateResult{
-		removed:  make([]string, 0),
-		metadata: make(map[string]Metadata),
-		changed:  changed,
+		removed:         make([]string, 0),
+		metadata:        make(map[string]Metadata),
+		changed:         changed,
+		productsUpdated: map[string]bool{},
 	}
 }
 
@@ -317,9 +411,10 @@ func (ur updateResult) isEmpty() bool {
 
 func configStateFromMetadata(m Metadata) ConfigState {
 	return ConfigState{
-		Product: m.Product,
-		ID:      m.ID,
-		Version: m.Version,
+		Product:     m.Product,
+		ID:          m.ID,
+		Version:     m.Version,
+		ApplyStatus: m.ApplyStatus,
 	}
 }
 

@@ -4,16 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package log
 
 // DebugServerless logs at the debug level only in a serverless context
 // no-op in a non serverless context
-func DebugServerless(v ...interface{}) {
+func DebugServerless(_ ...interface{}) {
 }
 
 // DebugfServerless logs with format at the debug level only in a serverless context
 // no-op in a non serverless context
-func DebugfServerless(format string, params ...interface{}) {
+func DebugfServerless(_ string, _ ...interface{}) {
 }

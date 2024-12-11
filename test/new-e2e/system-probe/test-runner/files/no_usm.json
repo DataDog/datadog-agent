@@ -1,0 +1,13 @@
+{
+    "filters": {
+        "pkg/network/usm": {
+            "exclude": true
+        },
+        "pkg/network/usm/tests": {
+            "exclude": true
+        },
+        "*": {
+            "exclude": false
+        }
+    }
+}

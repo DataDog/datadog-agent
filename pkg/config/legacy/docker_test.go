@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && linux
-// +build docker,linux
 
 // As we compare some paths, running the tests on Linux only
 
 package legacy
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -68,14 +66,17 @@ instances:
   tags:
   - tag:value
   - value
+  capped_metrics:
+    docker.cpu.system: 1000
+    docker.cpu.user: 1000
   collect_events: false
+  unbundle_events: false
+  bundle_unspecified_events: false
   filtered_event_types:
   - top
   - exec_start
   - exec_create
-  capped_metrics:
-    docker.cpu.system: 1000
-    docker.cpu.user: 1000
+  collected_event_types: []
 `
 )
 
@@ -85,27 +86,27 @@ func TestConvertDocker(t *testing.T) {
 	src := filepath.Join(dir, "docker_daemon.yaml")
 	dst := filepath.Join(dir, "docker.yaml")
 
-	err := ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
-	require.Nil(t, err)
+	err := os.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
+	require.NoError(t, err)
 
-	configConverter := config.NewConfigConverter()
+	configConverter := NewConfigConverter()
 	err = ImportDockerConf(src, dst, true, configConverter)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
-	newConf, err := ioutil.ReadFile(filepath.Join(dir, "docker.yaml"))
-	require.Nil(t, err)
+	newConf, err := os.ReadFile(filepath.Join(dir, "docker.yaml"))
+	require.NoError(t, err)
 
 	assert.Equal(t, dockerNewConf, string(newConf))
 
-	assert.Equal(t, true, config.Datadog.GetBool("exclude_pause_container"))
+	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("exclude_pause_container"))
 	assert.Equal(t, []string{"name:test", "name:some_image.*", "image:some_image_2", "image:some_image_3"},
-		config.Datadog.GetStringSlice("ac_exclude"))
-	assert.Equal(t, []string{"image:some_image_3"}, config.Datadog.GetStringSlice("ac_include"))
+		pkgconfigsetup.Datadog().GetStringSlice("ac_exclude"))
+	assert.Equal(t, []string{"image:some_image_3"}, pkgconfigsetup.Datadog().GetStringSlice("ac_include"))
 
-	assert.Equal(t, "/host/test/proc", config.Datadog.GetString("container_proc_root"))
-	assert.Equal(t, "/host/test/sys/fs/cgroup", config.Datadog.GetString("container_cgroup_root"))
+	assert.Equal(t, "/host/test/proc", pkgconfigsetup.Datadog().GetString("container_proc_root"))
+	assert.Equal(t, "/host/test/sys/fs/cgroup", pkgconfigsetup.Datadog().GetString("container_cgroup_root"))
 	assert.Equal(t, map[string]string{"test1": "test1", "test2": "test2"},
-		config.Datadog.GetStringMapString("docker_labels_as_tags"))
+		pkgconfigsetup.Datadog().GetStringMapString("docker_labels_as_tags"))
 
 	// test overwrite
 	err = ImportDockerConf(src, dst, false, configConverter)
@@ -114,7 +115,7 @@ func TestConvertDocker(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 
 	err = ImportDockerConf(src, dst, true, configConverter)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.False(t, os.IsNotExist(err))
 }

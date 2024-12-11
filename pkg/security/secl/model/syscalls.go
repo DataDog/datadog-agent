@@ -4,11 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url https://raw.githubusercontent.com/torvalds/linux/v5.17/arch/x86/entry/syscalls/syscall_64.tbl -output syscalls_linux_amd64.go -output-string syscalls_string_linux_amd64.go -abis common,64
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url https://raw.githubusercontent.com/torvalds/linux/v5.17/include/uapi/asm-generic/unistd.h -output syscalls_linux_arm64.go -output-string syscalls_string_linux_arm64.go
-
+// Package model holds model related files
 package model
 
 import (

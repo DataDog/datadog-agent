@@ -3,17 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && !android
-// +build linux_bpf,!android
+//go:build linux_bpf
 
 package netlink
 
 import (
 	"fmt"
-	"io"
 	"net"
+	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -23,8 +21,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(log.Default(), logLevel)
+	os.Exit(m.Run())
+}
 
 func TestConntrackExists(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT(t)
@@ -35,17 +43,17 @@ func TestConntrackExists(t *testing.T) {
 	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
 	defer udpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
-	udpConn := nettestutil.PingUDP(t, net.ParseIP("2.2.2.4"), 80)
+	udpConn := nettestutil.MustPingUDP(t, net.ParseIP("2.2.2.4"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	ctrks := map[int]Conntrack{}
+	ctrks := map[netns.NsHandle]Conntrack{}
 	defer func() {
 		for _, ctrk := range ctrks {
 			ctrk.Close()
@@ -59,11 +67,100 @@ func TestConntrackExists(t *testing.T) {
 	testConntrackExists(t, udpLaddr.IP.String(), udpLaddr.Port, "udp", testNs, ctrks)
 }
 
+func BenchmarkConntrackExists(b *testing.B) {
+	ns := testutil.SetupCrossNsDNAT(b)
+
+	tcpCloser := nettestutil.StartServerTCPNs(b, net.ParseIP("2.2.2.4"), 8080, ns)
+	defer tcpCloser.Close()
+
+	tcpConn := nettestutil.MustPingTCP(b, net.ParseIP("2.2.2.4"), 80)
+	defer tcpConn.Close()
+
+	testNs, err := netns.GetFromName(ns)
+	require.NoError(b, err)
+	defer testNs.Close()
+
+	ctrks := map[netns.NsHandle]Conntrack{}
+	defer func() {
+		for _, ctrk := range ctrks {
+			ctrk.Close()
+		}
+	}()
+
+	tcpAddr := tcpConn.LocalAddr().(*net.TCPAddr)
+	laddrIP := tcpAddr.IP.String()
+	laddrPort := tcpAddr.Port
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
+	require.NoError(b, err)
+	defer rootNs.Close()
+
+	var ipProto uint8 = unix.IPPROTO_TCP
+	tests := []struct {
+		c  Con
+		ns netns.NsHandle
+	}{
+		{
+			c: Con{
+				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
+			},
+			ns: rootNs,
+		},
+		{
+			c: Con{
+				Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
+			},
+			ns: rootNs,
+		},
+		{
+			c: Con{
+				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
+			},
+			ns: rootNs,
+		},
+		{
+			c: Con{
+				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
+			},
+			ns: testNs,
+		},
+		{
+			c: Con{
+				Reply: newIPTuple("2.2.2.4", laddrIP, 8080, uint16(laddrPort), ipProto),
+			},
+			ns: testNs,
+		},
+		{
+			c: Con{
+				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
+			},
+			ns: testNs,
+		},
+	}
+
+	ctrkRoot, err := NewConntrack(rootNs)
+	require.NoError(b, err)
+	b.Cleanup(func() { ctrkRoot.Close() })
+
+	ctrkTest, err := NewConntrack(testNs)
+	require.NoError(b, err)
+	b.Cleanup(func() { ctrkTest.Close() })
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, te := range tests {
+			switch te.ns {
+			case rootNs:
+				_, _ = ctrkRoot.Exists(&te.c)
+			case testNs:
+				_, _ = ctrkTest.Exists(&te.c)
+			}
+		}
+	}
+}
+
 func TestConntrackExists6(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT6(t)
-
-	// wait a small amount of time to ensure IPv6 setup is functional
-	time.Sleep(100 * time.Millisecond)
 
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP("fd00::2"), 8080, ns)
 	defer tcpCloser.Close()
@@ -71,17 +168,17 @@ func TestConntrackExists6(t *testing.T) {
 	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("fd00::2"), 8080, ns)
 	defer udpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP("fd00::2"), 80)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP("fd00::2"), 80)
 	defer tcpConn.Close()
 
-	udpConn := nettestutil.PingUDP(t, net.ParseIP("fd00::2"), 80)
+	udpConn := nettestutil.MustPingUDP(t, net.ParseIP("fd00::2"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	ctrks := map[int]Conntrack{}
+	ctrks := map[netns.NsHandle]Conntrack{}
 	defer func() {
 		for _, ctrk := range ctrks {
 			ctrk.Close()
@@ -96,46 +193,39 @@ func TestConntrackExists6(t *testing.T) {
 }
 
 func TestConntrackExistsRootDNAT(t *testing.T) {
-	ns := testutil.SetupCrossNsDNAT(t)
-	t.Cleanup(func() {
-		nettestutil.RunCommands(t, []string{
-			"iptables --table nat --delete CLUSTERIPS --destination 10.10.1.1 --protocol tcp --match tcp --dport 80 --jump DNAT --to-destination 2.2.2.4:80",
-			"iptables --table nat --delete PREROUTING --jump CLUSTERIPS",
-			"iptables --table nat --delete OUTPUT --jump CLUSTERIPS",
-			"iptables --table nat --delete-chain CLUSTERIPS",
-		}, true)
-	})
+	destIP := "10.10.1.1"
+	destPort := 80
+	listenIP := "2.2.2.4"
+	listenPort := 8080
+	ns := testutil.SetupCrossNsDNATWithPorts(t, destPort, listenPort)
+
+	nettestutil.IptablesSave(t)
 	nettestutil.RunCommands(t, []string{
 		"iptables --table nat --new-chain CLUSTERIPS",
 		"iptables --table nat --append PREROUTING --jump CLUSTERIPS",
 		"iptables --table nat --append OUTPUT --jump CLUSTERIPS",
-		"iptables --table nat --append CLUSTERIPS --destination 10.10.1.1 --protocol tcp --match tcp --dport 80 --jump DNAT --to-destination 2.2.2.4:80",
+		fmt.Sprintf("iptables --table nat --append CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, destPort),
+		fmt.Sprintf("ip route add %s dev veth1", destIP),
 	}, false)
 
 	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
-	destIP := "10.10.1.1"
-	destPort := 80
-	var tcpCloser io.Closer
-	_ = util.WithNS("/proc", testNs, func() error {
-		tcpCloser = nettestutil.StartServerTCP(t, net.ParseIP("2.2.2.4"), 8080)
-		return nil
-	})
+	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP(listenIP), listenPort, ns)
 	defer tcpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP(destIP), destPort)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP(destIP), destPort)
 	defer tcpConn.Close()
 
-	rootck, err := NewConntrack(int(rootNs))
+	rootck, err := NewConntrack(rootNs)
 	require.NoError(t, err)
 
-	testck, err := NewConntrack(int(testNs))
+	testck, err := NewConntrack(testNs)
 	require.NoError(t, err)
 
 	tcpLaddr := tcpConn.LocalAddr().(*net.TCPAddr)
@@ -152,8 +242,8 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	assert.False(t, exists)
 }
 
-func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[int]Conntrack) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[netns.NsHandle]Conntrack) {
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
@@ -165,7 +255,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		desc   string
 		c      Con
 		exists bool
-		ns     int
+		ns     netns.NsHandle
 	}{
 		{
 			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
@@ -173,7 +263,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
-			ns:     int(rootNs),
+			ns:     rootNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
@@ -181,7 +271,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
 			},
 			exists: true,
-			ns:     int(rootNs),
+			ns:     rootNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
@@ -189,7 +279,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
-			ns:     int(rootNs),
+			ns:     rootNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
@@ -197,7 +287,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
-			ns:     int(testNs),
+			ns:     testNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, reply exists, proto %s", int(testNs), proto),
@@ -205,7 +295,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				Reply: newIPTuple("2.2.2.4", laddrIP, 8080, uint16(laddrPort), ipProto),
 			},
 			exists: true,
-			ns:     int(testNs),
+			ns:     testNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, origin does not exist, proto %s", int(testNs), proto),
@@ -213,7 +303,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
-			ns:     int(testNs),
+			ns:     testNs,
 		},
 	}
 
@@ -235,8 +325,8 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 	}
 }
 
-func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[int]Conntrack) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[netns.NsHandle]Conntrack) {
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
@@ -248,7 +338,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		desc   string
 		c      Con
 		exists bool
-		ns     int
+		ns     netns.NsHandle
 	}{
 		{
 			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
@@ -256,7 +346,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 				Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
-			ns:     int(rootNs),
+			ns:     rootNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
@@ -264,7 +354,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 				Reply: newIPTuple("fd00::2", laddrIP, 80, uint16(laddrPort), ipProto),
 			},
 			exists: true,
-			ns:     int(rootNs),
+			ns:     rootNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
@@ -272,7 +362,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 				Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
-			ns:     int(rootNs),
+			ns:     rootNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
@@ -280,7 +370,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 				Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
 			},
 			exists: true,
-			ns:     int(testNs),
+			ns:     testNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, reply exists, proto %s", int(testNs), proto),
@@ -288,7 +378,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 				Reply: newIPTuple("fd00::2", laddrIP, 8080, uint16(laddrPort), ipProto),
 			},
 			exists: true,
-			ns:     int(testNs),
+			ns:     testNs,
 		},
 		{
 			desc: fmt.Sprintf("net ns %d, origin does not exist, proto %s", int(testNs), proto),
@@ -296,7 +386,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 				Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
 			},
 			exists: false,
-			ns:     int(testNs),
+			ns:     testNs,
 		},
 	}
 

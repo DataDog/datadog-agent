@@ -3,33 +3,79 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build linux
+
+// Package bininspect provides tools to inspect a Go binary.
 package bininspect
 
 import (
+	"errors"
 	"reflect"
 
-	"github.com/go-delve/delve/pkg/goversion"
+	delve "github.com/go-delve/delve/pkg/goversion"
+
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-// Config contains options for controlling what is included
-// in the results of the binary inspection process,
-// such as the struct offsets to obtain
-// and the functions to examine.
-type Config struct {
-	Functions     []FunctionConfig
-	StructOffsets []StructOffsetConfig
+const (
+	// WriteGoTLSFunc is the name of the function that writes to the TLS connection.
+	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
+	// ReadGoTLSFunc is the name of the function that reads from the TLS connection.
+	ReadGoTLSFunc = "crypto/tls.(*Conn).Read"
+	// CloseGoTLSFunc is the name of the function that closes the TLS connection.
+	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
+)
+
+// StructOffsetTLSConn is the offset of the `conn` field within `crypto/tls.Conn`.
+var StructOffsetTLSConn = FieldIdentifier{
+	StructName: "crypto/tls.Conn",
+	FieldName:  "conn",
+}
+
+// StructOffsetTCPConn is the offset of the `conn` field within `net.TCPConn`.
+var StructOffsetTCPConn = FieldIdentifier{
+	StructName: "net.TCPConn",
+	FieldName:  "conn",
+}
+
+// StructOffsetNetConnFd is the offset of the `fd` field within `net.conn`.
+var StructOffsetNetConnFd = FieldIdentifier{
+	StructName: "net.conn",
+	FieldName:  "fd",
+}
+
+// StructOffsetNetFdPfd is the offset of the `pdf` field within `net.netFD`.
+var StructOffsetNetFdPfd = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "pfd",
+}
+
+// StructOffsetPollFdSysfd is the offset of the `sysfd` field within `internal/poll.FD`.
+var StructOffsetPollFdSysfd = FieldIdentifier{
+	StructName: "internal/poll.FD",
+	FieldName:  "Sysfd",
+}
+
+// StructOffsetLimitListenerConnNetConn is the offset of the `net.Conn` field within `netutil/limitListenerConn`.
+var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
+	StructName: "golang.org/x/net/netutil.limitListenerConn",
+	FieldName:  "Conn",
+}
+
+type elfMetadata struct {
+	file *safeelf.File
+	arch GoArch
 }
 
 // Result is the result of the binary inspection process.
 type Result struct {
-	Arch                 GoArch
-	ABI                  GoABI
-	GoVersion            goversion.GoVersion
-	IncludesDebugSymbols bool
-	Functions            []FunctionMetadata
-	// If IncludesDebugSymbols is false, then this slice will be nil/empty
-	// (regardless of the struct offset configs).
-	StructOffsets []StructOffset
+	Arch                GoArch
+	ABI                 GoABI
+	GoVersion           goversion.GoVersion
+	Functions           map[string]FunctionMetadata
+	StructOffsets       map[FieldIdentifier]uint64
+	GoroutineIDMetadata GoroutineIDMetadata
 }
 
 // GoArch only includes supported architectures,
@@ -65,22 +111,9 @@ const (
 	GoABIRegister GoABI = "register"
 )
 
-// FunctionConfig controls the extraction of information about a single function
-// that can be used to attach an eBPF uprobe to.
-type FunctionConfig struct {
-	// The full name of the function to gather metadata for.
-	// ex: crypto/tls.(*Conn).Write
-	Name string
-	// Whether to gather the locations of the return instructions in the function.
-	IncludeReturnLocations bool
-}
-
 // FunctionMetadata contains the results of the inspection process that
 // that can be used to attach an eBPF uprobe to a single function.
 type FunctionMetadata struct {
-	// The full name of the function that this metadata is for.
-	// ex: crypto/tls.(*Conn).Write
-	Name string
 	// The virtual address for the function's entrypoint for non-PIE's,
 	// or offset to the file load address for PIE's.
 	//
@@ -155,9 +188,10 @@ type FunctionMetadata struct {
 // has been successful in getting the expected values from eBPF.
 //
 // TODO: look into cases where a middle piece of a parameter has been eliminated
-//       (such as the length of a slice),
-//       and make sure result is expected/handled well.
-//       Then, document such cases.
+//
+//	(such as the length of a slice),
+//	and make sure result is expected/handled well.
+//	Then, document such cases.
 type ParameterMetadata struct {
 	// Total size in bytes.
 	TotalSize int64
@@ -186,28 +220,47 @@ type ParameterPiece struct {
 	Register int
 }
 
-// StructOffsetConfig controls the extraction
-// of a single struct field's offset from the binary's debug information.
-type StructOffsetConfig struct {
+// FieldIdentifier represents a field in a struct and can be used as a map key.
+type FieldIdentifier struct {
 	// Fully-qualified name of the struct
-	// Ex.
-	// - `crypto/tls.Conn`
-	// - `internal/poll.FD`
-	// - `net.TCPConn`
-	// - `main.Foo`
-	// - `github.com/user/repo/cmd/test-cmd/foo.Bar`
 	StructName string
 	// Name of the field in the struct
 	FieldName string
 }
 
-// StructOffset contains the result of a single struct field's offset
-// (including the original struct/field it is an offset for).
-type StructOffset struct {
-	// Fully-qualified name of the struct
-	StructName string
-	// Name of the field in the struct
-	FieldName string
-	// Offset (in bytes) of the field from the struct's address
-	Offset uint64
+// GoroutineIDMetadata contains information
+// that can be used to reliably determine the ID
+// of the currently-running goroutine from an eBPF uprobe.
+type GoroutineIDMetadata struct {
+	// The offset of the `goid` field within `runtime.g`
+	GoroutineIDOffset uint64
+	// Whether the pointer to the current `runtime.g` value is in a register.
+	// If true, then `RuntimeGRegister` is given.
+	// Otherwise, `RuntimeGTLSAddrOffset` is given
+	RuntimeGInRegister bool
+
+	// The register that the pointer to the current `runtime.g` is in.
+	RuntimeGRegister int
+	// The offset of the `runtime.g` value within thread-local-storage.
+	RuntimeGTLSAddrOffset uint64
 }
+
+// ParameterLookupFunction represents a function that returns a list of parameter metadata (for example, parameter size)
+// for a specific golang function. It selects the relevant parameters metadata by the given go version & architecture.
+type ParameterLookupFunction func(delve.GoVersion, string) ([]ParameterMetadata, error)
+
+// StructLookupFunction represents a function that returns the offset of a specific field in a struct.
+// It selects the relevant offset metadata by the given go version & architecture.
+type StructLookupFunction func(delve.GoVersion, string) (uint64, error)
+
+// FunctionConfiguration contains info for the function analyzing process when scanning a binary.
+type FunctionConfiguration struct {
+	IncludeReturnLocations bool
+	ParamLookupFunction    ParameterLookupFunction
+}
+
+// ErrNilElf is returned when getting a nil pointer to an elf file.
+var ErrNilElf = errors.New("got nil elf file")
+
+// ErrUnsupportedArch is returned when an architecture given as a parameter is not supported.
+var ErrUnsupportedArch = errors.New("got unsupported arch")

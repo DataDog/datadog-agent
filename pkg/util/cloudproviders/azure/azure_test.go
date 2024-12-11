@@ -17,12 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
+
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -33,7 +35,7 @@ func TestGetAlias(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
@@ -90,14 +92,14 @@ func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"time.windows.com"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.Set("cloud_provider_metadata", []string{"azure"})
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"azure"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
@@ -105,7 +107,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
 			"name": "vm-name",
@@ -129,10 +131,10 @@ func TestGetHostname(t *testing.T) {
 		{"invalid", "", true},
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	for _, tt := range cases {
-		mockConfig.Set(hostnameStyleSetting, tt.style)
+		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
 		hostname, err := getHostnameWithConfig(ctx, mockConfig)
 		assert.Equal(t, tt.value, hostname)
 		assert.Equal(t, tt.err, (err != nil))
@@ -141,12 +143,12 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
 
 	for _, response := range []string{"", "!"} {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "%s",
@@ -159,7 +161,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 
 		t.Run(fmt.Sprintf("with response '%s'", response), func(t *testing.T) {
 			for _, style := range styles {
-				mockConfig.Set(hostnameStyleSetting, style)
+				mockConfig.SetWithoutSource(hostnameStyleSetting, style)
 				hostname, err := getHostnameWithConfig(ctx, mockConfig)
 				assert.Empty(t, hostname)
 				assert.NotNil(t, err)
@@ -192,7 +194,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	metadataURL = ts.URL
 	val, err := GetPublicIPv4(ctx)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.True(t, strings.HasPrefix(lastRequest.URL.Path, pathPrefix))
 }

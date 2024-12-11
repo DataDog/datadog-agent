@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && test
-// +build python,test
 
 package python
 
@@ -34,4 +33,8 @@ func TestGetConfig(t *testing.T) {
 
 func TestSetExternalTags(t *testing.T) {
 	testSetExternalTags(t)
+}
+
+func TestEmitAgentTelemetry(t *testing.T) {
+	testEmitAgentTelemetry(t)
 }

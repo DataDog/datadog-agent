@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package winutil
 
 import (
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
@@ -19,19 +19,20 @@ import (
 func LogEventViewer(servicename string, msgnum uint32, arg string) {
 	elog, err := eventlog.Open(servicename)
 	if err != nil {
+		pkglog.Errorf("error opening event log with source %v: %v", servicename, err)
 		return
 	}
 	defer elog.Close()
 	switch msgnum & 0xF0000000 {
 	case 0x40000000:
 		// Info level message
-		elog.Info(msgnum, arg)
+		_ = elog.Info(msgnum, arg)
 	case 0x80000000:
 		// warning level message
-		elog.Warning(msgnum, arg)
+		_ = elog.Warning(msgnum, arg)
 	case 0xC0000000:
 		// error level message
-		elog.Error(msgnum, arg)
+		_ = elog.Error(msgnum, arg)
 	}
 
 }

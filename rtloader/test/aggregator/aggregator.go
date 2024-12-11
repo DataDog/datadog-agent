@@ -7,7 +7,6 @@ package testaggregator
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
@@ -26,7 +25,7 @@ extern void submitMetric(char *, metric_type_t, char *, double, char **, char *,
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
 extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-extern void submitEventPlatformEvent(char *, char *, char *);
+extern void submitEventPlatformEvent(char *, char *, int, char *);
 
 static void initAggregatorTests(rtloader_t *rtloader) {
    set_submit_metric_cb(rtloader, submitMetric);
@@ -50,7 +49,7 @@ var (
 	scLevel         int
 	scName          string
 	scMessage       string
-	rawEvent        string
+	rawEvent        []byte
 	eventType       string
 	_event          *event
 	intValue        int
@@ -112,7 +111,7 @@ func setUp() error {
 
 func run(call string) (string, error) {
 	resetOuputValues()
-	tmpfile, err := ioutil.TempFile("", "testout")
+	tmpfile, err := os.CreateTemp("", "testout")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,7 +140,7 @@ except Exception as e:
 	}
 
 	var output []byte
-	output, err = ioutil.ReadFile(tmpfile.Name())
+	output, err = os.ReadFile(tmpfile.Name())
 
 	return strings.TrimSpace(string(output)), err
 }
@@ -237,8 +236,8 @@ func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLo
 }
 
 //export submitEventPlatformEvent
-func submitEventPlatformEvent(id *C.char, _rawEvent *C.char, _eventType *C.char) {
+func submitEventPlatformEvent(id *C.char, _rawEventPtr *C.char, _rawEventSize C.int, _eventType *C.char) {
 	checkID = C.GoString(id)
-	rawEvent = C.GoString(_rawEvent)
+	rawEvent = C.GoBytes(unsafe.Pointer(_rawEventPtr), _rawEventSize)
 	eventType = C.GoString(_eventType)
 }

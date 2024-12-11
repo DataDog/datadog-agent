@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
+//go:build linux && !arm64
 
+// Package modules is all the module definitions for system-probe
 package modules
 
 import (
@@ -16,13 +16,23 @@ import (
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{
+	EBPFProbe,
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
-	SecurityRuntime,
+	// there is a dependency from EventMonitor -> NetworkTracer
+	// so EventMonitor has to follow NetworkTracer
+	EventMonitor,
 	Process,
+	DynamicInstrumentation,
+	LanguageDetectionModule,
+	ComplianceModule,
+	Pinger,
+	Traceroute,
+	DiscoveryModule,
+	GPUMonitoring, // GPU monitoring needs to be initialized afer EventMonitor, so that we have the event consumer ready
 }
 
-func inactivityEventLog(duration time.Duration) {
+func inactivityEventLog(_ time.Duration) {
 
 }

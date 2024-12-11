@@ -46,7 +46,7 @@ func TestGetToken(t *testing.T) {
 	metadataURL = ts.URL
 
 	value, expiresAt, err := getToken(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "some data", value)
 
 	expectedExpiresAt, _ := time.Parse(time.RFC3339, "2022-03-22T15:40:50.227Z")
@@ -54,7 +54,7 @@ func TestGetToken(t *testing.T) {
 }
 
 func TestGetTokenError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		io.WriteString(w, "{}")
 	}))
@@ -68,7 +68,7 @@ func TestGetTokenError(t *testing.T) {
 }
 
 func TestGetTokenErrorParsingDate(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		io.WriteString(w, tokenPayloadExpireError)
 	}))
@@ -82,7 +82,7 @@ func TestGetTokenErrorParsingDate(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	value, expiresAt, err := getToken(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "some data", value)
 
 	// expiresAt is set to time.Now() when the API returned an invalid expire date.
@@ -108,6 +108,6 @@ func TestGetHostAliases(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []string{"an ID"}, aliases)
 }

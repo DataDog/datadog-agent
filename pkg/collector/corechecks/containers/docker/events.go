@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -12,13 +11,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +23,7 @@ import (
 
 var (
 	dockerEvents = telemetry.NewCounterWithOpts(
-		dockerCheckName,
+		CheckName,
 		"events",
 		[]string{"action"},
 		"Number of Docker events received by the check.",
@@ -34,7 +31,7 @@ var (
 	)
 
 	emittedEvents = telemetry.NewCounterWithOpts(
-		dockerCheckName,
+		CheckName,
 		"emitted_events",
 		[]string{"type"},
 		"Number of events emitted by the check.",
@@ -52,6 +49,7 @@ func (d *DockerCheck) retrieveEvents(du docker.Client) ([]*docker.ContainerEvent
 		return events, err
 	}
 
+	//nolint:gosimple // TODO(CINT) Fix gosimple linter
 	if latest.IsZero() == false {
 		d.lastEventTime = latest.Add(1 * time.Nanosecond)
 	}
@@ -60,7 +58,7 @@ func (d *DockerCheck) retrieveEvents(du docker.Client) ([]*docker.ContainerEvent
 }
 
 // reportExitCodes monitors events for non zero exit codes and sends service checks
-func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) {
+func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender sender.Sender) {
 	for _, ev := range events {
 		// Filtering
 		if ev.Action != "die" {
@@ -79,12 +77,12 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 
 		// Building and sending message
 		message := fmt.Sprintf("Container %s exited with %d", ev.ContainerName, exitCodeInt)
-		status := metrics.ServiceCheckOK
+		status := servicecheck.ServiceCheckOK
 		if _, ok := d.okExitCodes[int(exitCodeInt)]; !ok {
-			status = metrics.ServiceCheckCritical
+			status = servicecheck.ServiceCheckCritical
 		}
 
-		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
+		tags, err := d.tagger.Tag(types.NewEntityID(types.ContainerID, ev.ContainerID), types.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 			tags = []string{}
@@ -96,72 +94,16 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 }
 
 // reportEvents aggregates and sends events to the Datadog event feed
-func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
-	bundles := aggregateEvents(events, d.instance.FilteredEventType)
+func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender sender.Sender) error {
+	datadogEvs, errs := d.eventTransformer.Transform(events)
 
-	for _, bundle := range bundles {
-		ev, err := bundle.toDatadogEvent(d.dockerHostname)
-		if err != nil {
-			log.Warnf("can't submit event: %s", err)
-			continue
-		}
+	for _, err := range errs {
+		d.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
+	}
 
+	for _, ev := range datadogEvs {
 		sender.Event(ev)
-
-		emittedEvents.Inc(string(bundle.alertType))
 	}
 
 	return nil
-}
-
-// aggregateEvents converts a bunch of ContainerEvent to bundles aggregated by
-// image name. It also filters out unwanted event types.
-func aggregateEvents(events []*docker.ContainerEvent, filteredActions []string) map[string]*dockerEventBundle {
-	// Pre-aggregate container events by image
-	eventsByImage := make(map[string]*dockerEventBundle)
-	filteredByType := make(map[string]int)
-
-	for _, event := range events {
-		if matchFilter(event.Action, filteredActions) {
-			filteredByType[event.Action] = filteredByType[event.Action] + 1
-			continue
-		}
-
-		bundle, found := eventsByImage[event.ImageName]
-		if found == false {
-			bundle = newDockerEventBundler(event.ImageName)
-			eventsByImage[event.ImageName] = bundle
-		}
-
-		err := bundle.addEvent(event)
-		if err != nil {
-			log.Warnf("Error while bundling events, %s.", err.Error())
-			continue
-		}
-
-		dockerEvents.Inc(event.Action)
-	}
-
-	if len(filteredByType) > 0 {
-		log.Debugf("filtered out the following events: %s", formatStringIntMap(filteredByType))
-	}
-
-	return eventsByImage
-}
-
-func matchFilter(item string, filterList []string) bool {
-	for _, filtered := range filterList {
-		if filtered == item {
-			return true
-		}
-	}
-	return false
-}
-
-func formatStringIntMap(input map[string]int) string {
-	var parts []string
-	for k, v := range input {
-		parts = append(parts, fmt.Sprintf("%d %s", v, k))
-	}
-	return strings.Join(parts, " ")
 }

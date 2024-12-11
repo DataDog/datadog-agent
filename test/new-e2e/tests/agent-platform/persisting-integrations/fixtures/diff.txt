@@ -1,0 +1,4 @@
+# DO NOT REMOVE/MODIFY - used internally by installation process
+grpcio==1.66.2
+pynvml==11.5.3
+datadog-nvml==1.0.0

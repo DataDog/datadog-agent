@@ -13,9 +13,8 @@ import (
 	"strconv"
 	"testing"
 
+	util "github.com/DataDog/datadog-agent/pkg/util/sort"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Helper function

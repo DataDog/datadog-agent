@@ -4,21 +4,25 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"unsafe"
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -35,11 +39,10 @@ import (
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import (
-	"C"
-)
+import "C"
 
 // GetVersion exposes the version of the agent to Python checks.
+//
 //export GetVersion
 func GetVersion(agentVersion **C.char) {
 	av, _ := version.Agent()
@@ -48,6 +51,7 @@ func GetVersion(agentVersion **C.char) {
 }
 
 // GetHostname exposes the current hostname of the agent to Python checks.
+//
 //export GetHostname
 func GetHostname(hostname **C.char) {
 	goHostname, err := hostnameUtil.Get(context.TODO())
@@ -59,22 +63,37 @@ func GetHostname(hostname **C.char) {
 	*hostname = TrackedCString(goHostname)
 }
 
+// GetHostTags exposes the tags of the agent host to Python checks.
+//
+//export GetHostTags
+func GetHostTags(hostTags **C.char) {
+	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+	tagsBytes, err := json.Marshal(tags)
+	if err != nil {
+		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
+	}
+	*hostTags = TrackedCString(string(tagsBytes))
+}
+
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
+//
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
 	goHostname, _ := hostnameUtil.Get(context.TODO())
-	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
+	goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
 }
 
 // TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
+//
 //export TracemallocEnabled
 func TracemallocEnabled() C.bool {
-	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
+	return C.bool(pkgconfigsetup.Datadog().GetBool("tracemalloc_debug"))
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
+//
 //export Headers
 func Headers(yamlPayload **C.char) {
 	h := util.HTTPHeaders()
@@ -91,15 +110,16 @@ func Headers(yamlPayload **C.char) {
 
 // GetConfig returns a value from the agent configuration.
 // Indirectly used by the C function `get_config` that's mapped to `datadog_agent.get_config`.
+//
 //export GetConfig
 func GetConfig(key *C.char, yamlPayload **C.char) {
 	goKey := C.GoString(key)
-	if !config.Datadog.IsSet(goKey) {
+	if !pkgconfigsetup.Datadog().IsSet(goKey) {
 		*yamlPayload = nil
 		return
 	}
 
-	value := config.Datadog.Get(goKey)
+	value := pkgconfigsetup.Datadog().Get(goKey)
 	data, err := yaml.Marshal(value)
 	if err != nil {
 		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
@@ -112,6 +132,7 @@ func GetConfig(key *C.char, yamlPayload **C.char) {
 
 // LogMessage logs a message from python through the agent logger (see
 // https://docs.python.org/2.7/library/logging.html#logging-levels)
+//
 //export LogMessage
 func LogMessage(message *C.char, logLevel C.int) {
 	goMsg := C.GoString(message)
@@ -134,12 +155,11 @@ func LogMessage(message *C.char, logLevel C.int) {
 	default: // unknown log level
 		log.Info(goMsg)
 	}
-
-	return
 }
 
 // SetExternalTags adds a set of tags for a given hostname to the External Host
 // Tags metadata provider cache.
+//
 //export SetExternalTags
 func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	hname := C.GoString(hostname)
@@ -162,17 +182,21 @@ func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 // Indirectly used by the C function `set_check_metadata` that's mapped to `datadog_agent.set_check_metadata`.
+//
 //export SetCheckMetadata
 func SetCheckMetadata(checkID, name, value *C.char) {
 	cid := C.GoString(checkID)
 	key := C.GoString(name)
 	val := C.GoString(value)
 
-	inventories.SetCheckMetadata(cid, key, val)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(cid, key, val)
+	}
 }
 
 // WritePersistentCache stores a value for one check instance
 // Indirectly used by the C function `write_persistent_cache` that's mapped to `datadog_agent.write_persistent_cache`.
+//
 //export WritePersistentCache
 func WritePersistentCache(key, value *C.char) {
 	keyName := C.GoString(key)
@@ -182,6 +206,7 @@ func WritePersistentCache(key, value *C.char) {
 
 // ReadPersistentCache retrieves a value for one check instance
 // Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
+//
 //export ReadPersistentCache
 func ReadPersistentCache(key *C.char) *C.char {
 	keyName := C.GoString(key)
@@ -193,6 +218,28 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
+// SendLog submits a log for one check instance.
+// Indirectly used by the C function `send_log` that's mapped to `datadog_agent.send_log`.
+//
+//export SendLog
+func SendLog(logLine, checkID *C.char) {
+	line := C.GoString(logLine)
+	cid := C.GoString(checkID)
+
+	cc, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Log submission failed: %s", err)
+	}
+
+	lr, ok := cc.logReceiver.Get()
+	if !ok {
+		log.Error("Log submission failed: no receiver")
+		return
+	}
+
+	lr.SendLog(line, cid)
+}
+
 var (
 	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
 	// the GIL is always locked when calling c code from python which means that the exported functions in this file
@@ -202,12 +249,12 @@ var (
 )
 
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
-// because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
+// because the obfuscator depends on pkgconfigsetup.Datadog and it isn't guaranteed to be initialized during package init, but
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg obfuscate.Config
-		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = obfuscate.Config{}
 		}
@@ -216,6 +263,9 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		}
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		}
+		if !cfg.Mongo.Enabled {
+			cfg.Mongo = defaultMongoObfuscateSettings
 		}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
@@ -232,6 +282,8 @@ type sqlConfig struct {
 	CollectCommands bool `json:"collect_commands"`
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments"`
+	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
+	CollectProcedures bool `json:"collect_procedures"`
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
 	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
@@ -240,10 +292,48 @@ type sqlConfig struct {
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode"`
+
+	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
+	// By default, spaces are inserted between parentheses during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses"`
+
+	// KeepNull specifies whether to disable obfuscate NULL value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepNull bool `json:"keep_null"`
+
+	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepBoolean bool `json:"keep_boolean"`
+
+	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepPositionalParameter bool `json:"keep_positional_parameter"`
+
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
+
+	// KeepJSONPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
+	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
+//
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	optStr := C.GoString(opts)
@@ -258,13 +348,22 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:             sqlOpts.DBMS,
-		TableNames:       sqlOpts.TableNames,
-		CollectCommands:  sqlOpts.CollectCommands,
-		CollectComments:  sqlOpts.CollectComments,
-		ReplaceDigits:    sqlOpts.ReplaceDigits,
-		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+		DBMS:                          sqlOpts.DBMS,
+		TableNames:                    sqlOpts.TableNames,
+		CollectCommands:               sqlOpts.CollectCommands,
+		CollectComments:               sqlOpts.CollectComments,
+		CollectProcedures:             sqlOpts.CollectProcedures,
+		ReplaceDigits:                 sqlOpts.ReplaceDigits,
+		KeepSQLAlias:                  sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc:              sqlOpts.DollarQuotedFunc,
+		ObfuscationMode:               sqlOpts.ObfuscationMode,
+		RemoveSpaceBetweenParentheses: sqlOpts.RemoveSpaceBetweenParentheses,
+		KeepNull:                      sqlOpts.KeepNull,
+		KeepBoolean:                   sqlOpts.KeepBoolean,
+		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
+		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
+		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
+		KeepJSONPath:                  sqlOpts.KeepJSONPath,
 	})
 	if err != nil {
 		// memory will be freed by caller
@@ -287,6 +386,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 
 // ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
 // operation fails
+//
 //export ObfuscateSQLExecPlan
 func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
 	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(
@@ -472,7 +572,166 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
 
+// defaultMongoObfuscateSettings are the default JSON obfuscator settings for obfuscating mongodb commands
+var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
+	Enabled: true,
+	KeepValues: []string{
+		"find",
+		"sort",
+		"projection",
+		"skip",
+		"batchSize",
+		"$db",
+		"getMore",
+		"collection",
+		"delete",
+		"findAndModify",
+		"insert",
+		"ordered",
+		"update",
+		"aggregate",
+		"comment",
+	},
+}
+
 //export getProcessStartTime
 func getProcessStartTime() float64 {
-	return float64(config.StartTime.Unix())
+	return float64(pkgconfigsetup.StartTime.Unix())
+}
+
+// ObfuscateMongoDBString obfuscates the MongoDB query
+//
+//export ObfuscateMongoDBString
+func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	if C.GoString(cmd) == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Empty MongoDB command")
+		return nil
+	}
+	obfuscatedMongoDBString := lazyInitObfuscator().ObfuscateMongoDBString(
+		C.GoString(cmd),
+	)
+	if obfuscatedMongoDBString == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Failed to obfuscate MongoDB command")
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedMongoDBString)
+}
+
+var (
+	telemetryMap  = map[string]any{}
+	telemetryLock = sync.Mutex{}
+)
+
+func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	histogram, ok := telemetryMap[key]
+	if !ok {
+		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
+			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = histogram
+	}
+	switch t := histogram.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when histogram was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Histogram:
+		return t
+	}
+}
+
+func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	counter, ok := telemetryMap[key]
+	if !ok {
+		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = counter
+	}
+	switch t := counter.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when counter was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Counter:
+		return t
+	}
+}
+
+func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	gauge, ok := telemetryMap[key]
+	if !ok {
+		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = gauge
+	}
+	switch t := gauge.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when gauge was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Gauge:
+		return t
+	}
+}
+
+// EmitAgentTelemetry records a telemetry data point for a Python integration
+// NB: Cross-org agent telemetry needs to be enabled for each metric in
+// comp/core/agenttelemetry/impl/config.go defaultProfiles
+//
+//export EmitAgentTelemetry
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char) {
+	goCheckName := C.GoString(checkName)
+	goMetricName := C.GoString(metricName)
+	goMetricValue := float64(metricValue)
+	goMetricType := C.GoString(metricType)
+
+	switch goMetricType {
+	case "counter":
+		counter := lazyInitTelemetryCounter(goCheckName, goMetricName)
+		if counter != nil {
+			counter.Add(goMetricValue)
+		}
+	case "histogram":
+		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName)
+		if histogram != nil {
+			histogram.Observe(goMetricValue)
+		}
+	case "gauge":
+		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
+		if gauge != nil {
+			gauge.Set(goMetricValue)
+		}
+	default:
+		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
+	}
 }

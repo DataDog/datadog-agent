@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package flare
 
@@ -15,22 +14,47 @@ import (
 	"path/filepath"
 	"regexp"
 	"syscall"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
+
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-func zipLinuxFile(source, tempDir, hostname, filename string) error {
-	return zipFile(source, filepath.Join(tempDir, hostname), filename)
+func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
+	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
+	if systemProbeConfigBPFDir != "" {
+		fb.RegisterDirPerm(systemProbeConfigBPFDir)
+	}
+
+	sysprobeSocketLocation := getSystemProbeSocketPath()
+	if sysprobeSocketLocation != "" {
+		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
+	}
+
+	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)
+	}
 }
 
-func zipLinuxKernelSymbols(tempDir, hostname string) error {
-	return zipLinuxFile("/proc", tempDir, hostname, "kallsyms")
+func getLinuxKernelSymbols(fb flaretypes.FlareBuilder) error {
+	return fb.CopyFile("/proc/kallsyms")
 }
 
-func zipLinuxKprobeEvents(tempDir, hostname string) error {
-	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "kprobe_events")
+func getLinuxKprobeEvents(fb flaretypes.FlareBuilder) error {
+	traceFSPath, err := tracefs.Root()
+	if err != nil {
+		return err
+	}
+	return fb.CopyFile(filepath.Join(traceFSPath, "kprobe_events"))
 }
 
-func zipLinuxPid1MountInfo(tempDir, hostname string) error {
-	return zipLinuxFile("/proc/1", tempDir, hostname, "mountinfo")
+func getLinuxPid1MountInfo(fb flaretypes.FlareBuilder) error {
+	return fb.CopyFile("/proc/1/mountinfo")
 }
 
 var klogRegexp = regexp.MustCompile(`<(\d+)>(.*)`)
@@ -77,24 +101,50 @@ func parseDmesg(buffer []byte) (string, error) {
 	return result, nil
 }
 
-func zipLinuxDmesg(tempDir, hostname string) error {
+func getLinuxDmesg(fb flaretypes.FlareBuilder) error {
 	dmesg, err := readAllDmesg()
 	if err != nil {
 		return err
 	}
 
-	buffer, err := parseDmesg(dmesg)
+	content, err := parseDmesg(dmesg)
 	if err != nil {
 		return err
 	}
 
-	return zipReader(bytes.NewBufferString(buffer), filepath.Join(tempDir, hostname), "dmesg")
+	return fb.AddFile("dmesg", []byte(content))
 }
 
-func zipLinuxTracingAvailableEvents(tempDir, hostname string) error {
-	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "available_events")
+func getLinuxTracingAvailableEvents(fb flaretypes.FlareBuilder) error {
+	traceFSPath, err := tracefs.Root()
+	if err != nil {
+		return err
+	}
+	return fb.CopyFile(filepath.Join(traceFSPath, "available_events"))
 }
 
-func zipLinuxTracingAvailableFilterFunctions(tempDir, hostname string) error {
-	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "available_filter_functions")
+func getLinuxTracingAvailableFilterFunctions(fb flaretypes.FlareBuilder) error {
+	traceFSPath, err := tracefs.Root()
+	if err != nil {
+		return err
+	}
+	return fb.CopyFile(filepath.Join(traceFSPath, "available_filter_functions"))
+}
+
+func getSystemProbeConntrackCached() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeConntrackHost() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeBTFLoaderInfo() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.DebugURL("/ebpf_btf_loader_info")
+	return getHTTPData(sysProbeClient, url)
 }

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 find_package (Python3 COMPONENTS Interpreter Development)
 
 if(Python3_VERSION_MINOR LESS "7")
@@ -36,6 +36,7 @@ configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
+    three_mem.cpp
     ../common/cgo_free.c
     ../common/stringutils.c
     ../common/log.c

@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package adlistener
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 )
 
-// ADListener implements pkg/autodiscovery/scheduler.Scheduler.
+// ADListener implements comp/core/autodiscovery/scheduler.Scheduler.
 //
 // It proxies Schedule and Unschedule calls to its parent.
 //
@@ -22,7 +23,7 @@ type ADListener struct {
 	name string
 
 	// ac is the AutoConfig instance
-	ac *autodiscovery.AutoConfig
+	ac autodiscovery.Component
 
 	// schedule and unschedule are the functions to which Schedule and
 	// Unschedule calls should be proxied.
@@ -33,7 +34,7 @@ var _ scheduler.Scheduler = &ADListener{}
 
 // NewADListener creates a new ADListener, proxying schedule and unschedule calls to
 // the given functions.
-func NewADListener(name string, ac *autodiscovery.AutoConfig, schedule, unschedule func([]integration.Config)) *ADListener {
+func NewADListener(name string, ac autodiscovery.Component, schedule, unschedule func([]integration.Config)) *ADListener {
 	return &ADListener{
 		name:       name,
 		ac:         ac,
@@ -53,15 +54,15 @@ func (l *ADListener) StopListener() {
 	l.ac.RemoveScheduler(l.name)
 }
 
-// Stop implements pkg/autodiscovery/scheduler.Scheduler#Stop.
+// Stop implements comp/core/autodiscovery/scheduler.Scheduler#Stop.
 func (l *ADListener) Stop() {}
 
-// Schedule implements pkg/autodiscovery/scheduler.Scheduler#Schedule.
+// Schedule implements comp/core/autodiscovery/scheduler.Scheduler#Schedule.
 func (l *ADListener) Schedule(configs []integration.Config) {
 	l.schedule(configs)
 }
 
-// Unschedule implements pkg/autodiscovery/scheduler.Scheduler#Unschedule.
+// Unschedule implements comp/core/autodiscovery/scheduler.Scheduler#Unschedule.
 func (l *ADListener) Unschedule(configs []integration.Config) {
 	l.unschedule(configs)
 }

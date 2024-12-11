@@ -6,12 +6,9 @@
 package watchdog
 
 import (
-	"os"
 	"runtime"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const (
@@ -58,41 +55,28 @@ type CurrentInfo struct {
 	lastCPU     CPUInfo
 }
 
-// globalCurrentInfo is a global default object one can safely use
-// if only one goroutine is polling for CPU() and Mem()
-var globalCurrentInfo *CurrentInfo
-
-func init() {
-	var err error
-	globalCurrentInfo, err = NewCurrentInfo()
-	if err != nil {
-		log.Errorf("Unable to create global Process: %v", err)
+// NewCurrentInfo creates a new CurrentInfo referring to the current running program.
+func NewCurrentInfo() *CurrentInfo {
+	return &CurrentInfo{
+		pid:        int32(getpid()),
+		cacheDelay: cacheDelay,
 	}
 }
 
-// NewCurrentInfo creates a new CurrentInfo referring to the current running program.
-func NewCurrentInfo() (*CurrentInfo, error) {
-	return &CurrentInfo{
-		pid:        int32(os.Getpid()),
-		cacheDelay: cacheDelay,
-	}, nil
-}
-
-// CPU returns basic CPU info.
-func (pi *CurrentInfo) CPU(now time.Time) CPUInfo {
+// CPU returns basic CPU info, or the previous valid CPU info and an error.
+func (pi *CurrentInfo) CPU(now time.Time) (CPUInfo, error) {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 
 	dt := now.Sub(pi.lastCPUTime)
 	if dt <= pi.cacheDelay {
-		return pi.lastCPU // don't query too often, cache a little bit
+		return pi.lastCPU, nil // don't query too often, cache a little bit
 	}
 	pi.lastCPUTime = now
 
 	userTime, err := cpuTimeUser(pi.pid)
 	if err != nil {
-		log.Debugf("Unable to get CPU times: %v", err)
-		return pi.lastCPU
+		return pi.lastCPU, err
 	}
 
 	dua := userTime - pi.lastCPUUser
@@ -104,7 +88,7 @@ func (pi *CurrentInfo) CPU(now time.Time) CPUInfo {
 		pi.lastCPUUser = userTime
 	}
 
-	return pi.lastCPU
+	return pi.lastCPU, nil
 }
 
 // Mem returns basic memory info.
@@ -112,20 +96,4 @@ func (pi *CurrentInfo) Mem() MemInfo {
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	return MemInfo{Alloc: ms.Alloc}
-}
-
-// CPU returns basic CPU info.
-func CPU(now time.Time) CPUInfo {
-	if globalCurrentInfo == nil {
-		return CPUInfo{}
-	}
-	return globalCurrentInfo.CPU(now)
-}
-
-// Mem returns basic memory info.
-func Mem() MemInfo {
-	if globalCurrentInfo == nil {
-		return MemInfo{}
-	}
-	return globalCurrentInfo.Mem()
 }

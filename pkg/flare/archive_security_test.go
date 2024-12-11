@@ -4,29 +4,43 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package flare
 
 import (
-	"archive/zip"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	// Required to initialize the "dogstatsd" expvar
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
-	assert := assert.New(t)
+	mockConfig := configmock.New(t)
+	statusComponent := fxutil.Test[status.Mock](t, fx.Options(
+		statusimpl.MockModule(),
+	))
 
-	common.SetupConfig("./test")
-	mockConfig := config.Mock(t)
-	mockConfig.Set("compliance_config.dir", "./test/compliance.d")
+	mockConfig.SetWithoutSource("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"
+
+	// Mock getLinuxKernelSymbols. It can take a long time to scrub when creating a flare.
+	defer func(f func(flaretypes.FlareBuilder) error) {
+		linuxKernelSymbols = f
+	}(getLinuxKernelSymbols)
+	linuxKernelSymbols = func(fb flaretypes.FlareBuilder) error {
+		fb.AddFile("kallsyms", []byte("some kernel symbol"))
+		return nil
+	}
 
 	tests := []struct {
 		name          string
@@ -54,23 +68,11 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			zipFilePath, err := CreateSecurityAgentArchive(test.local, logFilePath, nil, nil)
-			defer os.Remove(zipFilePath)
+			mock := flarehelpers.NewFlareBuilderMock(t, test.local)
+			createSecurityAgentArchive(mock.Fb, logFilePath, statusComponent)
 
-			assert.NoError(err)
-
-			// asserts that it as indeed created a permissions.log file
-			z, err := zip.OpenReader(zipFilePath)
-			assert.NoError(err, "opening the zip shouldn't pop an error")
-
-			var fileNames []string
-			for _, f := range z.File {
-				fileNames = append(fileNames, f.Name)
-			}
-
-			dir := fileNames[0]
 			for _, f := range test.expectedFiles {
-				assert.Contains(fileNames, filepath.Join(dir, f))
+				mock.AssertFileExists(f)
 			}
 		})
 	}

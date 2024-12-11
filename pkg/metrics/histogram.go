@@ -10,7 +10,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,13 +51,9 @@ var (
 	defaultPercentiles = []int(nil)
 )
 
-type histogramPercentilesConfig struct {
-	Percentiles []string `mapstructure:"histogram_percentiles"`
-}
-
-func (h *histogramPercentilesConfig) percentiles() []int {
+func parsePercentiles(percentiles []string) []int {
 	res := []int{}
-	for _, p := range h.Percentiles {
+	for _, p := range percentiles {
 		i, err := strconv.ParseFloat(p, 64)
 		if err != nil {
 			log.Errorf("Could not parse '%s' from 'histogram_percentiles' (skipping): %s", p, err)
@@ -75,18 +72,18 @@ func (h *histogramPercentilesConfig) percentiles() []int {
 }
 
 // NewHistogram returns a newly initialized histogram
-func NewHistogram(interval int64) *Histogram {
+func NewHistogram(interval int64, config pkgconfigmodel.Config) *Histogram {
 	// we initialize default value on the first histogram creation
 	if defaultAggregates == nil {
-		defaultAggregates = config.Datadog.GetStringSlice("histogram_aggregates")
+		defaultAggregates = config.GetStringSlice("histogram_aggregates")
 	}
 	if defaultPercentiles == nil {
-		c := histogramPercentilesConfig{}
-		err := config.Datadog.Unmarshal(&c)
+		c := []string{}
+		err := structure.UnmarshalKey(config, "histogram_percentiles", &c)
 		if err != nil {
 			log.Errorf("Could not Unmarshal histogram configuration: %s", err)
 		} else {
-			defaultPercentiles = c.percentiles()
+			defaultPercentiles = parsePercentiles(c)
 			sort.Ints(defaultPercentiles)
 		}
 	}
@@ -104,7 +101,8 @@ func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.percentiles = percentiles
 }
 
-func (h *Histogram) addSample(sample *MetricSample, timestamp float64) {
+//nolint:revive // TODO(AML) Fix revive linter
+func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	rate := sample.SampleRate
 	if rate == 0 {
 		rate = 1
@@ -163,7 +161,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	}
 
 	// Compute percentiles
-	var target []int64
+	target := make([]int64, 0, len(h.percentiles))
 	for _, percentile := range h.percentiles {
 		target = append(target, (int64(percentile)*h.count-1)/100)
 	}

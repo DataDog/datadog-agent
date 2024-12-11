@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dns traces DNS activity and caches DNS lookups for reverse DNS capability
 package dns
 
 import (
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
@@ -33,7 +32,7 @@ func ToHostname(s string) Hostname {
 }
 
 // QueryType is the DNS record type
-type QueryType layers.DNSType
+type QueryType int
 
 // DNSType known values.
 const (
@@ -65,9 +64,13 @@ type StatsByKeyByNameByType map[Key]map[Hostname]map[QueryType]Stats
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
-	Resolve([]util.Address) map[util.Address][]Hostname
+	Resolve(map[util.Address]struct{}) map[util.Address][]Hostname
 	GetDNSStats() StatsByKeyByNameByType
-	GetStats() map[string]int64
+
+	// WaitForDomain is used in tests to ensure a domain has been
+	// seen by the ReverseDNS.
+	WaitForDomain(domain string) error
+
 	Start() error
 	Close()
 }

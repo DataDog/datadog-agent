@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package clustername provides helpers to get a Kubernetes cluster name.
 package clustername
 
 import (
@@ -13,7 +14,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -27,16 +30,14 @@ const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
 )
 
-var (
-	// validClusterName matches exactly the same naming rule as the one enforced by GKE:
-	// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
-	// The cluster name can be up to 40 characters with the following restrictions:
-	// * Lowercase letters, numbers, dots and hyphens only.
-	// * Must start with a letter.
-	// * Must end with a number or a letter.
-	// * Must be a valid FQDN (without trailing period)
-	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
-)
+// validClusterName matches exactly the same naming rule as the one enforced by GKE:
+// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
+// The cluster name can be up to 40 characters with the following restrictions:
+// * Lowercase letters, numbers, dots and hyphens only.
+// * Must start with a letter.
+// * Must end with a number or a letter.
+// * Must be a valid FQDN (without trailing period)
+var validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 
 type clusterNameData struct {
 	clusterName string
@@ -69,8 +70,12 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
+	if !env.IsFeaturePresent(env.Kubernetes) {
+		return ""
+	}
+
 	if !data.initDone {
-		data.clusterName = config.Datadog.GetString("cluster_name")
+		data.clusterName = pkgconfigsetup.Datadog().GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
 			// the host alias "hostname-clustername" must not exceed 255 chars
@@ -108,13 +113,22 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 		}
 
-		if data.clusterName == "" && config.IsFeaturePresent(config.Kubernetes) {
-			clusterName, err := hostinfo.GetNodeClusterNameLabel(ctx)
+		var clusterName string
+		nodeInfo, err := hostinfo.NewNodeInfo()
+		if err != nil {
+			log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+		} else {
+			clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-			} else {
-				data.clusterName = clusterName
 			}
+		}
+		if len(clusterName) > 0 {
+			if !IsRFC1123CompliantClusterName(clusterName) {
+				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
+			}
+			data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
+			log.Infof("Using cluster name %s from the node label", data.clusterName)
 		}
 
 		if data.clusterName != "" {
@@ -133,6 +147,24 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
 func GetClusterName(ctx context.Context, hostname string) string {
 	return getClusterName(ctx, defaultClusterNameData, hostname)
+}
+
+// GetClusterNameTagValue  a k8s cluster name if it exists, either directly specified or autodiscovered
+//
+// This function also "normalize" the k8s cluster name if the configuration option
+// "enabled_rfc1123_compliant_cluster_name_tag" is set to "true"
+// this allow to limit the risk of breaking user that currently rely on previous `kube_cluster_name` tag value.
+func GetClusterNameTagValue(ctx context.Context, hostname string) string {
+	if pkgconfigsetup.Datadog().GetBool("enabled_rfc1123_compliant_cluster_name_tag") {
+		return GetRFC1123CompliantClusterName(ctx, hostname)
+	}
+	return GetClusterName(ctx, hostname)
+}
+
+// IsRFC1123CompliantClusterName check if the clusterName is RFC1123 compliant
+// return false if not compliant
+func IsRFC1123CompliantClusterName(clusterName string) bool {
+	return !strings.Contains(clusterName, "_")
 }
 
 // GetRFC1123CompliantClusterName returns an RFC-1123 compliant k8s cluster
@@ -156,7 +188,7 @@ func ResetClusterName() {
 // This variable should come from a configmap, created by the cluster-agent.
 // This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
 func GetClusterID() (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
 	}

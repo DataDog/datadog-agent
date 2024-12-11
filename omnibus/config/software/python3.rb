@@ -1,86 +1,78 @@
 name "python3"
 
+default_version "3.12.6"
+
 if ohai["platform"] != "windows"
-  default_version "3.8.13"
 
   dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  dependency "openssl"
-  dependency "pkg-config"
+  dependency "openssl3"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "903b92d76354366b1d9c4434d0c81643345cef87c1600adfa36095d7b00eede4"
+         :sha256 => "85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66"
 
   relative_path "Python-#{version}"
 
-  python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded",
-                      "--with-ssl=#{install_dir}/embedded",
-                      "--with-ensurepip=no"] # pip is installed separately by its own software def
+  python_configure_options = [
+    "--without-readline",  # Disables readline support
+    "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
+  ]
 
   if mac_os_x?
-    python_configure.push("--enable-ipv6",
+    python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared")
-  elsif linux?
-    python_configure.push("--enable-shared",
+  elsif linux_target?
+    python_configure_options.push("--enable-shared",
                           "--enable-ipv6")
   elsif aix?
     # something here...
   end
 
-  python_configure.push("--with-dbmliborder=")
+  python_configure_options.push("--with-dbmliborder=")
 
   build do
     # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
-    env = case ohai["platform"]
-          when "aix"
-            aix_env
-          else
-            {
-              "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe",
-              "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-              "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
-              "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
-            }
-          end
-    command python_configure.join(" "), :env => env
+    env = with_standard_compiler_flags(with_embedded_path)
+    # Force different defaults for the "optimization settings"
+    # This removes the debug symbol generation and doesn't enable all warnings
+    env["OPT"] = "-DNDEBUG -fwrapv"
+    configure(*python_configure_options, :env => env)
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    delete "#{install_dir}/embedded/lib/python3.8/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
+
+    # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
+    # compiler we use would end up being available in the system/docker image used by customers
+    if linux_target?
+      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
+      command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
+    end
+    delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
     block do
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/lib-dynload/readline.*"))
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   end
 
 else
-  default_version "3.8.13-f42eb31"
   dependency "vc_redist_14"
 
-  if windows_arch_i386?
-    dependency "vc_ucrt_redist"
+  # note that starting with 3.7.3 on Windows, the zip should be created without the built-in pip
+  source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
+         :sha256 => "045d20a659fe80041b6fd508b77f250b03330347d64f128b392b88e68897f5a0".downcase
 
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "8FB8D4BC7D49CF081904E5EBE4137E877D152FDDBD038F4C62D762CF94543802".downcase
-  else
-
-    # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-         :sha256 => "ABD557EA0FA923CDC321E0E6828DF5269023994BA96F9E64DA9BB058AE429A26".downcase
-
-  end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
     # 2.0 is the license version here, not the python version
@@ -88,5 +80,9 @@ else
 
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
+
+    # Install pip
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
+    command "#{python} -m ensurepip"
   end
 end

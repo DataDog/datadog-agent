@@ -7,14 +7,12 @@ package legacy
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -84,13 +82,13 @@ func (k kubeDeprecations) print() {
 // ImportKubernetesConf reads the configuration from the kubernetes check (agent5)
 // and create the configuration for the new kubelet check (agent 6) and moves
 // relevant options to datadog.yaml
-func ImportKubernetesConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
+func ImportKubernetesConf(src, dst string, overwrite bool, converter *ConfigConverter) error {
 	_, err := importKubernetesConfWithDeprec(src, dst, overwrite, converter)
 	return err
 }
 
 // Deprecated options are listed in the kubeDeprecations return value, for testing
-func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) (kubeDeprecations, error) {
+func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *ConfigConverter) (kubeDeprecations, error) {
 	fmt.Printf("%s\n", warningNewKubeCheck)
 	deprecations := make(kubeDeprecations)
 
@@ -135,7 +133,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	if err != nil {
 		return deprecations, err
 	}
-	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
+	if err := os.WriteFile(dst, data, 0640); err != nil {
 		return deprecations, fmt.Errorf("Could not write new kubelet configuration to %s: %s", dst, err)
 	}
 	fmt.Printf("Successfully imported the contents of %s into %s\n", src, dst)

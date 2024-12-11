@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -11,13 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-//MacroID - ID of a Macro
+// MacroID - ID of a Macro
 type MacroID = string
 
 // Macro - Macro object identified by an `ID` containing a SECL `Expression`
 type Macro struct {
-	ID    MacroID
-	Store *MacroStore
+	ID   MacroID
+	Opts *Opts
 
 	evaluator *MacroEvaluator
 	ast       *ast.Macro
@@ -25,23 +26,25 @@ type Macro struct {
 
 // MacroEvaluator - Evaluation part of a Macro
 type MacroEvaluator struct {
-	Value       interface{}
-	EventTypes  []EventType
-	FieldValues map[Field][]FieldValue
+	Value     interface{}
+	EventType EventType
+
+	fieldValues map[Field][]FieldValue
+	fields      []Field
 }
 
 // NewMacro parses an expression and returns a new macro
-func NewMacro(id, expression string, model Model, replCtx ReplacementContext) (*Macro, error) {
+func NewMacro(id, expression string, model Model, parsingContext *ast.ParsingContext, opts *Opts) (*Macro, error) {
 	macro := &Macro{
-		ID:    id,
-		Store: replCtx.MacroStore,
+		ID:   id,
+		Opts: opts,
 	}
 
-	if err := macro.Parse(expression); err != nil {
+	if err := macro.Parse(parsingContext, expression); err != nil {
 		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
-	if err := macro.GenEvaluator(expression, model, replCtx); err != nil {
+	if err := macro.GenEvaluator(expression, model); err != nil {
 		return nil, fmt.Errorf("compilation error: %w", err)
 	}
 
@@ -49,7 +52,7 @@ func NewMacro(id, expression string, model Model, replCtx ReplacementContext) (*
 }
 
 // NewStringValuesMacro returns a new macro from an array of strings
-func NewStringValuesMacro(id string, values []string, macroStore *MacroStore) (*Macro, error) {
+func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error) {
 	var evaluator StringValuesEvaluator
 	for _, value := range values {
 		fieldValue := FieldValue{
@@ -57,7 +60,7 @@ func NewStringValuesMacro(id string, values []string, macroStore *MacroStore) (*
 			Value: value,
 		}
 
-		evaluator.AppendFieldValues(fieldValue)
+		evaluator.Values.AppendFieldValue(fieldValue)
 	}
 
 	if err := evaluator.Compile(DefaultStringCmpOpts); err != nil {
@@ -66,7 +69,7 @@ func NewStringValuesMacro(id string, values []string, macroStore *MacroStore) (*
 
 	return &Macro{
 		ID:        id,
-		Store:     macroStore,
+		Opts:      opts,
 		evaluator: &MacroEvaluator{Value: &evaluator},
 	}, nil
 }
@@ -82,8 +85,8 @@ func (m *Macro) GetAst() *ast.Macro {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (m *Macro) Parse(expression string) error {
-	astMacro, err := ast.ParseMacro(expression)
+func (m *Macro) Parse(parsingContext *ast.ParsingContext, expression string) error {
+	astMacro, err := parsingContext.ParseMacro(expression)
 	if err != nil {
 		return err
 	}
@@ -91,46 +94,46 @@ func (m *Macro) Parse(expression string) error {
 	return nil
 }
 
-func macroToEvaluator(macro *ast.Macro, model Model, replCtx ReplacementContext, field Field) (*MacroEvaluator, error) {
+func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
-	for id, macro := range replCtx.Macros {
-		macros[id] = macro.evaluator
+	for _, macro := range opts.MacroStore.List() {
+		macros[macro.ID] = macro.evaluator
 	}
-	state := NewState(model, field, macros, replCtx)
+	state := NewState(model, field, macros)
 
 	var eval interface{}
 	var err error
 
 	switch {
 	case macro.Expression != nil:
-		eval, _, err = nodeToEvaluator(macro.Expression, state)
+		eval, _, err = nodeToEvaluator(macro.Expression, opts, state)
 	case macro.Array != nil:
-		eval, _, err = nodeToEvaluator(macro.Array, state)
+		eval, _, err = nodeToEvaluator(macro.Array, opts, state)
 	case macro.Primary != nil:
-		eval, _, err = nodeToEvaluator(macro.Primary, state)
+		eval, _, err = nodeToEvaluator(macro.Primary, opts, state)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := eventTypesFromFields(model, state)
+	eventType, err := eventTypeFromFields(model, state)
 	if err != nil {
 		return nil, err
 	}
 
 	return &MacroEvaluator{
-		Value:       eval,
-		EventTypes:  events,
-		FieldValues: state.fieldValues,
+		Value:     eval,
+		EventType: eventType,
+
+		fieldValues: state.fieldValues,
+		fields:      KeysOfMap(state.fieldValues),
 	}, nil
 }
 
 // GenEvaluator - Compiles and generates the evalutor
-func (m *Macro) GenEvaluator(expression string, model Model, replCtx ReplacementContext) error {
-	m.Store = replCtx.MacroStore
-
-	evaluator, err := macroToEvaluator(m.ast, model, replCtx, "")
+func (m *Macro) GenEvaluator(expression string, model Model) error {
+	evaluator, err := macroToEvaluator(m.ast, model, m.Opts, "")
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
 			return fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos, expr: expression})
@@ -142,35 +145,17 @@ func (m *Macro) GenEvaluator(expression string, model Model, replCtx Replacement
 	return nil
 }
 
-// GetEventTypes - Returns a list of all the Event Type that the `Expression` handles
-func (m *Macro) GetEventTypes() []EventType {
-	eventTypes := m.evaluator.EventTypes
-
-	for _, macro := range m.Store.Macros {
-		eventTypes = append(eventTypes, macro.evaluator.EventTypes...)
-	}
-
-	return eventTypes
+// GetEventType - Returns the Event Type that the `Expression` handles
+func (m *Macro) GetEventType() EventType {
+	return m.evaluator.EventType
 }
 
 // GetFields - Returns all the Field that the Macro handles included sub-Macro
 func (m *Macro) GetFields() []Field {
-	fields := m.evaluator.GetFields()
-
-	for _, macro := range m.Store.Macros {
-		fields = append(fields, macro.evaluator.GetFields()...)
-	}
-
-	return fields
+	return m.evaluator.GetFields()
 }
 
 // GetFields - Returns all the Field that the MacroEvaluator handles
 func (m *MacroEvaluator) GetFields() []Field {
-	fields := make([]Field, len(m.FieldValues))
-	i := 0
-	for key := range m.FieldValues {
-		fields[i] = key
-		i++
-	}
-	return fields
+	return m.fields
 }

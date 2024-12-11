@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,28 +20,23 @@ import (
 )
 
 // PersistentVolumeHandlers implements the Handlers interface for Kubernetes PersistentVolumes.
-type PersistentVolumeHandlers struct{}
+type PersistentVolumeHandlers struct {
+	common.BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (h *PersistentVolumeHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.PersistentVolume)
 	m.Yaml = yaml
 	return
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *PersistentVolumeHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *PersistentVolumeHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *PersistentVolumeHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *PersistentVolumeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.PersistentVolume, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -49,24 +44,28 @@ func (h *PersistentVolumeHandlers) BuildMessageBody(ctx *processors.ProcessorCon
 	}
 
 	return &model.CollectorPersistentVolume{
-		ClusterName:       ctx.Cfg.KubeClusterName,
-		ClusterId:         ctx.ClusterID,
-		GroupId:           ctx.MsgGroupID,
+		ClusterName:       pctx.Cfg.KubeClusterName,
+		ClusterId:         pctx.ClusterID,
+		GroupId:           pctx.MsgGroupID,
 		GroupSize:         int32(groupSize),
 		PersistentVolumes: models,
-		Tags:              ctx.Cfg.ExtraTags,
+		Tags:              append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (h *PersistentVolumeHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.PersistentVolume)
 	return k8sTransformers.ExtractPersistentVolume(r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (h *PersistentVolumeHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.PersistentVolume)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -78,23 +77,24 @@ func (h *PersistentVolumeHandlers) ResourceList(ctx *processors.ProcessorContext
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *PersistentVolumeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.PersistentVolume).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *PersistentVolumeHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.PersistentVolume).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (h *PersistentVolumeHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.PersistentVolume)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *PersistentVolumeHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

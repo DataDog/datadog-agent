@@ -3,36 +3,42 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package status
 
 import (
 	"expvar"
+	"fmt"
 	"strings"
 	"time"
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning   *atomic.Bool
+	isRunning   *atomic.Uint32
 	endpoints   *config.Endpoints
 	sources     *sourcesPkg.LogSources
+	tailers     *tailers.TailerTracker
 	warnings    *config.Messages
 	errors      *config.Messages
 	logsExpVars *expvar.Map
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
 		sources:     sources,
+		tailers:     tracker,
 		warnings:    warnings,
 		errors:      errors,
 		logsExpVars: logExpVars,
@@ -40,15 +46,22 @@ func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *so
 }
 
 // BuildStatus returns the status of the logs-agent.
-func (b *Builder) BuildStatus() Status {
+func (b *Builder) BuildStatus(verbose bool) Status {
+	tailers := []Tailer{}
+	if verbose {
+		tailers = b.getTailers()
+	}
 	return Status{
-		IsRunning:     b.getIsRunning(),
-		Endpoints:     b.getEndpoints(),
-		Integrations:  b.getIntegrations(),
-		StatusMetrics: b.getMetricsStatus(),
-		Warnings:      b.getWarnings(),
-		Errors:        b.getErrors(),
-		UseHTTP:       b.getUseHTTP(),
+		IsRunning:           b.getIsRunning(),
+		WaitingForSDSConfig: b.getWaitingForSDSConfig(),
+		Endpoints:           b.getEndpoints(),
+		Integrations:        b.getIntegrations(),
+		Tailers:             tailers,
+		StatusMetrics:       b.getMetricsStatus(),
+		ProcessFileStats:    b.getProcessFileStats(),
+		Warnings:            b.getWarnings(),
+		Errors:              b.getErrors(),
+		UseHTTP:             b.getUseHTTP(),
 	}
 }
 
@@ -56,7 +69,11 @@ func (b *Builder) BuildStatus() Status {
 // this needs to be thread safe as it can be accessed
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
-	return b.isRunning.Load()
+	return b.isRunning.Load() == StatusRunning
+}
+
+func (b *Builder) getWaitingForSDSConfig() bool {
+	return b.isRunning.Load() == StatusCollectionNotStarted
 }
 
 func (b *Builder) getUseHTTP() bool {
@@ -86,17 +103,12 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
-				BytesRead:          source.BytesRead.Load(),
-				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
-				AllTimePeakLatency: source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
-				RecentAvgLatency:   source.LatencyStats.MovingAvg() / int64(time.Millisecond),
-				RecentPeakLatency:  source.LatencyStats.MovingPeak() / int64(time.Millisecond),
-				Type:               source.Config.Type,
-				Configuration:      b.toDictionary(source.Config),
-				Status:             b.toString(source.Status),
-				Inputs:             source.GetInputs(),
-				Messages:           source.Messages.GetMessages(),
-				Info:               source.GetInfoStatus(),
+				Type:          source.Config.Type,
+				Configuration: b.toDictionary(source.Config),
+				Status:        b.toString(source.Status),
+				Inputs:        source.GetInputs(),
+				Messages:      source.Messages.GetMessages(),
+				Info:          source.GetInfoStatus(),
 			})
 		}
 		integrations = append(integrations, Integration{
@@ -105,6 +117,23 @@ func (b *Builder) getIntegrations() []Integration {
 		})
 	}
 	return integrations
+}
+
+// getTailers returns all the information about the logs integrations.
+func (b *Builder) getTailers() []Tailer {
+	tailers := b.tailers.All()
+	tailerStatus := make([]Tailer, 0, len(tailers))
+	for _, tailer := range tailers {
+
+		info := tailer.GetInfo().Rendered()
+
+		tailerStatus = append(tailerStatus, Tailer{
+			Id:   tailer.GetId(),
+			Type: tailer.GetType(),
+			Info: info,
+		})
+	}
+	return tailerStatus
 }
 
 // groupSourcesByName groups all logs sources by name so that they get properly displayed
@@ -172,11 +201,25 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 }
 
 // getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
-func (b *Builder) getMetricsStatus() map[string]int64 {
-	var metrics = make(map[string]int64, 2)
-	metrics["LogsProcessed"] = b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value()
-	metrics["LogsSent"] = b.logsExpVars.Get("LogsSent").(*expvar.Int).Value()
-	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
-	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
+func (b *Builder) getMetricsStatus() map[string]string {
+	var metrics = make(map[string]string)
+	metrics["LogsProcessed"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value())
+	metrics["LogsSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsSent").(*expvar.Int).Value())
+	metrics["BytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("BytesSent").(*expvar.Int).Value())
+	metrics["RetryCount"] = fmt.Sprintf("%v", b.logsExpVars.Get("RetryCount").(*expvar.Int).Value())
+	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
+	metrics["EncodedBytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value())
 	return metrics
+}
+
+func (b *Builder) getProcessFileStats() map[string]uint64 {
+	stats := make(map[string]uint64)
+	fs, err := util.GetProcessFileStats()
+	if err != nil {
+		return stats
+	}
+
+	stats["CoreAgentProcessOpenFiles"] = fs.AgentOpenFiles
+	stats["OSFileLimit"] = fs.OsFileLimit
+	return stats
 }

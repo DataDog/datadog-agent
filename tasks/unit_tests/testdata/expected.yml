@@ -1,0 +1,121 @@
+.except_mergequeue:
+- if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+  when: never
+.if_deploy:
+  if: $DEPLOY_AGENT == "true"
+.if_disable_e2e_tests:
+  if: $RUN_E2E_TESTS == "off"
+.if_main_branch:
+  if: $CI_COMMIT_BRANCH == "main"
+.if_mergequeue:
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+.if_release_branch:
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+.if_run_all_e2e_tests:
+  if: $RUN_E2E_TESTS == "on"
+.if_run_all_kmt_tests:
+  if: $RUN_KMT_TESTS == 'on'
+.if_triggered_pipeline:
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+.on_any_kmt_test_component_or_manual:
+- if: $CI_COMMIT_BRANCH == "main"
+- if: $RUN_KMT_TESTS == 'on'
+- if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+  when: never
+- changes:
+    compare_to: main
+    paths: &id002
+    - pkg/collector/corechecks/ebpf/**/*
+    - pkg/ebpf/**/*
+  when: on_success
+- changes:
+    compare_to: main
+    paths: &id001
+    - pkg/ebpf/**/*
+    - pkg/security/**/*
+  when: on_success
+- allow_failure: true
+  when: manual
+.on_container_or_e2e_changes_or_manual:
+- !reference [.on_e2e_main_release_or_rc]
+- changes:
+    compare_to: main
+    paths:
+    - comp/core/tagger/**/*
+    - comp/core/workloadmeta/**/*
+  when: on_success
+- allow_failure: true
+  when: manual
+.on_e2e_main_release_or_rc:
+- if: $RUN_E2E_TESTS == "off"
+  when: never
+- if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+  when: never
+- if: $RUN_E2E_TESTS == "on"
+  when: on_success
+- if: $CI_COMMIT_BRANCH == "main"
+  when: on_success
+- if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+  when: on_success
+- if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+  when: on_success
+- changes:
+    compare_to: main
+    paths:
+    - test/new-e2e/pkg/**/*
+    - test/new-e2e/go.mod
+.on_packaging_change:
+- !reference [.except_mergequeue]
+- changes:
+    compare_to: main
+    paths:
+    - omnibus/**/*
+    - .gitlab-ci.yml
+.on_rc_or_e2e_changes_or_manual:
+- !reference [.on_e2e_main_release_or_rc, .on_container_or_e2e_changes_or_manual]
+- changes:
+    compare_to: main
+    paths:
+    - pkg/config/remote/**/*
+- allow_failure: true
+  when: manual
+.security_agent_change_paths: *id001
+.system_probe_change_paths: *id002
+default:
+  retry:
+    max: 2
+    when:
+    - runner_system_failure
+stages:
+- .pre
+- setup
+- maintenance_jobs
+variables:
+  GET_SOURCES_ATTEMPTS: 2
+  OMNIBUS_BASE_DIR: /omnibus
+  PROCESS_S3_BUCKET: datad0g-process-agent
+  RESTORE_CACHE_ATTEMPTS: 2
+  WIN_S3_BUCKET: dd-agent-mstesting
+workflow:
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+    variables:
+      USE_CACHING_PROXY_PYTHON: 'false'
+      USE_CACHING_PROXY_RUBY: 'false'
+  - if: $CI_COMMIT_BRANCH == "main"
+    variables:
+      GO_TEST_SKIP_FLAKE: 'false'
+      USE_CACHING_PROXY_PYTHON: 'true'
+      USE_CACHING_PROXY_RUBY: 'true'
+  - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+    variables:
+      USE_CACHING_PROXY_PYTHON: 'true'
+      USE_CACHING_PROXY_RUBY: 'true'
+  - if: $DEPLOY_AGENT == "true"
+    variables:
+      USE_CACHING_PROXY_PYTHON: 'true'
+      USE_CACHING_PROXY_RUBY: 'true'
+  - if: $CI_COMMIT_TAG == null
+    variables:
+      USE_CACHING_PROXY_PYTHON: 'false'
+      USE_CACHING_PROXY_RUBY: 'false'

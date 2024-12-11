@@ -4,11 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+)
 
 func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	if stats == nil {
@@ -64,7 +67,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 
 	if kernelStack != nil && slab != nil {
-		stats.KernelMemory = uint64Ptr(*kernelStack + *slab)
+		stats.KernelMemory = pointer.Ptr(*kernelStack + *slab)
 	}
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.current"), &stats.UsageTotal); err != nil {
@@ -90,6 +93,11 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 		reportError(err)
 	}
 	nilIfZero(&stats.Limit)
+
+	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.peak"), &stats.Peak); err != nil {
+		reportError(err)
+	}
+	nilIfZero(&stats.Peak)
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.swap.current"), &stats.Swap); err != nil {
 		reportError(err)

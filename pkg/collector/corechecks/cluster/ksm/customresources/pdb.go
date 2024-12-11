@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 package customresources
 
 // This file has most of its logic copied from the KSM pdb metric family
@@ -21,10 +23,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-
+	"k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var (
@@ -35,31 +39,35 @@ var (
 	descPodDisruptionBudgetLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
 )
 
-// NewPodDisruptionBudgetFactory returns a new PodDisruptionBudgets metric family generator factory.
-func NewPodDisruptionBudgetFactory() customresource.RegistryFactory {
-	return &pdbFactory{}
+// NewPodDisruptionBudgetV1Beta1Factory returns a new PodDisruptionBudgets metric family generator factory.
+func NewPodDisruptionBudgetV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &pdbv1beta1Factory{
+		client: client.Cl,
+	}
 }
 
-type pdbFactory struct{}
+type pdbv1beta1Factory struct {
+	client kubernetes.Interface
+}
 
-func (f *pdbFactory) Name() string {
+func (f *pdbv1beta1Factory) Name() string {
 	return "poddisruptionbudgets"
 }
 
-// CreateClient is not implemented
-func (f *pdbFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+func (f *pdbv1beta1Factory) CreateClient(_ *rest.Config) (interface{}, error) {
+	return f.client, nil
 }
 
-func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *pdbv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descPodDisruptionBudgetAnnotationsName,
 			descPodDisruptionBudgetAnnotationsHelp,
 			metric.Gauge,
+			metrics.ALPHA,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", p.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", p.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -71,13 +79,14 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descPodDisruptionBudgetLabelsName,
 			descPodDisruptionBudgetLabelsHelp,
 			metric.Gauge,
+			metrics.ALPHA,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", p.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", p.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -89,10 +98,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_poddisruptionbudget_created",
 			"Unix creation timestamp",
 			metric.Gauge,
+			metrics.STABLE,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
 				ms := []*metric.Metric{}
@@ -108,10 +118,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_poddisruptionbudget_status_current_healthy",
 			"Current number of healthy pods",
 			metric.Gauge,
+			metrics.STABLE,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
 				return &metric.Family{
@@ -123,10 +134,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_poddisruptionbudget_status_desired_healthy",
 			"Minimum desired number of healthy pods",
 			metric.Gauge,
+			metrics.STABLE,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
 				return &metric.Family{
@@ -138,10 +150,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_poddisruptionbudget_status_pod_disruptions_allowed",
 			"Number of pod disruptions that are currently allowed",
 			metric.Gauge,
+			metrics.STABLE,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
 				return &metric.Family{
@@ -153,10 +166,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_poddisruptionbudget_status_expected_pods",
 			"Total number of pods counted by this disruption budget",
 			metric.Gauge,
+			metrics.STABLE,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
 				return &metric.Family{
@@ -168,10 +182,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_poddisruptionbudget_status_observed_generation",
 			"Most recent generation observed when updating this PDB status",
 			metric.Gauge,
+			metrics.STABLE,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
 				return &metric.Family{
@@ -186,20 +201,26 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 	}
 }
 
-func (f *pdbFactory) ExpectedType() interface{} {
-	return &policyv1beta1.PodDisruptionBudget{}
+func (f *pdbv1beta1Factory) ExpectedType() interface{} {
+	return &policyv1beta1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PodDisruptionBudget",
+			APIVersion: policyv1beta1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
-func (f *pdbFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *pdbv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.PolicyV1beta1().PodDisruptionBudgets(ns).List(context.TODO(), opts)
+			return client.PolicyV1beta1().PodDisruptionBudgets(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.PolicyV1beta1().PodDisruptionBudgets(ns).Watch(context.TODO(), opts)
+			return client.PolicyV1beta1().PodDisruptionBudgets(ns).Watch(ctx, opts)
 		},
 	}
 }

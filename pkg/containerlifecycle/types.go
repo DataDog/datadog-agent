@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package containerlifecycle constains constants used by the container life
+// cycle check.
 package containerlifecycle
 
 const (
@@ -14,4 +16,6 @@ const (
 	ObjectKindContainer = "container"
 	// ObjectKindPod represents pod events
 	ObjectKindPod = "pod"
+	// ObjectKindTask represents task events
+	ObjectKindTask = "task"
 )

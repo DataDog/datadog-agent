@@ -15,16 +15,17 @@ import (
 type ClientMock struct {
 }
 
-func (c *ClientMock) Do(req *http.Request) (*http.Response, error) {
+func (c *ClientMock) Do(*http.Request) (*http.Response, error) {
 	return &http.Response{}, nil
 }
 
 func TestBuildUrlPrefixEmpty(t *testing.T) {
-	builtURL := BuildURL("", "/myPath")
+	builtURL := BuildURL("/myPath")
 	assert.Equal(t, "http://localhost:9001/myPath", builtURL)
 }
 
 func TestBuildUrlWithPrefix(t *testing.T) {
-	builtURL := BuildURL("myPrefix:3000", "/myPath")
+	t.Setenv("AWS_LAMBDA_RUNTIME_API", "myPrefix:3000")
+	builtURL := BuildURL("/myPath")
 	assert.Equal(t, "http://myPrefix:3000/myPath", builtURL)
 }

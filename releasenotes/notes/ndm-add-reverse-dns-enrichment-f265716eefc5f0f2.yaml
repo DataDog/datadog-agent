@@ -1,0 +1,3 @@
+features:
+  - |
+    Add optional reverse DNS enrichment of private IP addresses to NDM NetFlow.

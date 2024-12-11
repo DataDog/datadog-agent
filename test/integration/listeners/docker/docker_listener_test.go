@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package listeners
 
 import (
@@ -17,54 +19,83 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 type DockerListenerTestSuite struct {
 	suite.Suite
-	compose    utils.ComposeConf
-	listener   listeners.ServiceListener
-	dockerutil *docker.DockerUtil
-	newSvc     chan listeners.Service
-	delSvc     chan listeners.Service
-	stop       chan struct{}
-	m          sync.RWMutex
+	compose        utils.ComposeConf
+	listener       listeners.ServiceListener
+	dockerutil     *docker.DockerUtil
+	newSvc         chan listeners.Service
+	delSvc         chan listeners.Service
+	stop           chan struct{}
+	m              sync.RWMutex
+	wmeta          workloadmeta.Component
+	telemetryStore *acTelemetry.Store
+	tagger         tagger.Component
+}
+
+type deps struct {
+	fx.In
+	Tagger    tagger.Component
+	WMeta     workloadmeta.Component
+	Telemetry telemetry.Component
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
-	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
-	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
-	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 
-	store := workloadmeta.GetGlobalStore()
-	store.Start(context.Background())
-
-	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.Background())
+	overrides := map[string]interface{}{
+		"ac_include": []string{"name:.*redis.*"},
+		"ac_exclude": []string{"image:datadog/docker-library:redis.*"},
+	}
 
 	var err error
+	env.SetFeatures(suite.T(), env.Docker)
+	deps := fxutil.Test[deps](suite.T(), fx.Options(
+		core.MockBundle(),
+		fx.Replace(compcfg.MockParams{
+			Overrides: overrides,
+		}),
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		taggerfx.Module(tagger.Params{}),
+	))
+	suite.wmeta = deps.WMeta
+	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
+	suite.tagger = deps.Tagger
 	require.Nil(suite.T(), err, "can't connect to docker")
 
 	suite.compose = utils.ComposeConf{
@@ -74,13 +105,16 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 }
 
 func (suite *DockerListenerTestSuite) TearDownSuite() {
-	config.Datadog.SetDefault("ac_include", []string{})
-	config.Datadog.SetDefault("ac_exclude", []string{})
 	containers.ResetSharedFilter()
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&config.Listeners{})
+	dl, err := listeners.NewContainerListener(listeners.ServiceListernerDeps{
+		Config:    &pkgconfigsetup.Listeners{},
+		Wmeta:     optional.NewOption(suite.wmeta),
+		Telemetry: suite.telemetryStore,
+		Tagger:    suite.tagger,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -188,7 +222,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
-			excludedEntity = docker.ContainerIDToEntityName(container)
+			excludedEntity = containers.BuildEntityName(string(workloadmeta.ContainerRuntimeDocker), container)
 			excludedIDs = append(excludedIDs, container)
 			continue
 		}

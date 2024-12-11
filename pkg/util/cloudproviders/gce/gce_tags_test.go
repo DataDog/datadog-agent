@@ -4,23 +4,22 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build gce
-// +build gce
 
 package gce
 
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -57,10 +56,11 @@ var (
 		"google-compute-enable-pcid:true",
 		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
 	}
+	expectedTagsWithProviderKind = append(expectedFullTags, "provider_kind:test-provider")
 )
 
 func mockMetadataRequest(t *testing.T) *httptest.Server {
-	content, err := ioutil.ReadFile("test/gce_metadata.json")
+	content, err := os.ReadFile("test/gce_metadata.json")
 	if err != nil {
 		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
 	}
@@ -68,7 +68,7 @@ func mockMetadataRequest(t *testing.T) *httptest.Server {
 		assert.Contains(t, r.URL.String(), "/?recursive=true")
 		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, string(content))
+		w.Write(content)
 	}))
 	metadataURL = ts.URL
 	return ts
@@ -98,7 +98,7 @@ func TestGetHostTags(t *testing.T) {
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 	tags, err := GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedFullTags)
 }
 
@@ -107,10 +107,10 @@ func TestGetHostTagsWithProjectID(t *testing.T) {
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	config.Datadog.Set("gce_send_project_id_tag", true)
-	defer config.Datadog.Set("gce_send_project_id_tag", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", false)
 	tags, err := GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
 }
 
@@ -119,30 +119,47 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 	server := mockMetadataRequest(t)
 	tags, err := GetTags(ctx)
 	require.NotNil(t, tags)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	server.Close()
 
 	server = mockMetadataRequestError(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 	tags, err = GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedFullTags)
 }
 
 func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
-	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
+	defer mockConfig.SetWithoutSource("exclude_gce_tags", defaultExclude)
 
-	mockConfig.Set("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
+	mockConfig.SetWithoutSource("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
 
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 
 	tags, err := GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedExcludedTags)
+}
+
+func TestGetHostTagsWithProviderKind(t *testing.T) {
+	ctx := context.Background()
+	mockConfig := configmock.New(t)
+	defaultProviderKind := mockConfig.GetString("provider_kind")
+	defer mockConfig.SetWithoutSource("provider_kind", defaultProviderKind)
+
+	mockConfig.SetWithoutSource("provider_kind", "test-provider")
+
+	server := mockMetadataRequest(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+
+	tags, err := GetTags(ctx)
+	require.NoError(t, err)
+	testTags(t, tags, expectedTagsWithProviderKind)
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -12,8 +11,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/docker/api/types/system"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,8 +29,8 @@ func TestGetTags(t *testing.T) {
 		{
 			"manager node with swarm active",
 			&fake.SystemAPIClient{
-				InfoFunc: func() (types.Info, error) {
-					return types.Info{
+				InfoFunc: func() (system.Info, error) {
+					return system.Info{
 						Swarm: swarm.Info{
 							LocalNodeState:   swarm.LocalNodeStateActive,
 							ControlAvailable: true,
@@ -44,8 +43,8 @@ func TestGetTags(t *testing.T) {
 		{
 			"worker node with swarm active",
 			&fake.SystemAPIClient{
-				InfoFunc: func() (types.Info, error) {
-					return types.Info{
+				InfoFunc: func() (system.Info, error) {
+					return system.Info{
 						Swarm: swarm.Info{
 							LocalNodeState:   swarm.LocalNodeStateActive,
 							ControlAvailable: false,
@@ -58,8 +57,8 @@ func TestGetTags(t *testing.T) {
 		{
 			"swarm inactive",
 			&fake.SystemAPIClient{
-				InfoFunc: func() (types.Info, error) {
-					return types.Info{
+				InfoFunc: func() (system.Info, error) {
+					return system.Info{
 						Swarm: swarm.Info{
 							LocalNodeState:   swarm.LocalNodeStatePending,
 							ControlAvailable: true,

@@ -4,16 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build serverless
-// +build serverless
 
 package hostname
 
 import "context"
-
-// IsConfigurationProvider returns false for serverless
-func (h Data) FromConfiguration() bool {
-	return false
-}
 
 // GetWithProvider returns an empty Data for serverless
 func GetWithProvider(ctx context.Context) (Data, error) {

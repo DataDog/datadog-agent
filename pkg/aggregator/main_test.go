@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package aggregator
 
@@ -12,11 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestMain(m *testing.M) {
-	checker := config.NewChangeChecker()
+	checker := pkgconfigsetup.NewChangeChecker()
 	exit := m.Run()
 	if checker.HasChanged() {
 		os.Exit(1)

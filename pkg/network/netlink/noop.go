@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
 import (
 	"context"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -21,11 +22,14 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
-func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (*noOpConntracker) GetType() string { return "" }
+
+func (*noOpConntracker) GetTranslationForConn(_c *network.ConnectionTuple) *network.IPTranslation {
 	return nil
 }
 
-func (*noOpConntracker) DeleteTranslation(c network.ConnectionStats) {
+func (*noOpConntracker) DeleteTranslation(_c *network.ConnectionTuple) {
 
 }
 
@@ -35,12 +39,12 @@ func (*noOpConntracker) IsSampling() bool {
 
 func (*noOpConntracker) Close() {}
 
-func (*noOpConntracker) GetStats() map[string]int64 {
-	return map[string]int64{
-		"noop_conntracker": 0,
-	}
-}
-
-func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
+func (*noOpConntracker) DumpCachedTable(_ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	return nil, nil
 }
+
+// Describe returns all descriptions of the collector
+func (*noOpConntracker) Describe(_ch chan<- *prometheus.Desc) {}
+
+// Collect returns the current state of all metrics of the collector
+func (*noOpConntracker) Collect(_ch chan<- prometheus.Metric) {}

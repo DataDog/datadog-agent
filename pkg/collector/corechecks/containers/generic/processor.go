@@ -8,16 +8,16 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -32,10 +32,11 @@ type Processor struct {
 	metricsAdapter  MetricsAdapter
 	ctrFilter       ContainerFilter
 	extensions      map[string]ProcessorExtension
+	tagger          tagger.Component
 }
 
 // NewProcessor creates a new processor
-func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter, filter ContainerFilter) Processor {
+func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter, filter ContainerFilter, tagger tagger.Component) Processor {
 	return Processor{
 		metricsProvider: provider,
 		ctrLister:       lister,
@@ -44,6 +45,7 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 		extensions: map[string]ProcessorExtension{
 			NetworkExtensionID: NewProcessorNetwork(),
 		},
+		tagger: tagger,
 	}
 }
 
@@ -53,24 +55,11 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 }
 
 // Run executes the check
-func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) error {
+func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
 	allContainers := p.ctrLister.ListRunning()
 
 	if len(allContainers) == 0 {
 		return nil
-	}
-
-	collectorsCache := make(map[workloadmeta.ContainerRuntime]metrics.Collector)
-	getCollector := func(runtime workloadmeta.ContainerRuntime) metrics.Collector {
-		if collector, found := collectorsCache[runtime]; found {
-			return collector
-		}
-
-		collector := p.metricsProvider.GetCollector(string(runtime))
-		if collector != nil {
-			collectorsCache[runtime] = collector
-		}
-		return collector
 	}
 
 	// Extensions: PreProcess hook
@@ -84,15 +73,19 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 			continue
 		}
 
-		entityID := containers.BuildTaggerEntityName(container.ID)
-		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
+		entityID := types.NewEntityID(types.ContainerID, container.ID)
+
+		tags, err := p.tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue
 		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)
 
-		collector := getCollector(container.Runtime)
+		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
 		if collector == nil {
 			log.Warnf("Collector not found for container: %v, metrics will ne missing", container)
 			continue
@@ -100,7 +93,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 
 		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available, err: %v", container, err)
 			continue
 		}
 
@@ -113,7 +106,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 		if err == nil {
 			p.sendMetric(sender.Gauge, "container.pid.open_files", pointer.UIntPtrToFloatPtr(openFiles), tags)
 		} else {
-			log.Debugf("OpenFiles count for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("OpenFiles count for: %v not available, err: %v", container, err)
 		}
 
 		// TODO: Implement container stats. We currently don't have enough information from Metadata service to do it.
@@ -126,16 +119,16 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 
 	// Extensions: PostProcess hook
 	for _, extension := range p.extensions {
-		extension.PostProcess()
+		extension.PostProcess(p.tagger)
 	}
 
 	sender.Commit()
 	return nil
 }
 
-func (p *Processor) processContainer(sender aggregator.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
-	if uptime := time.Since(container.State.StartedAt); uptime > 0 {
-		p.sendMetric(sender.Gauge, "container.uptime", pointer.Float64Ptr(uptime.Seconds()), tags)
+func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
+	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
+		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
 
 	if containerStats == nil {
@@ -149,9 +142,10 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Rate, "container.cpu.system", containerStats.CPU.System, tags)
 		p.sendMetric(sender.Rate, "container.cpu.throttled", containerStats.CPU.ThrottledTime, tags)
 		p.sendMetric(sender.Rate, "container.cpu.throttled.periods", containerStats.CPU.ThrottledPeriods, tags)
+		p.sendMetric(sender.Rate, "container.cpu.partial_stall", containerStats.CPU.PartialStallTime, tags)
 		// Convert CPU Limit to nanoseconds to allow easy percentage computation in the App.
 		if containerStats.CPU.Limit != nil {
-			p.sendMetric(sender.Gauge, "container.cpu.limit", pointer.Float64Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
+			p.sendMetric(sender.Gauge, "container.cpu.limit", pointer.Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
 		}
 	}
 
@@ -164,9 +158,14 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Gauge, "container.memory.cache", containerStats.Memory.Cache, tags)
 		p.sendMetric(sender.Gauge, "container.memory.swap", containerStats.Memory.Swap, tags)
 		p.sendMetric(sender.Gauge, "container.memory.oom_events", containerStats.Memory.OOMEvents, tags)
-		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags)
+		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.WorkingSet, tags)        // Linux
+		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags) // Windows
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
+		p.sendMetric(sender.Gauge, "container.memory.usage.peak", containerStats.Memory.Peak, tags)
+		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
+		p.sendMetric(sender.MonotonicCount, "container.memory.page_faults", containerStats.Memory.Pgfault, tags)
+		p.sendMetric(sender.MonotonicCount, "container.memory.major_page_faults", containerStats.Memory.Pgmajfault, tags)
 	}
 
 	if containerStats.IO != nil {
@@ -184,11 +183,17 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 			p.sendMetric(sender.Rate, "container.io.write", containerStats.IO.WriteBytes, tags)
 			p.sendMetric(sender.Rate, "container.io.write.operations", containerStats.IO.WriteOperations, tags)
 		}
+
+		p.sendMetric(sender.Rate, "container.io.partial_stall", containerStats.IO.PartialStallTime, tags)
 	}
 
 	if containerStats.PID != nil {
 		p.sendMetric(sender.Gauge, "container.pid.thread_count", containerStats.PID.ThreadCount, tags)
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
+	}
+
+	if container.RestartCount > 0 {
+		p.sendMetric(sender.Gauge, "container.restarts", pointer.Ptr(float64(container.RestartCount)), tags)
 	}
 
 	return nil

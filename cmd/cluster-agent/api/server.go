@@ -11,9 +11,11 @@ sending commands and receiving infos.
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -21,14 +23,28 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
+	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
+
 	"github.com/gorilla/mux"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 var (
@@ -38,16 +54,19 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
 
 	// API V1 Metadata APIs
-	v1.InstallMetadataEndpoints(apiRouter)
+	v1.InstallMetadataEndpoints(apiRouter, w)
+
+	// API V1 Language Detection APIs
+	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -61,10 +80,10 @@ func StartServer() error {
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.CreateAndSetAuthToken() //nolint:errcheck
+	util.CreateAndSetAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// DCA client token
-	util.InitDCAAuthToken() //nolint:errcheck
+	util.InitDCAAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -84,28 +103,51 @@ func StartServer() error {
 		return fmt.Errorf("invalid key pair: %v", err)
 	}
 
-	tlsConfig := tls.Config{
+	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsConfig.MinVersion = tls.VersionTLS10
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 
-	srv := &http.Server{
-		Handler:      router,
-		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig:    &tlsConfig,
-		ReadTimeout:  config.Datadog.GetDuration("cluster_agent.server.read_timeout_seconds") * time.Second,
-		WriteTimeout: config.Datadog.GetDuration("cluster_agent.server.write_timeout_seconds") * time.Second,
-		IdleTimeout:  config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second,
+	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
+		if token != util.GetDCAAuthToken() {
+			return struct{}{}, errors.New("Invalid session token")
+		}
+
+		return struct{}{}, nil
+	})
+
+	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	opts := []grpc.ServerOption{
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		grpc.MaxSendMsgSize(maxMessageSize),
+		grpc.MaxRecvMsgSize(maxMessageSize),
 	}
 
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+	grpcSrv := grpc.NewServer(opts...)
+	// event size should be small enough to fit within the grpc max message size
+	maxEventSize := maxMessageSize / 2
+	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
+		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
+	})
+
+	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
+	srv := grpcutil.NewMuxedGRPCServer(
+		listener.Addr().String(),
+		tlsConfig,
+		grpcSrv,
+		grpcutil.TimeoutHandlerFunc(router, timeout),
+	)
+	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+
+	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
@@ -148,16 +190,18 @@ func validateToken(next http.Handler) http.Handler {
 func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
 		path == "/version" ||
-		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
-		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/tags/namespace/") && len(strings.Split(path, "/")) == 6 ||
+		path == "/api/v1/languagedetection" ||
 		strings.HasPrefix(path, "/api/v1/annotations/node/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||
-		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/cf/org_quotas") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/orgs") && len(strings.Split(path, "/")) == 5 ||
-		strings.HasPrefix(path, "/api/v1/cf/org_quotas") && len(strings.Split(path, "/")) == 5
+		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5 ||
+		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/metadata/namespace/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||
+		strings.HasPrefix(path, "/api/v1/tags/namespace/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8)
 }

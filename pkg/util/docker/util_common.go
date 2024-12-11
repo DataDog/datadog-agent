@@ -7,13 +7,11 @@ package docker
 
 import (
 	"errors"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 var (
 	// ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
-	// OS doesn't support and API. Unfortunately it's in an internal package so
+	// OS doesn't support an API. Unfortunately it's in an internal package so
 	// we can't import it so we'll copy it here.
 	ErrNotImplemented = errors.New("not implemented yet")
 
@@ -26,12 +24,12 @@ var (
 	ErrDockerNotCompiled = errors.New("docker support not compiled in")
 )
 
-// ContainerIDToEntityName returns a prefixed entity name from a container ID
-func ContainerIDToEntityName(cid string) string {
-	return containers.BuildEntityName(containers.RuntimeNameDocker, cid)
-}
-
-// ContainerIDToTaggerEntityName returns a prefixed entity name from a container ID
-func ContainerIDToTaggerEntityName(cid string) string {
-	return containers.BuildTaggerEntityName(cid)
-}
+// Container network modes
+const (
+	DefaultNetworkMode string = "default" // bridge
+	HostNetworkMode    string = "host"
+	BridgeNetworkMode  string = "bridge"
+	NoneNetworkMode    string = "none"
+	AwsvpcNetworkMode  string = "awsvpc"
+	UnknownNetworkMode string = "unknown"
+)

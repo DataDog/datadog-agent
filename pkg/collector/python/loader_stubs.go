@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && !windows
-// +build python,!windows
 
 package python
 

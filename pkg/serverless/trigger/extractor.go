@@ -6,41 +6,52 @@
 package trigger
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
-// getAWSPartitionByRegion parses an AWS region and returns an AWS partition
-func getAWSPartitionByRegion(region string) string {
+// GetAWSPartitionByRegion parses an AWS region and returns an AWS partition
+func GetAWSPartitionByRegion(region string) string {
 	if strings.HasPrefix(region, "us-gov-") {
 		return "aws-us-gov"
 	} else if strings.HasPrefix(region, "cn-") {
 		return "aws-cn"
-	} else {
-		return "aws"
 	}
+	return "aws"
 }
 
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
 func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
 func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
 func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+}
+
+// ExtractAPIGatewayCustomAuthorizerEventARN returns an ARN from an APIGatewayCustomAuthorizerRequest
+func ExtractAPIGatewayCustomAuthorizerEventARN(event events.APIGatewayCustomAuthorizerRequest) string {
+	return event.MethodArn
+}
+
+// ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN returns an ARN from an APIGatewayCustomAuthorizerRequestTypeRequest
+func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event events.APIGatewayCustomAuthorizerRequestTypeRequest) string {
+	return event.MethodArn
 }
 
 // ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
@@ -50,6 +61,9 @@ func ExtractAlbEventARN(event events.ALBTargetGroupRequest) string {
 
 // ExtractCloudwatchEventARN returns an ARN from a CloudWatchEvent
 func ExtractCloudwatchEventARN(event events.CloudWatchEvent) string {
+	if len(event.Resources) == 0 {
+		return ""
+	}
 	return event.Resources[0]
 }
 
@@ -59,7 +73,7 @@ func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region stri
 	if err != nil {
 		return "", fmt.Errorf("Couldn't decode Cloudwatch Logs event: %v", err)
 	}
-	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", getAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
+	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", GetAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
 }
 
 // ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
@@ -96,9 +110,15 @@ func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]
 	}
 	httpTags["http.url_details.path"] = event.RequestContext.Path
 	httpTags["http.method"] = event.RequestContext.HTTPMethod
+	if event.Resource != "" {
+		httpTags["http.route"] = event.Resource
+	}
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
 		}
 	}
 	return httpTags
@@ -111,10 +131,53 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 	httpTags["http.url"] = event.RequestContext.DomainName
 	httpTags["http.url_details.path"] = event.RequestContext.HTTP.Path
 	httpTags["http.method"] = event.RequestContext.HTTP.Method
+	if event.RouteKey != "" {
+		httpTags["http.route"] = event.RouteKey
+	}
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["user-agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
+	}
+	return httpTags
+}
+
+// GetTagsFromAPIGatewayCustomAuthorizerEvent returns a tagset containing http tags from an
+// APIGatewayCustomAuthorizerRequest
+func GetTagsFromAPIGatewayCustomAuthorizerEvent(event events.APIGatewayCustomAuthorizerRequest) map[string]string {
+	httpTags := make(map[string]string, 2)
+
+	if methodArn, err := arn.Parse(event.MethodArn); err == nil {
+		// Format is: api-id/stage/http-verb/path...
+		parts := strings.SplitN(methodArn.Resource, "/", 4)
+		if len(parts) != 4 {
+			return nil
+		}
+
+		httpTags["http.method"] = parts[2]
+		httpTags["http.url_details.path"] = "/" + parts[3]
+	}
+
+	return httpTags
+}
+
+// GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent returns a tagset containing http tags from an
+// APIGatewayCustomAuthorizerRequestTypeRequest
+func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event events.APIGatewayCustomAuthorizerRequestTypeRequest) map[string]string {
+	httpTags := make(map[string]string)
+	httpTags["http.url_details.path"] = event.RequestContext.Path
+	httpTags["http.method"] = event.HTTPMethod
+	if event.Resource != "" {
+		httpTags["http.route"] = event.Resource
+	}
+	if referer := event.Headers["Referer"]; referer != "" {
+		httpTags["http.referer"] = referer
+	}
+	if ua := event.Headers["User-Agent"]; ua != "" {
+		httpTags["http.useragent"] = ua
 	}
 	return httpTags
 }
@@ -125,11 +188,23 @@ func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[st
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.Path
 	httpTags["http.method"] = event.HTTPMethod
+
 	if event.Headers != nil {
-		if event.Headers["Referer"] != "" {
-			httpTags["http.referer"] = event.Headers["Referer"]
+		if r := event.Headers["Referer"]; r != "" {
+			httpTags["http.referer"] = r
+		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
+	} else if event.MultiValueHeaders != nil {
+		if r := event.MultiValueHeaders["Referer"]; len(r) > 0 && r[0] != "" {
+			httpTags["http.referer"] = r[0]
+		}
+		if ua := event.MultiValueHeaders["User-Agent"]; len(ua) > 0 && ua[0] != "" {
+			httpTags["http.useragent"] = ua[0]
 		}
 	}
+
 	return httpTags
 }
 
@@ -146,34 +221,37 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
 
 // GetStatusCodeFromHTTPResponse parses a generic payload and returns
-// a status code, if it contains one. Returns an empty string if it does not.
-// Ignore parsing errors silentlys
+// a status code, if it contains one. Returns an empty string if it does not,
+// or an error in case of json parsing error.
 func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
-	var response map[string]interface{}
+	var response struct {
+		StatusCode interface{} `json:"statusCode"`
+	}
 	err := json.Unmarshal(rawPayload, &response)
 	if err != nil {
 		return "", err
 	}
 
-	// datadog-lambda-js checks if 'result' is undefined
-	// so this is presumably the equivalent
-	if len(rawPayload) == 0 {
+	statusCode := response.StatusCode
+	if statusCode == nil {
 		return "", nil
 	}
 
-	statusCode := response["statusCode"]
-	switch statusCode.(type) {
+	switch actual := statusCode.(type) {
 	case float64:
-		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
+		return strconv.FormatFloat(actual, 'f', -1, 64), nil
 	case string:
-		return statusCode.(string), nil
+		return actual, nil
 	default:
-		return "", fmt.Errorf("Received unknown type for statusCode")
+		return "", fmt.Errorf("Received unknown type %T for statusCode", statusCode)
 	}
 }
 

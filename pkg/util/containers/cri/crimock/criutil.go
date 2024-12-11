@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
+// Package crimock implements a mock Container Runtime Interface (CRI) client.
 package crimock
 
 import (

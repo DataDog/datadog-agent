@@ -28,17 +28,7 @@ typedef struct rtloader_s rtloader_t;
 struct rtloader_pyobject_s;
 typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 
-// FACTORIES
-/*! \fn rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-    \brief Factory function to load the python2 backend DLL and create its relevant RtLoader
-    instance.
-    \param python_home A C-string with the path to the PYTHONHOME for said DLL.
-    \param python_exe A C-string with the path to the python interpreter.
-    \param error A C-string pointer output parameter to return error messages.
-    \return A rtloader_t * pointer to the RtLoader instance.
-    \sa rtloader_t
-*/
-DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *python_home, const char *python_exe, char **error);
+// FACTORY
 /*! \fn rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python3 backend DLL and create its relevant RtLoader
     instance.
@@ -207,6 +197,15 @@ DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *
     \sa rtloader_pyobject_t, rtloader_t
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
+
+/*! \fn char *get_check_diagnoses(rtloader_t*, rtloader_pyobject_t* check)
+    \brief Get all diagnoses, if any, for a check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to collect the
+    diagnoses for.
+    \return serialized diagnoses for the check as a C-string or NULL if none exists or an error occurred.
+*/
+DATADOG_AGENT_RTLOADER_API char *get_check_diagnoses(rtloader_t *, rtloader_pyobject_t *check);
 
 /*! \fn void rtloader_free(rtloader_t *, void *ptr)
     \brief Routine to free heap memory in RtLoader.
@@ -447,6 +446,16 @@ DATADOG_AGENT_RTLOADER_API void set_headers_cb(rtloader_t *, cb_headers_t);
 */
 DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostname_t);
 
+/*! \fn void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t)
+    \brief Sets a callback to be used by rtloader to collect the host tags from the agent.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_get_host_tags_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t);
+
 /*! \fn void set_get_clustername_cb(rtloader_t *, cb_get_clustername_t)
     \brief Sets a callback to be used by rtloader to collect the K8s clustername from the
     agent.
@@ -479,6 +488,17 @@ DATADOG_AGENT_RTLOADER_API void set_tracemalloc_enabled_cb(rtloader_t *, cb_trac
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_log_cb(rtloader_t *, cb_log_t);
+
+/*! \fn void set_send_log_cb(rtloader_t *, cb_send_log_t)
+    \brief Sets a callback to be used by rtloader to allow for submitting a log for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_send_log_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_send_log_cb(rtloader_t *, cb_send_log_t);
 
 /*! \fn void set_set_check_metadata_cb(rtloader_t *, cb_set_check_metadata_t)
     \brief Sets a callback to be used by rtloader to allow setting metadata for a given
@@ -620,6 +640,41 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
+
+/*! \fn void init_pymem_stats(rtloader_t *)
+    \brief Install python allocator hooks.
+    \param rtloader A pointer to the RtLoader instance.
+*/
+DATADOG_AGENT_RTLOADER_API void init_pymem_stats(rtloader_t *);
+
+/*! \fn void get_pymem_stats(rtloader_t *, pymem_stats_t *)
+    \brief Retrieve a snapshot of python allocated memory statistics.
+    \param rtloader A pointer to the RtLoader instance.
+    \param stats A pointer to pymem_stats_t structure that will be updated with the new values.
+*/
+DATADOG_AGENT_RTLOADER_API void get_pymem_stats(rtloader_t *, pymem_stats_t *);
+
+/*! \fn void set_obfuscate_mongodb_string_cb(rtloader_t *, cb_obfuscate_mongodb_string_t)
+    \brief Sets a callback to be used by rtloader to allow retrieving a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_obfuscate_mongodb_string_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb_obfuscate_mongodb_string_t);
+
+/*! \fn void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t)
+    \brief Sets a callback to be used by rtloader to allow emitting a metric for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_emit_agent_telemetry_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
 
 #ifdef __cplusplus
 }

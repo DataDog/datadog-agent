@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
@@ -15,11 +14,17 @@ import (
 	"syscall"
 	"unsafe"
 
+	"go.uber.org/atomic"
+
 	"github.com/mdlayher/netlink"
+	"github.com/vishvananda/netns"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+//nolint:staticcheck // TODO(NET) Fix staticcheck linter
 var _ netlink.Socket = &Socket{}
 var errNotImplemented = errors.New("not implemented")
 
@@ -45,15 +50,23 @@ type Socket struct {
 	n       int
 	oobn    int
 	readErr error
+
+	seq *atomic.Uint32
 }
 
 // NewSocket creates a new NETLINK socket
-func NewSocket() (*Socket, error) {
-	fd, err := unix.Socket(
-		unix.AF_NETLINK,
-		unix.SOCK_RAW|unix.SOCK_CLOEXEC,
-		unix.NETLINK_NETFILTER,
-	)
+func NewSocket(netNS netns.NsHandle) (*Socket, error) {
+	var fd int
+	var err error
+	err = kernel.WithNS(netNS, func() error {
+		fd, err = unix.Socket(
+			unix.AF_NETLINK,
+			unix.SOCK_RAW|unix.SOCK_CLOEXEC,
+			unix.NETLINK_NETFILTER,
+		)
+
+		return err
+	})
 
 	if err != nil {
 		return nil, err
@@ -92,12 +105,29 @@ func NewSocket() (*Socket, error) {
 		conn:    conn,
 		recvbuf: make([]byte, 32*1024),
 		oobbuf:  make([]byte, unix.CmsgSpace(24)),
+		seq:     atomic.NewUint32(0),
 	}
 	return socket, nil
 }
 
+// fixMsg updates the fields of m using the logic specified in Send.
+func (s *Socket) fixMsg(m *netlink.Message, ml int) {
+	if m.Header.Length == 0 {
+		m.Header.Length = uint32(nlmsgAlign(ml))
+	}
+
+	if m.Header.Sequence == 0 {
+		m.Header.Sequence = s.seq.Add(1)
+	}
+
+	if m.Header.PID == 0 {
+		m.Header.PID = s.pid
+	}
+}
+
 // Send a netlink.Message
 func (s *Socket) Send(m netlink.Message) error {
+	s.fixMsg(&m, nlmsgLength(len(m.Data)))
 	b, err := m.MarshalBinary()
 	if err != nil {
 		return err
@@ -125,32 +155,52 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 
 // ReceiveAndDiscard reads netlink messages off the socket & discards them.
 // If the NLMSG_DONE flag is found in one of the messages, returns true.
-func (s *Socket) ReceiveAndDiscard() (bool, error) {
-	n, _, err := s.recvmsg()
-	if err != nil {
-		return false, os.NewSyscallError("recvmsg", err)
-	}
-
-	n = nlmsgAlign(n)
-	i := 0
-	for n >= syscall.NLMSG_HDRLEN {
-		header := (*syscall.NlMsghdr)(unsafe.Pointer(&s.recvbuf[i]))
-		if header.Type == syscall.NLMSG_DONE {
-			return true, nil
+func (s *Socket) ReceiveAndDiscard() (bool, uint32, error) {
+	for {
+		n, _, err := s.recvmsg()
+		if err != nil {
+			return false, 0, os.NewSyscallError("recvmsg", err)
 		}
-		msgLen := nlmsgAlign(int(header.Len))
-		if msgLen < syscall.NLMSG_HDRLEN {
-			return false, syscall.EINVAL
-		}
-		i += msgLen
-		n -= msgLen
-	}
 
-	return false, nil
+		n = nlmsgAlign(n)
+		i := 0
+		nmsgs := uint32(0)
+		var multi bool
+		for n >= unix.NLMSG_HDRLEN {
+			header := (*netlink.Header)(unsafe.Pointer(&s.recvbuf[i]))
+			msgLen := nlmsgAlign(int(header.Length))
+			if msgLen < syscall.NLMSG_HDRLEN {
+				return false, 0, syscall.EINVAL
+			}
+
+			if err := checkMessage(netlink.Message{
+				Header: *header,
+				Data:   s.recvbuf[i+unix.NLMSG_HDRLEN : i+unix.NLMSG_HDRLEN+msgLen],
+			}); err != nil {
+				return false, 0, err
+			}
+
+			n -= msgLen
+			i += msgLen
+
+			nmsgs++
+
+			if header.Flags&netlink.Multi == 0 {
+				continue
+			}
+
+			multi = header.Type != netlink.Done
+		}
+
+		if !multi {
+			return true, nmsgs, nil
+		}
+	}
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
+	var netns uint32
 	n, oobn, err := s.recvmsg()
 	if err != nil {
 		return nil, 0, os.NewSyscallError("recvmsg", err)
@@ -169,7 +219,6 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 		return nil, 0, err
 	}
 
-	var netns uint32
 	if oobn > 0 {
 		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
 		if err != nil {
@@ -235,7 +284,7 @@ func (s *Socket) Close() error {
 }
 
 // SendMessages isn't implemented in our case
-func (s *Socket) SendMessages(m []netlink.Message) error {
+func (s *Socket) SendMessages(_m []netlink.Message) error {
 	return errNotImplemented
 }
 

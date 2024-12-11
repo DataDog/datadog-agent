@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -17,17 +17,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestUtimes(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `utimes.file.path == "{{.Root}}/test-utime" && utimes.file.uid == 98 && utimes.file.gid == 99`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,15 +54,19 @@ func TestUtimes(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(123), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(456), event.Utimes.Mtime.Unix())
-			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode, "wrong inode")
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	}))
 
@@ -89,15 +95,19 @@ func TestUtimes(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(111), event.Utimes.Atime.Unix())
 			assert.Equal(t, int64(222), event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond))
-			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	}))
 
@@ -129,15 +139,56 @@ func TestUtimes(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(555), event.Utimes.Mtime.Unix())
 			assert.Equal(t, int64(666), event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond))
-			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			validateSyscallContext(t, event, "$.syscall.utimes.path")
+		})
+	})
+
+	t.Run("utimensat-nil", func(t *testing.T) {
+		fileMode := 0o447
+		testFile, _, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+		file, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fd := file.Fd()
+		defer file.Close()
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, fd, 0, 0, 0, 0, 0); errno != 0 {
+				if errno == syscall.EINVAL {
+					return ErrSkipTest{"utimensat not supported"}
+				}
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
+			assertNearTime(t, uint64(event.Utimes.Mtime.UnixNano()))
+			assertNearTime(t, uint64(event.Utimes.Atime.UnixNano()))
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
+			assertNearTime(t, event.Utimes.File.MTime)
+			assertNearTime(t, event.Utimes.File.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	})
 }

@@ -4,14 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
@@ -38,77 +39,125 @@ func (f *FallbackConstantFetcher) String() string {
 func (f *FallbackConstantFetcher) appendRequest(id string) {
 	var value = ErrorSentinel
 	switch id {
-	case "sizeof_inode":
+	case SizeOfInode:
 		value = getSizeOfStructInode(f.kernelVersion)
-	case "sb_magic_offset":
+	case OffsetNameSuperBlockStructSFlags:
+		value = getSuperBlockFlagsOffset(f.kernelVersion)
+	case OffsetNameSuperBlockStructSMagic:
 		value = getSuperBlockMagicOffset(f.kernelVersion)
-	case "tty_offset":
+	case OffsetNameSignalStructStructTTY:
 		value = getSignalTTYOffset(f.kernelVersion)
-	case "tty_name_offset":
+	case OffsetNameTTYStructStructName:
 		value = getTTYNameOffset(f.kernelVersion)
-	case "creds_uid_offset":
+	case OffsetNameCredStructUID:
 		value = getCredsUIDOffset(f.kernelVersion)
-	case "bpf_map_id_offset":
+	case OffsetNameCredStructCapInheritable:
+		value = getCredCapInheritableOffset(f.kernelVersion)
+	case OffsetNameBPFMapStructID:
 		value = getBpfMapIDOffset(f.kernelVersion)
-	case "bpf_map_name_offset":
+	case OffsetNameBPFMapStructName:
 		value = getBpfMapNameOffset(f.kernelVersion)
-	case "bpf_map_type_offset":
+	case OffsetNameBPFMapStructMapType:
 		value = getBpfMapTypeOffset(f.kernelVersion)
-	case "bpf_prog_aux_offset":
+	case OffsetNameBPFProgStructAux:
 		value = getBpfProgAuxOffset(f.kernelVersion)
-	case "bpf_prog_tag_offset":
+	case OffsetNameBPFProgStructTag:
 		value = getBpfProgTagOffset(f.kernelVersion)
-	case "bpf_prog_type_offset":
+	case OffsetNameBPFProgStructType:
 		value = getBpfProgTypeOffset(f.kernelVersion)
-	case "bpf_prog_attach_type_offset":
+	case OffsetNameBPFProgStructExpectedAttachType:
 		value = getBpfProgAttachTypeOffset(f.kernelVersion)
-	case "bpf_prog_aux_id_offset":
+	case OffsetNameBPFProgAuxStructID:
 		value = getBpfProgAuxIDOffset(f.kernelVersion)
-	case "bpf_prog_aux_name_offset":
+	case OffsetNameBPFProgAuxStructName:
 		value = getBpfProgAuxNameOffset(f.kernelVersion)
-	case "pid_level_offset":
+	case OffsetNamePIDStructLevel:
 		value = getPIDLevelOffset(f.kernelVersion)
-	case "pid_numbers_offset":
+	case OffsetNamePIDStructNumbers:
 		value = getPIDNumbersOffset(f.kernelVersion)
-	case "sizeof_upid":
+	case SizeOfUPID:
 		value = getSizeOfUpid(f.kernelVersion)
-	case "dentry_sb_offset":
+	case OffsetNameTaskStructPID:
+		value = getTaskStructPIDOffset(f.kernelVersion)
+	case OffsetNameTaskStructPIDLink:
+		value = getTaskStructPIDLinkOffset(f.kernelVersion)
+	case OffsetNamePIDLinkStructPID:
+		value = getPIDLinkPIDOffset(f.kernelVersion)
+	case OffsetNameDentryStructDSB:
 		value = getDentrySuperBlockOffset(f.kernelVersion)
-	case "pipe_inode_info_bufs_offset":
+	case OffsetNamePipeInodeInfoStructBufs:
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
-	case "net_device_ifindex_offset":
+	case OffsetNamePipeInodeInfoStructNrbufs:
+		value = getPipeInodeInfoStructNrbufs(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructCurbuf:
+		value = getPipeInodeInfoStructCurbuf(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructBuffers:
+		value = getPipeInodeInfoStructBuffers(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructHead:
+		value = getPipeInodeInfoStructHead(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructRingsize:
+		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
+	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
-	case "net_ns_offset":
+	case OffsetNameNetDeviceStructName:
+		value = getNetDeviceNameOffset(f.kernelVersion)
+	case OffsetNameNetStructNS:
 		value = getNetNSOffset(f.kernelVersion)
-	case "net_proc_inum_offset":
+	case OffsetNameNetStructProcInum:
 		value = getNetProcINumOffset(f.kernelVersion)
-	case "sock_common_skc_net_offset":
+	case OffsetNameSockCommonStructSKCNet:
 		value = getSockCommonSKCNetOffset(f.kernelVersion)
-	case "socket_sock_offset":
+	case OffsetNameSocketStructSK:
 		value = getSocketSockOffset(f.kernelVersion)
-	case "nf_conn_ct_net_offset":
+	case OffsetNameNFConnStructCTNet:
 		value = getNFConnCTNetOffset(f.kernelVersion)
-	case "sock_common_skc_family_offset":
+	case OffsetNameSockCommonStructSKCFamily:
 		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
-	case "flowi4_saddr_offset":
+	case OffsetNameFlowI4StructSADDR:
 		value = getFlowi4SAddrOffset(f.kernelVersion)
-	case "flowi6_saddr_offset":
+	case OffsetNameFlowI6StructSADDR:
 		value = getFlowi6SAddrOffset(f.kernelVersion)
-	case "flowi4_uli_offset":
+	case OffsetNameFlowI4StructULI:
 		value = getFlowi4ULIOffset(f.kernelVersion)
-	case "flowi6_uli_offset":
+	case OffsetNameFlowI6StructULI:
 		value = getFlowi6ULIOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmStructFile:
+		value = getBinPrmFileFieldOffset(f.kernelVersion)
+	case OffsetNameIoKiocbStructCtx:
+		value = getIoKcbCtxOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmP:
+		value = getLinuxBinPrmPOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmArgc:
+		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmEnvc:
+		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
+	case OffsetNameVMAreaStructFlags:
+		value = getVMAreaStructFlagsOffset(f.kernelVersion)
+	case OffsetNameKernelCloneArgsExitSignal:
+		value = getKernelCloneArgsExitSignalOffset(f.kernelVersion)
+	case OffsetNameFileFinode:
+		value = getFileFinodeOffset(f.kernelVersion)
+	case OffsetNameFileFpath:
+		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameDentryDSb:
+		value = getDentryDsbOffset(f.kernelVersion)
+	case OffsetNameMountMntID:
+		value = getMountIDOffset(f.kernelVersion)
+	case OffsetNameRenameStructOldDentry:
+		value = getRenameStructOldDentryOffset(f.kernelVersion)
+	case OffsetNameRenameStructNewDentry:
+		value = getRenameStructNewDentryOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *FallbackConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
+func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _, _ string) {
 	f.appendRequest(id)
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _, _, _ string) {
 	f.appendRequest(id)
 }
 
@@ -134,10 +183,14 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		sizeOf = 584
-	case kv.IsRH8Kernel():
+	case kv.IsRH8Kernel() || kv.IsRH9Kernel():
 		sizeOf = 648
 	case kv.IsSuse12Kernel():
-		sizeOf = 560
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13) && kv.Code.Patch() >= 14 {
+			sizeOf = 592
+		} else {
+			sizeOf = 560
+		}
 	case kv.IsSuse15Kernel():
 		sizeOf = 592
 	case kv.IsOracleUEKKernel():
@@ -149,9 +202,21 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 704
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		sizeOf = 584
+		if kv.Code.Patch() > 250 {
+			sizeOf = 592
+		} else {
+			sizeOf = 584
+		}
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		sizeOf = 584
+		if kv.Code.Patch() > 100 {
+			sizeOf = 592
+		} else {
+			sizeOf = 584
+		}
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		sizeOf = 616
+	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
+		sizeOf = 624
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
 		if ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion) {
 			sizeOf = 608
@@ -171,14 +236,18 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
+func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
+	return uint64(80)
+}
+
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
-	sizeOf := uint64(96)
+	offset := uint64(96)
 
 	if kv.IsRH7Kernel() {
-		sizeOf = 88
+		offset = 88
 	}
 
-	return sizeOf
+	return offset
 }
 
 // Depending on the value CONFIG_NO_HZ_FULL, a field can be added before the `tty` field.
@@ -196,6 +265,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		return 416
 	case kv.IsRH8Kernel():
 		return 392
+	case kv.IsRH9Kernel():
+		return 424
 	case kv.IsSuse12Kernel():
 		return 376
 	case kv.IsSuse15Kernel():
@@ -209,13 +280,15 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
 		return 368
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 400
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
-		return 368
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
-		return 376
-	case kv.IsUbuntuKernel():
 		return 400 + getNoHzOffset()
+	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
+		return 408
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 368 + getNoHzOffset()
+	case kv.IsUbuntuKernel() && kv.Code < kernel.Kernel5_19:
+		return 400 + getNoHzOffset()
+	case kv.IsUbuntuKernel() && kv.Code >= kernel.Kernel5_19:
+		return 408 + getNoHzOffset()
 	case kv.Code >= kernel.Kernel5_16:
 		return 416
 	}
@@ -249,22 +322,38 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 }
 
 func getCredsUIDOffset(kv *kernel.Version) uint64 {
-	size := uint64(4)
-
 	switch {
 	case kv.IsCOSKernel():
-		size += 16
+		return 20
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
+		return 8
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 200:
+		return 8
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && kv.Code.Patch() > 250:
+		return 8
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 200:
+		return 8
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2) && kv.Code.Patch() > 70:
+		return 8
+	default:
+		return 4
 	}
+}
 
-	return size
+func getCredCapInheritableOffset(kv *kernel.Version) uint64 {
+	return getCredsUIDOffset(kv) + 36
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		return 52
-	case kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19) || kv.IsRH9Kernel():
 		return 60
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
+		return 68
+	case kv.Code >= kernel.Kernel6_2:
+		return 52
 	default:
 		return 48
 	}
@@ -278,6 +367,8 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 112
 	case kv.IsRH8Kernel():
 		nameOffset = 80
+	case kv.IsRH9Kernel():
+		nameOffset = 96
 	case kv.IsSuse15Kernel():
 		nameOffset = 88
 	case kv.IsSuse12Kernel():
@@ -303,7 +394,11 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 80
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		nameOffset = 88
-	case kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
+		nameOffset = 96
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
+		nameOffset = 104
+	case kv.Code >= kernel.Kernel6_2:
 		nameOffset = 96
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		return ErrorSentinel
@@ -312,7 +407,7 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	return nameOffset
 }
 
-func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
+func getBpfMapTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(24)
 }
 
@@ -343,11 +438,11 @@ func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	return progTagOffset
 }
 
-func getBpfProgTypeOffset(kv *kernel.Version) uint64 {
+func getBpfProgTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(4)
 }
 
-func getBpfProgAttachTypeOffset(kv *kernel.Version) uint64 {
+func getBpfProgAttachTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(8)
 }
 
@@ -389,6 +484,8 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 144
 	case kv.IsRH8Kernel():
 		nameOffset = 520
+	case kv.IsRH9Kernel():
+		nameOffset = 544
 	case kv.IsSuse15Kernel():
 		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
 			nameOffset = 424
@@ -416,14 +513,18 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 504
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_16):
 		nameOffset = 528
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_17):
 		nameOffset = 544
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_17, kernel.Kernel6_1):
+		nameOffset = 528
+	case kv.Code != 0 && kv.Code >= kernel.Kernel6_1:
+		nameOffset = 912
 	}
 
 	return nameOffset
 }
 
-func getPIDLevelOffset(kv *kernel.Version) uint64 {
+func getPIDLevelOffset(_ *kernel.Version) uint64 {
 	return uint64(4)
 }
 
@@ -473,7 +574,11 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 	case kv.IsRH8Kernel():
 		sizeOfUpid = 16
 	case kv.IsSuse12Kernel():
-		sizeOfUpid = 16
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13) && kv.Code.Patch() >= 14 {
+			sizeOfUpid = 32
+		} else {
+			sizeOfUpid = 16
+		}
 	case kv.IsSuse15Kernel():
 		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
 			sizeOfUpid = 16
@@ -528,6 +633,70 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
+func getPipeInodeInfoStructNrbufs(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 56
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 104
+		case kv.Code < kernel.Kernel4_10:
+			offset = 64
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructCurbuf(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 60
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 108
+		case kv.Code < kernel.Kernel4_10:
+			offset = 68
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructBuffers(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 64
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 112
+		case kv.Code < kernel.Kernel4_10:
+			offset = 72
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructHead(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 80
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 168
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructRingsize(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 92
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 180
+		}
+	}
+	return offset
+}
+
 func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	offset := uint64(260)
 
@@ -541,12 +710,16 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	case kv.IsSuse15Kernel():
 		offset = 256
 
-	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel5_8):
 		offset = 264
-	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_12):
 		offset = 256
-	case kv.Code >= kernel.Kernel5_12:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_12, kernel.Kernel5_17):
 		offset = 208
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		offset = 224
+	case kv.Code >= kernel.Kernel5_17:
+		offset = 216
 	}
 
 	return offset
@@ -579,6 +752,8 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	// and is part of master since 5.1
 	case kv.IsRH8Kernel():
 		fallthrough
+	case kv.IsSuse12Kernel():
+		fallthrough
 	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
 		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
 		kv.Code >= kernel.Kernel5_1:
@@ -588,11 +763,11 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-func getNetProcINumOffset(kv *kernel.Version) uint64 {
+func getNetProcINumOffset(_ *kernel.Version) uint64 {
 	return uint64(72)
 }
 
-func getSockCommonSKCNetOffset(kv *kernel.Version) uint64 {
+func getSockCommonSKCNetOffset(_ *kernel.Version) uint64 {
 	return uint64(48)
 }
 
@@ -617,19 +792,21 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 }
 
 func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
-	offset := uint64(144)
-
 	switch {
 	case kv.IsCOSKernel():
-		offset = 168
+		return 168
 	case kv.IsRH7Kernel():
-		offset = 240
+		return 240
+	case kv.IsRH9Kernel():
+		fallthrough
+	case kv.Code >= kernel.Kernel5_19:
+		return 136
+	default:
+		return 144
 	}
-
-	return offset
 }
 
-func getSockCommonSKCFamilyOffset(kv *kernel.Version) uint64 {
+func getSockCommonSKCFamilyOffset(_ *kernel.Version) uint64 {
 	return 16
 }
 
@@ -641,11 +818,17 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 		offset = 20
 	case kv.IsRH8Kernel():
 		offset = 56
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		offset = 56
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2) && kv.Code.Patch() > 70:
+		offset = 40
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
-	case kv.Code >= kernel.Kernel5_1:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_18):
 		offset = 40
+	case kv.Code >= kernel.Kernel5_18:
+		offset = 48
 	}
 
 	return offset
@@ -675,4 +858,186 @@ func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) b
 	}
 
 	return ukv.Abi >= minAbi
+}
+
+// getBinPrmFileFieldOffset returns the offset of the file field in the linux_binprm struct depending on the kernel version that the system probe is running on. Only used if runtime compilation, btf co-re, btfhub, offset-guesser all fail to yield an offset value.
+func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 296
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 168
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 176
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 48
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 64
+}
+
+func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 80
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
+		return 96
+	case kv.Code >= kernel.Kernel5_16:
+		return 88
+	default:
+		return 80
+	}
+}
+
+func getLinuxBinPrmPOffset(kv *kernel.Version) uint64 {
+	offset := uint64(152)
+
+	switch {
+	case kv.Code >= kernel.Kernel5_2:
+		offset = 24
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 280
+	}
+
+	return offset
+}
+
+func getLinuxBinPrmArgcOffset(kv *kernel.Version) uint64 {
+	offset := uint64(192)
+
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 192
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_2):
+		offset = 200
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_2, kernel.Kernel5_8):
+		offset = 72
+	case kv.Code >= kernel.Kernel5_8:
+		offset = 88
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 320
+	}
+
+	return offset
+}
+
+func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
+	offset := uint64(196)
+
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 196
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_2):
+		offset = 204
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_2, kernel.Kernel5_8):
+		offset = 76
+	case kv.Code >= kernel.Kernel5_8:
+		offset = 92
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 324
+	}
+
+	return offset
+}
+
+func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.Code >= kernel.Kernel6_1:
+		return 32
+	}
+	return 80
+}
+
+func getTaskStructPIDOffset(_ *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getTaskStructPIDLinkOffset(_ *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HavePIDLinkStruct() {
+		offset = uint64(16)
+	}
+	return offset
+}
+
+func getKernelCloneArgsExitSignalOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 40
+	default:
+		return 32
+	}
+}
+
+func getFileFinodeOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 168
+	default:
+		return 32
+	}
+}
+
+func getFileFpathOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 152
+	default:
+		return 16
+	}
+}
+
+func getDentryDsbOffset(_ *kernel.Version) uint64 {
+	return 104
+}
+
+func getMountIDOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuseKernel() || kv.Code >= kernel.Kernel5_12:
+		return 292
+	case kv.Code != 0 && kv.Code < kernel.Kernel4_13:
+		return 268
+	default:
+		return 284
+	}
+}
+
+func getNetDeviceNameOffset(_ *kernel.Version) uint64 {
+	return 0
+}
+
+func getRenameStructOldDentryOffset(_ *kernel.Version) uint64 {
+	return 16
+}
+
+func getRenameStructNewDentryOffset(_ *kernel.Version) uint64 {
+	return 40
 }

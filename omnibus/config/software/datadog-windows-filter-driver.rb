@@ -15,7 +15,7 @@ if ohai["platform"] == "windows"
            :target_filename => "DDNPM.msm"
 
     build do
-        copy "DDNPM.msm", "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/DDNPM.msm"
+        copy "DDNPM.msm", "#{install_dir}/bin/agent/DDNPM.msm"
     end
 
 end

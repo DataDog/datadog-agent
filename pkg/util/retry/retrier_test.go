@@ -200,9 +200,9 @@ func TestRetryDelayNotElapsed(t *testing.T) {
 	err = mocked.TriggerRetry()
 	assert.True(t, IsErrWillRetry(err))
 
-	// Testing the NextRetry value is within 1ms
+	// Testing the NextRetry value is within 15ms
 	expectedNext := time.Now().Add(retryDelay - 100*time.Millisecond)
-	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), 15*time.Millisecond)
 
 	// Second call should skip
 

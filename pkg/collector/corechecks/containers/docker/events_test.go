@@ -4,23 +4,28 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
 import (
 	"testing"
 
+	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
 
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 func TestReportExitCodes(t *testing.T) {
+	fakeTagger := taggerMock.SetupFakeTagger(t)
+
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
+		tagger:   fakeTagger,
 	}
 
 	dockerCheck.setOkExitCodes()
@@ -54,7 +59,7 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
 		ContainerName: "goodOne",
 	})
-	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckOK, "",
+	mockSender.On("ServiceCheck", "docker.exit", servicecheck.ServiceCheckOK, "",
 		[]string{"exit_code:0"}, "Container goodOne exited with 0")
 
 	// Valid exit 143 event
@@ -64,7 +69,7 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
 		ContainerName: "goodOne",
 	})
-	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckOK, "",
+	mockSender.On("ServiceCheck", "docker.exit", servicecheck.ServiceCheckOK, "",
 		[]string{"exit_code:143"}, "Container goodOne exited with 143")
 
 	// Valid exit 1 event
@@ -74,7 +79,7 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
 		ContainerName: "badOne",
 	})
-	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckCritical, "",
+	mockSender.On("ServiceCheck", "docker.exit", servicecheck.ServiceCheckCritical, "",
 		[]string{"exit_code:1"}, "Container badOne exited with 1")
 
 	dockerCheck.reportExitCodes(events, mockSender)
@@ -86,6 +91,7 @@ func TestReportExitCodes(t *testing.T) {
 		instance: &DockerConfig{
 			OkExitCodes: []int{0},
 		},
+		tagger: fakeTagger,
 	}
 
 	dockerCheck.setOkExitCodes()
@@ -100,7 +106,7 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
 		ContainerName: "goodOne",
 	})
-	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckOK, "",
+	mockSender.On("ServiceCheck", "docker.exit", servicecheck.ServiceCheckOK, "",
 		[]string{"exit_code:0"}, "Container goodOne exited with 0")
 
 	// Valid exit 143 event
@@ -110,7 +116,7 @@ func TestReportExitCodes(t *testing.T) {
 		ContainerID:   "fcc487ac70446287ae0dc79fb72368d824ff6198cd1166a405bc5a7fc111d3a8",
 		ContainerName: "badOne",
 	})
-	mockSender.On("ServiceCheck", "docker.exit", metrics.ServiceCheckCritical, "",
+	mockSender.On("ServiceCheck", "docker.exit", servicecheck.ServiceCheckCritical, "",
 		[]string{"exit_code:143"}, "Container badOne exited with 143")
 
 	dockerCheck.reportExitCodes(events, mockSender)
@@ -119,6 +125,8 @@ func TestReportExitCodes(t *testing.T) {
 }
 
 func TestAggregateEvents(t *testing.T) {
+	fakeTagger := taggerMock.SetupFakeTagger(t)
+
 	testCases := []struct {
 		events          []*docker.ContainerEvent
 		filteredActions []string
@@ -145,10 +153,11 @@ func TestAggregateEvents(t *testing.T) {
 			output: map[string]*dockerEventBundle{
 				"test_image": {
 					imageName: "test_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"unfiltered_action": 1,
 					},
-					alertType: metrics.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
@@ -183,11 +192,12 @@ func TestAggregateEvents(t *testing.T) {
 			output: map[string]*dockerEventBundle{
 				"test_image": {
 					imageName: "test_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
-					alertType: metrics.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
@@ -215,25 +225,28 @@ func TestAggregateEvents(t *testing.T) {
 			output: map[string]*dockerEventBundle{
 				"test_image": {
 					imageName: "test_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
-					alertType: metrics.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 				"other_image": {
 					imageName: "other_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"other_action": 1,
 					},
-					alertType: metrics.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			bundles := aggregateEvents(tc.events, tc.filteredActions)
+			transformer := newBundledTransformer("test-host", tc.filteredActions, fakeTagger).(*bundledTransformer)
+			bundles := transformer.aggregateEvents(tc.events)
 			for _, b := range bundles {
 				// Strip underlying events to ease testing
 				// countByAction is enough for testing the

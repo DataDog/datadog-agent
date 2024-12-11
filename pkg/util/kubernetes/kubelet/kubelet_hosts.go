@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -75,9 +74,7 @@ func getKubeletHostFromConfig(ctx context.Context, kubeletHost string) ([]string
 			log.Debugf("Cannot LookupHost ip %s: %v", kubeletHost, err)
 		} else {
 			log.Debugf("kubernetes_kubelet_host: %s is resolved to: %v", kubeletHost, addrs)
-			for _, addr := range addrs {
-				hostnames = append(hostnames, addr)
-			}
+			hostnames = append(hostnames, addrs...)
 		}
 	}
 

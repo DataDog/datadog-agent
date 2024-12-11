@@ -3,15 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
-import "regexp"
-
-type registerInfo struct {
-	iterator  Iterator
-	field     Field
-	subFields map[Field]bool
-}
+import (
+	"regexp"
+)
 
 // StateRegexpCache is used to cache regexps used in the rule compilation process
 type StateRegexpCache struct {
@@ -21,14 +18,12 @@ type StateRegexpCache struct {
 
 // State defines the current state of the rule compilation
 type State struct {
-	model         Model
-	field         Field
-	events        map[EventType]bool
-	fieldValues   map[Field][]FieldValue
-	macros        map[MacroID]*MacroEvaluator
-	registersInfo map[RegisterID]*registerInfo
-	regexpCache   StateRegexpCache
-	replCtx       ReplacementContext
+	model       Model
+	field       Field
+	fieldValues map[Field][]FieldValue
+	macros      map[MacroID]*MacroEvaluator
+	regexpCache StateRegexpCache
+	registers   []Register
 }
 
 // UpdateFields updates the fields used in the rule
@@ -40,14 +35,11 @@ func (s *State) UpdateFields(field Field) {
 
 // UpdateFieldValues updates the field values
 func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
-	values, ok := s.fieldValues[field]
-	if !ok {
-		values = []FieldValue{}
-	}
+	values := s.fieldValues[field]
 	for _, v := range values {
 		// compare only comparable
 		switch v.Value.(type) {
-		case int, uint, int64, uint64, string:
+		case int, uint, int64, uint64, string, bool:
 			if v == value {
 				return nil
 			}
@@ -60,17 +52,14 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 }
 
 // NewState returns a new State
-func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator, replCtx ReplacementContext) *State {
+func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
 	return &State{
-		field:         field,
-		macros:        macros,
-		model:         model,
-		events:        make(map[EventType]bool),
-		fieldValues:   make(map[Field][]FieldValue),
-		registersInfo: make(map[RegisterID]*registerInfo),
-		replCtx:       replCtx,
+		field:       field,
+		macros:      macros,
+		model:       model,
+		fieldValues: make(map[Field][]FieldValue),
 	}
 }

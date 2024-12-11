@@ -21,7 +21,7 @@
             "md5OfMessageAttributes": "14b3b4a81d5ddeb96af62963d703c528",
             "md5OfBody": "24933a8beabe72088d7576cab1a59142",
             "eventSource": "aws:sqs",
-            "eventSourceARN": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+            "eventSourceARN": "arn:aws:sqs:sa-east-1:425362996713:InferredSpansQueueNode",
             "awsRegion": "sa-east-1"
         },
         {
@@ -36,7 +36,7 @@
             },
             "messageAttributes": {
                 "_datadog": {
-                    "stringValue": "{\"x-datadog-trace-id\":\"2684756524522091840\",\"x-datadog-parent-id\":\"7431398482019833808\",\"x-datadog-sampled\":\"1\",\"x-datadog-sampling-priority\":\"1\"}",
+                    "stringValue": "{\"x-datadog-trace-id\":\"2684756524522091841\",\"x-datadog-parent-id\":\"7431398482019833809\",\"x-datadog-sampled\":\"1\",\"x-datadog-sampling-priority\":\"1\"}",
                     "stringListValues": [],
                     "binaryListValues": [],
                     "dataType": "String"
@@ -45,7 +45,7 @@
             "md5OfMessageAttributes": "14b3b4a81d5ddeb96af62963d703c528",
             "md5OfBody": "24933a8beabe72088d7576cab1a59142",
             "eventSource": "aws:sqs",
-            "eventSourceARN": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+            "eventSourceARN": "arn:aws:sqs:sa-east-1:425362996713:InferredSpansQueueNode",
             "awsRegion": "sa-east-1"
         }
     ]

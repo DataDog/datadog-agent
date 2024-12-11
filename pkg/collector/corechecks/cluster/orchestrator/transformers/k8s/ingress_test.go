@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -12,6 +11,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -59,7 +59,7 @@ func TestExtractIngress(t *testing.T) {
 					},
 					DefaultBackend: &netv1.IngressBackend{
 						Resource: &v1.TypedLocalObjectReference{
-							APIGroup: strPtr("apiGroup"),
+							APIGroup: pointer.Ptr("apiGroup"),
 							Kind:     "kind",
 							Name:     "name",
 						},
@@ -70,11 +70,11 @@ func TestExtractIngress(t *testing.T) {
 							SecretName: "secret",
 						},
 					},
-					IngressClassName: strPtr("ingressClassName"),
+					IngressClassName: pointer.Ptr("ingressClassName"),
 				},
 				Status: netv1.IngressStatus{
-					LoadBalancer: v1.LoadBalancerStatus{
-						Ingress: []v1.LoadBalancerIngress{
+					LoadBalancer: netv1.IngressLoadBalancerStatus{
+						Ingress: []netv1.IngressLoadBalancerIngress{
 							{Hostname: "foo.us-east-1.elb.amazonaws.com"},
 						},
 					},
@@ -141,10 +141,10 @@ func TestExtractIngressStatus(t *testing.T) {
 		"empty": {input: netv1.IngressStatus{}, expected: model.IngressStatus{Ingress: []*model.LoadBalancerIngress{}}},
 		"multiple ingress statuses": {
 			input: netv1.IngressStatus{
-				LoadBalancer: v1.LoadBalancerStatus{
-					Ingress: []v1.LoadBalancerIngress{
-						{IP: "ip1", Ports: []v1.PortStatus{{Port: 80, Error: &errMsg}}},
-						{Hostname: "hostname1", Ports: []v1.PortStatus{{Protocol: "TCP", Port: 8080}}},
+				LoadBalancer: netv1.IngressLoadBalancerStatus{
+					Ingress: []netv1.IngressLoadBalancerIngress{
+						{IP: "ip1", Ports: []netv1.IngressPortStatus{{Port: 80, Error: &errMsg}}},
+						{Hostname: "hostname1", Ports: []netv1.IngressPortStatus{{Protocol: "TCP", Port: 8080}}},
 						{IP: "ip2"},
 					},
 				},
@@ -232,7 +232,7 @@ func TestExtractIngressBackend(t *testing.T) {
 		"with resource": {
 			input: netv1.IngressBackend{
 				Resource: &v1.TypedLocalObjectReference{
-					APIGroup: strPtr("apiGroup"),
+					APIGroup: pointer.Ptr("apiGroup"),
 					Kind:     "kind",
 					Name:     "name",
 				},

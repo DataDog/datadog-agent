@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package util provides various functions
 package util
 
 import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
@@ -17,8 +17,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -26,7 +26,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// CopyFile atomically copies file path `src`` to file path `dst`.
+// CopyFile atomically copies file path `src“ to file path `dst`.
 func CopyFile(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {
@@ -40,7 +40,7 @@ func CopyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	tmp, err := ioutil.TempFile(filepath.Dir(dst), "")
+	tmp, err := os.CreateTemp(filepath.Dir(dst), "")
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func CopyFileAll(src, dst string) error {
 func CopyDir(src, dst string) error {
 	var (
 		err     error
-		fds     []os.FileInfo
+		fds     []os.DirEntry
 		srcinfo os.FileInfo
 	)
 
@@ -100,7 +100,7 @@ func CopyDir(src, dst string) error {
 		return err
 	}
 
-	if fds, err = ioutil.ReadDir(src); err != nil {
+	if fds, err = os.ReadDir(src); err != nil {
 		return err
 	}
 	for _, fd := range fds {
@@ -117,28 +117,6 @@ func CopyDir(src, dst string) error {
 		}
 	}
 	return nil
-}
-
-// GetFileSize gets the file size
-func GetFileSize(path string) (int64, error) {
-	stat, err := os.Stat(path)
-
-	if err != nil {
-		return 0, err
-	}
-
-	return stat.Size(), nil
-}
-
-// GetFileModTime gets the modification time
-func GetFileModTime(path string) (time.Time, error) {
-	stat, err := os.Stat(path)
-
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return stat.ModTime(), nil
 }
 
 // EnsureParentDirsExist makes a path immediately available for
@@ -198,13 +176,13 @@ func GetJSONSerializableMap(m interface{}) interface{} {
 
 // GetGoRoutinesDump returns the stack trace of every Go routine of a running Agent.
 func GetGoRoutinesDump() (string, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
 	pprofURL := fmt.Sprintf("http://%v:%s/debug/pprof/goroutine?debug=2",
-		ipcAddress, config.Datadog.GetString("expvar_port"))
+		ipcAddress, pkgconfigsetup.Datadog().GetString("expvar_port"))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := http.Client{}
@@ -218,6 +196,6 @@ func GetGoRoutinesDump() (string, error) {
 	}
 	defer resp.Body.Close()
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	return string(data), err
 }

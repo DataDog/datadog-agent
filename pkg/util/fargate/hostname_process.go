@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build fargateprocess
-// +build fargateprocess
 
 package fargate
 
@@ -22,7 +21,7 @@ import (
 // - ECS: fargate_task:<TaskARN>
 // - EKS: value of kubernetes_kubelet_nodename
 func GetFargateHost(ctx context.Context) (string, error) {
-	return getFargateHost(ctx, GetOrchestrator(ctx), getECSHost, getEKSHost)
+	return getFargateHost(ctx, GetOrchestrator(), getECSHost, getEKSHost)
 }
 
 // getFargateHost is separated from GetFargateHost for testing purpose
@@ -53,7 +52,7 @@ func getECSHost(ctx context.Context) (string, error) {
 	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
 }
 
-func getEKSHost(ctx context.Context) (string, error) {
+func getEKSHost(context.Context) (string, error) {
 	// Use the node name as hostname
 	return GetEKSFargateNodename()
 }

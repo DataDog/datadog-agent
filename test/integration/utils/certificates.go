@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package utils provides utility functions
 package utils
 
 import (
@@ -19,6 +20,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/errors"
 )
 
 // CertificatesConfig holds certificate configuration
@@ -125,9 +128,11 @@ func GenerateCertificates(config *CertificatesConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to open %s for writing: %s", config.CertFilePath, err)
 	}
-
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	defer certOut.Close()
+	err = pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	if err != nil {
+		return err
+	}
 
 	keyOut, err := os.OpenFile(config.KeyFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
@@ -139,6 +144,15 @@ func GenerateCertificates(config *CertificatesConfig) error {
 	if err != nil {
 		return err
 	}
-	pem.Encode(keyOut, p)
-	return nil
+	err = pem.Encode(keyOut, p)
+	if err != nil {
+		return err
+	}
+
+	err = errors.NewAggregate([]error{
+		certOut.Close(),
+		keyOut.Close(),
+	})
+
+	return err
 }

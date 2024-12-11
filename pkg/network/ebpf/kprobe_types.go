@@ -4,15 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package ebpf
 
 /*
-#include "./c/tracer.h"
+#include "./c/pid_fd.h"
+#include "./c/tracer/tracer.h"
 #include "./c/tcp_states.h"
-#include "./c/tags-types.h"
 #include "./c/prebuilt/offset-guess.h"
+#include "./c/protocols/classification/defs.h"
 */
 import "C"
 
@@ -20,16 +20,21 @@ type ConnTuple C.conn_tuple_t
 type TCPStats C.tcp_stats_t
 type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
+type SkpConn C.skp_conn_tuple_t
+type PidTs C.pid_ts_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
 type PortBinding C.port_binding_t
 type PIDFD C.pid_fd_t
 type UDPRecvSock C.udp_recv_sock_t
 type BindSyscallArgs C.bind_syscall_args_t
+type ProtocolStack C.protocol_stack_t
+type ProtocolStackWrapper C.protocol_stack_wrapper_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
 
@@ -47,17 +52,18 @@ const (
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+const SizeofBatch = C.sizeof_batch_t
 
-type ConnTag = uint64
+const TCPFailureConnReset = C.TCP_CONN_FAILED_RESET
+const TCPFailureConnTimeout = C.TCP_CONN_FAILED_TIMEOUT
+const TCPFailureConnRefused = C.TCP_CONN_FAILED_REFUSED
+
+const SizeofConn = C.sizeof_conn_t
+
+type ClassificationProgram = uint32
 
 const (
-	GnuTLS  ConnTag = C.LIBGNUTLS
-	OpenSSL ConnTag = C.LIBSSL
-)
-
-var (
-	StaticTags = map[ConnTag]string{
-		GnuTLS:  "tls.library:gnutls",
-		OpenSSL: "tls.library:openssl",
-	}
+	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+	ClassificationGRPC   ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
 )

@@ -6,9 +6,9 @@
 package request
 
 import (
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 // ContentTypeProtobuf holds the HTML content-type of a Protobuf payload

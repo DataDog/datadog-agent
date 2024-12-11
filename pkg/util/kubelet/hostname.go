@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -12,8 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +23,7 @@ var kubeUtilGet kubeUtilGetter = k.GetKubeUtil
 
 // GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
 func GetHostname(ctx context.Context) (string, error) {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return "", nil
 	}
 
@@ -53,7 +51,7 @@ func GetHostname(ctx context.Context) (string, error) {
 // Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
 // This function replaces the invalid `_` with a valid `-`.
 func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (string, string) {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return "", ""
 	}
 	clusterName := clustername.GetClusterName(ctx, hostname)
@@ -63,19 +61,4 @@ func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (strin
 // makeClusterNameRFC1123Compliant returns the compliant cluster name and as the second return value the initial clusterName
 func makeClusterNameRFC1123Compliant(clusterName string) (string, string) {
 	return clustername.MakeClusterNameRFC1123Compliant(clusterName), clusterName
-}
-
-// IsAgentKubeHostNetwork returns true if the agent is running on a POD with hostNetwork
-func IsAgentKubeHostNetwork() (bool, error) {
-	ku, err := k.GetKubeUtil()
-	if err != nil {
-		return true, err
-	}
-
-	cid, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
-	if err != nil {
-		return false, err
-	}
-
-	return ku.IsAgentHostNetwork(context.TODO(), cid)
 }

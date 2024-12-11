@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -13,7 +12,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/system"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -216,7 +215,7 @@ func TestParseStorageStats(t *testing.T) {
 		},
 	} {
 		t.Logf("test case %d", nb)
-		info := types.Info{
+		info := system.Info{
 			DriverStatus: tc.source,
 		}
 		stat, err := parseStorageStatsFromInfo(info)

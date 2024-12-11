@@ -4,15 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package ebpf holds ebpf related files
 package ebpf
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // BytesMapItem describes a raw table key or value
@@ -37,7 +35,7 @@ type Uint16MapItem uint16
 // MarshalBinary returns the binary representation of a Uint16MapItem
 func (i Uint16MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2)
-	model.ByteOrder.PutUint16(b, uint16(i))
+	binary.NativeEndian.PutUint16(b, uint16(i))
 	return b, nil
 }
 
@@ -47,7 +45,7 @@ type Uint32MapItem uint32
 // MarshalBinary returns the binary representation of a Uint32MapItem
 func (i Uint32MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 4)
-	model.ByteOrder.PutUint32(b, uint32(i))
+	binary.NativeEndian.PutUint32(b, uint32(i))
 	return b, nil
 }
 
@@ -57,7 +55,7 @@ type Uint64MapItem uint64
 // MarshalBinary returns the binary representation of a Uint64MapItem
 func (i Uint64MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 8)
-	model.ByteOrder.PutUint64(b, uint64(i))
+	binary.NativeEndian.PutUint64(b, uint64(i))
 	return b, nil
 }
 
@@ -75,7 +73,7 @@ func (i *StringMapItem) MarshalBinary() ([]byte, error) {
 	}
 
 	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, model.ByteOrder, []byte(i.str)[0:n]); err != nil {
+	if err := binary.Write(buffer, binary.NativeEndian, []byte(i.str)[0:n]); err != nil {
 		return nil, err
 	}
 	rep := make([]byte, i.size)
@@ -86,6 +84,65 @@ func (i *StringMapItem) MarshalBinary() ([]byte, error) {
 // NewStringMapItem returns a new StringMapItem
 func NewStringMapItem(str string, size int) *StringMapItem {
 	return &StringMapItem{str: str, size: size}
+}
+
+// Uint32FlagsZeroMapItem value used to reset the map entry
+var Uint32FlagsZeroMapItem = make([]byte, 8)
+
+// Uint32FlagsMapItem describes an flags table key or value
+type Uint32FlagsMapItem uint32
+
+// MarshalBinary returns the binary representation of a Uint32FlagsMapItem
+func (i *Uint32FlagsMapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 8)
+	binary.NativeEndian.PutUint32(b, uint32(*i))
+	b[4] = 1
+	return b, nil
+}
+
+// NewUint32FlagsMapItem returns a new Uint32FlagsMapItem
+func NewUint32FlagsMapItem(i uint32) *Uint32FlagsMapItem {
+	item := Uint32FlagsMapItem(i)
+	return &item
+}
+
+// Uint64FlagsZeroMapItem value used to reset the map entry
+var Uint64FlagsZeroMapItem = make([]byte, 16)
+
+// Uint64FlagsMapItem describes an flags table key or value
+type Uint64FlagsMapItem uint64
+
+// MarshalBinary returns the binary representation of a Uint64FlagsMapItem
+func (i *Uint64FlagsMapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 16)
+	binary.NativeEndian.PutUint64(b, uint64(*i))
+	b[8] = 1
+	return b, nil
+}
+
+// NewUint64FlagsMapItem returns a new Uint64FlagsMapItem
+func NewUint64FlagsMapItem(i uint64) *Uint64FlagsMapItem {
+	item := Uint64FlagsMapItem(i)
+	return &item
+}
+
+// UInt32RangeMapItem defines a uint32 range map item
+type UInt32RangeMapItem struct {
+	Min uint32
+	Max uint32
+}
+
+// MarshalBinary returns the binary representation of a UInt32RangeMapItem
+func (i *UInt32RangeMapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 8)
+	binary.NativeEndian.PutUint32(b, i.Min)
+	binary.NativeEndian.PutUint32(b[4:], i.Max)
+	return b, nil
+}
+
+// NewUInt32RangeMapItem returns a new UInt32RangeMapItem
+func NewUInt32RangeMapItem(min, max uint32) *UInt32RangeMapItem {
+	return &UInt32RangeMapItem{Min: min, Max: max}
 }
 
 // Zero table items
@@ -102,4 +159,6 @@ var (
 	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
 	// BufferSelectorDiscarderMonitorKey is the key used to select the active discarder monitor buffer key
 	BufferSelectorDiscarderMonitorKey = Uint32MapItem(2)
+	// BufferSelectorApproverMonitorKey is the key used to select the active approver monitor buffer key
+	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
 )

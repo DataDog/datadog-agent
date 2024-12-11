@@ -4,21 +4,26 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -36,12 +41,12 @@ type stats struct {
 // GetStatus returns status info for the orchestrator explorer.
 func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
-	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") {
 		status["Disabled"] = "The orchestrator explorer is not enabled on the Cluster Agent"
 		return status
 	}
 
-	if !config.Datadog.GetBool("leader_election") {
+	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 		status["Disabled"] = "Leader election is not enabled on the Cluster Agent. The orchestrator explorer needs leader election for resource collection."
 		return status
 	}
@@ -72,9 +77,11 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	status["OrchestratorEndpoints"] = endpoints
 	setCacheInformationDCAMode(status)
 	setCollectionIsWorkingDCAMode(status)
+	setManifestBufferInformationDCAMode(status)
+	setSkippedResourcesInformationDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
-	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
+	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
 		// we need to check first whether we have dispatched checks to CLC
 		stats, err := clusterchecks.GetStats()
 		if err != nil {
@@ -95,8 +102,12 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	}
 
 	// get options
-	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.manifest_collection.enabled") {
+		status["ManifestCollection"] = "Manifest collection: enabled"
 	}
 
 	return status
@@ -121,7 +132,7 @@ func setCacheInformationDCAMode(status map[string]interface{}) {
 	cacheStats := make(map[string]stats)
 
 	// get cache efficiency
-	for _, node := range orchestrator.NodeTypes() {
+	for _, node := range pkgorchestratormodel.NodeTypes() {
 		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
 			orcStats := value.(orchestrator.CheckStats)
 			totalMiss := cacheMiss[orcStats.String()]
@@ -174,4 +185,87 @@ func setCollectionIsWorkingDCAMode(status map[string]interface{}) {
 		status["CollectionWorking"] = "The collection is not running because this agent is not the leader"
 	}
 
+}
+
+func setManifestBufferInformationDCAMode(status map[string]interface{}) {
+	manifestBufferJSON := []byte(expvar.Get("orchestrator-manifest-buffer").String())
+	manifestBuffer := make(map[string]int64)
+	json.Unmarshal(manifestBufferJSON, &manifestBuffer) //nolint:errcheck
+	status["ManifestsFlushedLastTime"] = manifestBuffer["ManifestsFlushedLastTime"]
+	status["BufferFlushed"] = manifestBuffer["BufferFlushed"]
+	delete(manifestBuffer, "ManifestsFlushedLastTime")
+	delete(manifestBuffer, "BufferFlushed")
+	status["ManifestBuffer"] = manifestBuffer
+
+}
+
+func setSkippedResourcesInformationDCAMode(status map[string]interface{}) {
+	skippedResourcesJSON := []byte(expvar.Get("orchestrator-skipped-resources").String())
+	skippedResources := make(map[string]string)
+	err := json.Unmarshal(skippedResourcesJSON, &skippedResources)
+	if err != nil {
+		return
+	}
+
+	skippedResourcesFiltered := make(map[string]string)
+	for informerName, reason := range skippedResources {
+		if reason != "" {
+			skippedResourcesFiltered[informerName] = reason
+		}
+	}
+	status["SkippedResources"] = skippedResourcesFiltered
+}
+
+// Provider provides the functionality to populate the status output
+type Provider struct{}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// Name returns the name
+func (Provider) Name() string {
+	return "Orchestrator Explorer"
+}
+
+// Section return the section
+func (Provider) Section() string {
+	return "Orchestrator Explorer"
+}
+
+// JSON populates the status map
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
+	populateStatus(stats)
+
+	return nil
+}
+
+// Text renders the text output
+func (Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "orchestrator.tmpl", buffer, getStatusInfo())
+}
+
+// HTML renders the html output
+func (Provider) HTML(_ bool, _ io.Writer) error {
+	return nil
+}
+
+func populateStatus(stats map[string]interface{}) {
+	apiCl, apiErr := apiserver.GetAPIClient()
+
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") {
+		if apiErr != nil {
+			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
+		} else {
+			orchestratorStats := GetStatus(context.TODO(), apiCl.Cl)
+			stats["orchestrator"] = orchestratorStats
+		}
+	}
+}
+
+func getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	populateStatus(stats)
+
+	return stats
 }

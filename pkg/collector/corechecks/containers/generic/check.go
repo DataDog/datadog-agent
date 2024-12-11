@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package generic implements the container check.
 package generic
 
 import (
@@ -10,16 +11,21 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	genericContainerCheckName = "container"
-	cacheValidity             = 2 * time.Second
+	// CheckName is the name of the check
+	CheckName     = "container"
+	cacheValidity = 2 * time.Second
 )
 
 // ContainerConfig holds the check configuration
@@ -35,23 +41,25 @@ type ContainerCheck struct {
 	core.CheckBase
 	instance  *ContainerConfig
 	processor Processor
+	store     workloadmeta.Component
+	tagger    tagger.Component
 }
 
-func init() {
-	core.RegisterCheck("container", ContainerCheckFactory)
-}
-
-// ContainerCheckFactory is exported for integration testing
-func ContainerCheckFactory() check.Check {
-	return &ContainerCheck{
-		CheckBase: core.NewCheckBase(genericContainerCheckName),
-		instance:  &ContainerConfig{},
-	}
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &ContainerCheck{
+			CheckBase: core.NewCheckBase(CheckName),
+			instance:  &ContainerConfig{},
+			store:     store,
+			tagger:    tagger,
+		}
+	})
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(initConfig, config, source)
+func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -60,8 +68,7 @@ func (c *ContainerCheck) Configure(config, initConfig integration.Data, source s
 	if err != nil {
 		return err
 	}
-
-	c.processor = NewProcessor(metrics.GetProvider(), MetadataContainerAccessor{}, GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter})
+	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store}, c.tagger)
 	return c.instance.Parse(config)
 }
 

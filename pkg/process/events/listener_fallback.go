@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package events
 
@@ -19,7 +18,7 @@ type FallbackListener struct {
 }
 
 // NewListener returns an error for systems where process events collection is not yet supported
-func NewListener(handler EventHandler) (*FallbackListener, error) {
+func NewListener(_ EventHandler) (*FallbackListener, error) {
 	return nil, errors.New("Process event collection is not yet supported on this system")
 }
 

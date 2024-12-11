@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 package customresources
 
 import (
@@ -16,39 +18,44 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 
-// NewJobFactory returns a new Job metric family generator factory.
-func NewJobFactory() customresource.RegistryFactory {
-	return &jobFactory{}
+// NewExtendedJobFactory returns a new Job metric family generator factory.
+func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &extendedJobFactory{
+		client: client.Cl,
+	}
 }
 
-type jobFactory struct{}
+type extendedJobFactory struct {
+	client kubernetes.Interface
+}
 
 // Name is the name of the factory
-func (f *jobFactory) Name() string {
+func (f *extendedJobFactory) Name() string {
 	return "jobs_extended"
 }
 
-// CreateClient is not implemented
-func (f *jobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+func (f *extendedJobFactory) CreateClient(_ *rest.Config) (interface{}, error) {
+	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
-func (f *jobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_job_duration",
 			"Duration represents the time elapsed between the StartTime and CompletionTime of a Job, or the current time if the job is still running",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapJobFunc(func(j *batchv1.Job) *metric.Family {
 				ms := []*metric.Metric{}
@@ -76,11 +83,7 @@ func (f *jobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 
 func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		job, ok := obj.(*batchv1.Job)
-		if !ok {
-			log.Warnf("cannot cast object %T into *batchv1.Job, skipping", obj)
-			return nil
-		}
+		job := obj.(*batchv1.Job)
 
 		metricFamily := f(job)
 
@@ -93,21 +96,27 @@ func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.
 }
 
 // ExpectedType returns the type expected by the factory
-func (f *jobFactory) ExpectedType() interface{} {
-	return &batchv1.Job{}
+func (f *extendedJobFactory) ExpectedType() interface{} {
+	return &batchv1.Job{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Job",
+			APIVersion: batchv1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 // ListWatch returns a ListerWatcher for batchv1.Job
-func (f *jobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).List(context.TODO(), opts)
+			return client.BatchV1().Jobs(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).Watch(context.TODO(), opts)
+			return client.BatchV1().Jobs(ns).Watch(ctx, opts)
 		},
 	}
 }

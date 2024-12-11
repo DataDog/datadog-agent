@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Fix a bug where containerd container metrics and container tags were not being
+    collected for containers with arbitrary container IDs.

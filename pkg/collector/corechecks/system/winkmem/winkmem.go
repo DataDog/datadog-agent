@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 //go:build windows
-// +build windows
 
+//nolint:revive // TODO(WINA) Fix revive linter
 package winkmem
 
 import (
@@ -15,16 +15,19 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"golang.org/x/sys/windows"
 )
 
 const (
-	kmemCheckName = "winkmem"
+	// CheckName is the name of the check
+	CheckName = "winkmem"
 
 	// KMemDefaultTopNum is the default number of kernel memory tags to return
 	KMemDefaultTopNum = 10
@@ -56,13 +59,14 @@ type KMemCheck struct {
 	config Config
 }
 
-func init() {
-	core.RegisterCheck(kmemCheckName, winkmemFactory)
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func winkmemFactory() check.Check {
+func newCheck() check.Check {
 	return &KMemCheck{
-		CheckBase: core.NewCheckBase(kmemCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
 }
 
@@ -79,8 +83,7 @@ init_config:
 */
 
 // Configure is called to configure the object prior to the first run
-func (w *KMemCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-
+func (w *KMemCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// check to make sure the function is actually there, so we can fail gracefully
 	// if it's not
 	if err := modntdll.Load(); err != nil {
@@ -90,7 +93,7 @@ func (w *KMemCheck) Configure(data integration.Data, initConfig integration.Data
 		return err
 	}
 
-	if err := w.CommonConfigure(initConfig, data, source); err != nil {
+	if err := w.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
 	}
 	cf := Config{
@@ -145,7 +148,7 @@ func (w *KMemCheck) Run() error {
 	for k, v := range tagmap {
 		// double sanity check, but should always be true
 		if v {
-			var tags = []string{}
+			tags := []string{}
 			pti := spi.spti.poolTags[k]
 
 			tags = append(tags, "kmemtag:"+string(pti.tag[:]))
@@ -160,7 +163,6 @@ func (w *KMemCheck) Run() error {
 	sender.Commit()
 	log.Debugf("Logged %v entries", len(tagmap))
 	return nil
-
 }
 
 type systemPooltag struct {
@@ -174,7 +176,7 @@ type systemPooltag struct {
 }
 type systemPooltagInformation struct {
 	count    uint32
-	padding  uint32
+	_        uint32 // padding
 	poolTags []systemPooltag
 }
 

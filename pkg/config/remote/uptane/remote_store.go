@@ -7,12 +7,15 @@ package uptane
 
 import (
 	"bytes"
+	"fmt"
 	"io"
-	"io/ioutil"
+	"net/http"
+	"path"
+	"strings"
 
-	"github.com/theupdateframework/go-tuf/client"
+	"github.com/DataDog/go-tuf/client"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 type role string
@@ -26,7 +29,7 @@ const (
 
 // remoteStore implements go-tuf's RemoteStore
 // Its goal is to serve TUF metadata updates coming to the backend in a way go-tuf understands
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
 type remoteStore struct {
 	targetStore *targetStore
 	metas       map[role]map[uint64][]byte
@@ -59,7 +62,7 @@ func (s *remoteStore) latestVersion(r role) uint64 {
 }
 
 // GetMeta implements go-tuf's RemoteStore.GetMeta
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
 func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 	metaPath, err := parseMetaPath(path)
 	if err != nil {
@@ -80,11 +83,11 @@ func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 	if !versionFound {
 		return nil, 0, client.ErrNotFound{File: path}
 	}
-	return ioutil.NopCloser(bytes.NewReader(requestedVersion)), int64(len(requestedVersion)), nil
+	return io.NopCloser(bytes.NewReader(requestedVersion)), int64(len(requestedVersion)), nil
 }
 
-// GetMeta implements go-tuf's RemoteStore.GetTarget
-// See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
+// GetTarget implements go-tuf's RemoteStore.GetTarget
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
 func (s *remoteStore) GetTarget(targetPath string) (stream io.ReadCloser, size int64, err error) {
 	target, found, err := s.targetStore.getTargetFile(targetPath)
 	if err != nil {
@@ -93,7 +96,7 @@ func (s *remoteStore) GetTarget(targetPath string) (stream io.ReadCloser, size i
 	if !found {
 		return nil, 0, client.ErrNotFound{File: targetPath}
 	}
-	return ioutil.NopCloser(bytes.NewReader(target)), int64(len(target)), nil
+	return io.NopCloser(bytes.NewReader(target)), int64(len(target)), nil
 }
 
 type remoteStoreDirector struct {
@@ -167,4 +170,143 @@ func (sc *remoteStoreConfig) update(update *pbgo.LatestConfigsResponse) {
 		sc.resetRole(roleTargets)
 		sc.metas[roleTargets][metas.TopTargets.Version] = metas.TopTargets.Raw
 	}
+}
+
+// cdnRemoteStore implements go-tuf's RemoteStore
+// It is an HTTP interface to an authenticated remote server that serves an uptane repository
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
+type cdnRemoteStore struct {
+	httpClient     RequestDoer
+	host           string
+	pathPrefix     string
+	apiKey         string
+	repositoryType string
+
+	authnToken string
+}
+
+// RequestDoer is an interface that abstracts the http.Client.Do method
+type RequestDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+type cdnRemoteConfigStore struct {
+	cdnRemoteStore
+}
+
+type cdnRemoteDirectorStore struct {
+	cdnRemoteStore
+}
+
+// getCDNHostnameFromSite returns the staging or production CDN hostname for a given site.
+// Site can be any of the (non-fed) documented DD sites per https://docs.datadoghq.com/getting_started/site/
+func getCDNHostnameFromSite(site string) string {
+	s := strings.TrimPrefix(site, "https://")
+	switch s {
+	// staging:
+	case "datad0g.com":
+		return "remote-config.datad0g.com"
+	// prod:
+	case "ap1.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	case "us5.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	case "us3.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	case "app.datadoghq.eu":
+		return "remote-config.datadoghq.com"
+	case "app.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	}
+	return "remote-config.datadoghq.com"
+}
+
+// Trims any schemas or non-datacenter related subdomains from the site to get the path prefix for the CDN
+// e.g. https://us3.datadoghq.com -> us3.datadoghq.com
+// e.g. https://app.datadoghq.com -> datadoghq.com
+func getCDNPathPrefixFromSite(site string) string {
+	s := strings.TrimPrefix(site, "https://app.")
+	s = strings.TrimPrefix(s, "https://")
+	return s
+}
+
+func newCDNRemoteConfigStore(client *http.Client, site, apiKey string) *cdnRemoteConfigStore {
+	return &cdnRemoteConfigStore{
+		cdnRemoteStore: cdnRemoteStore{
+			httpClient:     client,
+			host:           getCDNHostnameFromSite(site),
+			pathPrefix:     getCDNPathPrefixFromSite(site),
+			apiKey:         apiKey,
+			repositoryType: "config",
+		},
+	}
+}
+
+func newCDNRemoteDirectorStore(client *http.Client, site, apiKey string) *cdnRemoteDirectorStore {
+	return &cdnRemoteDirectorStore{
+		cdnRemoteStore: cdnRemoteStore{
+			httpClient:     client,
+			host:           getCDNHostnameFromSite(site),
+			pathPrefix:     getCDNPathPrefixFromSite(site),
+			apiKey:         apiKey,
+			repositoryType: "director",
+		},
+	}
+}
+
+// GetMeta implements go-tuf's RemoteStore.GetMeta
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
+func (s *cdnRemoteStore) GetMeta(p string) (io.ReadCloser, int64, error) {
+	return s.getRCFile(path.Join(s.repositoryType, p))
+}
+
+// GetTarget implements go-tuf's RemoteStore.GetTarget
+// See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
+func (s *cdnRemoteStore) GetTarget(path string) (io.ReadCloser, int64, error) {
+	return s.getRCFile(path)
+}
+
+func (s *cdnRemoteStore) newAuthenticatedHTTPReq(method, p string) (*http.Request, error) {
+	req, err := http.NewRequest(method, s.host, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("X-Dd-Api-Key", s.apiKey)
+	if s.authnToken != "" {
+		req.Header.Add("Authorization", s.authnToken)
+	}
+
+	req.URL.Scheme = "https"
+	req.URL.Host = s.host
+	req.URL.Path = "/" + path.Join(s.pathPrefix, p)
+	req.Host = s.host
+
+	return req, err
+}
+
+func (s *cdnRemoteStore) updateAuthnToken(resp *http.Response) {
+	authToken := resp.Header.Get("X-Dd-Refreshed-Authorization")
+	if authToken != "" {
+		s.authnToken = authToken
+	}
+}
+
+func (s *cdnRemoteStore) getRCFile(path string) (io.ReadCloser, int64, error) {
+	req, err := s.newAuthenticatedHTTPReq("GET", path)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, 0, client.ErrNotFound{File: path}
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+	s.updateAuthnToken(resp)
+	return resp.Body, resp.ContentLength, nil
 }

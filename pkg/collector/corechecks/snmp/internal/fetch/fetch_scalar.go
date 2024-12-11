@@ -10,15 +10,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
@@ -59,7 +59,7 @@ func retryFailedScalarOids(sess session.Session, results *gosnmp.SnmpPacket, val
 	retryOids := make(map[string]string)
 	for _, variable := range results.Variables {
 		oid := strings.TrimLeft(variable.Name, ".")
-		if (variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance) && !strings.HasSuffix(oid, ".0") {
+		if (variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance || variable.Type == gosnmp.Null) && !strings.HasSuffix(oid, ".0") {
 			retryOids[oid] = oid + ".0"
 		}
 	}
@@ -126,7 +126,7 @@ func doDoFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPa
 		log.Debugf("fetch scalar: error getting oids `%v`: %v", oids, err)
 		return nil, fmt.Errorf("fetch scalar: error getting oids `%v`: %v", oids, err)
 	}
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetch scalar: results: %s", gosnmplib.PacketAsString(results))
 	}
 	return results, nil

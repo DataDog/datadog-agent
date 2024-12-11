@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Added an experimental gRPC server to process-agent in order to expose process entities with their detected language.
+    This feature is WIP and controlled through the process_config.language_detection.enabled setting.

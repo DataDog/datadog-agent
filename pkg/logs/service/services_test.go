@@ -61,3 +61,31 @@ func TestRemoveService(t *testing.T) {
 	assert.Equal(t, <-removed, service)
 	assert.Equal(t, <-all, service)
 }
+
+func TestRemoveMultipleService(t *testing.T) {
+	services := NewServices()
+	service1 := NewService("foo", "1")
+	service2 := NewService("foo", "2")
+	service3 := NewService("foo", "3")
+
+	removed := services.GetRemovedServicesForType("foo")
+	assert.NotNil(t, removed)
+	assert.Equal(t, 0, len(removed))
+
+	services.AddService(service1)
+	services.AddService(service2)
+	services.AddService(service3)
+	services.AddService(service1)
+
+	assert.Len(t, services.services, 4)
+
+	go func() { services.RemoveService(service1) }()
+	assert.Equal(t, <-removed, service1)
+
+	assert.Len(t, services.services, 2)
+
+	go func() { services.RemoveService(service1) }()
+	assert.Equal(t, <-removed, service1)
+
+	assert.Len(t, services.services, 2)
+}

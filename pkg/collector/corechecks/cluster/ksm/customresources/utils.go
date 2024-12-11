@@ -1,3 +1,5 @@
+//go:build kubeapiserver
+
 /*
 Copyright 2018 The Kubernetes Authors All rights reserved.
 
@@ -23,9 +25,13 @@ import (
 	"strconv"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+	extension "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
+
+const networkBandwidthResourceName = "kubernetes.io/network-bandwidth"
 
 var (
 	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
@@ -123,27 +129,6 @@ func labelConflictSuffix(label string, count int) string {
 	return fmt.Sprintf("%s_conflict%d", label, count)
 }
 
-// createPrometheusLabelKeysValues takes in passed kubernetes annotations/labels
-// and associated allowed list in kubernetes label format.
-// It returns only those allowed annotations/labels that exist in the list and converts them to Prometheus labels.
-func createPrometheusLabelKeysValues(prefix string, allKubeData map[string]string, allowList []string) ([]string, []string) {
-	allowedKubeData := make(map[string]string)
-
-	if len(allowList) > 0 {
-		if allowList[0] == options.LabelWildcard {
-			return kubeMapToPrometheusLabels(prefix, allKubeData)
-		}
-
-		for _, l := range allowList {
-			v, found := allKubeData[l]
-			if found {
-				allowedKubeData[l] = v
-			}
-		}
-	}
-	return kubeMapToPrometheusLabels(prefix, allowedKubeData)
-}
-
 // mergeKeyValues merges label keys and values slice pairs into a single slice pair.
 // Arguments are passed as equal-length pairs of slices, where the first slice contains keys and second contains values.
 // Example: mergeKeyValues(keys1, values1, keys2, values2) => (keys1+keys2, values1+values2)
@@ -164,4 +149,42 @@ func mergeKeyValues(keyValues ...[]string) (keys, values []string) {
 	}
 
 	return keys, values
+}
+
+var (
+	conditionStatusesV1            = []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionFalse, v1.ConditionUnknown}
+	conditionStatusesExtensionV1   = []extension.ConditionStatus{extension.ConditionTrue, extension.ConditionFalse, extension.ConditionUnknown}
+	conditionStatusesAPIServicesV1 = []apiregistrationv1.ConditionStatus{apiregistrationv1.ConditionTrue, apiregistrationv1.ConditionFalse, apiregistrationv1.ConditionUnknown}
+)
+
+type conditionStatus interface {
+	v1.ConditionStatus | extension.ConditionStatus | apiregistrationv1.ConditionStatus
+}
+
+// addConditionMetrics generates one metric for each possible condition
+// status. For this function to work properly, the last label in the metric
+// description must be the condition.
+func addConditionMetrics[T conditionStatus](cs T, statuses []T) []*metric.Metric {
+	ms := make([]*metric.Metric, len(statuses))
+
+	for i, status := range statuses {
+		ms[i] = &metric.Metric{
+			LabelValues: []string{strings.ToLower(string(status))},
+			Value:       boolFloat64(cs == status),
+		}
+	}
+
+	return ms
+}
+
+func addConditionMetricsV1(cs v1.ConditionStatus) []*metric.Metric {
+	return addConditionMetrics(cs, conditionStatusesV1)
+}
+
+func addConditionMetricsExtensionV1(cs extension.ConditionStatus) []*metric.Metric {
+	return addConditionMetrics(cs, conditionStatusesExtensionV1)
+}
+
+func addConditionMetricsAPIServicesV1(cs apiregistrationv1.ConditionStatus) []*metric.Metric {
+	return addConditionMetrics(cs, conditionStatusesAPIServicesV1)
 }

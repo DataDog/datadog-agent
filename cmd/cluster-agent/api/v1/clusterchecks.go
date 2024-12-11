@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package v1
 
@@ -19,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dcautil "github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,6 +29,12 @@ func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) 
 	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc))).Methods("GET")
 	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc))).Methods("POST")
 	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
+	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc))).Methods("POST")
+}
+
+// RebalancePostPayload struct is for the JSON messages received from a client POST request
+type RebalancePostPayload struct {
+	Force bool `json:"force"`
 }
 
 // postCheckStatus is used by the node-agent's config provider
@@ -60,12 +65,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		response, err := sc.ClusterCheckHandler.PostStatus(identifier, clientIP, status)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
+		response := sc.ClusterCheckHandler.PostStatus(identifier, clientIP, status)
 		writeJSONResponse(w, response)
 	}
 }
@@ -104,11 +104,39 @@ func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWrit
 			return
 		}
 
-		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks()
+		decoder := json.NewDecoder(r.Body)
+		var requestData RebalancePostPayload
+		err := decoder.Decode(&requestData)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks(requestData.Force)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		writeJSONResponse(w, response)
+	}
+}
+
+// postIsolateCheck requests that a specified check be isolated in a runner
+func postIsolateCheck(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	if sc.ClusterCheckHandler == nil {
+		return clusterChecksDisabledHandler
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
+			return
+		}
+
+		vars := mux.Vars(r)
+		isolateCheckID := vars["identifier"]
+
+		response := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
 
 		writeJSONResponse(w, response)
 	}
@@ -120,7 +148,7 @@ func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http
 		return clusterChecksDisabledHandler
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		// No redirection for this one, internal endpoint
 		response, err := sc.ClusterCheckHandler.GetState()
 		if err != nil {
@@ -149,6 +177,8 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 }
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte("Cluster-checks are not enabled"))
@@ -163,7 +193,7 @@ func validateClientIP(addr string) (string, error) {
 		return "", fmt.Errorf("cannot parse CLC runner address: %s", addr)
 	}
 
-	if addr == "" && config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled") {
+	if addr == "" && pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled") {
 		log.Warn("Cluster check dispatching error: cannot get runner IP from http headers. advanced_dispatching_enabled requires agent 6.17 or above.")
 	}
 

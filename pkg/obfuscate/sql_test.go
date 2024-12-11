@@ -61,7 +61,7 @@ func TestCanObfuscateAutoVacuum(t *testing.T) {
 			out: "autovacuum : VACUUM fake.big_table ( to prevent wraparound )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -90,6 +90,31 @@ func TestDollarQuotedFunc(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO school ( id, organization_id, name, created_at, updated_at ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE school SET id = ? organization_id = ? name = ? updated_at = ? WHERE ( id = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
+	})
+}
+
+func TestSingleDollarIdentifier(t *testing.T) {
+	q := `
+	MERGE INTO Employees AS target
+	USING EmployeeUpdates AS source
+	ON (target.EmployeeID = source.EmployeeID)
+	WHEN MATCHED THEN
+		UPDATE SET
+			target.Name = source.Name
+	WHEN NOT MATCHED BY TARGET THEN
+		INSERT (EmployeeID, Name)
+		VALUES (source.EmployeeID, source.Name)
+	WHEN NOT MATCHED BY SOURCE THEN
+		DELETE
+	OUTPUT $action, inserted.*, deleted.*;
+	`
+
+	t.Run("", func(t *testing.T) {
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{
+			DBMS: DBMSSQLServer,
+		}}).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "MERGE INTO Employees USING EmployeeUpdates ON ( target.EmployeeID = source.EmployeeID ) WHEN MATCHED THEN UPDATE SET target.Name = source.Name WHEN NOT MATCHED BY TARGET THEN INSERT ( EmployeeID, Name ) VALUES ( source.EmployeeID, source.Name ) WHEN NOT MATCHED BY SOURCE THEN DELETE OUTPUT $action, inserted.*, deleted.*", oq.Query)
 	})
 }
 
@@ -348,7 +373,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 			},
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -385,6 +410,10 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 		{
+			`select * from dollarField$ as df from some$dollar$filled_thing$$;`,
+			`select * from dollarField$ from some$dollar$filled_thing$$`,
+		},
+		{
 			"select * from `構わない`;",
 			"select * from 構わない",
 		},
@@ -401,7 +430,7 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT ( ? )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -727,6 +756,10 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 
 func TestSQLQuantizer(t *testing.T) {
 	cases := []sqlTestCase{
+		{
+			`SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+			`SELECT table . field FROM table WHERE table . otherfield = ? AND table . thirdfield = ?`,
+		},
 		{
 			"select * from users where id = 42",
 			"select * from users where id = ?",
@@ -1172,6 +1205,14 @@ LIMIT 1
 			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
 			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
 		},
+		{
+			query:    "USING $09 SELECT",
+			expected: `USING ? SELECT`,
+		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1229,7 +1270,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?& array [ ? ]",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					DBMS: DBMSPostgres,
@@ -1245,11 +1286,13 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct {
 		in, out string
+		tables  string
 		cfg     SQLConfig
 	}{
 		{
 			"select * from ##ThisIsAGlobalTempTable where id = 1",
 			"select * from ##ThisIsAGlobalTempTable where id = ?",
+			"",
 			SQLConfig{
 				DBMS: DBMSSQLServer,
 			},
@@ -1257,15 +1300,26 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 		{
 			"select * from dbo.#ThisIsATempTable where id = 1",
 			"select * from dbo.#ThisIsATempTable where id = ?",
+			"",
 			SQLConfig{
 				DBMS: DBMSSQLServer,
 			},
 		},
+		{
+			"SELECT * from [db_users] where [id] = @1",
+			"SELECT * from db_users where id = @1",
+			"db_users",
+			SQLConfig{
+				DBMS:       DBMSSQLServer,
+				TableNames: true,
+			},
+		},
 	} {
-		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+		t.Run(tt.cfg.DBMS, func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 		})
 	}
 }
@@ -1609,11 +1663,6 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"USING $09 SELECT",
-			`at position 9: invalid number`,
-		},
-
-		{
 			"INSERT VALUES (1, 2) INTO {ABC",
 			`at position 30: unexpected EOF in escape sequence`,
 		},
@@ -1667,7 +1716,7 @@ func TestSQLErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
 	}
@@ -1937,10 +1986,36 @@ func TestCassQuantizer(t *testing.T) {
 	}
 }
 
-func TestUnicodeDigit(t *testing.T) {
+func TestUnicodeDigit(_ *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestParseNumber(t *testing.T) {
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
+		// Negatives are always parsed as decimals (not octal).
+		"-01234567",
+		"-012345678",
+	}
+
+	o := NewObfuscator(Config{})
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			assert := assert.New(t)
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
+			}
+		})
+	}
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test
@@ -1986,5 +2061,808 @@ func TestToUpper(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestSQLLexerObfuscation(t *testing.T) {
+	tests := []struct {
+		name             string
+		query            string
+		expected         string
+		replaceDigits    bool
+		dollarQuotedFunc bool
+	}{
+		{
+			name:     "simple query obfuscation",
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+		},
+		{
+			name:     "dollar question paramerer",
+			query:    `SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+			expected: `SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+		},
+		{
+			name:          "simple query obfuscation with replace digits",
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+		},
+		{
+			name:          "simple query obfuscation without replace digits",
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users123 WHERE id = ?",
+			replaceDigits: false,
+		},
+		{
+			name:             "query with dollar quoted function",
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT $func$INSERT INTO table VALUES (?, ?, ?)$func$ FROM users",
+			dollarQuotedFunc: true,
+		},
+		{
+			name:             "query without dollar quoted function",
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT ? FROM users",
+			dollarQuotedFunc: false,
+		},
+		{
+			name:             "query with dollar quoted function and replace digits",
+			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+			expected:         "SELECT * FROM users? WHERE id = ?",
+			replaceDigits:    true,
+			dollarQuotedFunc: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode:  "obfuscate_only",
+					ReplaceDigits:    tt.replaceDigits,
+					DollarQuotedFunc: tt.dollarQuotedFunc,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+		})
+	}
+}
+
+func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
+	tests := []struct {
+		name                          string
+		query                         string
+		expected                      string
+		replaceDigits                 bool
+		dollarQuotedFunc              bool
+		keepSQLAlias                  bool
+		collectProcedures             bool
+		removeSpaceBetweenParentheses bool
+		keepNull                      bool
+		keepBoolean                   bool
+		keepPositionalParameter       bool
+		keepTrailingSemicolon         bool
+		keepIdentifierQuotation       bool
+		KeepJSONPath                  bool
+		metadata                      SQLMetadata
+	}{
+		{
+			name:     "simple query obfuscation and normalization",
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:          "simple query obfuscation and normalization with replace digits",
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "users?",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name: "normalizaton with comments and keepSQLAlias",
+			query: `
+			-- comment
+			/* comment */
+			SELECT id as id, name as n FROM users123 WHERE id in (1,2,3)`,
+			expected:      "SELECT id as id, name as n FROM users123 WHERE id in ( ? )",
+			replaceDigits: false,
+			keepSQLAlias:  true,
+			metadata: SQLMetadata{
+				Size:      37,
+				TablesCSV: "users123",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{
+					"-- comment",
+					"/* comment */",
+				},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:             "normalizaton with dollar quoted function",
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT $func$INSERT INTO table VALUES ( ? )$func$ FROM users",
+			dollarQuotedFunc: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:             "normalizaton without dollar quoted function",
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT ? FROM users",
+			dollarQuotedFunc: false,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:             "normalizaton with dollar quoted function and replace digits",
+			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+			expected:         "SELECT * FROM users? WHERE id = ?",
+			replaceDigits:    true,
+			dollarQuotedFunc: true,
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "users?",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:              "normalization with stored procedure enabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = ? END",
+			collectProcedures: true,
+			metadata: SQLMetadata{
+				Size:      30,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"SELECT",
+				},
+				Comments: []string{},
+				Procedures: []string{
+					"TestProc",
+				},
+			},
+		},
+		{
+			name:              "normalization with stored procedure disabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = 'test' WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = ? WHERE id = ? END",
+			collectProcedures: false,
+			metadata: SQLMetadata{
+				Size:      22,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"UPDATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with query with null boolean and positional parameter",
+			query:    "SELECT * FROM users WHERE id = 1 AND address = $1 and id = $2 AND deleted IS NULL AND active is TRUE",
+			expected: "SELECT * FROM users WHERE id = ? AND address = ? and id = ? AND deleted IS ? AND active is ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                          "normalization with remove space between parentheses",
+			query:                         "SELECT * FROM users WHERE id = 1 AND (name = 'test' OR name = 'test2')",
+			expected:                      "SELECT * FROM users WHERE id = ? AND (name = ? OR name = ?)",
+			removeSpaceBetweenParentheses: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with keep null",
+			query:    "SELECT * FROM users WHERE id = 1 AND name IS NULL",
+			expected: "SELECT * FROM users WHERE id = ? AND name IS NULL",
+			keepNull: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:        "normalization with keep boolean",
+			query:       "SELECT * FROM users WHERE id = 1 AND name is TRUE",
+			expected:    "SELECT * FROM users WHERE id = ? AND name is TRUE",
+			keepBoolean: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                    "normalization with keep positional parameter",
+			query:                   "SELECT * FROM users WHERE id = 1 AND name = $1 and id = $2",
+			expected:                "SELECT * FROM users WHERE id = ? AND name = $1 and id = $2",
+			keepPositionalParameter: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                  "normalization with keep trailing semicolon",
+			query:                 "SELECT * FROM users WHERE id = 1 AND name = 'test';",
+			expected:              "SELECT * FROM users WHERE id = ? AND name = ?;",
+			keepTrailingSemicolon: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                    "normalization with keep identifier quotation",
+			query:                   `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
+			expected:                `SELECT * FROM "users" WHERE id = ? AND name = ?`,
+			keepIdentifierQuotation: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with CREATE TABLE",
+			query:    `CREATE TABLE IF NOT EXISTS users (id INT, name VARCHAR(255))`,
+			expected: `CREATE TABLE IF NOT EXISTS users ( id INT, name VARCHAR ( ? ) )`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "PostgreSQL Select Only",
+			query:    `SELECT * FROM ONLY users WHERE id = 1`,
+			expected: `SELECT * FROM ONLY users WHERE id = ?`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with cte",
+			query:    "WITH users AS (SELECT * FROM people) SELECT * FROM users where id = 1",
+			expected: "WITH users AS ( SELECT * FROM people ) SELECT * FROM users where id = ?",
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "people",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with json path not keep",
+			query:    "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
+			expected: "SELECT * FROM users WHERE id = ? AND name -> ? = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:         "select with json path ->",
+			query:        "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
+			expected:     "SELECT * FROM users WHERE id = ? AND name -> 'first' = ?",
+			KeepJSONPath: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:         "select with json path ->>",
+			query:        "SELECT * FROM users WHERE id = 1 AND name->>2 = 'test'",
+			expected:     "SELECT * FROM users WHERE id = ? AND name ->> 2 = ?",
+			KeepJSONPath: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode:               "obfuscate_and_normalize",
+					ReplaceDigits:                 tt.replaceDigits,
+					DollarQuotedFunc:              tt.dollarQuotedFunc,
+					KeepSQLAlias:                  tt.keepSQLAlias,
+					TableNames:                    true,
+					CollectCommands:               true,
+					CollectComments:               true,
+					CollectProcedures:             tt.collectProcedures,
+					KeepNull:                      tt.keepNull,
+					KeepBoolean:                   tt.keepBoolean,
+					KeepPositionalParameter:       tt.keepPositionalParameter,
+					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
+					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
+					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
+					KeepJSONPath:                  tt.KeepJSONPath,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+			assert.Equal(t, tt.metadata, oq.Metadata)
+		})
+	}
+}
+
+func TestSQLLexerNormalization(t *testing.T) {
+	tests := []struct {
+		name                          string
+		query                         string
+		expected                      string
+		collectProcedures             bool
+		removeSpaceBetweenParentheses bool
+		keepTrailingSemicolon         bool
+		keepIdentifierQuotation       bool
+		keepSQLAlias                  bool
+		metadata                      SQLMetadata
+	}{
+		{
+			name:     "simple query normalization",
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = 1",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name: "normalizaton with comments and keepSQLAlias",
+			query: `
+			-- comment
+			/* comment */
+			SELECT id as id, name as n FROM users123 WHERE id in (1,2,3)`,
+			expected:     "SELECT id as id, name as n FROM users123 WHERE id in ( 1, 2, 3 )",
+			keepSQLAlias: true,
+			metadata: SQLMetadata{
+				Size:      37,
+				TablesCSV: "users123",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{
+					"-- comment",
+					"/* comment */",
+				},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalizaton with dollar quoted function",
+			query:    "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected: "SELECT $func$INSERT INTO table VALUES ( 'a', 1, 2 )$func$ FROM users",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:              "normalization with stored procedure enabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = 1 END",
+			collectProcedures: true,
+			metadata: SQLMetadata{
+				Size:      30,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"SELECT",
+				},
+				Comments: []string{},
+				Procedures: []string{
+					"TestProc",
+				},
+			},
+		},
+		{
+			name:              "normalization with stored procedure disabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = 'test' WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = 'test' WHERE id = 1 END",
+			collectProcedures: false,
+			metadata: SQLMetadata{
+				Size:      22,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"UPDATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with query with null boolean and positional parameter",
+			query:    "SELECT * FROM users WHERE id = 1 AND address = $1 and id = $2 AND deleted IS NULL AND active is TRUE",
+			expected: "SELECT * FROM users WHERE id = 1 AND address = $1 and id = $2 AND deleted IS NULL AND active is TRUE",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                          "normalization with remove space between parentheses",
+			query:                         "SELECT * FROM users WHERE id = 1 AND (name = 'test' OR name = 'test2')",
+			expected:                      "SELECT * FROM users WHERE id = 1 AND (name = 'test' OR name = 'test2')",
+			removeSpaceBetweenParentheses: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                  "normalization with keep trailing semicolon",
+			query:                 "SELECT * FROM users WHERE id = 1 AND name = 'test';",
+			expected:              "SELECT * FROM users WHERE id = 1 AND name = 'test';",
+			keepTrailingSemicolon: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                    "normalization with keep identifier quotation",
+			query:                   `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
+			expected:                `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
+			keepIdentifierQuotation: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with cte",
+			query:    "WITH users AS (SELECT * FROM people) SELECT * FROM users",
+			expected: "WITH users AS ( SELECT * FROM people ) SELECT * FROM users",
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "people",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode:               "normalize_only",
+					KeepSQLAlias:                  tt.keepSQLAlias,
+					TableNames:                    true,
+					CollectCommands:               true,
+					CollectComments:               true,
+					CollectProcedures:             tt.collectProcedures,
+					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
+					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
+					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+			assert.Equal(t, tt.metadata, oq.Metadata)
+		})
+	}
+}
+
+func TestSQLLexerObfuscationModeInvalid(t *testing.T) {
+	t.Run("ObfuscateMode with invalid value", func(t *testing.T) {
+		oq, err := NewObfuscator(Config{
+			SQL: SQLConfig{
+				ObfuscationMode:  "some_invalid_mode",
+				ReplaceDigits:    true,
+				DollarQuotedFunc: true,
+				KeepSQLAlias:     true,
+				TableNames:       true,
+				CollectCommands:  true,
+				CollectComments:  true,
+			},
+		}).ObfuscateSQLString("SELECT * FROM users WHERE id = 1")
+		require.Error(t, err)
+		require.Nil(t, oq)
+	})
+}
+
+func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
+	tests := []struct {
+		name             string
+		query            string
+		expected         string
+		replaceDigits    bool
+		dollarQuotedFunc bool
+		keepSQLAlias     bool
+		metadata         SQLMetadata
+	}{
+		{
+			name:     "simple select query",
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+			},
+		},
+		{
+			name:          "simple select query with replace digits",
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "users?",
+				Commands: []string{
+					"SELECT",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ReplaceDigits:    tt.replaceDigits,
+					DollarQuotedFunc: tt.dollarQuotedFunc,
+					KeepSQLAlias:     tt.keepSQLAlias,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+			assert.Equal(t, tt.metadata, oq.Metadata)
+		})
+	}
+}
+
+func TestSQLLexerOutputsSameAsObfuscator(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{
+			name:  "simple query obfuscation",
+			query: "SELECT * FROM users WHERE id = 1",
+		},
+		{
+			name:  "simple query obfuscation with replace digits",
+			query: "SELECT * FROM users123 WHERE id = 1",
+		},
+		{
+			name:  "simple query obfuscation without replace digits",
+			query: "SELECT * FROM users123 WHERE id = 1",
+		},
+		{
+			name:  "query with dollar quoted function",
+			query: "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+		},
+		{
+			name:  "query without dollar quoted function",
+			query: "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+		},
+		{
+			name:  "query with dollar quoted function and replace digits",
+			query: "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+		},
+		{
+			name:  "query with alias",
+			query: "SELECT username AS person FROM users WHERE id=4",
+		},
+		{
+			name: "query with multiline comments",
+			query: `/* Multi-line comment */
+			SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT`,
+		},
+		{
+			name: "query with singleline comments",
+			query: `
+			-- Single line comment
+			-- Another single line comment
+			-- Another another single line comment
+			GRANT USAGE, DELETE ON SCHEMA datadog TO datadog`,
+		},
+		{
+			name:  "query with replace digits",
+			query: "REPLACE INTO sales_2019_07_01 (itemID, date, qty, pric) VALUES ((SELECT itemID FROM item1001 WHERE sku = [sku]), CURDATE(), [qty], 0.00)",
+		},
+		{
+			name:  "query with newlines",
+			query: "   -- get user \n--\n select * \n   from users \n    where\n       id = 214325346    ",
+		},
+		{
+			name:  "query with array param",
+			query: "SELECT * FROM users WHERE id in (1,2,3,4)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obfuscator := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ReplaceDigits:    true,
+					DollarQuotedFunc: true,
+					KeepSQLAlias:     true,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
+				},
+			})
+			obfuscatorWithLexer := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode:  "obfuscate_and_normalize",
+					ReplaceDigits:    true,
+					DollarQuotedFunc: true,
+					KeepSQLAlias:     true,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
+				},
+			})
+			oq, err := obfuscator.ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			oqWithLexer, err := obfuscatorWithLexer.ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oqWithLexer)
+			assert.Equal(t, oq.Query, oqWithLexer.Query)
+		})
+	}
 }

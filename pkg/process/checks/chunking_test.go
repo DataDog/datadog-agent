@@ -36,7 +36,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 		procsByCtr     map[string][]*model.Process
 		maxChunkSize   int
 		maxChunkWeight int
-		expectedChunks []*model.CollectorProc
+		expectedChunks []model.CollectorProc
 	}{
 		{
 			name: "chunk by size only",
@@ -60,7 +60,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Containers: []*model.Container{
 						ctr("foo"),
@@ -108,7 +108,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Containers: []*model.Container{
 						ctr("foo"),
@@ -155,7 +155,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Processes: []*model.Process{
 						proc(100, "top"),
@@ -204,7 +204,7 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 			},
 			maxChunkSize:   3,
 			maxChunkWeight: 1000,
-			expectedChunks: []*model.CollectorProc{
+			expectedChunks: []model.CollectorProc{
 				{
 					Containers: []*model.Container{
 						ctr("foo"),
@@ -227,12 +227,38 @@ func TestChunkProcessesBySizeAndWeight(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "first container with no processes",
+			containers: []*model.Container{
+				ctr("qux"),
+				ctr("foo"),
+			},
+			procsByCtr: map[string][]*model.Process{
+				"foo": {
+					proc(2, "foo", strings.Repeat("-", 970)),
+				},
+			},
+			maxChunkSize:   3,
+			maxChunkWeight: 1000,
+			expectedChunks: []model.CollectorProc{
+				{
+					Containers: []*model.Container{
+						ctr("qux"),
+						ctr("foo"),
+					},
+					Processes: []*model.Process{
+						proc(2, "foo", strings.Repeat("-", 970)),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			chunks, totalProcs, totalContainers := chunkProcessesAndContainers(tc.procsByCtr, tc.containers, tc.maxChunkSize, tc.maxChunkWeight)
-			assert.Equal(t, tc.expectedChunks, chunks)
+			assert.Equal(t, tc.expectedChunks, *chunks)
+
 			expectedProcs := 0
 
 			for _, procs := range tc.procsByCtr {

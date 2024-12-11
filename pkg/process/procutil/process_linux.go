@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package procutil
 
@@ -12,7 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,9 +22,12 @@ import (
 	"unicode"
 
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -40,12 +42,23 @@ const (
 
 var (
 	// PageSize is the system's memory page size
-	PageSize = uint64(os.Getpagesize())
+	PageSize                    = uint64(os.Getpagesize())
+	keyName                     = []byte("Name")
+	keyState                    = []byte("State")
+	keyUID                      = []byte("Uid")
+	keyGid                      = []byte("Gid")
+	keyNSpid                    = []byte("NSpid")
+	keyThreads                  = []byte("Threads")
+	keyVoluntaryCtxtSwitches    = []byte("voluntary_ctxt_switches")
+	keyNonvoluntaryCtxtSwitches = []byte("nonvoluntary_ctxt_switches")
+	keyVMRSS                    = []byte("VmRSS")
+	keyVMSize                   = []byte("VmSize")
+	keyVMSwap                   = []byte("VmSwap")
 )
 
 type statusInfo struct {
-	name        string
-	status      string
+	name        []byte
+	status      []byte
 	uids        []int32
 	gids        []int32
 	nspid       int32
@@ -58,6 +71,7 @@ type statInfo struct {
 	ppid       int32
 	createTime int64
 	nice       int32
+	flags      uint32
 	cpuStat    *CPUTimesStat
 }
 
@@ -71,12 +85,30 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
+// WithProcFSRoot confiugres the procfs directory that the probe reads from
+func WithProcFSRoot(path string) Option {
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.procRootLoc = path
+		}
+	}
+}
+
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
 func WithPermission(elevatedPermissions bool) Option {
 	return func(p Probe) {
 		if linuxProbe, ok := p.(*probe); ok {
 			linuxProbe.elevatedPermissions = elevatedPermissions
+		}
+	}
+}
+
+// WithIgnoreZombieProcesses configures if process collection should ignore zombie processes or not
+func WithIgnoreZombieProcesses(ignoreZombieProcesses bool) Option {
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.ignoreZombieProcesses = ignoreZombieProcesses
 		}
 	}
 }
@@ -104,11 +136,12 @@ type probe struct {
 	elevatedPermissions     bool
 	returnZeroPermStats     bool
 	bootTimeRefreshInterval time.Duration
+	ignoreZombieProcesses   bool
 }
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe(options ...Option) Probe {
-	hostProc := util.HostProc()
+	hostProc := kernel.ProcFSRoot()
 	bootTime, err := bootTime(hostProc)
 	if err != nil {
 		log.Errorf("could not parse boot time: %s", err)
@@ -167,7 +200,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	statsByPID := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
@@ -177,14 +210,14 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		memInfoEx := p.parseStatm(pathForPID)
 
 		stats := &Stats{
-			CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
-			Status:      statusInfo.status,      // /proc/[pid]/status
-			Nice:        statInfo.nice,          // /proc/[pid]/stat
-			CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
-			MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
-			MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
-			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
-			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
+			CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
+			Status:      string(statusInfo.status), // /proc/[pid]/status
+			Nice:        statInfo.nice,             // /proc/[pid]/stat
+			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
 		}
 		if p.elevatedPermissions {
 			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
@@ -212,20 +245,28 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
 		cmdline := p.getCmdline(pathForPID)
-		if len(cmdline) == 0 {
-			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
-			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			continue
-		}
-
+		comm := p.getCommandName(pathForPID)
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+
+		if len(cmdline) == 0 {
+			if isKernelThread(statInfo.flags) {
+				log.Tracef("Skipping kernel process pid:%d", pid)
+				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
+				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
+				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+				continue
+			} else if p.ignoreZombieProcesses {
+				continue
+			}
+			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
+		}
 
 		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
@@ -241,21 +282,22 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			Pid:     pid,                                       // /proc/[pid]
 			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
 			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
-			Name:    statusInfo.name,                           // /proc/[pid]/status
+			Comm:    comm,                                      // /proc/[pid]/comm
+			Name:    string(statusInfo.name),                   // /proc/[pid]/status
 			Uids:    statusInfo.uids,                           // /proc/[pid]/status
 			Gids:    statusInfo.gids,                           // /proc/[pid]/status
 			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
 			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
-				Status:      statusInfo.status,      // /proc/[pid]/status
-				Nice:        statInfo.nice,          // /proc/[pid]/stat
-				CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
+				CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
+				Status:      string(statusInfo.status), // /proc/[pid]/status
+				Nice:        statInfo.nice,             // /proc/[pid]/stat
+				CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
 			},
 		}
 		if p.elevatedPermissions {
@@ -280,7 +322,7 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
@@ -346,7 +388,7 @@ func (p *probe) getActivePIDs() ([]int32, error) {
 
 // getCmdline retrieves the command line text from "cmdline" file for a process in procfs
 func (p *probe) getCmdline(pidPath string) []string {
-	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
+	cmdline, err := os.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
 		log.Debugf("Unable to read process command line from %s: %s", pidPath, err)
 		return nil
@@ -357,6 +399,20 @@ func (p *probe) getCmdline(pidPath string) []string {
 	}
 
 	return trimAndSplitBytes(cmdline)
+}
+
+// getCommandName retrieves the command name from "comm" file for a process in procfs
+func (p *probe) getCommandName(pidPath string) string {
+	comm, err := os.ReadFile(filepath.Join(pidPath, "comm"))
+	if err != nil {
+		log.Debugf("Unable to read process command name from %s: %s", pidPath, err)
+		return ""
+	}
+
+	if len(comm) == 0 {
+		return ""
+	}
+	return string(bytes.Trim(comm, "\x00\t\n\v\f\r "))
 }
 
 // parseIO retrieves io info from "io" file for a process in procfs
@@ -440,7 +496,7 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 
 	if err != nil {
 		return sInfo
@@ -460,79 +516,80 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
-		// the fields are all having format "field_name:\tfield_value", so we always
+		// the fields are all having format "field_name:\s+field_value", so we always
 		// look for ":\t" and skip them
 		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
-			p.parseStatusKV(string(key), string(value), sInfo)
+			p.parseStatusKV(key, value, sInfo)
 			break
 		}
 	}
 }
 
-// parseStatusKV takes tokens parsed from each line in "status" file and populates statusInfo object
-func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
-	switch key {
-	case "Name":
-		sInfo.name = strings.Trim(value, " \t")
-	case "State":
-		sInfo.status = value[0:1]
-	case "Uid":
-		sInfo.uids = make([]int32, 0, 4)
-		for _, i := range strings.Split(value, "\t") {
-			v, err := strconv.ParseInt(i, 10, 32)
-			if err == nil {
-				sInfo.uids = append(sInfo.uids, int32(v))
+// parseStatusKV takes tokens parsed from each line in "status" file and
+// populates statusInfo object.
+//
+// Notes on Performance:
+// Passed key, value are byte slices and we attempt to avoid coercion
+// to string in this function: string allocation is expensive and this function
+// is called often in the operation of the process-agent. There are still some
+// functions in the call-stack here that allocate. It's possible that this
+// function could be made zero-copy with some more effort, should the need arise.
+func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
+	switch {
+	case bytes.Equal(key, keyName):
+		sInfo.name = bytes.Trim(value, " \t")
+	case bytes.Equal(key, keyState):
+		sInfo.status = value[:1]
+	case bytes.Equal(key, keyUID), bytes.Equal(key, keyGid):
+		values := bytes.Fields(value)
+		ints := make([]int32, 0, len(values))
+		for _, v := range values {
+			if i, err := strconv.ParseInt(string(v), 10, 32); err == nil {
+				ints = append(ints, int32(i))
 			}
 		}
-	case "Gid":
-		sInfo.gids = make([]int32, 0, 4)
-		for _, i := range strings.Split(value, "\t") {
-			v, err := strconv.ParseInt(i, 10, 32)
-			if err == nil {
-				sInfo.gids = append(sInfo.gids, int32(v))
-			}
+		if key[0] == 'U' {
+			sInfo.uids = ints
+		} else {
+			sInfo.gids = ints
 		}
-	case "NSpid":
-		values := strings.Split(value, "\t")
+	case bytes.Equal(key, keyNSpid):
+		values := bytes.Split(value, []byte("\t"))
 		// only report process namespaced PID
-		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
-		if err == nil {
+		if v, err := strconv.ParseInt(string(values[len(values)-1]), 10, 32); err == nil {
 			sInfo.nspid = int32(v)
 		}
-	case "Threads":
-		v, err := strconv.ParseInt(value, 10, 32)
-		if err == nil {
+	case bytes.Equal(key, keyThreads):
+		if v, err := strconv.ParseInt(string(value), 10, 32); err == nil {
 			sInfo.numThreads = int32(v)
 		}
-	case "voluntary_ctxt_switches":
-		v, err := strconv.ParseInt(value, 10, 64)
-		if err == nil {
-			sInfo.ctxSwitches.Voluntary = v
+	case bytes.Equal(key, keyVoluntaryCtxtSwitches), bytes.Equal(key, keyNonvoluntaryCtxtSwitches):
+		if v, err := strconv.ParseInt(string(value), 10, 64); err == nil {
+			if key[0] == 'v' {
+				sInfo.ctxSwitches.Voluntary = v
+			} else {
+				sInfo.ctxSwitches.Involuntary = v
+			}
 		}
-	case "nonvoluntary_ctxt_switches":
-		v, err := strconv.ParseInt(value, 10, 64)
-		if err == nil {
-			sInfo.ctxSwitches.Involuntary = v
-		}
-	case "VmRSS":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
-		v, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			sInfo.memInfo.RSS = v * 1024
-		}
-	case "VmSize":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
-		v, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			sInfo.memInfo.VMS = v * 1024
-		}
-	case "VmSwap":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
-		v, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			sInfo.memInfo.Swap = v * 1024
+	case bytes.Equal(key, keyVMRSS), bytes.Equal(key, keyVMSize), bytes.Equal(key, keyVMSwap):
+		parseMemInfo(value, key, sInfo.memInfo)
+	}
+}
+
+func parseMemInfo(value, key []byte, memInfo *MemoryInfoStat) {
+	value = bytes.TrimSuffix(value, []byte("kB"))
+	value = bytes.TrimSpace(value)
+	if v, err := strconv.ParseUint(string(value), 10, 64); err == nil {
+		v *= 1024
+		switch key[3] { // Using the fourth byte to differentiate between RSS, Size, and Swap
+		case 'S': // VmRSS
+			memInfo.RSS = v
+		case 'i': // VmSize
+			memInfo.VMS = v
+		case 'w': // VmSwap
+			memInfo.Swap = v
 		}
 	}
 }
@@ -546,7 +603,7 @@ func (p *probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 		cpuStat: &CPUTimesStat{},
 	}
 
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return sInfo
 	}
@@ -567,28 +624,49 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
-	var ppidStr, utimeStr, stimeStr, startTimeStr string
+	// pre-size the buffer to avoid allocations
+	buffer := make([]byte, 0, 32)
 
 	for _, c := range content {
 		if unicode.IsSpace(rune(c)) {
 			if !prevCharIsSpace {
+				switch spaces {
+				case 2:
+					if ppid, err := strconv.ParseInt(string(buffer), 10, 32); err == nil {
+						sInfo.ppid = int32(ppid)
+					}
+				case 7:
+					if flags, err := strconv.ParseUint(string(buffer), 10, 32); err == nil {
+						sInfo.flags = uint32(flags)
+					}
+				case 12:
+					if utime, err := strconv.ParseFloat(string(buffer), 64); err == nil {
+						sInfo.cpuStat.User = utime / p.clockTicks
+					}
+				case 13:
+					if stime, err := strconv.ParseFloat(string(buffer), 64); err == nil {
+						sInfo.cpuStat.System = stime / p.clockTicks
+					}
+				case 20:
+					if t, err := strconv.ParseUint(string(buffer), 10, 64); err == nil {
+						ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
+						// convert create time into milliseconds
+						sInfo.createTime = int64(ctime * 1000)
+					}
+				}
 				spaces++
+				buffer = buffer[:0]
 			}
 			prevCharIsSpace = true
 			continue
-		} else {
+		} else { //nolint:revive // TODO(PROC) Fix revive linter
+			buffer = append(buffer, c)
 			prevCharIsSpace = false
 		}
 
-		switch spaces {
-		case 2:
-			ppidStr += string(c)
-		case 12:
-			utimeStr += string(c)
-		case 13:
-			stimeStr += string(c)
-		case 20:
-			startTimeStr += string(c)
+		if spaces > 20 {
+			// last item so break out of the loop as we don't need to parse the rest of the content
+			break
 		}
 	}
 
@@ -596,20 +674,6 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		return sInfo
 	}
 
-	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
-	if err == nil {
-		sInfo.ppid = int32(ppid)
-	}
-
-	utime, err := strconv.ParseFloat(utimeStr, 64)
-	if err == nil {
-		sInfo.cpuStat.User = utime / p.clockTicks
-	}
-
-	stime, err := strconv.ParseFloat(stimeStr, 64)
-	if err == nil {
-		sInfo.cpuStat.System = stime / p.clockTicks
-	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
 	snice, err := syscall.Getpriority(syscall.PRIO_PROCESS, int(pid))
@@ -618,13 +682,6 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	}
 
 	sInfo.cpuStat.Timestamp = now.Unix()
-
-	t, err := strconv.ParseUint(startTimeStr, 10, 64)
-	if err == nil {
-		ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
-		// convert create time into milliseconds
-		sInfo.createTime = int64(ctime * 1000)
-	}
 
 	return sInfo
 }
@@ -636,7 +693,7 @@ func (p *probe) parseStatm(pidPath string) *MemoryInfoExStat {
 
 	memInfoEx := &MemoryInfoExStat{}
 
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return memInfoEx
 	}
@@ -690,13 +747,30 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
+var fdDirentPool = ddsync.NewSlicePool[byte](blockSize, blockSize)
+
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
 func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
-	if err := p.ensurePathReadable(path); err != nil {
+	fi, err := os.Lstat(path)
+	if err != nil {
 		return -1
+	}
+
+	if err := p.ensurePathReadableFromFileInfo(fi); err != nil {
+		return -1
+	}
+
+	// Starting with kernel 6.2, we can use a simpler fast path
+	// see https://github.com/torvalds/linux/commit/f1f1f2569901ec5b9d425f2e91c09a0e320768f3
+	if count := fi.Size(); count > 0 {
+		// ensure the FS type is `procfs`
+		buf := new(syscall.Statfs_t)
+		if err := syscall.Statfs(path, buf); err == nil && buf.Type == unix.PROC_SUPER_MAGIC {
+			return int32(count)
+		}
 	}
 
 	d, err := os.Open(path)
@@ -705,9 +779,11 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	}
 	defer d.Close()
 
-	b := make([]byte, blockSize)
-	count := 0
+	ptr := fdDirentPool.Get()
+	b := *ptr
+	defer fdDirentPool.Put(ptr)
 
+	count := 0
 	for i := 0; ; i++ {
 		n, err := syscall.ReadDirent(int(d.Fd()), b)
 		if err != nil {
@@ -740,6 +816,15 @@ func (p *probe) ensurePathReadable(path string) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
+	}
+
+	return p.ensurePathReadableFromFileInfo(info)
+}
+
+func (p *probe) ensurePathReadableFromFileInfo(info fs.FileInfo) error {
+	// User is (effectively or actually) root
+	if p.euid == 0 {
+		return nil
 	}
 
 	// File mode is world readable and not a symlink
@@ -799,7 +884,7 @@ func trimAndSplitBytes(bs []byte) []string {
 // the value is extracted from "/proc/stat"
 func bootTime(hostProc string) (uint64, error) {
 	filePath := filepath.Join(hostProc, "stat")
-	content, err := ioutil.ReadFile(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return 0, fmt.Errorf("unable to read stat file from %s: %s", filePath, err)
 	}
@@ -847,4 +932,10 @@ func getClockTicks() float64 {
 		}
 	}
 	return clockTicks
+}
+
+// isKernelThread checks if the PF_KTHREAD flag is set which identifies this process as a kernel thread
+// See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
+func isKernelThread(flags uint32) bool {
+	return flags&0x00200000 == 0x00200000
 }

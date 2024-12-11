@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package collector provides the implementation of the collector
 package collector
 
 import (
@@ -11,11 +12,20 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -46,21 +56,23 @@ func init() {
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
-	configToChecks map[string][]check.ID // cache the ID of checks we load for each config
+	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
-	collector      *Collector
+	collector      optional.Option[collector.Component]
+	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector *Collector) *CheckScheduler {
+func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
-		configToChecks: make(map[string][]check.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog())),
+		senderManager:  senderManager,
+		configToChecks: make(map[string][]checkid.ID),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog() {
+	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
 		checkScheduler.AddLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
@@ -69,37 +81,45 @@ func InitCheckScheduler(collector *Collector) *CheckScheduler {
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
-	checks := s.GetChecksFromConfigs(configs, true)
-	for _, c := range checks {
-		_, err := s.collector.RunCheck(c)
-		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", c, err)
-			errorStats.setRunError(c.ID(), err.Error())
-			continue
+	if coll, ok := s.collector.Get(); ok {
+		checks := s.GetChecksFromConfigs(configs, true)
+		for _, c := range checks {
+			_, err := coll.RunCheck(c)
+			if err != nil {
+				log.Errorf("Unable to run Check %s: %v", c, err)
+				errorStats.setRunError(c.ID(), err.Error())
+				continue
+			}
 		}
+	} else {
+		log.Errorf("Collector not available, unable to schedule checks")
 	}
 }
 
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
-			// skip non check and excluded configs.
+		if !config.IsCheckConfig() {
+			// skip non check
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
 		ids := s.configToChecks[digest]
-		stopped := map[check.ID]struct{}{}
+		stopped := map[checkid.ID]struct{}{}
 		for _, id := range ids {
-			// `StopCheck` might time out so we don't risk to block
-			// the polling loop forever
-			err := s.collector.StopCheck(id)
-			if err != nil {
-				log.Errorf("Error stopping check %s: %s", id, err)
-				errorStats.setRunError(id, err.Error())
+			if coll, ok := s.collector.Get(); ok {
+				// `StopCheck` might time out so we don't risk to block
+				// the polling loop forever
+				err := coll.StopCheck(id)
+				if err != nil {
+					log.Errorf("Error stopping check %s: %s", id, err)
+					errorStats.setRunError(id, err.Error())
+				} else {
+					stopped[id] = struct{}{}
+				}
 			} else {
-				stopped[id] = struct{}{}
+				log.Errorf("Collector not available, unable to stop check %s", id)
 			}
 		}
 
@@ -109,7 +129,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 			delete(s.configToChecks, digest)
 		} else {
 			// keep the checks we failed to stop in `configToChecks`
-			dangling := []check.ID{}
+			dangling := []checkid.ID{}
 			for _, id := range s.configToChecks[digest] {
 				if _, found := stopped[id]; !found {
 					dangling = append(dangling, id)
@@ -120,12 +140,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	}
 }
 
-// Stop handles clean stop of registered schedulers
-func (s *CheckScheduler) Stop() {
-	if s.collector != nil {
-		s.collector.Stop()
-	}
-}
+// Stop is a stub to satisfy the scheduler interface
+func (s *CheckScheduler) Stop() {}
 
 // AddLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) AddLoader(loader check.Loader) {
@@ -152,6 +168,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	selectedLoader := initConfig.LoaderName
 
 	for _, instance := range config.Instances {
+		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+			continue
+		}
+
 		errors := []string{}
 		selectedInstanceLoader := selectedLoader
 		instanceConfig := commonInstanceConfig{}
@@ -177,33 +198,20 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
-			c, err := loader.Load(config, instance)
+			c, err := loader.Load(s.senderManager, config, instance)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
 				checks = append(checks, c)
 				break
-			} else if c != nil && check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-				// JMXfetch is more permissive than the agent regarding instance configuration. It
-				// accepts tags as a map and a list whether the agent only accepts tags as a list
-				// we still attempt to schedule the check but we save the error.
-				log.Debugf("%v: loading issue for JMX check '%s', the agent will still attempt to schedule it", loader, config.Name)
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				checks = append(checks, c)
-				break
-			} else {
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 			}
+			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+			errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 		}
 
 		if len(errors) == numLoaders {
 			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
 		}
-	}
-
-	if len(checks) == 0 {
-		return checks, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 	}
 
 	return checks, nil
@@ -216,7 +224,8 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 		return checks
 	}
 	// try to also match `FooCheck` if `foo` was passed
-	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+	titled := cases.Title(language.English, cases.NoLower).String(checkName)
+	titleCheck := fmt.Sprintf("%s%s", titled, "Check")
 
 	for _, c := range checkScheduler.GetChecksFromConfigs(configs, false) {
 		if checkName == c.String() || titleCheck == c.String() {

@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Embedded Python 3 interpreter is upgraded to 3.9.17 in both Agent 6 and
+    Agent 7. Embedded OpenSSL is upgraded to 3.0.9 in Agent 7 on Linux and
+    macOS. On Windows, Python 3.9 in Agent 7 is still compiled with OpenSSL 1.1.1.

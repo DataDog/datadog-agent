@@ -4,18 +4,34 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package aggregator
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 	batch := metrics.MetricSampleBatch{
 		metrics.MetricSample{
@@ -28,14 +44,14 @@ func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 		metrics.MetricSample{
 			Name:      "second",
 			Value:     20,
-			Mtype:     metrics.CountType,
+			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
 			Tags:      []string{"tag:3", "tag:4"},
 		},
 		metrics.MetricSample{
 			Name:      "third",
 			Value:     60,
-			Mtype:     metrics.CountType,
+			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
 			Tags:      []string{"tag:5"},
 		},
@@ -49,11 +65,13 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	demux := initAgentDemultiplexer(opts, "")
+	deps := createDemultiplexerAgentTestDeps(t)
+
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, "")
 
 	batch := testDemuxSamples(t)
 
-	demux.AddLateMetrics(batch)
+	demux.SendSamplesWithoutAggregation(batch)
 	require.Len(demux.statsd.workers[0].samplesChan, 1)
 	read := <-demux.statsd.workers[0].samplesChan
 	require.Len(read, 3)
@@ -67,15 +85,18 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	opts := demuxTestOptions()
 	mockSerializer := &MockSerializerIterableSerie{}
+	mockSerializer.On("AreSeriesEnabled").Return(true)
+	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.EnableNoAggregationPipeline = true
-	demux := initAgentDemultiplexer(opts, "")
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
-	go demux.Run()
+	go demux.run()
 
 	batch := testDemuxSamples(t)
 
-	demux.AddLateMetrics(batch)
+	demux.SendSamplesWithoutAggregation(batch)
 	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
 	demux.Stop(true)
 
@@ -93,7 +114,65 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionmock.MockModule(), haagentmock.Module())
+	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
 	demux.Stop(false)
+}
+
+func TestMetricSampleTypeConversion(t *testing.T) {
+	require := require.New(t)
+
+	tests := []struct {
+		metricType    metrics.MetricType
+		apiMetricType metrics.APIMetricType
+		supported     bool
+	}{
+		{metrics.GaugeType, metrics.APIGaugeType, true},
+		{metrics.CounterType, metrics.APIRateType, true},
+		{metrics.RateType, metrics.APIRateType, true},
+		{metrics.MonotonicCountType, metrics.APIGaugeType, false},
+		{metrics.CountType, metrics.APIGaugeType, false},
+		{metrics.HistogramType, metrics.APIGaugeType, false},
+		{metrics.HistorateType, metrics.APIGaugeType, false},
+		{metrics.SetType, metrics.APIGaugeType, false},
+		{metrics.DistributionType, metrics.APIGaugeType, false},
+	}
+
+	for _, test := range tests {
+		ms := metrics.MetricSample{Mtype: test.metricType}
+		rv, supported := metricSampleAPIType(ms)
+
+		if test.supported {
+			require.True(supported, fmt.Sprintf("Metric type %s should be supported", test.metricType.String()))
+		} else {
+			require.False(supported, fmt.Sprintf("Metric type %s should be not supported", test.metricType.String()))
+		}
+		require.Equal(test.apiMetricType, rv, fmt.Sprintf("Wrong conversion for %s", test.metricType.String()))
+	}
+}
+
+type DemultiplexerAgentTestDeps struct {
+	TestDeps
+	OrchestratorFwd orchestratorforwarder.Component
+	EventPlatform   eventplatform.Component
+	Compressor      compression.Component
+	Tagger          tagger.Component
+	HaAgent         haagent.Component
+}
+
+func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
+	taggerComponent := mock.SetupFakeTagger(t)
+
+	return fxutil.Test[DemultiplexerAgentTestDeps](
+		t,
+		defaultforwarder.MockModule(),
+		core.MockBundle(),
+		orchestratorimpl.MockModule(),
+		eventplatformimpl.MockModule(),
+		haagentmock.Module(),
+		compressionmock.MockModule(),
+		fx.Provide(func() tagger.Component { return taggerComponent }),
+	)
 }

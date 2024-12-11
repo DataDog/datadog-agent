@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -20,23 +19,25 @@ const (
 )
 
 type readerV1 struct {
-	mountPoints map[string]string
-	cgroupRoot  string
-	filter      ReaderFilter
-	pidMapper   pidMapper
+	mountPoints    map[string]string
+	cgroupRoot     string
+	filter         ReaderFilter
+	pidMapper      pidMapper
+	baseController string
 }
 
-func newReaderV1(procPath string, mountPoints map[string]string, baseController string, filter ReaderFilter) (*readerV1, error) {
+func newReaderV1(procPath string, mountPoints map[string]string, baseController string, filter ReaderFilter, pidMapperID string) (*readerV1, error) {
 	if baseController == "" {
 		baseController = defaultBaseController
 	}
 
 	if path, found := mountPoints[baseController]; found {
 		return &readerV1{
-			mountPoints: mountPoints,
-			cgroupRoot:  path,
-			filter:      filter,
-			pidMapper:   getPidMapper(procPath, path, baseController, filter),
+			mountPoints:    mountPoints,
+			cgroupRoot:     path,
+			filter:         filter,
+			pidMapper:      getPidMapper(procPath, path, baseController, filter, pidMapperID),
+			baseController: baseController,
 		}, nil
 	}
 
@@ -50,21 +51,21 @@ func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
 		AllowNonDirectory: true,
 		Unsorted:          true,
 		Callback: func(fullPath string, de *godirwalk.Dirent) error {
-			if de.IsDir() {
-				id, err := r.filter(fullPath, de.Name())
-				if id != "" {
-					relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
-					if err != nil {
-						return err
-					}
-
-					res[id] = newCgroupV1(id, relPath, r.mountPoints, r.pidMapper)
-				}
-
-				return err
+			if !de.IsDir() {
+				return nil
 			}
 
-			return nil
+			id, err := r.filter(fullPath, de.Name())
+			if id != "" {
+				relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
+				if err != nil {
+					return err
+				}
+
+				res[id] = newCgroupV1(id, relPath, r.baseController, r.mountPoints, r.pidMapper)
+			}
+
+			return err
 		},
 	})
 

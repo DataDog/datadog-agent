@@ -4,21 +4,27 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package k8s
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
+
+// NewClusterCollectorVersions builds the group of collector versions.
+func NewClusterCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewClusterCollector(),
+	)
+}
 
 // ClusterCollector is a collector for Kubernetes clusters.
 type ClusterCollector struct {
@@ -33,9 +39,13 @@ type ClusterCollector struct {
 func NewClusterCollector() *ClusterCollector {
 	return &ClusterCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "clusters",
-			NodeType: orchestrator.K8sCluster,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "clusters",
+			NodeType:                  orchestrator.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}
@@ -48,12 +58,9 @@ func (c *ClusterCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ClusterCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Nodes()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ClusterCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ClusterCollector) Metadata() *collectors.CollectorMetadata {
@@ -67,13 +74,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed, err := c.processor.Process(ctx, list)
 

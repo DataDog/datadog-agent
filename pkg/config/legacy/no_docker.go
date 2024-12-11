@@ -4,18 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !docker
-// +build !docker
 
 package legacy
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // ImportDockerConf is a place holder if the agent is built without the docker flag
-func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
+func ImportDockerConf(_, _ string, _ bool, _ *ConfigConverter) error {
 	fmt.Println("This agent was build without docker support: could not convert docker_daemon.yaml")
 	return nil
 }

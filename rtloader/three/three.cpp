@@ -38,6 +38,9 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
+    , _pymallocPrev{ 0 }
+    , _pymemInuse(0)
+    , _pymemAlloc(0)
 {
     initPythonHome(python_home);
 
@@ -517,7 +520,7 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
 
-            for (int jdx = 0; jdx < numWarnings && warnings[jdx]; jdx++) {
+            for (int jdx = 0; jdx < idx; jdx++) {
                 _free(warnings[jdx]);
             }
             _free(warnings);
@@ -531,6 +534,38 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
 done:
     Py_XDECREF(warns_list);
     return warnings;
+}
+
+char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char func_name[] = "get_diagnoses";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, func_name, NULL);
+    if (result == NULL || !PyUnicode_Check(result)) {
+        ret = _createInternalErrorDiagnoses(_fetchPythonError().c_str());
+        goto done;
+    }
+
+    ret = as_string(result);
+    if (ret == NULL) {
+        // as_string clears the error, so we can't fetch it here
+        ret = _createInternalErrorDiagnoses("error converting 'get_diagnoses' result to string");
+        goto done;
+    }
+
+done:
+    Py_XDECREF(result);
+    return ret;
 }
 
 // return new reference
@@ -820,7 +855,7 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
         return;
     }
 
-    PyObject *py_value = PyStringFromCString(value);
+    PyObject *py_value = PyUnicode_FromString(value);
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
@@ -875,6 +910,11 @@ void Three::setGetHostnameCb(cb_get_hostname_t cb)
     _set_get_hostname_cb(cb);
 }
 
+void Three::setGetHostTagsCb(cb_get_host_tags_t cb)
+{
+    _set_get_host_tags_cb(cb);
+}
+
 void Three::setGetClusternameCb(cb_get_clustername_t cb)
 {
     _set_get_clustername_cb(cb);
@@ -888,6 +928,11 @@ void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 void Three::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
+}
+
+void Three::setSendLogCb(cb_send_log_t cb)
+{
+    _set_send_log_cb(cb);
 }
 
 void Three::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
@@ -948,6 +993,16 @@ void Three::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
 void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
 {
     _set_get_process_start_time_cb(cb);
+}
+
+void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
+{
+    _set_obfuscate_mongodb_string_cb(cb);
+}
+
+void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
+{
+    _set_emit_agent_telemetry_cb(cb);
 }
 
 // Python Helpers

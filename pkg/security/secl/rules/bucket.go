@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
-	"errors"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -21,8 +21,8 @@ type RuleBucket struct {
 // AddRule adds a rule to the bucket
 func (rb *RuleBucket) AddRule(rule *Rule) error {
 	for _, r := range rb.rules {
-		if r.ID == rule.ID {
-			return &ErrRuleLoad{Definition: rule.Definition, Err: errors.New("multiple definition with the same ID")}
+		if r.Def.ID == rule.Def.ID {
+			return &ErrRuleLoad{Rule: rule.PolicyRule, Err: ErrDefinitionIDConflict}
 		}
 	}
 

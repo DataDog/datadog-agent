@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM: Fix parsing of SQL Server identifiers enclosed in square brackets.

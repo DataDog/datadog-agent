@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package hostname
 
@@ -16,16 +15,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
-
-func TestHostnameCaching(t *testing.T) {
-}
 
 // testCase represents a test scenario for hostname resolution. The logic goes down a list trying different provider
 // that might or might not be coupled. Each field represents if the corresponding provider should be successful or not
@@ -52,27 +50,28 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	t.Cleanup(func() {
 		isFargateInstance = fargate.IsFargateInstance
 		ec2GetInstanceID = ec2.GetInstanceID
-		isContainerized = config.IsContainerized
+		isContainerized = env.IsContainerized
 		gceGetHostname = gce.GetHostname
 		azureGetHostname = azure.GetHostname
 		osHostname = os.Hostname
 		fqdnHostname = getSystemFQDN
+		osHostnameUsable = isOSHostnameUsable
 
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	})
-	config.Mock(t)
+	configmock.New(t)
 
 	if tc.configHostname {
-		config.Datadog.Set("hostname", "hostname-from-configuration")
+		pkgconfigsetup.Datadog().SetWithoutSource("hostname", "hostname-from-configuration")
 	}
 	if tc.hostnameFile {
 		setupHostnameFile(t, "hostname-from-file")
 	}
 	if tc.fargate {
-		isFargateInstance = func(context.Context) bool { return true }
+		isFargateInstance = func() bool { return true }
 	} else {
-		isFargateInstance = func(context.Context) bool { return false }
+		isFargateInstance = func() bool { return false }
 	}
 
 	if tc.GCE {
@@ -89,8 +88,8 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
-		isContainerized = func() bool { return false }
-		config.Datadog.Set("hostname_fqdn", true)
+		osHostnameUsable = func(context.Context) bool { return true }
+		pkgconfigsetup.Datadog().SetWithoutSource("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
 		} else {
@@ -102,7 +101,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.OS || tc.OSEC2 {
 		// making isOSHostnameUsable return true
-		isContainerized = func() bool { return false }
+		osHostnameUsable = func(context.Context) bool { return true }
 		if !tc.OSEC2 {
 			osHostname = func() (string, error) { return "hostname-from-os", nil }
 		} else {
@@ -119,7 +118,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	}
 
 	if tc.EC2Proritized {
-		config.Datadog.Set("ec2_prioritize_instance_id_as_hostname", true)
+		pkgconfigsetup.Datadog().SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 	}
 }
 
@@ -158,13 +157,12 @@ func TestFromConfigurationTrue(t *testing.T) {
 		EC2:              true,
 		EC2Proritized:    true,
 		expectedHostname: "hostname-from-configuration",
-		expectedProvider: configProvider,
+		expectedProvider: configProviderName,
 	})
 
 	data, err := GetWithProvider(context.TODO())
 	assert.NoError(t, err)
 	assert.True(t, data.FromConfiguration())
-
 }
 
 func TestHostnamePrority(t *testing.T) {
@@ -182,7 +180,7 @@ func TestHostnamePrority(t *testing.T) {
 			EC2:              true,
 			EC2Proritized:    true,
 			expectedHostname: "hostname-from-configuration",
-			expectedProvider: configProvider,
+			expectedProvider: configProviderName,
 		},
 		{
 			name:             "configuration hostname file",

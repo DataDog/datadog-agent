@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package metrics
 
@@ -13,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // Makeseries creates a metrics.SketchSeries with i+5 Sketch Points
@@ -70,6 +69,7 @@ func (s *serieSourceMock) Count() uint64 {
 	return uint64(len(s.series))
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func CreateSerieSource(series metrics.Series) metrics.SerieSource {
 	return &serieSourceMock{
 		series: series,

@@ -75,7 +75,7 @@ The Cloud Workload Security (CWS) part of the Agent sends events to the backend.
 
 ### Editing files
 
-To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the `jsonschema_description` tag of the field.
+To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the commont of the field.
 
 For example:
 
@@ -100,16 +100,6 @@ The templates are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x
 ```
 
 ## Generating the documentation
-
-### Using Docker (MacOS)
-
-If you're using MacOS, you will need to use [Docker](https://docs.docker.com/get-docker/) to run all documentation generation steps in a Docker container (thus skipping the requirement of setting up a development environment).
-
-Make an edit to any of the files mentioned above and then, from the root of the datadog-agent repository, run:
-
-```sh
-./docs/cloud-workload-security/scripts/generate_documentation_docker.sh
-```
 
 ### Manual steps (for Linux environments only)
 

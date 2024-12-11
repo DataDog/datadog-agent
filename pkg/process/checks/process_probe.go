@@ -4,14 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package checks
 
 import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func newProcessProbe(options ...procutil.Option) procutil.Probe {
+func newProcessProbe(_ pkgconfigmodel.Reader, options ...procutil.Option) procutil.Probe {
 	return procutil.NewProcessProbe(options...)
 }

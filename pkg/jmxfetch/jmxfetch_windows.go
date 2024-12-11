@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmxfetch
 
@@ -32,7 +31,7 @@ func (j *JMXFetch) Stop() error {
 		stopChan = make(chan struct{})
 
 		go func() {
-			j.Wait()
+			_ = j.Wait()
 			close(stopChan)
 		}()
 	}

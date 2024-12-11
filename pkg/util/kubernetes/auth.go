@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -20,15 +19,9 @@ const (
 	DefaultServiceAccountCAPath    = DefaultServiceAccountPath + "/ca.crt"
 )
 
-// IsServiceAccountTokenAvailable returns if a service account token is available on disk
-func IsServiceAccountTokenAvailable() bool {
-	_, err := os.Stat(DefaultServiceAccountPath)
-	return err == nil
-}
-
 // GetBearerToken reads the serviceaccount token
 func GetBearerToken(authTokenPath string) (string, error) {
-	token, err := ioutil.ReadFile(authTokenPath)
+	token, err := os.ReadFile(authTokenPath)
 	if err != nil {
 		return "", fmt.Errorf("could not read token from %s: %s", authTokenPath, err)
 	}
@@ -47,13 +40,13 @@ func GetCertificates(certFilePath, keyFilePath string) ([]tls.Certificate, error
 
 // GetCertificateAuthority loads the issuing certificate authority
 func GetCertificateAuthority(certPath string) (*x509.CertPool, error) {
-	caCert, err := ioutil.ReadFile(certPath)
+	caCert, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, err
 	}
 	caCertPool := x509.NewCertPool()
 	ok := caCertPool.AppendCertsFromPEM(caCert)
-	if ok == false {
+	if !ok {
 		return caCertPool, fmt.Errorf("fail to load certificate authority: %s", certPath)
 	}
 	return caCertPool, nil

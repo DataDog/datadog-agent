@@ -3,16 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"fmt"
+	"net/netip"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -24,16 +28,38 @@ type DebugConntrackEntry struct {
 	Reply  DebugConntrackTuple
 }
 
-// DebugConntrackTuple is one side of a conntrack entry
-type DebugConntrackTuple struct {
-	Src DebugConntrackAddress
-	Dst DebugConntrackAddress
+// String roughly matches conntrack -L format
+func (e DebugConntrackEntry) String() string {
+	return fmt.Sprintf("%s %s %s %s", e.Proto, e.Family, e.Origin, e.Reply)
 }
 
-// DebugConntrackAddress is an endpoint for one part of a conntrack tuple
-type DebugConntrackAddress struct {
-	IP   string
-	Port uint16
+// Compare orders entries to get deterministic output in the flare
+func (e DebugConntrackEntry) Compare(o DebugConntrackEntry) int {
+	return cmp.Or(
+		cmp.Compare(e.Proto, o.Proto),
+		cmp.Compare(e.Family, o.Family),
+		e.Origin.Compare(o.Origin),
+		e.Reply.Compare(o.Reply),
+	)
+}
+
+// DebugConntrackTuple is one side of a conntrack entry
+type DebugConntrackTuple struct {
+	Src netip.AddrPort
+	Dst netip.AddrPort
+}
+
+// String roughly matches conntrack -L format
+func (t DebugConntrackTuple) String() string {
+	return fmt.Sprintf("src=%s dst=%s sport=%d dport=%d", t.Src.Addr(), t.Dst.Addr(), t.Src.Port(), t.Dst.Port())
+}
+
+// Compare orders entries to get deterministic output in the flare
+func (t DebugConntrackTuple) Compare(o DebugConntrackTuple) int {
+	return cmp.Or(
+		t.Src.Compare(o.Src),
+		t.Dst.Compare(o.Dst),
+	)
 }
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
@@ -48,20 +74,12 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 	ns := uint32(0)
 	table[ns] = []DebugConntrackEntry{}
 
-	for _, k := range keys {
+	for _, ck := range keys {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
-		ck, ok := k.(connKey)
-		if !ok {
-			continue
-		}
-		v, ok := ctr.cache.cache.Peek(ck)
-		if !ok {
-			continue
-		}
-		te, ok := v.(*translationEntry)
+		te, ok := ctr.cache.cache.Peek(ck)
 		if !ok {
 			continue
 		}
@@ -69,24 +87,12 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 		table[ns] = append(table[ns], DebugConntrackEntry{
 			Family: ck.transport.String(),
 			Origin: DebugConntrackTuple{
-				Src: DebugConntrackAddress{
-					IP:   ck.src.IP().String(),
-					Port: ck.src.Port(),
-				},
-				Dst: DebugConntrackAddress{
-					IP:   ck.dst.IP().String(),
-					Port: ck.dst.Port(),
-				},
+				Src: ck.src,
+				Dst: ck.dst,
 			},
 			Reply: DebugConntrackTuple{
-				Src: DebugConntrackAddress{
-					IP:   te.ReplSrcIP.String(),
-					Port: te.ReplSrcPort,
-				},
-				Dst: DebugConntrackAddress{
-					IP:   te.ReplDstIP.String(),
-					Port: te.ReplDstPort,
-				},
+				Src: netip.AddrPortFrom(te.ReplSrcIP.Addr, te.ReplSrcPort),
+				Dst: netip.AddrPortFrom(te.ReplDstIP.Addr, te.ReplDstPort),
 			},
 		})
 	}
@@ -94,8 +100,8 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 }
 
 // DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
-func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugConntrackEntry, error) {
-	consumer, err := NewConsumer(cfg)
+func DumpHostTable(ctx context.Context, cfg *config.Config, telemetryComp telemetry.Component) (map[uint32][]DebugConntrackEntry, error) {
+	consumer, err := NewConsumer(cfg, telemetryComp)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +126,11 @@ func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugC
 		for {
 			select {
 			case <-ctx.Done():
+				err = ctx.Err()
+				// if we have exceeded the deadline, return partial data of what we have so far.
+				if errors.Is(err, context.DeadlineExceeded) {
+					break dumploop
+				}
 				return nil, ctx.Err()
 			case ev, ok := <-events:
 				if !ok {
@@ -147,24 +158,12 @@ func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugC
 						Family: fstr,
 						Proto:  src.transport.String(),
 						Origin: DebugConntrackTuple{
-							Src: DebugConntrackAddress{
-								IP:   src.src.IP().String(),
-								Port: src.src.Port(),
-							},
-							Dst: DebugConntrackAddress{
-								IP:   src.dst.IP().String(),
-								Port: src.dst.Port(),
-							},
+							Src: src.src,
+							Dst: src.dst,
 						},
 						Reply: DebugConntrackTuple{
-							Src: DebugConntrackAddress{
-								IP:   dst.src.IP().String(),
-								Port: dst.src.Port(),
-							},
-							Dst: DebugConntrackAddress{
-								IP:   dst.dst.IP().String(),
-								Port: dst.dst.Port(),
-							},
+							Src: dst.src,
+							Dst: dst.dst,
 						},
 					})
 				}

@@ -53,6 +53,7 @@ type telemetryWriterWrapper struct {
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
+	w.ResponseWriter.WriteHeader(statusCode)
 	forwarded := w.Header().Get(respForwarded)
 	if forwarded == "" {
 		forwarded = "false"

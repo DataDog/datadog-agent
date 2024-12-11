@@ -20,6 +20,8 @@ if policies_version.nil? || policies_version.empty?
 end
 default_version policies_version
 
+always_build true
+
 build do
   license "Apache-2.0"
   license_file "./LICENSE"

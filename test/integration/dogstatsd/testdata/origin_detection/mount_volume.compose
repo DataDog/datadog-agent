@@ -6,6 +6,8 @@ services:
       service: dsd-sender
     volumes:
       - socket:/tmp/scratch:ro
+    environment:
+      - SOCKET_TYPE=${socket_type}
 volumes:
   socket:
     external:

@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 )
@@ -17,11 +17,15 @@ import (
 // ExtractClusterRoleBinding returns the protobuf model corresponding to a
 // Kubernetes ClusterRoleBinding resource.
 func ExtractClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) *model.ClusterRoleBinding {
-	return &model.ClusterRoleBinding{
+	c := &model.ClusterRoleBinding{
 		Metadata: extractMetadata(&crb.ObjectMeta),
 		RoleRef:  extractRoleRef(&crb.RoleRef),
 		Subjects: extractSubjects(crb.Subjects),
 	}
+
+	c.Tags = append(c.Tags, transformers.RetrieveUnifiedServiceTags(crb.ObjectMeta.Labels)...)
+
+	return c
 }
 
 func extractRoleRef(r *rbacv1.RoleRef) *model.TypedLocalObjectReference {

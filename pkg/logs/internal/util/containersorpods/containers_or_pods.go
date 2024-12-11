@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package containersorpods
 
 import (
@@ -10,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,17 +53,17 @@ func (lw LogWhat) String() string {
 //
 // The decision is rather complex:
 //
-//     - if any of the container features (docker, containerd, cri, podman) are
-//       present and kubernetes is not, wait for the dockerutil service to start and
-//       return LogContainers
-//     - if the kubernetes feature is available and no container features are
-//       available, wait for the kubelet service to start, and return LogPods
-//     - if none of the features are available, LogNothing
-//     - if at least one container feature _and_ the kubernetes feature are available,
-//       then wait for either of the dockerutil service or the kubelet service to start.
-//       This always tries both at the same time, and if both are available will
-//       return LogPods if `logs_config.k8s_container_use_file` is true or
-//       LogContainers if the configuration setting is false.
+//   - if any of the container features (docker, containerd, cri, podman) are
+//     present and kubernetes is not, wait for the dockerutil service to start and
+//     return LogContainers
+//   - if the kubernetes feature is available and no container features are
+//     available, wait for the kubelet service to start, and return LogPods
+//   - if none of the features are available, LogNothing
+//   - if at least one container feature _and_ the kubernetes feature are available,
+//     then wait for either of the dockerutil service or the kubelet service to start.
+//     This always tries both at the same time, and if both are available will
+//     return LogPods if `logs_config.k8s_container_use_file` is true or
+//     LogContainers if the configuration setting is false.
 //
 // If this function returns LogPods, then the caller may assume the kubelet
 // service is available. Similarly, if this function returns LogContainers,
@@ -145,13 +147,6 @@ func (ch *chooser) Get() LogWhat {
 	}
 }
 
-func min(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (ch *chooser) start() {
 	ch.m.Lock()
 	if !ch.started {
@@ -163,7 +158,7 @@ func (ch *chooser) start() {
 
 // preferred returns the preferred LogWhat, based on configuration
 func (ch *chooser) preferred() LogWhat {
-	if config.Datadog.GetBool("logs_config.k8s_container_use_file") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_file") {
 		return LogPods
 	}
 	return LogContainers
@@ -173,11 +168,11 @@ func (ch *chooser) preferred() LogWhat {
 // LogContainers, sending the result to ch.choice.  If wait is true, then if no
 // choice is available yet, it will wait until a choice becomes available.
 func (ch *chooser) choose(wait bool) {
-	c := config.IsFeaturePresent(config.Docker) ||
-		config.IsFeaturePresent(config.Containerd) ||
-		config.IsFeaturePresent(config.Cri) ||
-		config.IsFeaturePresent(config.Podman)
-	k := config.IsFeaturePresent(config.Kubernetes)
+	c := env.IsFeaturePresent(env.Docker) ||
+		env.IsFeaturePresent(env.Containerd) ||
+		env.IsFeaturePresent(env.Cri) ||
+		env.IsFeaturePresent(env.Podman)
+	k := env.IsFeaturePresent(env.Kubernetes)
 
 	makeChoice := func(logWhat LogWhat) {
 		log.Debugf("LogWhat = %s", logWhat.String())

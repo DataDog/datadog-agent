@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Improved the SBOM check function to now communicate the status of scans and any potential errors directly 
+    to DataDog for more streamlined error management and resolution.

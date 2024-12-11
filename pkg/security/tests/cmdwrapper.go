@@ -3,17 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
-// +build functionaltests stresstests
+//go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 type wrapperType string
@@ -22,10 +23,27 @@ const (
 	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
+	podmanWrapperType wrapperType = "podman"
 	multiWrapperType  wrapperType = "multi"
-
-	defaultDockerImage = "public.ecr.aws/ubuntu/ubuntu:20.04"
 )
+
+// Because of rate limits, we allow the specification of multiple images for the same "kind".
+// Since dockerhub limits per pulls by 6 hours, and aws limits by data over a month, we first try the dockerhub
+// one and fallback on aws.
+var dockerImageLibrary = map[string][]string{
+	"ubuntu": {
+		"ubuntu:20.04",
+		"public.ecr.aws/ubuntu/ubuntu:20.04",
+	},
+	"centos": {
+		"centos:7",
+		"public.ecr.aws/docker/library/centos:7",
+	},
+	"alpine": {
+		"alpine",
+		"public.ecr.aws/docker/library/alpine:latest",
+	},
+}
 
 type cmdWrapper interface {
 	Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd))
@@ -58,8 +76,10 @@ func newStdCmdWrapper() *stdCmdWrapper {
 
 type dockerCmdWrapper struct {
 	executable    string
-	root          string
+	mountSrc      string
+	mountDest     string
 	containerName string
+	containerID   string
 	image         string
 }
 
@@ -78,9 +98,13 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	d.containerName = fmt.Sprintf("docker-wrapper-%s", eval.RandString(6))
-	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, d.image, "sleep", "600")
-	return cmd.CombinedOutput()
+	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
+	cmd := exec.Command(d.executable, "run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		d.containerID = strings.TrimSpace(string(out))
+	}
+	return out, err
 }
 
 func (d *dockerCmdWrapper) stop() ([]byte, error) {
@@ -109,27 +133,56 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func (d *dockerCmdWrapper) SetImage(image string) {
-	d.image = image
+func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
+	var err error
+	for _, entry := range dockerImageLibrary[kind] {
+		cmd := exec.Command(d.executable, "pull", entry)
+		err = cmd.Run()
+		if err == nil {
+			d.image = entry
+			break
+		}
+	}
+	return err
 }
 
-func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
-	executable, err := exec.LookPath("docker")
+func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+	if runtimeCommand == "" {
+		runtimeCommand = "docker"
+	}
+
+	executable, err := exec.LookPath(runtimeCommand)
 	if err != nil {
 		return nil, err
 	}
 
 	// check docker is available
 	cmd := exec.Command(executable, "version")
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.Output()
+	if err != nil {
 		return nil, err
 	}
 
-	return &dockerCmdWrapper{
+	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {
+		splited := strings.SplitN(line, ":", 2)
+		if splited[0] == "client" && len(splited) > 1 {
+			if client := strings.TrimSpace(splited[1]); client != "" && !strings.Contains(client, runtimeCommand) {
+				return nil, fmt.Errorf("client doesn't report as '%s' but as '%s'", runtimeCommand, client)
+			}
+		}
+	}
+
+	wrapper := &dockerCmdWrapper{
 		executable: executable,
-		root:       root,
-		image:      defaultDockerImage,
-	}, nil
+		mountSrc:   mountSrc,
+		mountDest:  mountDest,
+	}
+
+	if err := wrapper.selectImageFromLibrary(kind); err != nil {
+		return nil, err
+	}
+
+	return wrapper, nil
 }
 
 type multiCmdWrapper struct {

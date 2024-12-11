@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -20,6 +19,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewReplicaSetCollectorVersions builds the group of collector versions.
+func NewReplicaSetCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewReplicaSetCollector(),
+	)
+}
+
 // ReplicaSetCollector is a collector for Kubernetes ReplicaSets.
 type ReplicaSetCollector struct {
 	informer  appsv1Informers.ReplicaSetInformer
@@ -33,9 +39,14 @@ type ReplicaSetCollector struct {
 func NewReplicaSetCollector() *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "replicasets",
-			NodeType: orchestrator.K8sReplicaSet,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "replicasets",
+			NodeType:                  orchestrator.K8sReplicaSet,
+			Version:                   "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}
@@ -48,12 +59,9 @@ func (c *ReplicaSetCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ReplicaSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().ReplicaSets()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Apps().V1().ReplicaSets()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ReplicaSetCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ReplicaSetCollector) Metadata() *collectors.CollectorMetadata {
@@ -67,13 +75,7 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

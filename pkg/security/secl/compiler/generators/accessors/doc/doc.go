@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package doc holds doc related files
 package doc
 
 import (
@@ -22,11 +23,14 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
+	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`" // SECLDocForLength defines SECL doc for length
+
 )
 
 type documentation struct {
-	Types     []eventType `json:"event_types"`
-	Constants []constants `json:"constants"`
+	Types         []eventType             `json:"event_types"`
+	PropertiesDoc []propertyDocumentation `json:"properties_doc"`
+	Constants     []constants             `json:"constants"`
 }
 
 type eventType struct {
@@ -39,14 +43,15 @@ type eventType struct {
 }
 
 type eventTypeProperty struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Doc       string `json:"definition"`
-	Constants string `json:"constants"`
+	Name        string `json:"name"`
+	Definition  string `json:"definition"`
+	DocLink     string `json:"property_doc_link"`
+	PropertyKey string `json:"-"`
 }
 
 type constants struct {
 	Name        string     `json:"name"`
+	Link        string     `json:"link"`
 	Description string     `json:"description"`
 	All         []constant `json:"all"`
 }
@@ -54,6 +59,23 @@ type constants struct {
 type constant struct {
 	Name         string `json:"name"`
 	Architecture string `json:"architecture"`
+}
+
+type example struct {
+	Expression  string `json:"expression"`
+	Description string `json:"description"`
+}
+
+type propertyDocumentation struct {
+	Name                  string    `json:"name"`
+	Link                  string    `json:"link"`
+	Type                  string    `json:"type"`
+	Doc                   string    `json:"definition"`
+	Prefixes              []string  `json:"prefixes"`
+	Constants             string    `json:"constants"`
+	ConstantsLink         string    `json:"constants_link"`
+	Examples              []example `json:"examples"`
+	IsUniqueEventProperty bool      `json:"-"`
 }
 
 func translateFieldType(rt string) string {
@@ -73,31 +95,110 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 	}
 
 	kinds := make(map[string][]eventTypeProperty)
+	cachedDocumentation := make(map[string]*propertyDocumentation)
 
 	for name, field := range module.Fields {
-		// check if the constant exists
-		if len(field.Constants) > 0 {
-			var found bool
-			for _, constantList := range consts {
-				if constantList.Name == field.Constants {
-					found = true
-				}
-			}
-			if !found {
-				return fmt.Errorf("couldn't generate documentation for %s: unknown constant name %s", name, field.Constants)
-			}
+		if field.GettersOnly {
+			continue
 		}
 
-		kinds[field.Event] = append(kinds[field.Event], eventTypeProperty{
-			Name:      name,
-			Type:      translateFieldType(field.ReturnType),
-			Doc:       strings.TrimSpace(field.CommentText),
-			Constants: field.Constants,
-		})
+		// we currently don't want to publicly document the on-demand event type
+		if field.Event == "ondemand" {
+			continue
+		}
+
+		var propertyKey string
+		var propertySuffix string
+		var propertyDefinition string
+		if strings.HasPrefix(field.Alias, field.AliasPrefix) {
+			propertySuffix = strings.TrimPrefix(field.Alias, field.AliasPrefix)
+			propertyKey = field.Struct + propertySuffix
+			propertySuffix = strings.TrimPrefix(propertySuffix, ".")
+		} else {
+			propertyKey = field.Alias
+			propertySuffix = field.Alias
+		}
+
+		if propertyDoc, exists := cachedDocumentation[propertyKey]; !exists {
+			definition, constantsName, examples := parseSECLDocWithSuffix(field.CommentText, propertySuffix)
+			if definition == "" {
+				return fmt.Errorf("failed to parse SECL documentation for field '%s' (name:%s psuffix:%s, pkey:%s, alias:%s, aliasprefix:%s)\n%+v", name, field.Name, propertySuffix, propertyKey, field.Alias, field.AliasPrefix, field)
+			}
+
+			var constsLink string
+			if len(constantsName) > 0 {
+				var found bool
+				for _, constantList := range consts {
+					if constantList.Name == constantsName {
+						found = true
+						constsLink = constantList.Link
+					}
+				}
+				if !found {
+					return fmt.Errorf("couldn't generate documentation for %s: unknown constant name %s", name, constantsName)
+				}
+			}
+
+			var propertyDoc = &propertyDocumentation{
+				Name:                  name,
+				Link:                  strings.ReplaceAll(name, ".", "-") + "-doc",
+				Type:                  translateFieldType(field.ReturnType),
+				Doc:                   strings.TrimSpace(definition),
+				Prefixes:              []string{field.AliasPrefix},
+				Constants:             constantsName,
+				ConstantsLink:         constsLink,
+				Examples:              make([]example, 0), // force the serialization of an empty array
+				IsUniqueEventProperty: true,
+			}
+			propertyDoc.Examples = append(propertyDoc.Examples, examples...)
+			propertyDefinition = propertyDoc.Doc
+			cachedDocumentation[propertyKey] = propertyDoc
+		} else if propertyDoc.IsUniqueEventProperty {
+			propertyDoc.IsUniqueEventProperty = false
+			fieldSuffix := strings.TrimPrefix(field.Alias, field.AliasPrefix)
+			propertyDoc.Name = "*" + fieldSuffix
+			propertyDoc.Link = "common-" + strings.ReplaceAll(strings.ToLower(propertyKey), ".", "-") + "-doc"
+			propertyDoc.Prefixes = append(propertyDoc.Prefixes, field.AliasPrefix)
+			propertyDefinition = propertyDoc.Doc
+		} else {
+			propertyDoc.Prefixes = append(propertyDoc.Prefixes, field.AliasPrefix)
+			propertyDefinition = propertyDoc.Doc
+		}
+
+		if len(field.RestrictedTo) > 0 {
+			for _, evt := range field.RestrictedTo {
+				kinds[evt] = append(kinds[evt], eventTypeProperty{
+					Name:        name,
+					Definition:  propertyDefinition,
+					PropertyKey: propertyKey,
+				})
+			}
+		} else {
+			eventType := field.Event
+			if eventType == "" {
+				eventType = "*"
+			}
+
+			kinds[eventType] = append(kinds[eventType], eventTypeProperty{
+				Name:        name,
+				Definition:  propertyDefinition,
+				PropertyKey: propertyKey,
+			})
+		}
 	}
 
 	eventTypes := make([]eventType, 0)
 	for name, properties := range kinds {
+		for i := 0; i < len(properties); i++ {
+			property := &properties[i]
+			if propertyDoc, exists := cachedDocumentation[property.PropertyKey]; exists {
+				property.DocLink = propertyDoc.Link
+				sort.Slice(propertyDoc.Prefixes, func(i, j int) bool {
+					return propertyDoc.Prefixes[i] < propertyDoc.Prefixes[j]
+				})
+			}
+		}
+
 		sort.Slice(properties, func(i, j int) bool {
 			return properties[i].Name < properties[j].Name
 		})
@@ -118,9 +219,22 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 		return eventTypes[i].Name < eventTypes[j].Name
 	})
 
+	// force the serialization of an empty array
+	propertiesDoc := make([]propertyDocumentation, 0)
+	for _, ex := range cachedDocumentation {
+		propertiesDoc = append(propertiesDoc, *ex)
+	}
+	sort.Slice(propertiesDoc, func(i, j int) bool {
+		if propertiesDoc[i].Name != propertiesDoc[j].Name {
+			return propertiesDoc[i].Name < propertiesDoc[j].Name
+		}
+		return propertiesDoc[i].Link < propertiesDoc[j].Link
+	})
+
 	doc := documentation{
-		Types:     eventTypes,
-		Constants: consts,
+		Types:         eventTypes,
+		PropertiesDoc: propertiesDoc,
+		Constants:     consts,
 	}
 
 	res, err := json.MarshalIndent(doc, "", "  ")
@@ -135,9 +249,7 @@ func mergeConstants(one []constants, two []constants) []constants {
 	var output []constants
 
 	// add constants from one to output
-	for _, consts := range one {
-		output = append(output, consts)
-	}
+	output = append(output, one...)
 
 	// check if the constants from two should be appended or merged
 	for _, constsTwo := range two {
@@ -175,7 +287,7 @@ func mergeConstants(one []constants, two []constants) []constants {
 
 func parseArchFromFilepath(filepath string) (string, error) {
 	switch {
-	case strings.HasSuffix(filepath, "common.go") || strings.HasSuffix(filepath, "linux.go"):
+	case strings.HasSuffix(filepath, "common.go") || strings.HasSuffix(filepath, "linux.go") || strings.HasSuffix(filepath, "windows.go"):
 		return "all", nil
 	case strings.HasSuffix(filepath, "amd64.go"):
 		return "amd64", nil
@@ -186,6 +298,12 @@ func parseArchFromFilepath(filepath string) (string, error) {
 	default:
 		return "", fmt.Errorf("couldn't parse architecture from filepath: %s", filepath)
 	}
+}
+
+var nonLinkCharactersRegex = regexp.MustCompile(`(?:^[^a-z0-9]+)|(?:[^a-z0-9-]+)|(?:[^a-z0-9]+$)`)
+
+func constsLinkFromName(constName string) string {
+	return nonLinkCharactersRegex.ReplaceAllString(strings.ReplaceAll(strings.ToLower(strings.TrimSpace(constName)), " ", "-"), "")
 }
 
 func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
@@ -199,7 +317,7 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 	var output []constants
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", tags)},
+		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", tags)},
 	}
 
 	pkgs, err := packages.Load(&cfg, filepath)
@@ -231,12 +349,13 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 						continue
 					}
 
-					meta := strings.SplitN(strings.TrimPrefix(comment.Text, generateConstantsAnnotationPrefix), ",", 2)
-					if len(meta) != 2 {
+					name, description, found := strings.Cut(strings.TrimPrefix(comment.Text, generateConstantsAnnotationPrefix), ",")
+					if !found {
 						continue
 					}
-					consts.Name = meta[0]
-					consts.Description = meta[1]
+					consts.Name = name
+					consts.Link = constsLinkFromName(name)
+					consts.Description = description
 					break
 				}
 				if len(consts.Name) == 0 || len(consts.Description) == 0 {
@@ -274,7 +393,16 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 
 func parseConstants(path string, tags []string) ([]constants, error) {
 	var output []constants
-	for _, filename := range []string{"consts_common.go", "consts_linux.go", "consts_linux_amd64.go", "consts_linux_arm.go", "consts_linux_arm64.go"} {
+
+	files := []string{"consts_common.go", "consts_linux.go", "consts_linux_amd64.go", "consts_linux_arm.go", "consts_linux_arm64.go"}
+	for _, tag := range tags {
+		if strings.Contains(tag, "windows") {
+			files = []string{"consts_common.go", "consts_windows.go"}
+			break
+		}
+	}
+
+	for _, filename := range files {
 		consts, err := parseConstantsFile(filepath.Join(path, filename), tags)
 		if err != nil {
 			return nil, err
@@ -324,4 +452,41 @@ func extractVersionAndDefinition(evtType *common.EventTypeMetadata) eventTypeInf
 	return eventTypeInfo{
 		Definition: trimmed,
 	}
+}
+
+var (
+	seclDocRE  = regexp.MustCompile(`SECLDoc\[((?:[a-z0-9_]+\.?)*[a-z0-9_]+)\]\s*Definition:\s*\x60([^\x60]+)\x60\s*(?:Constants:\x60([^\x60]+)\x60\s*)?(?:Example:\s*\x60([^\x60]+)\x60\s*(?:Description:\s*\x60([^\x60]+)\x60\s*)?)*`)
+	examplesRE = regexp.MustCompile(`Example:\s*\x60([^\x60]+)\x60\s*(?:Description:\s*\x60([^\x60]+)\x60\s*)?`)
+)
+
+func parseSECLDocWithSuffix(comment string, wantedSuffix string) (string, string, []example) {
+	trimmed := strings.TrimSpace(comment)
+
+	for _, match := range seclDocRE.FindAllStringSubmatchIndex(trimmed, -1) {
+		matchedSubString := trimmed[match[0]:match[1]]
+		seclSuffix := trimmed[match[2]:match[3]]
+		if seclSuffix != wantedSuffix {
+			continue
+		}
+
+		definition := trimmed[match[4]:match[5]]
+		var constants string
+		if match[6] != -1 && match[7] != -1 {
+			constants = trimmed[match[6]:match[7]]
+		}
+
+		var examples []example
+		for _, exampleMatch := range examplesRE.FindAllStringSubmatchIndex(matchedSubString, -1) {
+			expr := matchedSubString[exampleMatch[2]:exampleMatch[3]]
+			var desc string
+			if exampleMatch[4] != -1 && exampleMatch[5] != -1 {
+				desc = matchedSubString[exampleMatch[4]:exampleMatch[5]]
+			}
+			examples = append(examples, example{Expression: expr, Description: desc})
+		}
+
+		return strings.TrimSpace(definition), strings.TrimSpace(constants), examples
+	}
+
+	return "", "", nil
 }

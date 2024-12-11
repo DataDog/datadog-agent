@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !kubeapiserver || kubelet
-// +build !kubeapiserver kubelet
 
 package kubernetes
 
@@ -14,6 +13,6 @@ import (
 )
 
 // GetKubeAPIServerHostname returns the hostname from kubeapiserver
-func GetKubeAPIServerHostname(ctx context.Context) (string, error) {
+func GetKubeAPIServerHostname(context.Context) (string, error) {
 	return "", fmt.Errorf("kubeapiserver hostname provider is not enabled")
 }

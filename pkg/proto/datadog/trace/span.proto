@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package datadog.trace;
+
+option go_package="pkg/proto/pbgo/trace";
+
+message SpanLink {
+   // @gotags: json:"trace_id" msg:"trace_id"
+   uint64 traceID = 1;                         // Required.
+   // @gotags: json:"trace_id_high" msg:"trace_id_high,omitempty"
+   uint64 traceID_high = 2;                    // Optional. The high 64 bits of a referenced trace id. 
+   // @gotags: json:"span_id" msg:"span_id"
+   uint64 spanID = 3;                          // Required.
+   // @gotags: msg:"attributes,omitempty"
+   map<string, string> attributes = 4;         // Optional. Simple mapping of keys to string values.
+   // @gotags: msg:"tracestate,omitempty"
+   string tracestate = 5;                      // Optional. W3C tracestate.
+   // @gotags: msg:"flags,omitempty"
+   uint32 flags = 6;                           // Optional. W3C trace flags. If set, the high bit (bit 31) must be set.
+}
+
+message Span {
+    // service is the name of the service with which this span is associated.
+    // @gotags: json:"service" msg:"service"
+    string service = 1;
+    // name is the operation name of this span.
+    // @gotags: json:"name" msg:"name"
+    string name = 2;
+    // resource is the resource name of this span, also sometimes called the endpoint (for web spans).
+    // @gotags: json:"resource" msg:"resource"
+    string resource = 3;
+    // traceID is the ID of the trace to which this span belongs.
+    // @gotags: json:"trace_id" msg:"trace_id"
+    uint64 traceID = 4;
+    // spanID is the ID of this span.
+    // @gotags: json:"span_id" msg:"span_id"
+    uint64 spanID = 5;
+    // parentID is the ID of this span's parent, or zero if this span has no parent.
+    // @gotags: json:"parent_id" msg:"parent_id"
+    uint64 parentID = 6;
+    // start is the number of nanoseconds between the Unix epoch and the beginning of this span.
+    // @gotags: json:"start" msg:"start"
+    int64 start = 7;
+    // duration is the time length of this span in nanoseconds.
+    // @gotags: json:"duration" msg:"duration"
+    int64 duration = 8;
+    // error is 1 if there is an error associated with this span, or 0 if there is not.
+    // @gotags: json:"error" msg:"error"
+    int32 error = 9;
+    // meta is a mapping from tag name to tag value for string-valued tags.
+    // @gotags: json:"meta,omitempty" msg:"meta,omitempty"
+    map<string, string> meta = 10;
+    // metrics is a mapping from tag name to tag value for numeric-valued tags.
+    // @gotags: json:"metrics,omitempty" msg:"metrics,omitempty"
+    map<string, double> metrics = 11;
+    // type is the type of the service with which this span is associated.  Example values: web, db, lambda.
+    // @gotags: json:"type" msg:"type"
+    string type = 12;
+    // meta_struct is a registry of structured "other" data used by, e.g., AppSec.
+    // @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty"
+    map<string, bytes> meta_struct = 13;
+    // span_links represents a collection of links, where each link defines a causal relationship between two spans.
+    // @gotags: json:"span_links,omitempty" msg:"span_links,omitempty"
+    repeated SpanLink spanLinks = 14;
+}

@@ -3,31 +3,42 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main - single file executable
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	networkConfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
 func main() {
-	if supported, msg := tracer.IsTracerSupportedByOS(nil); !supported {
-		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", msg)
+	cfgpath := flag.String("config", "/etc/datadog-agent/datadog.yaml", "The Datadog main configuration file path")
+	flag.Parse()
+
+	if supported, err := tracer.IsTracerSupportedByOS(nil); !supported {
+		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", err)
 		os.Exit(1)
 	}
 
-	cfg := config.New()
+	pkgconfigsetup.Datadog().SetConfigFile(*cfgpath)
+	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+	cfg := networkConfig.New()
 	fmt.Printf("-- Config: %+v --\n", cfg)
 	cfg.BPFDebug = true
 
-	t, err := tracer.NewTracer(cfg)
+	t, err := tracer.NewTracer(cfg, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

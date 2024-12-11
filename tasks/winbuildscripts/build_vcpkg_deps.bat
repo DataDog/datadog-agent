@@ -1,1 +1,0 @@
-Powershell -C "c:\mnt\tasks\winbuildscripts\build_vcpkg_deps.ps1"

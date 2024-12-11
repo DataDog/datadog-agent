@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -13,7 +12,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 
 	"github.com/stretchr/testify/assert"
@@ -69,16 +68,16 @@ func TestNamespacesToWatch(t *testing.T) {
 		},
 	}
 
-	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
-	originalExcludeNamespacesOpt := config.Datadog.GetStringSlice("containerd_exclude_namespaces")
+	originalContainerdNamespacesOpt := pkgconfigsetup.Datadog().GetStringSlice("containerd_namespaces")
+	originalExcludeNamespacesOpt := pkgconfigsetup.Datadog().GetStringSlice("containerd_exclude_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceVal)
-			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+			pkgconfigsetup.Datadog().SetWithoutSource("containerd_namespaces", test.containerdNamespaceVal)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("containerd_namespaces", originalContainerdNamespacesOpt)
 
-			config.Datadog.Set("containerd_exclude_namespaces", test.excludeNamespaceVal)
-			defer config.Datadog.Set("containerd_exclude_namespaces", originalExcludeNamespacesOpt)
+			pkgconfigsetup.Datadog().SetWithoutSource("containerd_exclude_namespaces", test.excludeNamespaceVal)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("containerd_exclude_namespaces", originalExcludeNamespacesOpt)
 
 			namespaces, err := NamespacesToWatch(context.TODO(), test.client)
 
@@ -155,16 +154,16 @@ func TestFiltersWithNamespaces(t *testing.T) {
 		},
 	}
 
-	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
-	originalExcludeNamespacesOpt := config.Datadog.GetStringSlice("containerd_exclude_namespaces")
+	originalContainerdNamespacesOpt := pkgconfigsetup.Datadog().GetStringSlice("containerd_namespaces")
+	originalExcludeNamespacesOpt := pkgconfigsetup.Datadog().GetStringSlice("containerd_exclude_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceVal)
-			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+			pkgconfigsetup.Datadog().SetWithoutSource("containerd_namespaces", test.containerdNamespaceVal)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("containerd_namespaces", originalContainerdNamespacesOpt)
 
-			config.Datadog.Set("containerd_exclude_namespaces", test.excludeNamespaceVal)
-			defer config.Datadog.Set("containerd_exclude_namespaces", originalExcludeNamespacesOpt)
+			pkgconfigsetup.Datadog().SetWithoutSource("containerd_exclude_namespaces", test.excludeNamespaceVal)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("containerd_exclude_namespaces", originalExcludeNamespacesOpt)
 
 			result := FiltersWithNamespaces(test.inputFilters)
 			assert.ElementsMatch(t, test.expectedFilters, result)

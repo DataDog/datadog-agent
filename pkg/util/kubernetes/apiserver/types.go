@@ -4,33 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
-
-const (
-	autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
-)
-
-// controllerName represents the cluster agent controller names
-type controllerName string
-
-const (
-	metadataController    controllerName = "metadata"
-	autoscalersController controllerName = "autoscalers"
-	servicesController    controllerName = "services"
-	endpointsController   controllerName = "endpoints"
-)
 
 // InformerName represents the kubernetes informer names
 type InformerName string
 
 const (
-	endpointsInformer InformerName = "endpoints"
 	// SecretsInformer holds the name of the informer
-	SecretsInformer InformerName = "secrets"
-	// WebhooksInformer holds the name of the informer
-	WebhooksInformer InformerName = "webhooks"
-	// ServicesInformer holds the name of the informer
-	ServicesInformer InformerName = "services"
+	SecretsInformer InformerName = "v1/secrets"
+	// ValidatingWebhooksInformer holds the name of the validating webhook informer
+	ValidatingWebhooksInformer InformerName = "admissionregistration.k8s.io/v1/validatingwebhookconfigurations"
+	// MutatingWebhooksInformer holds the name of the mutating webhook informer
+	MutatingWebhooksInformer InformerName = "admissionregistration.k8s.io/v1/mutatingwebhookconfigurations"
 )

@@ -6,12 +6,11 @@
 package agent
 
 import (
-	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -20,6 +19,7 @@ const (
 	tagMemcachedCommand = "memcached.command"
 	tagMongoDBQuery     = "mongodb.query"
 	tagElasticBody      = "elasticsearch.body"
+	tagOpenSearchBody   = "opensearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
 )
@@ -29,7 +29,18 @@ const (
 )
 
 func (a *Agent) obfuscateSpan(span *pb.Span) {
-	o := a.obfuscator
+	o := a.lazyInitObfuscator()
+
+	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
+		for k, v := range span.Meta {
+			newV := o.ObfuscateCreditCardNumber(k, v)
+			if v != newV {
+				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service)
+				span.Meta[k] = newV
+			}
+		}
+	}
+
 	switch span.Type {
 	case "sql", "cassandra":
 		if span.Resource == "" {
@@ -39,69 +50,69 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
-			if span.Meta == nil {
-				span.Meta = make(map[string]string, 1)
-			}
-			if _, ok := span.Meta[tagSQLQuery]; !ok {
-				span.Meta[tagSQLQuery] = textNonParsable
-			}
 			span.Resource = textNonParsable
+			traceutil.SetMeta(span, tagSQLQuery, textNonParsable)
 			return
 		}
 
 		span.Resource = oq.Query
-
 		if len(oq.Metadata.TablesCSV) > 0 {
 			traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
-		}
-		if span.Meta != nil && span.Meta[tagSQLQuery] != "" {
-			// "sql.query" tag already set by user, do not change it.
-			return
 		}
 		traceutil.SetMeta(span, tagSQLQuery, oq.Query)
 	case "redis":
 		span.Resource = o.QuantizeRedisString(span.Resource)
 		if a.conf.Obfuscation.Redis.Enabled {
 			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
-				// nothing to do
+				return
+			}
+			if a.conf.Obfuscation.Redis.RemoveAllArgs {
+				span.Meta[tagRedisRawCommand] = o.RemoveAllRedisArgs(span.Meta[tagRedisRawCommand])
 				return
 			}
 			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
 		}
 	case "memcached":
-		if a.conf.Obfuscation.Memcached.Enabled {
-			v, ok := span.Meta[tagMemcachedCommand]
-			if span.Meta == nil || !ok {
-				return
-			}
-			span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(v)
+		if !a.conf.Obfuscation.Memcached.Enabled {
+			return
 		}
+		if span.Meta == nil || span.Meta[tagMemcachedCommand] == "" {
+			return
+		}
+		span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(span.Meta[tagMemcachedCommand])
 	case "web", "http":
+		if span.Meta == nil || span.Meta[tagHTTPURL] == "" {
+			return
+		}
+		span.Meta[tagHTTPURL] = o.ObfuscateURLString(span.Meta[tagHTTPURL])
+	case "mongodb":
+		if !a.conf.Obfuscation.Mongo.Enabled {
+			return
+		}
+		if span.Meta == nil || span.Meta[tagMongoDBQuery] == "" {
+			return
+		}
+		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
+	case "elasticsearch", "opensearch":
 		if span.Meta == nil {
 			return
 		}
-		v, ok := span.Meta[tagHTTPURL]
-		if !ok || v == "" {
-			return
+		if a.conf.Obfuscation.ES.Enabled {
+			if span.Meta[tagElasticBody] != "" {
+				span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+			}
 		}
-		span.Meta[tagHTTPURL] = o.ObfuscateURLString(v)
-	case "mongodb":
-		v, ok := span.Meta[tagMongoDBQuery]
-		if span.Meta == nil || !ok {
-			return
+		if a.conf.Obfuscation.OpenSearch.Enabled {
+			if span.Meta[tagOpenSearchBody] != "" {
+				span.Meta[tagOpenSearchBody] = o.ObfuscateOpenSearchString(span.Meta[tagOpenSearchBody])
+			}
 		}
-		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(v)
-	case "elasticsearch":
-		v, ok := span.Meta[tagElasticBody]
-		if span.Meta == nil || !ok {
-			return
-		}
-		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(v)
 	}
 }
 
 func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
-	o := a.obfuscator
+	o := a.lazyInitObfuscator()
+
 	switch b.Type {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLString(b.Resource)
@@ -116,63 +127,22 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	}
 }
 
-// ccObfuscator maintains credit card obfuscation state and processing.
-type ccObfuscator struct {
-	luhn bool
-}
+var (
+	obfuscatorLock sync.Mutex
+)
 
-func newCreditCardsObfuscator(cfg config.CreditCardsConfig) *ccObfuscator {
-	cco := &ccObfuscator{luhn: cfg.Luhn}
-	if cfg.Enabled {
-		// obfuscator disabled
-		pb.SetMetaHook(cco.MetaHook)
-	}
-	return cco
-}
+func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
+	// Ensure thread safe initialization
+	obfuscatorLock.Lock()
+	defer obfuscatorLock.Unlock()
 
-func (cco *ccObfuscator) Stop() { pb.SetMetaHook(nil) }
+	if a.obfuscator == nil {
+		if a.obfuscatorConf != nil {
+			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
+		} else {
+			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
+		}
+	}
 
-// MetaHook checks the tag with the given key and val and returns the final
-// value to be assigned to this tag.
-//
-// For example, in this specific use-case, if the val is detected to be a credit
-// card number, "?" will be returned.
-func (cco *ccObfuscator) MetaHook(k, v string) (newval string) {
-	switch k {
-	case "_sample_rate",
-		"_sampling_priority_v1",
-		"error",
-		"error.msg",
-		"error.type",
-		"error.stack",
-		"env",
-		"graphql.field",
-		"graphql.query",
-		"graphql.type",
-		"graphql.operation.name",
-		"grpc.code",
-		"grpc.method",
-		"grpc.request",
-		"http.status_code",
-		"http.method",
-		"runtime-id",
-		"out.host",
-		"out.port",
-		"sampling.priority",
-		"span.type",
-		"span.name",
-		"service.name",
-		"service",
-		"sql.query",
-		"version":
-		// these tags are known to not be credit card numbers
-		return v
-	}
-	if strings.HasPrefix(k, "_dd") {
-		return v
-	}
-	if obfuscate.IsCardNumber(v, cco.luhn) {
-		return "?"
-	}
-	return v
+	return a.obfuscator
 }

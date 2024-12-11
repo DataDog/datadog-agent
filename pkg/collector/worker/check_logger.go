@@ -3,14 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package worker
 
 import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,7 +52,7 @@ func (cl *CheckLogger) CheckFinished() {
 		if cl.lastVerboseLog {
 			message += fmt.Sprintf(
 				", next runs will be logged every %v runs",
-				config.Datadog.GetInt64(loggingFrequencyConfigKey),
+				pkgconfigsetup.Datadog().GetInt64(loggingFrequencyConfigKey),
 			)
 		}
 
@@ -76,8 +78,8 @@ func (cl *CheckLogger) Debug(message string) {
 
 // shouldLogCheck returns if we should log the check start/stop message with higher
 // verbosity and if this is the end of the initial series of check log statements
-func shouldLogCheck(id check.ID) (shouldLog, lastVerboseLog bool) {
-	loggingFrequency := uint64(config.Datadog.GetInt64(loggingFrequencyConfigKey))
+func shouldLogCheck(id checkid.ID) (shouldLog, lastVerboseLog bool) {
+	loggingFrequency := uint64(pkgconfigsetup.Datadog().GetInt64(loggingFrequencyConfigKey))
 
 	// If this is the first time we see the check, log it
 	stats, idFound := expvars.CheckStats(id)

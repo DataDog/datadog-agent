@@ -8,34 +8,37 @@ package checks
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sort"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"go.uber.org/atomic"
+	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	putil "github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
+)
+
+const (
+	maxResolverPidCacheSize  = 32768
+	maxResolverAddrCacheSize = 4096
 )
 
 var (
-	// Connections is a singleton ConnectionsCheck.
-	Connections = &ConnectionsCheck{
-		lastConnsByPID: &atomic.Value{},
-	}
-
-	// LocalResolver is a singleton LocalResolver
-	LocalResolver = &resolver.LocalResolver{}
-
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
 
@@ -43,28 +46,55 @@ var (
 	ProcessAgentClientID = "process-agent-unique-id"
 )
 
-// ConnectionsCheck collects statistics about live TCP and UDP connections.
-type ConnectionsCheck struct {
-	tracerClientID         string
-	networkID              string
-	notInitializedLogLimit *putil.LogLimit
-	// store the last collection result by PID, currently used to populate network data for processes
-	// it's in format map[int32][]*model.Connections
-	lastConnsByPID *atomic.Value
-	probe          procutil.Probe
+// NewConnectionsCheck returns an instance of the ConnectionsCheck.
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
+	return &ConnectionsCheck{
+		config:             config,
+		syscfg:             syscfg,
+		sysprobeYamlConfig: sysprobeYamlConfig,
+		wmeta:              wmeta,
+		npCollector:        npCollector,
+	}
 }
 
+// ConnectionsCheck collects statistics about live TCP and UDP connections.
+type ConnectionsCheck struct {
+	syscfg             *sysconfigtypes.Config
+	sysprobeYamlConfig pkgconfigmodel.Reader
+	config             pkgconfigmodel.Reader
+
+	hostInfo               *HostInfo
+	maxConnsPerMessage     int
+	tracerClientID         string
+	networkID              string
+	notInitializedLogLimit *log.Limit
+
+	dockerFilter     *parser.DockerProxy
+	serviceExtractor *parser.ServiceExtractor
+	processData      *ProcessData
+
+	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
+
+	localresolver *resolver.LocalResolver
+	wmeta         workloadmeta.Component
+
+	npCollector npcollector.Component
+}
+
+// ProcessConnRates describes connection rates for processes
+type ProcessConnRates map[int32]*model.ProcessNetworks
+
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.probe = newProcessProbe()
-	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
+func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
+	c.hostInfo = hostInfo
+	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
+	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
-	net.SetSystemProbePath(cfg.SystemProbeAddress)
-	tu, err := net.GetRemoteSystemProbeUtil()
+	tu, err := net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
 
 	if err != nil {
 		log.Warnf("could not initiate connection with system probe: %s", err)
@@ -77,18 +107,57 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 		}
 	}
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+	c.processData = NewProcessData(c.config)
+	c.dockerFilter = parser.NewDockerProxy()
+	serviceExtractorEnabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
+	useWindowsServiceName := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+	c.processData.Register(c.dockerFilter)
+	c.processData.Register(c.serviceExtractor)
+
+	// LocalResolver is a singleton LocalResolver
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
+	c.localresolver.Run()
+
+	return nil
+}
+
+// IsEnabled returns true if the check is enabled by configuration
+func (c *ConnectionsCheck) IsEnabled() bool {
+	// connection check is not supported on darwin, so we should fail gracefully in this case.
+	if runtime.GOOS == "darwin" {
+		return false
+	}
+
+	// connections check is only supported on the process agent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		return false
+	}
+
+	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
+	return npmModuleEnabled && c.syscfg.Enabled
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (c *ConnectionsCheck) SupportsRunOptions() bool {
+	return false
 }
 
 // Name returns the name of the ConnectionsCheck.
-func (c *ConnectionsCheck) Name() string { return config.ConnectionsCheckName }
+func (c *ConnectionsCheck) Name() string { return ConnectionsCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *ConnectionsCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (c *ConnectionsCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
@@ -98,39 +167,46 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // For each connection we'll return a `model.Connection`
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
-func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
 	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+		if errors.Is(err, net.ErrNotImplemented) || errors.Is(err, ErrTracerStillNotInitialized) {
 			return nil, nil
 		}
 		return nil, err
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	procs, err := c.probe.ProcessesByPID(time.Now(), false)
+	err = c.processData.Fetch()
 	if err != nil {
-		log.Warnf("error collecting processes for proxy filter: %s", err)
+		log.Warnf("error collecting processes for filter and extraction: %s", err)
 	} else {
-		dockerproxy.NewFilter(procs).Filter(conns)
+		c.dockerFilter.Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers
-	LocalResolver.Resolve(conns)
+	c.localresolver.Resolve(conns)
 
-	c.lastConnsByPID.Store(getConnectionsByPID(conns))
+	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
+
+	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
+
+	groupID := nextGroupID()
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
-func (c *ConnectionsCheck) Cleanup() {}
+func (c *ConnectionsCheck) Cleanup() {
+	c.localresolver.Stop()
+}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
-	tu, err := net.GetRemoteSystemProbeUtil()
+	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
 	if err != nil {
 		if c.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
@@ -140,33 +216,31 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
-	// Process create-times required to construct unique process hash keys on the backend
-	createTimeForPID := ProcessNotify.GetCreateTimes(connectionPIDs(conns))
-	for _, conn := range conns {
-		if _, ok := createTimeForPID[conn.Pid]; !ok {
-			createTimeForPID[conn.Pid] = 0
+func (c *ConnectionsCheck) notifyProcessConnRates(config pkgconfigmodel.Reader, conns *model.Connections) {
+	if len(c.processConnRatesTransmitter.Chs) == 0 {
+		return
+	}
+
+	connCheckIntervalS := int(GetInterval(config, ConnectionsCheckName) / time.Second)
+
+	connRates := make(ProcessConnRates)
+	for _, c := range conns.Conns {
+		rates, ok := connRates[c.Pid]
+		if !ok {
+			connRates[c.Pid] = &model.ProcessNetworks{ConnectionRate: 1, BytesRate: float32(c.LastBytesReceived) + float32(c.LastBytesSent)}
+			continue
 		}
 
-		conn.PidCreateTime = createTimeForPID[conn.Pid]
+		rates.BytesRate += float32(c.LastBytesSent) + float32(c.LastBytesReceived)
+		rates.ConnectionRate++
 	}
-	return conns
-}
 
-func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
-	if result := c.lastConnsByPID.Load(); result != nil {
-		return result.(map[int32][]*model.Connection)
+	for _, rates := range connRates {
+		rates.BytesRate /= float32(connCheckIntervalS)
+		rates.ConnectionRate /= float32(connCheckIntervalS)
 	}
-	return nil
-}
 
-// getConnectionsByPID groups a list of connection objects by PID
-func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection {
-	result := make(map[int32][]*model.Connection)
-	for _, conn := range conns.Conns {
-		result[conn.Pid] = append(result[conn.Pid], conn)
-	}
-	return result
+	c.processConnRatesTransmitter.Notify(connRates)
 }
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
@@ -191,7 +265,7 @@ func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[st
 
 func remapDNSStatsByDomain(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
 	old := c.DnsStatsByDomain
-	if old == nil || len(old) == 0 {
+	if len(old) == 0 {
 		return
 	}
 	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
@@ -252,24 +326,29 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
-	cfg *config.AgentConfig,
+	hostInfo *HostInfo,
+	maxConnsPerMessage int,
 	groupID int32,
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
 	connTelemetryMap map[string]int64,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
+	kernelHeaderFetchResult model.KernelHeaderFetchResult,
+	coreTelemetry map[string]model.COREResult,
+	prebuiltAssets []string,
 	domains []string,
 	routes []*model.Route,
 	tags []string,
 	agentCfg *model.AgentConfiguration,
+	serviceExtractor *parser.ServiceExtractor,
 ) []model.MessageBody {
-	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
+	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
-	if len(cxs) > cfg.MaxConnsPerMessage {
+	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
 			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
@@ -280,7 +359,7 @@ func batchConnections(
 	}
 
 	for len(cxs) > 0 {
-		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
+		batchSize := min(maxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
 		ctrIDForPID := make(map[int32]string)
@@ -309,17 +388,15 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			if len(c.Tags) > 0 {
-				var tagsStr []string
-				for _, t := range c.Tags {
-					tagsStr = append(tagsStr, tags[t])
-				}
+			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			if len(tagsStr) > 0 {
 				c.Tags = nil
 				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
 			} else {
 				c.TagsIdx = -1
 			}
-
 		}
 
 		// remap route indices
@@ -335,10 +412,10 @@ func batchConnections(
 				continue
 			}
 
-			new := int32(len(newRouteIndices))
-			newRouteIndices[c.RouteIdx] = new
+			newIdx := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = newIdx
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
-			c.RouteIdx = new
+			c.RouteIdx = newIdx
 		}
 
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
@@ -370,7 +447,7 @@ func batchConnections(
 		}
 		cc := &model.CollectorConnections{
 			AgentConfiguration:     agentCfg,
-			HostName:               cfg.HostName,
+			HostName:               hostInfo.HostName,
 			NetworkId:              networkID,
 			Connections:            batchConns,
 			GroupId:                groupID,
@@ -378,13 +455,13 @@ func batchConnections(
 			ContainerForPid:        ctrIDForPID,
 			EncodedDomainDatabase:  encodedNameDb,
 			EncodedDnsLookups:      mappedDNSLookups,
-			ContainerHostType:      cfg.ContainerHostType,
+			ContainerHostType:      hostInfo.ContainerHostType,
 			Routes:                 batchRoutes,
 			EncodedConnectionsTags: tagsEncoder.Buffer(),
 		}
 
 		// Add OS telemetry
-		if hostInfo := host.GetStatusInformation(); hostInfo != nil {
+		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
 			cc.KernelVersion = hostInfo.KernelVersion
 			cc.Architecture = hostInfo.KernelArch
 			cc.Platform = hostInfo.Platform
@@ -395,19 +472,15 @@ func batchConnections(
 		if len(batches) == 0 {
 			cc.ConnTelemetryMap = connTelemetryMap
 			cc.CompilationTelemetryByAsset = compilationTelemetry
+			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
+			cc.CORETelemetryByAsset = coreTelemetry
+			cc.PrebuiltEBPFAssets = prebuiltAssets
 		}
 		batches = append(batches, cc)
 
 		cxs = cxs[batchSize:]
 	}
 	return batches
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func groupSize(total, maxBatchSize int) int32 {
@@ -418,15 +491,33 @@ func groupSize(total, maxBatchSize int) int32 {
 	return int32(groupSize)
 }
 
-func connectionPIDs(conns []*model.Connection) []int32 {
-	ps := make(map[int32]struct{})
-	for _, c := range conns {
-		ps[c.Pid] = struct{}{}
+// converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtxs)
+	tagsStr := make([]string, 0, tagCount)
+	for _, t := range tagOffsets {
+		tagsStr = append(tagsStr, tags[t])
 	}
 
-	pids := make([]int32, 0, len(ps))
-	for pid := range ps {
-		pids = append(pids, pid)
+	for _, serviceCtx := range serviceCtxs {
+		if serviceCtx != "" {
+			tagsStr = append(tagsStr, serviceCtx)
+		}
 	}
-	return pids
+
+	return tagsStr
+}
+
+// fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
+func retryGetNetworkID(sysProbeUtil net.SysProbeUtil) (string, error) {
+	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	if err != nil && sysProbeUtil != nil {
+		log.Infof("no network ID detected. retrying via system-probe: %s", err)
+		networkID, err = sysProbeUtil.GetNetworkID()
+		if err != nil {
+			log.Infof("failed to get network ID from system-probe: %s", err)
+			return "", err
+		}
+	}
+	return networkID, err
 }

@@ -5,28 +5,11 @@
 
 package eval
 
-import (
-	"unsafe"
-)
-
 // RegisterID identify a register ID
 type RegisterID = string
 
-// Register describes a register that can be used by a set
+// Register defines an eval register
 type Register struct {
-	Value unsafe.Pointer
-}
-
-// Registers defines all available registers
-type Registers map[RegisterID]*Register
-
-// Clone returns a copy of the registers
-func (r Registers) Clone() Registers {
-	regs := make(Registers)
-
-	for k, v := range r {
-		regs[k] = v
-	}
-
-	return regs
+	ID    RegisterID
+	Field Field
 }

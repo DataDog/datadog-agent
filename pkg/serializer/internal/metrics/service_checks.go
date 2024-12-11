@@ -14,7 +14,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
@@ -28,10 +28,10 @@ var (
 )
 
 // ServiceChecks represents a list of service checks ready to be serialize
-type ServiceChecks []*metrics.ServiceCheck
+type ServiceChecks []*servicecheck.ServiceCheck
 
 // MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
-//FIXME(olivier): to be removed when v2 endpoints are available
+// FIXME(olivier): to be removed when v2 endpoints are available
 func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing
 	type ServiceChecksAlias ServiceChecks
@@ -109,7 +109,7 @@ func (sc ServiceChecks) DescribeItem(i int) string {
 	return fmt.Sprintf("CheckName:%q, Message:%q", sc[i].CheckName, sc[i].Message)
 }
 
-func writeServiceCheck(sc *metrics.ServiceCheck, stream *jsoniter.Stream) error {
+func writeServiceCheck(sc *servicecheck.ServiceCheck, stream *jsoniter.Stream) error {
 	writer := utiljson.NewRawObjectWriter(stream)
 
 	if err := writer.StartObject(); err != nil {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build zlib && optional_benchmarks
-// +build zlib,optional_benchmarks
 
 package serializer
 
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
@@ -22,7 +22,7 @@ func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs
 	initialSize := len(json)
 	metricsCount := len(series)
 
-	payloadBuilder := stream.NewJSONPayloadBuilder(true)
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mock.New(t))
 	var totalTime time.Duration
 
 	for i := 0; i < runs; i++ {

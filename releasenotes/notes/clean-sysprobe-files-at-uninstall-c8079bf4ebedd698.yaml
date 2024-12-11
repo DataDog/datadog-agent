@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove files created by system-probe at uninstall time.

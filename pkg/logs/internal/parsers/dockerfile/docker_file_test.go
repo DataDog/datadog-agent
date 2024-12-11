@@ -10,55 +10,55 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestDockerFileFormat(t *testing.T) {
-	var (
-		msg parsers.Message
-		err error
-	)
-
 	parser := New()
 
-	msg, err = parser.Parse([]byte(`{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`))
+	logMessage := message.NewMessage([]byte(`{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`), nil, "", 0)
+	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.True(t, msg.IsPartial)
-	assert.Equal(t, []byte("a message"), msg.Content)
+	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, []byte("a message"), msg.GetContent())
 	assert.Equal(t, message.StatusError, msg.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", msg.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", msg.ParsingExtra.Timestamp)
 
-	msg, err = parser.Parse([]byte(`{"log":"a second message","stream":"stdout","time":"2019-06-06T16:35:55.930852912Z"}`))
+	logMessage.SetContent([]byte(`{"log":"a second message","stream":"stdout","time":"2019-06-06T16:35:55.930852912Z"}`))
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.True(t, msg.IsPartial)
-	assert.Equal(t, []byte("a second message"), msg.Content)
+	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, []byte("a second message"), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", msg.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", msg.ParsingExtra.Timestamp)
 
-	msg, err = parser.Parse([]byte(`{"log":"a third message\n","stream":"stdout","time":"2019-06-06T16:35:55.930852913Z"}`))
+	logMessage.SetContent([]byte(`{"log":"a third message\n","stream":"stdout","time":"2019-06-06T16:35:55.930852913Z"}`))
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, []byte("a third message"), msg.Content)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, []byte("a third message"), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", msg.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", msg.ParsingExtra.Timestamp)
 
-	msg, err = parser.Parse([]byte("a wrong message"))
+	logMessage.SetContent([]byte("a wrong message"))
+	msg, err = parser.Parse(logMessage)
 	assert.NotNil(t, err)
-	assert.Equal(t, []byte("a wrong message"), msg.Content)
+	assert.Equal(t, []byte("a wrong message"), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
 
-	msg, err = parser.Parse([]byte(`{"log":"","stream":"stdout","time":"2019-06-06T16:35:55.930852914Z"}`))
+	logMessage.SetContent([]byte(`{"log":"","stream":"stdout","time":"2019-06-06T16:35:55.930852914Z"}`))
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, []byte(""), msg.Content)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, []byte(""), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852914Z", msg.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852914Z", msg.ParsingExtra.Timestamp)
 
-	msg, err = parser.Parse([]byte(`{"log":"\n","stream":"stdout","time":"2019-06-06T16:35:55.930852915Z"}`))
+	logMessage.SetContent([]byte(`{"log":"\n","stream":"stdout","time":"2019-06-06T16:35:55.930852915Z"}`))
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, []byte(""), msg.Content)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, []byte(""), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852915Z", msg.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852915Z", msg.ParsingExtra.Timestamp)
 }

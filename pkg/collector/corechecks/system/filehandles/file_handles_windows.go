@@ -3,23 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package filehandles
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
-const fileHandlesCheckName = "file_handle"
+// CheckName is the name of the check
+const CheckName = "file_handle"
 
 type fhCheck struct {
 	core.CheckBase
-	counter *pdhutil.PdhMultiInstanceCounterSet
+	pdhQuery *pdhutil.PdhQuery
+	// maps metric to counter object
+	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
 
 // Run executes the check
@@ -30,21 +33,21 @@ func (c *fhCheck) Run() error {
 		return err
 	}
 
-	var vals map[string]float64
-
-	// counter ("Process", "Handle count")
-	if c.counter == nil {
-		c.counter, err = pdhutil.GetMultiInstanceCounter("Process", "Handle Count", &[]string{"_Total"}, nil)
-	}
-	if c.counter != nil {
-		vals, err = c.counter.GetAllValues()
-	}
-	if err != nil {
-		c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
+	// Fetch PDH query values
+	err = c.pdhQuery.CollectQueryData()
+	if err == nil {
+		// Get values for PDH counters
+		for metricname, counter := range c.counters {
+			var val float64
+			val, err = counter.GetValue()
+			if err == nil {
+				sender.Gauge(metricname, val, "", nil)
+			} else {
+				c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
+			}
+		}
 	} else {
-		val := vals["_Total"]
-		log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
-		sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
+		c.Warnf("file_handle.Check: Could not collect performance counter data: %v", err)
 	}
 
 	sender.Commit()
@@ -52,20 +55,31 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(initConfig, data, source); err != nil {
+func (c *fhCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
+	}
+
+	// Create PDH query
+	c.pdhQuery, err = pdhutil.CreatePdhQuery()
+	if err != nil {
+		return err
+	}
+
+	c.counters = map[string]pdhutil.PdhSingleInstanceCounter{
+		"system.fs.file_handles.in_use": c.pdhQuery.AddEnglishCounterInstance("Process", "Handle Count", "_Total"),
 	}
 
 	return err
 }
 
-func fhFactory() check.Check {
-	return &fhCheck{
-		CheckBase: core.NewCheckBase(fileHandlesCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(fileHandlesCheckName, fhFactory)
+func newCheck() check.Check {
+	return &fhCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

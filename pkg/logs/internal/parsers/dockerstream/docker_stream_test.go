@@ -27,46 +27,52 @@ func TestGetDockerSeverity(t *testing.T) {
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := dockerHeader + " " + "anything"
 	parser := New("container_1")
-	msg, err := parser.Parse([]byte(validMessage))
+	logMessage := message.NewMessage([]byte(validMessage), nil, "", 0)
+	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.ParsingExtra.Timestamp)
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, []byte("anything"), msg.Content)
+	assert.Equal(t, []byte("anything"), msg.GetContent())
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyMessage(t *testing.T) {
-	msg, err := container1Parser.Parse([]byte(dockerHeader))
+	logMessage := message.NewMessage([]byte(dockerHeader), nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(msg.Content))
+	assert.Equal(t, 0, len(msg.GetContent()))
 }
 
 func TestDockerStandaloneParserShouldHandleNewlineOnlyMessage(t *testing.T) {
 	emptyContent := [3]string{"\\n", "\\r", "\\r\\n"}
 
 	for _, em := range emptyContent {
-		msg, err := container1Parser.Parse([]byte("2018-06-14T18:27:03.246999277Z " + em))
+		logMessage := message.NewMessage([]byte("2018-06-14T18:27:03.246999277Z "+em), nil, "", 0)
+		msg, err := container1Parser.Parse(logMessage)
 		assert.Nil(t, err)
-		assert.Equal(t, 0, len(msg.Content))
+		assert.Equal(t, 0, len(msg.GetContent()))
 	}
 }
 
 func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
-	msg, err := container1Parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo"))
+	logMessage := message.NewMessage([]byte("2018-06-14T18:27:03.246999277Z foo"), nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.ParsingExtra.Timestamp)
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, []byte("foo"), msg.Content)
+	assert.Equal(t, []byte("foo"), msg.GetContent())
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
-	msg, err := container1Parser.Parse([]byte("2018-06-14T18:27:03.246999277Z"))
+	logMessage := message.NewMessage([]byte("2018-06-14T18:27:03.246999277Z"), nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(msg.Content))
-	msg, err = container1Parser.Parse([]byte("2018-06-14T18:27:03.246999277Z "))
+	assert.Equal(t, 0, len(msg.GetContent()))
+	logMessage.SetContent([]byte("2018-06-14T18:27:03.246999277Z "))
+	msg, err = container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(msg.Content))
+	assert.Equal(t, 0, len(msg.GetContent()))
 }
 
 func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
@@ -76,7 +82,8 @@ func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 	// missing dockerHeader separator
 	msg = []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0}...)
-	_, err = container1Parser.Parse(msg)
+	logMessage := message.NewMessage(msg, nil, "", 0)
+	_, err = container1Parser.Parse(logMessage)
 	assert.Equal(t, errors.New("cannot parse docker message for container container_1: expected a 8 bytes header"), err)
 
 }
@@ -88,35 +95,36 @@ func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
 	// 16kb log
 	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + dockerHeader)
 	expectedMsg = []byte(buildMessage('a', dockerBufferSize))
-	msg, err := container1Parser.Parse(msgToClean)
+	logMessage := message.NewMessage(msgToClean, nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.ParsingExtra.Timestamp)
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, expectedMsg, msg.Content)
-	assert.Equal(t, dockerBufferSize, len(msg.Content))
+	assert.Equal(t, expectedMsg, msg.GetContent())
+	assert.Equal(t, dockerBufferSize, len(msg.GetContent()))
 
 	// over 16kb
-	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50))
+	logMessage.SetContent([]byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50)))
 	expectedMsg = []byte(buildMessage('a', dockerBufferSize) + buildMessage('b', 50))
-	msg, err = container1Parser.Parse(msgToClean)
+	msg, err = container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.ParsingExtra.Timestamp)
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, expectedMsg, msg.Content)
-	assert.Equal(t, dockerBufferSize+50, len(msg.Content))
+	assert.Equal(t, expectedMsg, msg.GetContent())
+	assert.Equal(t, dockerBufferSize+50, len(msg.GetContent()))
 
 	// three times over 16kb
-	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50))
+	logMessage.SetContent([]byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50)))
 	expectedMsg = []byte(buildMessage('a', 3*dockerBufferSize) + buildMessage('b', 50))
-	msg, err = container1Parser.Parse(msgToClean)
+	msg, err = container1Parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.ParsingExtra.Timestamp)
 	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, expectedMsg, msg.Content)
-	assert.Equal(t, 3*dockerBufferSize+50, len(msg.Content))
+	assert.Equal(t, expectedMsg, msg.GetContent())
+	assert.Equal(t, 3*dockerBufferSize+50, len(msg.GetContent()))
 }
 
 func buildPartialMessage(r rune, count int) string {

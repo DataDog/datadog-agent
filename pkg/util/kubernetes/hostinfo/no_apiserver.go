@@ -4,16 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet && !kubeapiserver
-// +build kubelet,!kubeapiserver
 
 package hostinfo
 
 import "context"
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func apiserverNodeLabels(ctx context.Context, nodeName string) (map[string]string, error) {
 	return nil, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func apiserverNodeAnnotations(ctx context.Context, nodeName string) (map[string]string, error) {
 	return nil, nil
 }

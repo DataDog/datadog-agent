@@ -1,0 +1,6 @@
+process_config.process_collection.enabled: true # for process_check_output.json
+process_config.container_collection.enabled: false # for container_check_output.json
+process_config.process_discovery.enabled: false # for process_discovery_check_output.json
+
+telemetry.enabled: true # for telemetry.log
+logs_enabled: true # for registry.json

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || linux_bpf
-// +build windows linux_bpf
+//go:build (windows && npm) || linux_bpf
 
 package dns
 
@@ -12,21 +11,31 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type reverseDNSCache struct {
-	// Telemetry
-	length    *atomic.Int64
-	lookups   *atomic.Int64
-	resolved  *atomic.Int64
-	added     *atomic.Int64
-	expired   *atomic.Int64
-	oversized *atomic.Int64
+const dnsCacheModuleName = "network_tracer__dns_cache"
 
+// Telemetry
+var cacheTelemetry = struct {
+	length    *telemetry.StatGaugeWrapper
+	lookups   *telemetry.StatCounterWrapper
+	resolved  *telemetry.StatCounterWrapper
+	added     *telemetry.StatCounterWrapper
+	expired   *telemetry.StatCounterWrapper
+	oversized *telemetry.StatCounterWrapper
+}{
+	telemetry.NewStatGaugeWrapper(dnsCacheModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
+	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
+	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
+	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
+	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "expired", []string{}, "Counter measuring the number of failed lookups to the DNS cache"),
+	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
+}
+
+type reverseDNSCache struct {
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
 	exit chan struct{}
@@ -34,21 +43,15 @@ type reverseDNSCache struct {
 
 	// maxDomainsPerIP is the maximum number of domains mapped to a single IP
 	maxDomainsPerIP   int
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		length:            atomic.NewInt64(0),
-		lookups:           atomic.NewInt64(0),
-		resolved:          atomic.NewInt64(0),
-		added:             atomic.NewInt64(0),
-		expired:           atomic.NewInt64(0),
-		oversized:         atomic.NewInt64(0),
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
-		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
+		oversizedLogLimit: log.NewLogLimit(10, time.Minute*10),
 		maxDomainsPerIP:   1000,
 	}
 
@@ -85,19 +88,19 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
 			}
 		} else {
-			c.added.Inc()
+			cacheTelemetry.added.Inc()
 			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
 			c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
 	// Update cache length for telemetry purposes
-	c.length.Store(int64(len(c.data)))
+	cacheTelemetry.length.Set(int64(len(c.data)))
 
 	return true
 }
 
-func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
+func (c *reverseDNSCache) Get(ips map[util.Address]struct{}) map[util.Address][]Hostname {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -138,44 +141,25 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 		}
 	}
 
-	for _, ip := range ips {
+	for ip := range ips {
 		collectNamesForIP(ip)
 	}
 
 	// Update stats for telemetry
-	c.lookups.Add(int64(len(resolved) + len(unresolved)))
-	c.resolved.Add(int64(len(resolved)))
-	c.oversized.Add(int64(len(oversized)))
+	cacheTelemetry.lookups.Add(int64(len(resolved) + len(unresolved)))
+	cacheTelemetry.resolved.Add(int64(len(resolved)))
+	cacheTelemetry.oversized.Add(int64(len(oversized)))
 
 	return resolved
 }
 
 func (c *reverseDNSCache) Len() int {
-	return int(c.length.Load())
-}
-
-func (c *reverseDNSCache) Stats() map[string]int64 {
-	var (
-		lookups   = c.lookups.Load()
-		resolved  = c.resolved.Load()
-		added     = c.added.Load()
-		expired   = c.expired.Load()
-		oversized = c.oversized.Load()
-		ips       = int64(c.Len())
-	)
-
-	return map[string]int64{
-		"lookups":   lookups,
-		"resolved":  resolved,
-		"added":     added,
-		"expired":   expired,
-		"oversized": oversized,
-		"ips":       ips,
-	}
+	return len(c.data)
 }
 
 func (c *reverseDNSCache) Close() {
-	c.exit <- struct{}{}
+	c.oversizedLogLimit.Close()
+	close(c.exit)
 }
 
 func (c *reverseDNSCache) Expire(now time.Time) {
@@ -201,11 +185,11 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	c.expired.Store(int64(expired))
-	c.length.Store(int64(total))
+	cacheTelemetry.expired.Add(int64(expired))
+	cacheTelemetry.length.Set(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
-		time.Now().Sub(now), total, expired,
+		time.Since(now), total, expired,
 	)
 }
 

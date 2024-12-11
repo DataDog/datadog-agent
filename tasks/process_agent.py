@@ -6,13 +6,14 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.system_probe import copy_ebpf_and_related_files
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
+BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
 
 
 @task
@@ -21,34 +22,36 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    install_path=None,
     flavor=AgentFlavor.base.name,
-    incremental_build=False,
+    rebuild=False,
     major_version='7',
-    python_runtimes='3',
-    arch="x64",
-    go_mod="mod",
+    go_mod="readonly",
 ):
     """
     Build the process agent
     """
+
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    if flavor.is_ot():
+        flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
+
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
-        if arch == "x86":
-            env["GOARCH"] = "386"
-            windres_target = "pe-i386"
-
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-        resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
-
-        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/process-agent-msg.mc")
-
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
+        build_rc(
+            ctx,
+            "cmd/process-agent/windows_resources/process-agent.rc",
+            vars=vars,
+            out="cmd/process-agent/rsrc.syso",
         )
 
     goenv = {}
@@ -58,18 +61,17 @@ def build(
     env.update(goenv)
 
     build_include = (
-        get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
+        get_default_build_tags(build="process-agent", flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
+    build_tags = add_fips_tags(build_tags, fips_mode)
 
-    ## secrets is not supported on windows because the process agent still runs as
-    ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
-    if sys.platform == 'win32' and "secrets" in build_tags:
-        build_tags.remove("secrets")
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -78,7 +80,7 @@ def build(
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "" if incremental_build else "-a",
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
@@ -127,10 +129,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -157,11 +156,4 @@ def gen_mocks(ctx):
     """
     Generate mocks
     """
-
-    interfaces = {"./pkg/process/procutil": ["Probe"]}
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")
+    ctx.run("mockery")

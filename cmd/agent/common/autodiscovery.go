@@ -7,16 +7,24 @@ package common
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"time"
 
 	"go.uber.org/atomic"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,49 +36,60 @@ var (
 		"kubelet":   {"container": struct{}{}},
 		"container": {"kubelet": struct{}{}},
 	}
+
+	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
-	ad := autodiscovery.NewAutoConfig(metaScheduler)
+func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
 	providers.InitConfigFilesReader(confSearchPaths)
-	ad.AddConfigProvider(providers.NewFileConfigProvider(), false, 0)
+
+	acTelemetryStore := ac.GetTelemetryStore()
+
+	ac.AddConfigProvider(
+		providers.NewFileConfigProvider(acTelemetryStore),
+		pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll"),
+		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
+	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 
-	var extraEnvProviders []config.ConfigurationProviders
-	var extraEnvListeners []config.Listeners
-	if config.IsAutoconfigEnabled() && !config.IsCLCRunner() {
+	var extraEnvProviders []pkgconfigsetup.ConfigurationProviders
+	var extraEnvListeners []pkgconfigsetup.Listeners
+	if pkgconfigenv.IsAutoconfigEnabled(pkgconfigsetup.Datadog()) && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
 	}
 
 	// Register additional configuration providers
-	var configProviders []config.ConfigurationProviders
-	var uniqueConfigProviders map[string]config.ConfigurationProviders
-	err := config.Datadog.UnmarshalKey("config_providers", &configProviders)
+	var configProviders []pkgconfigsetup.ConfigurationProviders
+	var uniqueConfigProviders map[string]pkgconfigsetup.ConfigurationProviders
+	err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "config_providers", &configProviders)
 
 	if err == nil {
-		uniqueConfigProviders = make(map[string]config.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
+		uniqueConfigProviders = make(map[string]pkgconfigsetup.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
 		for _, provider := range configProviders {
 			uniqueConfigProviders[provider.Name] = provider
 		}
 
 		// Add extra config providers
-		for _, name := range config.Datadog.GetStringSlice("extra_config_providers") {
+		for _, name := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
 			if _, found := uniqueConfigProviders[name]; !found {
-				uniqueConfigProviders[name] = config.ConfigurationProviders{Name: name, Polling: true}
+				uniqueConfigProviders[name] = pkgconfigsetup.ConfigurationProviders{Name: name, Polling: true}
 			} else {
 				log.Infof("Duplicate AD provider from extra_config_providers discarded as already present in config_providers: %s", name)
 			}
 		}
 
-		// The "docker" config provider was replaced with the "container" one
-		// that supports Docker, but also other runtimes. We need this
-		// conversion to avoid breaking configs that included "docker".
-		if options, found := uniqueConfigProviders["docker"]; found {
-			delete(uniqueConfigProviders, "docker")
-			options.Name = names.Container
-			uniqueConfigProviders["container"] = options
+		var enableContainerProvider bool
+		for _, p := range legacyProviders {
+			if _, found := uniqueConfigProviders[p]; found {
+				enableContainerProvider = true
+				delete(uniqueConfigProviders, p)
+			}
+		}
+
+		if enableContainerProvider {
+			uniqueConfigProviders[names.KubeContainer] = pkgconfigsetup.ConfigurationProviders{Name: names.KubeContainer}
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -91,27 +110,27 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
-		factory, found := providers.ProviderCatalog[cp.Name]
+		factory, found := ac.GetProviderCatalog()[cp.Name]
 		if found {
-			configProvider, err := factory(&cp)
+			configProvider, err := factory(&cp, wmeta, acTelemetryStore)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				continue
 			}
 
 			pollInterval := providers.GetPollInterval(cp)
-			ad.AddConfigProvider(configProvider, cp.Polling, pollInterval)
+			ac.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 		} else {
 			log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
 		}
 	}
 
-	var listeners []config.Listeners
-	err = config.Datadog.UnmarshalKey("listeners", &listeners)
+	var listeners []pkgconfigsetup.Listeners
+	err = structure.UnmarshalKey(pkgconfigsetup.Datadog(), "listeners", &listeners)
 	if err == nil {
 		// Add extra listeners
-		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
-			listeners = append(listeners, config.Listeners{Name: name})
+		for _, name := range pkgconfigsetup.Datadog().GetStringSlice("extra_listeners") {
+			listeners = append(listeners, pkgconfigsetup.Listeners{Name: name})
 		}
 
 		// The "docker" and "ecs" listeners were replaced with the
@@ -171,12 +190,10 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			listeners[i].SetEnabledProviders(providersSet)
 		}
 
-		ad.AddListeners(listeners)
+		ac.AddListeners(listeners)
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
-
-	return ad
 }
 
 // schedulerFunc is a type alias to allow a function to be used as an AD scheduler
@@ -188,7 +205,7 @@ func (sf schedulerFunc) Schedule(configs []integration.Config) {
 }
 
 // Unschedule implements scheduler.Scheduler#Unschedule.
-func (sf schedulerFunc) Unschedule(configs []integration.Config) {
+func (sf schedulerFunc) Unschedule(_ []integration.Config) {
 	// (do nothing)
 }
 
@@ -197,11 +214,43 @@ func (sf schedulerFunc) Stop() {
 }
 
 // WaitForConfigsFromAD waits until a count of discoveryMinInstances configs
-// with name checkName are scheduled by AD, and returns the matches.  It does
-// so by subscribing to the AD metascheduler.  If the context is cancelled
-// then any accumulated configs are returned, even if that is fewer than
+// with names in checkNames are scheduled by AD, and returns the matches.
+//
+// If the context is cancelled, then any accumulated, matching changes are
+// returned, even if that is fewer than discoveryMinInstances.
+func WaitForConfigsFromAD(ctx context.Context,
+	checkNames []string,
+	discoveryMinInstances int,
+	instanceFilter string,
+	ac autodiscovery.Component) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter, ac)
+}
+
+// WaitForAllConfigsFromAD waits until its context expires, and then returns
+// the full set of checks scheduled by AD.
+func WaitForAllConfigsFromAD(ctx context.Context, ac autodiscovery.Component) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, true, []string{}, 0, "", ac)
+}
+
+// waitForConfigsFromAD waits for configs from the AD scheduler and returns them.
+//
+// AD scheduling is asynchronous, so this is a time-based process.
+//
+// If wildcard is false, this waits until at least discoveryMinInstances
+// configs with names in checkNames are scheduled by AD, and returns the
+// matches.  If the context is cancelled before that occurs, then any
+// accumulated configs are returned, even if that is fewer than
 // discoveryMinInstances.
-func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
+//
+// If wildcard is true, this gathers all configs scheduled before the context
+// is cancelled, and then returns.  It will not return before the context is
+// cancelled.
+func waitForConfigsFromAD(ctx context.Context,
+	wildcard bool,
+	checkNames []string,
+	discoveryMinInstances int,
+	instanceFilter string,
+	ac autodiscovery.Component) (configs []integration.Config, returnErr error) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue
@@ -216,30 +265,75 @@ func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMin
 		}
 	}()
 
-	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
-	// placing items in configChan
-	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
-		for _, cfg := range configs {
-			found := false
+	var match func(cfg integration.Config) bool
+	if wildcard {
+		// match all configs
+		match = func(integration.Config) bool { return true }
+	} else {
+		// match configs with names in checkNames
+		match = func(cfg integration.Config) bool {
 			for _, checkName := range checkNames {
 				if cfg.Name == checkName {
-					found = true
-					break
+					return true
 				}
 			}
-			if found && waiting.Load() {
+			return false
+		}
+	}
+
+	stopChan := make(chan struct{})
+	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
+	// placing items in configChan
+	go ac.AddScheduler(adtypes.CheckCmdName, schedulerFunc(func(configs []integration.Config) {
+		var errorList []error
+		for _, cfg := range configs {
+			if instanceFilter != "" {
+				instances, filterErrors := filterInstances(cfg.Instances, instanceFilter)
+				if len(filterErrors) > 0 {
+					errorList = append(errorList, filterErrors...)
+					continue
+				}
+				if len(instances) == 0 {
+					continue
+				}
+				cfg.Instances = instances
+			}
+
+			if match(cfg) && waiting.Load() {
 				configChan <- cfg
 			}
 		}
+		if len(errorList) > 0 {
+			returnErr = errors.New(utilserror.NewAggregate(errorList).Error())
+			stopChan <- struct{}{}
+		}
 	}), true)
 
-	for len(configs) < discoveryMinInstances {
+	for wildcard || len(configs) < discoveryMinInstances {
 		select {
 		case cfg := <-configChan:
 			configs = append(configs, cfg)
+		case <-stopChan:
+			return
 		case <-ctx.Done():
 			return
 		}
 	}
 	return
+}
+
+func filterInstances(instances []integration.Data, instanceFilter string) ([]integration.Data, []error) {
+	var newInstances []integration.Data
+	var errors []error
+	for _, instance := range instances {
+		exist, err := jsonquery.YAMLCheckExist(instance, instanceFilter)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("instance filter error: %v", err))
+			continue
+		}
+		if exist {
+			newInstances = append(newInstances, instance)
+		}
+	}
+	return newInstances, errors
 }

@@ -14,17 +14,28 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -54,19 +65,21 @@ docker_env_as_tags:
 var (
 	sender      *mocksender.MockSender
 	dockerCheck check.Check
+	fxApp       *fx.App
 )
 
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 
 	retryTicker := time.NewTicker(time.Duration(*retryDelay) * time.Second)
@@ -74,7 +87,7 @@ func TestMain(m *testing.M) {
 	var lastRunResult int
 	var retryCount int
 
-	err := setup()
+	store, taggerComp, err := setup()
 	if err != nil {
 		log.Infof("Test setup failed: %v", err)
 		tearOffAndExit(1)
@@ -85,7 +98,7 @@ func TestMain(m *testing.M) {
 		case <-retryTicker.C:
 			retryCount++
 			log.Infof("Starting run %d", retryCount)
-			lastRunResult = doRun(m)
+			lastRunResult = doRun(m, store, taggerComp)
 			if lastRunResult == 0 {
 				tearOffAndExit(0)
 			}
@@ -96,22 +109,37 @@ func TestMain(m *testing.M) {
 	}
 }
 
+type testDeps struct {
+	fx.In
+	Store      workloadmeta.Component
+	TaggerComp tagger.Component
+}
+
 // Called before for first test run: compose up
-func setup() error {
+func setup() (workloadmeta.Component, tagger.Component, error) {
 	// Setup global conf
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))
+	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	config.DetectFeatures()
+	env.SetFeaturesNoCleanup(env.Docker)
 
-	store := workloadmeta.GetGlobalStore()
-	store.Start(context.Background())
-
-	// Setup tagger
-	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.Background())
+	// Note: workloadmeta will be started by fx with the App
+	var deps testDeps
+	fxApp, deps, err = fxutil.TestApp[testDeps](fx.Options(
+		fx.Supply(compcfg.NewAgentParams(
+			"", compcfg.WithConfigMissingOK(true))),
+		compcfg.Module(),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Supply(logdef.ForOneShot("TEST", "info", false)),
+		logfx.Module(),
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		taggerfx.Module(tagger.Params{}),
+		telemetryimpl.Module(),
+	))
+	store := deps.Store
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
@@ -122,24 +150,26 @@ func setup() error {
 		output, err := compose.Start()
 		if err != nil {
 			log.Errorf("Compose didn't start properly: %s", string(output))
-			return err
+			return nil, nil, err
 		}
 	}
-	return nil
+	return store, deps.TaggerComp, nil
 }
 
 // Reset the state and trigger a new run
-func doRun(m *testing.M) int {
-	dockerCheck = docker.DockerFactory()
+func doRun(m *testing.M, store workloadmeta.Component, tagger tagger.Component) int {
+	factory := docker.Factory(store, tagger)
+	checkFactory, _ := factory.Get()
+	dockerCheck = checkFactory()
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())
 	sender.SetupAcceptAll()
 
 	// Setup docker check
-	dockerCfg := []byte(dockerCfgString)
-	dockerInitCfg := []byte("")
-	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
+	dockerCfg := integration.Data(dockerCfgString)
+	dockerInitCfg := integration.Data("")
+	dockerCheck.Configure(sender.GetSenderManager(), integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()
@@ -150,6 +180,8 @@ func tearOffAndExit(exitcode int) {
 	if *skipCleanup {
 		os.Exit(exitcode)
 	}
+
+	_ = fxApp.Stop(context.TODO())
 
 	// Stop compose recipes, ignore errors
 	for projectName, file := range defaultCatalog.composeFilesByProjects {

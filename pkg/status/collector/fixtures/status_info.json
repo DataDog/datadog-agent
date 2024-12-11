@@ -1,0 +1,336 @@
+{
+  "autoConfigStats": {
+    "ConfigErrors": {},
+    "ResolveWarnings": {}
+  },
+  "checkSchedulerStats": {
+    "LoaderErrors": {
+      "apm": {
+        "Core Check Loader": "Could not configure check APM Agent: Can't access the default apm binary at /Users/datadog/go/src/github.com/DataDog/datadog-agent/embedded/bin/trace-agent: stat /Users/datadog/go/src/github.com/DataDog/datadog-agent/embedded/bin/trace-agent: no such file or directory",
+        "JMX Check Loader": "check is not a jmx check, or unable to determine if it's so",
+        "Python Check Loader": "unable to import module 'apm': No module named 'apm'"
+      },
+      "network": {
+        "Core Check Loader": "Check network not found in Catalog",
+        "JMX Check Loader": "check is not a jmx check, or unable to determine if it's so",
+        "Python Check Loader": "unable to import module 'network': No module named 'network'"
+      },
+      "process_agent": {
+        "Core Check Loader": "Could not configure check Process Agent: Can't access the default process-agent binary at /Users/datadog/go/src/github.com/DataDog/datadog-agent/embedded/bin/process-agent",
+        "JMX Check Loader": "check is not a jmx check, or unable to determine if it's so",
+        "Python Check Loader": "unable to import module 'process_agent': No module named 'process_agent'"
+      },
+      "winproc": {
+        "Core Check Loader": "Check winproc not found in Catalog",
+        "JMX Check Loader": "check is not a jmx check, or unable to determine if it's so",
+        "Python Check Loader": "unable to import module 'winproc': No module named 'winproc'"
+      }
+    },
+    "RunErrors": {}
+  },
+  "inventories": {},
+  "pyLoaderStats": {
+    "ConfigureErrors": {},
+    "Py3Warnings": {}
+  },
+  "pythonInit": {
+    "Errors": [
+      "could not initialize rtloader: could not import base class: No module named 'datadog_checks'"
+    ]
+  },
+  "runnerStats": {
+    "Checks": {
+      "cpu": {
+        "cpu": {
+          "AverageExecutionTime": 1,
+          "CheckConfigSource": "file:/opt/datadog-agent/etc/conf.d/cpu.d/conf.yaml.default",
+          "CheckID": "cpu",
+          "CheckName": "cpu",
+          "CheckVersion": "",
+          "EventPlatformEvents": {},
+          "Events": 0,
+          "ExecutionTimes": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "HistogramBuckets": 0,
+          "Interval": 15000000000,
+          "LastDelay": 0,
+          "LastError": "",
+          "LastExecutionTime": 1,
+          "LastSuccessDate": 1708424850,
+          "LastWarnings": [],
+          "LongRunning": false,
+          "MetricSamples": 1,
+          "ServiceChecks": 0,
+          "TotalErrors": 0,
+          "TotalEventPlatformEvents": {},
+          "TotalEvents": 0,
+          "TotalHistogramBuckets": 0,
+          "TotalMetricSamples": 1,
+          "TotalRuns": 1,
+          "TotalServiceChecks": 0,
+          "TotalWarnings": 0,
+          "UpdateTimestamp": 1708424850
+        }
+      },
+      "file_handle": {
+        "file_handle": {
+          "AverageExecutionTime": 0,
+          "CheckConfigSource": "file:/Users/datadog/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/conf.d/file_handle.d/conf.yaml.default",
+          "CheckID": "file_handle",
+          "CheckName": "file_handle",
+          "CheckVersion": "",
+          "EventPlatformEvents": {},
+          "Events": 0,
+          "ExecutionTimes": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "HistogramBuckets": 0,
+          "Interval": 15000000000,
+          "LastDelay": 0,
+          "LastError": "",
+          "LastExecutionTime": 0,
+          "LastSuccessDate": 1708424854,
+          "LastWarnings": [],
+          "LongRunning": false,
+          "MetricSamples": 2,
+          "ServiceChecks": 0,
+          "TotalErrors": 0,
+          "TotalEventPlatformEvents": {},
+          "TotalEvents": 0,
+          "TotalHistogramBuckets": 0,
+          "TotalMetricSamples": 2,
+          "TotalRuns": 1,
+          "TotalServiceChecks": 0,
+          "TotalWarnings": 0,
+          "UpdateTimestamp": 1708424854
+        }
+      },
+      "ntp": {
+        "ntp:3c427a42a70bbf8": {
+          "AverageExecutionTime": 579,
+          "CheckConfigSource": "file:/opt/datadog-agent/etc/conf.d/ntp.d/conf.yaml.default",
+          "CheckID": "ntp:3c427a42a70bbf8",
+          "CheckName": "ntp",
+          "CheckVersion": "",
+          "EventPlatformEvents": {},
+          "Events": 0,
+          "ExecutionTimes": [
+            579,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "HistogramBuckets": 0,
+          "Interval": 900000000000,
+          "LastDelay": 0,
+          "LastError": "",
+          "LastExecutionTime": 579,
+          "LastSuccessDate": 1708424853,
+          "LastWarnings": [],
+          "LongRunning": true,
+          "MetricSamples": 1,
+          "ServiceChecks": 1,
+          "TotalErrors": 0,
+          "TotalEventPlatformEvents": {},
+          "TotalEvents": 0,
+          "TotalHistogramBuckets": 0,
+          "TotalMetricSamples": 1,
+          "TotalRuns": 1,
+          "TotalServiceChecks": 1,
+          "TotalWarnings": 0,
+          "UpdateTimestamp": 1708424853
+        }
+      },
+      "telemetry": {
+        "telemetry": {
+          "AverageExecutionTime": 0,
+          "CheckConfigSource": "file:/opt/datadog-agent/etc/conf.d/telemetry.d/conf.yaml.default",
+          "CheckID": "telemetry",
+          "CheckName": "telemetry",
+          "CheckVersion": "",
+          "EventPlatformEvents": {
+            "dbm-samples":  12,
+            "unknown-type": 34
+          },
+          "Events": 0,
+          "ExecutionTimes": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "HistogramBuckets": 0,
+          "Interval": 15000000000,
+          "LastDelay": 0,
+          "LastError": "",
+          "LastExecutionTime": 0,
+          "LastSuccessDate": 1708424855,
+          "LastWarnings": [],
+          "LongRunning": false,
+          "MetricSamples": 2,
+          "ServiceChecks": 0,
+          "TotalErrors": 0,
+          "TotalEventPlatformEvents": {
+            "dbm-samples":  132,
+            "unknown-type": 342
+          },
+          "TotalEvents": 0,
+          "TotalHistogramBuckets": 0,
+          "TotalMetricSamples": 2,
+          "TotalRuns": 1,
+          "TotalServiceChecks": 0,
+          "TotalWarnings": 0,
+          "UpdateTimestamp": 1708424855
+        }
+      }
+    },
+    "Running": {
+      "container_image": "2024-02-20T11:27:29+01:00",
+      "container_lifecycle": "2024-02-20T11:27:29+01:00"
+    },
+    "RunningChecks": 2,
+    "Runs": 4,
+    "Workers": {
+      "Count": 6,
+      "Instances": {
+        "worker_1": {
+          "Utilization": 0
+        },
+        "worker_2": {
+          "Utilization": 0
+        },
+        "worker_3": {
+          "Utilization": 0
+        },
+        "worker_4": {
+          "Utilization": 0
+        },
+        "worker_5": {
+          "Utilization": 0
+        },
+        "worker_6": {
+          "Utilization": 0
+        }
+      }
+    }
+  }
+}

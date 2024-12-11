@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build podman
-// +build podman
 
 package podman
 
@@ -119,6 +118,10 @@ type ContainerState struct {
 	// namespace for the container, and the network namespace is currently
 	// active
 	NetworkStatus []*cnitypes.Result `json:"networkResults,omitempty"`
+	// RestartCount is how many times the container was restarted by its
+	// restart policy. This is NOT incremented by normal container restarts
+	// (only by restart policy).
+	RestartCount uint `json:"restartCount,omitempty"`
 }
 
 // ContainerConfig contains all information that was used to create the
@@ -188,12 +191,27 @@ type ContainerConfig struct {
 	Dependencies []string
 
 	// embedded sub-configs
-	//ContainerRootFSConfig
+	ContainerRootFSConfig
 	ContainerSecurityConfig
 	ContainerNameSpaceConfig
 	ContainerNetworkConfig
 	ContainerImageConfig
 	ContainerMiscConfig
+}
+
+// ContainerRootFSConfig is an embedded sub-config providing config info about the container's root fs.
+// We use it to get the container's imageID
+type ContainerRootFSConfig struct {
+	// RootfsImageID is the ID of the image used to create the container.
+	// If the container was created from a Rootfs, this will be empty.
+	// If non-empty, Podman will create a root filesystem for the container
+	// based on an image with this ID.
+	// This conflicts with Rootfs.
+	RootfsImageID string `json:"rootfsImageID,omitempty"`
+	// RootfsImageName is the (normalized) name of the image used to create
+	// the container. If the container was created from a Rootfs, this will
+	// be empty.
+	RootfsImageName string `json:"rootfsImageName,omitempty"`
 }
 
 // ContainerSecurityConfig is an embedded sub-config providing security configuration

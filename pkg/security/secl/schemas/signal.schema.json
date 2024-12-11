@@ -1,0 +1,44 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "signal.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "signal": {
+                    "type": "object",
+                    "required": [
+                        "type",
+                        "pid",
+                        "target"
+                    ],
+                    "properties": {
+                        "type": {
+                            "type": "string"
+                        },
+                        "pid": {
+                            "type": "integer"
+                        },
+                        "target": {
+                            "$ref": "process.schema.json"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

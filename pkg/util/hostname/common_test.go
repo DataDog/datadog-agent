@@ -8,14 +8,14 @@ package hostname
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
@@ -23,8 +23,8 @@ import (
 // fromConfig
 
 func TestFromConfig(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("hostname", "test-hostname")
+	configmock.New(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
 
 	hostname, err := fromConfig(context.TODO(), "")
 	require.NoError(t, err)
@@ -32,8 +32,8 @@ func TestFromConfig(t *testing.T) {
 }
 
 func TestFromConfigInvalid(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("hostname", "hostname_with_underscore")
+	configmock.New(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "hostname_with_underscore")
 
 	_, err := fromConfig(context.TODO(), "")
 	assert.Error(t, err)
@@ -43,14 +43,14 @@ func TestFromConfigInvalid(t *testing.T) {
 
 func setupHostnameFile(t *testing.T, content string) {
 	dir := t.TempDir()
-	destFile, err := ioutil.TempFile(dir, "test-hostname-file-config-")
+	destFile, err := os.CreateTemp(dir, "test-hostname-file-config-")
 	require.NoError(t, err, "Could not create tmp file: %s", err)
 
-	err = ioutil.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
+	err = os.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
 	require.NoError(t, err, "Could not write to tmp file %s: %s", destFile.Name(), err)
 
-	config.Mock(t)
-	config.Datadog.Set("hostname_file", destFile.Name())
+	configmock.New(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname_file", destFile.Name())
 
 	destFile.Close()
 }
@@ -72,8 +72,8 @@ func TestFromHostnameFileWhitespaceTrim(t *testing.T) {
 }
 
 func TestFromHostnameFileNoFileName(t *testing.T) {
-	config.Mock(t)
-	config.Datadog.Set("hostname_file", "")
+	configmock.New(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname_file", "")
 
 	_, err := fromHostnameFile(context.TODO(), "")
 	assert.NotNil(t, err)
@@ -91,12 +91,12 @@ func TestFromHostnameFileInvalid(t *testing.T) {
 func TestFromFargate(t *testing.T) {
 	defer func() { isFargateInstance = fargate.IsFargateInstance }()
 
-	isFargateInstance = func(context.Context) bool { return true }
+	isFargateInstance = func() bool { return true }
 	hostname, err := fromFargate(context.TODO(), "")
 	require.NoError(t, err)
 	assert.Equal(t, "", hostname)
 
-	isFargateInstance = func(context.Context) bool { return false }
+	isFargateInstance = func() bool { return false }
 	_, err = fromFargate(context.TODO(), "")
 	assert.Error(t, err)
 }
@@ -104,21 +104,21 @@ func TestFromFargate(t *testing.T) {
 // fromFQDN
 
 func TestFromFQDN(t *testing.T) {
-	// making isOSHostnameUsable return true
 	defer func() {
-		isContainerized = config.IsContainerized
+		// making isOSHostnameUsable return true
+		osHostnameUsable = isOSHostnameUsable
 		fqdnHostname = getSystemFQDN
 	}()
-	isContainerized = func() bool { return false }
+	osHostnameUsable = func(context.Context) bool { return true }
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
-	config.Mock(t)
-	config.Datadog.Set("hostname_fqdn", false)
+	configmock.New(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname_fqdn", false)
 
 	_, err := fromFQDN(context.TODO(), "")
 	assert.Error(t, err)
 
-	config.Datadog.Set("hostname_fqdn", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname_fqdn", true)
 
 	hostname, err := fromFQDN(context.TODO(), "")
 	assert.NoError(t, err)
@@ -128,9 +128,11 @@ func TestFromFQDN(t *testing.T) {
 // fromOS
 
 func TestFromOS(t *testing.T) {
-	// making isOSHostnameUsable return true
-	defer func() { isContainerized = config.IsContainerized }()
-	isContainerized = func() bool { return false }
+	defer func() {
+		// making isOSHostnameUsable return true
+		osHostnameUsable = isOSHostnameUsable
+	}()
+	osHostnameUsable = func(context.Context) bool { return true }
 	expected, _ := os.Hostname()
 
 	hostname, err := fromOS(context.TODO(), "")
@@ -164,8 +166,8 @@ func TestFromEc2Prioritize(t *testing.T) {
 	// This test than when a NON default EC2 hostname is detected but ec2_prioritize_instance_id_as_hostname is set
 	// to true we use the instance ID
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
-	config.Mock(t)
-	config.Datadog.Set("ec2_prioritize_instance_id_as_hostname", true)
+	configmock.New(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }

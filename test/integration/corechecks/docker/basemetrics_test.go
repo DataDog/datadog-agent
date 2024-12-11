@@ -19,7 +19,7 @@ func init() {
 
 func TestContainerMetricsTagging(t *testing.T) {
 	expectedTags := []string{
-		"container_name:basemetrics_redis_1", // Container name
+		"container_name:basemetrics-redis-1", // Container name
 		"docker_image:datadog/docker-library:redis_3_2_11-alpine",
 		"image_name:datadog/docker-library",
 		"short_image:docker-library",
@@ -48,8 +48,8 @@ func TestContainerMetricsTagging(t *testing.T) {
 			"docker.cpu.user",
 			"docker.cpu.usage",
 			"docker.cpu.throttled",
-			"docker.io.read_bytes",
-			"docker.io.write_bytes",
+			// "docker.io.read_bytes", // With cgroupv2 the io.stat file is not filled if no IO has been made
+			// "docker.io.write_bytes", // Our containers (redis) are not making any IO, thus the file is empty and metrics not generated
 			"docker.net.bytes_sent",
 			"docker.net.bytes_rcvd",
 		},
@@ -84,5 +84,4 @@ func TestContainerMetricsTagging(t *testing.T) {
 	// redis:3.2 runs one process with 3 threads
 	sender.AssertCalled(t, "Gauge", "docker.thread.count", 3.0, "", mocksender.MatchTagsContains(expectedTags))
 	sender.AssertCalled(t, "Gauge", "docker.thread.limit", 25.0, "", mocksender.MatchTagsContains(expectedTags))
-
 }

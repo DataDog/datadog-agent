@@ -8,169 +8,90 @@ package flare
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
+	"io"
+	"net/http"
 	"path/filepath"
 
-	"github.com/mholt/archiver/v3"
-
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
-	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
-	zipFilePath := getArchivePath()
-	confSearchPaths := SearchPaths{
-		"":     config.Datadog.GetString("confd_path"),
-		"dist": filepath.Join(distPath, "conf.d"),
-	}
-	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath)
-}
+// ProfileData maps (pprof) profile names to the profile data
+type ProfileData map[string][]byte
 
-func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	tempDir, err := createTempDir()
+// CreateDCAArchive packages up the files
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, statusComponent status.Component) (string, error) {
+	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tempDir)
 
-	// Get hostname, if there's an error in getting the hostname,
-	// set the hostname to unknown
-	hostname, err := hostnameUtil.Get(context.TODO())
-	if err != nil {
-		hostname = "unknown"
+	confSearchPaths := map[string]string{
+		"":     pkgconfigsetup.Datadog().GetString("confd_path"),
+		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
+	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, statusComponent)
+	return fb.Save()
+}
+
+func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, statusComponent status.Component) {
 	// If the request against the API does not go through we don't collect the status log.
-	if local {
-		err = writeLocal(tempDir, hostname)
-		if err != nil {
-			return "", err
-		}
+	if fb.IsLocal() {
+		fb.AddFile("local", nil) //nolint:errcheck
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err = zipDCAStatusFile(tempDir, hostname)
+		err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) { return statusComponent.GetStatus("text", true) }) //nolint:errcheck
 		if err != nil {
-			log.Infof("Error getting the status of the DCA, %q", err)
-			return "", err
+			log.Errorf("Error getting the status of the DCA, %q", err)
+			return
 		}
+
 	}
 
-	permsInfos := make(permissionsInfos)
+	getLogFiles(fb, logFilePath)
+	getConfigFiles(fb, confSearchPaths)
+	getClusterAgentConfigCheck(fb)                                                 //nolint:errcheck
+	getExpVar(fb)                                                                  //nolint:errcheck
+	getMetadataMap(fb)                                                             //nolint:errcheck
+	getClusterAgentClusterChecks(fb)                                               //nolint:errcheck
+	getClusterAgentDiagnose(fb)                                                    //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                  //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment) //nolint:errcheck
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                          //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)           //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", getEnvVars)                                  //nolint:errcheck
+	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                           //nolint:errcheck
+	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                       //nolint:errcheck
+	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                    //nolint:errcheck
+	getPerformanceProfileDCA(fb, pdata)
 
-	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
-	if err != nil {
-		return "", err
+	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
+		getHPAStatus(fb) //nolint:errcheck
 	}
-
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
-	if err != nil {
-		return "", err
-	}
-
-	err = zipClusterAgentConfigCheck(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip config check: %s", err)
-	}
-
-	err = zipExpVar(tempDir, hostname)
-	if err != nil {
-		return "", err
-	}
-
-	err = zipEnvvars(tempDir, hostname)
-	if err != nil {
-		return "", err
-	}
-
-	err = zipMetadataMap(tempDir, hostname)
-	if err != nil {
-		return "", err
-	}
-
-	err = zipClusterAgentClusterChecks(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip clustercheck status: %s", err)
-	}
-
-	err = zipClusterAgentDiagnose(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip diagnose: %s", err)
-	}
-
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		err = zipHPAStatus(tempDir, hostname)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	err = zipClusterAgentTelemetry(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip telemetry payload: %v", err)
-	}
-
-	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
-	if err != nil {
-		log.Infof("Error while creating permissions.log infos file: %s", err)
-	}
-
-	// File format is determined based on `zipFilePath` extension
-	err = archiver.Archive([]string{filepath.Join(tempDir, hostname)}, zipFilePath)
-	if err != nil {
-		return "", err
-	}
-
-	return zipFilePath, nil
 }
 
-func writeLocal(tempDir, hostname string) error {
-	f := filepath.Join(tempDir, hostname, "local")
-	err := ensureParentDirsExist(f)
+// QueryDCAMetrics gets the metrics payload exposed by the cluster agent
+func QueryDCAMetrics() ([]byte, error) {
+	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", pkgconfigsetup.Datadog().GetInt("metrics_port")))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return ioutil.WriteFile(f, []byte{}, os.ModePerm)
+	defer r.Body.Close()
+	return io.ReadAll(r.Body)
 }
 
-func zipDCAStatusFile(tempDir, hostname string) error {
-	// Grab the status
-	log.Infof("Zipping the status at %s for %s", tempDir, hostname)
-	s, err := status.GetAndFormatDCAStatus()
-	if err != nil {
-		log.Infof("Error zipping the status: %q", err)
-		return err
-	}
-
-	// Clean it up
-	cleaned, err := flareScrubber.ScrubBytes(s)
-	if err != nil {
-		log.Infof("Error redacting the log files: %q", err)
-		return err
-	}
-
-	f := filepath.Join(tempDir, hostname, "cluster-agent-status.log")
-	log.Infof("Flare status made at %s", tempDir)
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
-	return err
-}
-
-func zipMetadataMap(tempDir, hostname string) error {
+func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -185,44 +106,28 @@ func zipMetadataMap(tempDir, hostname string) error {
 
 	metaBytes, err := json.Marshal(metaList)
 	if err != nil {
-		log.Infof("Error while marshalling the cluster level metadata: %q", err)
-		return err
+		return log.Errorf("Error while marshalling the cluster level metadata: %q", err)
 	}
 
-	str, err := status.FormatMetadataMapCLI(metaBytes)
+	str, err := render.FormatMetadataMapCLI(metaBytes)
 	if err != nil {
-		log.Infof("Error while rendering the cluster level metadata: %q", err)
-		return err
+		return log.Errorf("Error while rendering the cluster level metadata: %q", err)
 	}
 
-	sByte := []byte(str)
-	f := filepath.Join(tempDir, hostname, "cluster-agent-metadatamapper.log")
-	log.Infof("Flare metadata mapper made at %s", tempDir)
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(f, sByte, os.ModePerm)
+	return fb.AddFile("cluster-agent-metadatamapper.log", []byte(str))
 }
 
-func zipClusterAgentClusterChecks(tempDir, hostname string) error {
+func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
 	GetClusterChecks(writer, "") //nolint:errcheck
 	writer.Flush()
 
-	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return writeScrubbedFile(f, b.Bytes())
+	return fb.AddFile("clusterchecks.log", b.Bytes())
 }
 
-func zipHPAStatus(tempDir, hostname string) error {
+func getHPAStatus(fb flaretypes.FlareBuilder) error {
 	stats := make(map[string]interface{})
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -232,68 +137,59 @@ func zipHPAStatus(tempDir, hostname string) error {
 	}
 	statsBytes, err := json.Marshal(stats)
 	if err != nil {
-		log.Infof("Error while marshalling the cluster level metadata: %q", err)
-		return err
+		return log.Errorf("Error while marshalling the cluster level metadata: %q", err)
 	}
 
-	str, err := status.FormatHPAStatus(statsBytes)
+	str, err := render.FormatHPAStatus(statsBytes)
 	if err != nil {
-		return err
-	}
-	sByte := []byte(str)
-
-	f := filepath.Join(tempDir, hostname, "custommetricsprovider.log")
-	log.Infof("Flare hpa status made at %s", tempDir)
-
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
+		return log.Errorf("Could not collect custommetricsprovider.log: %s", err)
 	}
 
-	err = ioutil.WriteFile(f, sByte, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	return err
+	return fb.AddFile("custommetricsprovider.log", []byte(str))
 }
 
-func zipClusterAgentConfigCheck(tempDir, hostname string) error {
+func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
 	GetClusterAgentConfigCheck(writer, true) //nolint:errcheck
 	writer.Flush()
 
-	return writeConfigCheck(tempDir, hostname, b.Bytes())
+	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func zipClusterAgentDiagnose(tempDir, hostname string) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
 	GetClusterAgentDiagnose(writer) //nolint:errcheck
 	writer.Flush()
 
-	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return writeScrubbedFile(f, b.Bytes())
+	return fb.AddFile("diagnose.log", b.Bytes())
 }
 
-func zipClusterAgentTelemetry(tempDir, hostname string) error {
-	payload, err := QueryDCAMetrics()
+func getDCATaggerList() ([]byte, error) {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	f := filepath.Join(tempDir, hostname, "telemetry.log")
-	err = ensureParentDirsExist(f)
+	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+
+	return getTaggerList(taggerListURL)
+}
+
+func getDCAWorkloadList() ([]byte, error) {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return writeScrubbedFile(f, payload)
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
+}
+
+func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
+	for name, data := range pdata {
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
+	}
 }

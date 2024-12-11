@@ -13,46 +13,102 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const (
-	redactedValue = "********"
-	replacedValue = "-"
-)
+const consulOriginalPodAnnotation = "consul.hashicorp.com/original-pod"
 
-// ScrubPodTemplateSpec calls ScrubContainer for every container within a pod
-// template spec.
+var sensitiveAnnotationsAndLabels = []string{v1.LastAppliedConfigAnnotation, consulOriginalPodAnnotation}
+
+// RemoveSensitiveAnnotationsAndLabels redacts sensitive annotations and labels like the whole
+// "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
+// may contain duplicate information and secrets.
+func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels map[string]string) {
+	for _, v := range sensitiveAnnotationsAndLabels {
+		if _, found := annotations[v]; found {
+			annotations[v] = redactedAnnotationValue
+		}
+		if _, found := labels[v]; found {
+			labels[v] = redactedAnnotationValue
+		}
+	}
+}
+
+// UpdateSensitiveAnnotationsAndLabels adds new sensitive annotations or labels key to the list to redact.
+func UpdateSensitiveAnnotationsAndLabels(annotationsAndLabels []string) {
+	sensitiveAnnotationsAndLabels = append(sensitiveAnnotationsAndLabels, annotationsAndLabels...)
+}
+
+// GetSensitiveAnnotationsAndLabels returns the list of sensitive annotations and labels.
+func GetSensitiveAnnotationsAndLabels() []string {
+	return sensitiveAnnotationsAndLabels
+}
+
+// ScrubPodTemplateSpec scrubs a pod template.
 func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) {
+	scrubAnnotations(template.Annotations, scrubber)
+
 	for c := 0; c < len(template.Spec.InitContainers); c++ {
-		ScrubContainer(&template.Spec.InitContainers[c], scrubber)
+		scrubContainer(&template.Spec.InitContainers[c], scrubber)
 	}
 	for c := 0; c < len(template.Spec.Containers); c++ {
-		ScrubContainer(&template.Spec.Containers[c], scrubber)
+		scrubContainer(&template.Spec.Containers[c], scrubber)
 	}
 }
 
-// ScrubPodSpec calls ScrubContainer for every container within a pod spec.
-func ScrubPodSpec(spec *v1.PodSpec, scrubber *DataScrubber) {
-	for c := 0; c < len(spec.InitContainers); c++ {
-		ScrubContainer(&spec.InitContainers[c], scrubber)
+// ScrubPod scrubs a pod.
+func ScrubPod(p *v1.Pod, scrubber *DataScrubber) {
+	scrubAnnotations(p.Annotations, scrubber)
+
+	for c := 0; c < len(p.Spec.InitContainers); c++ {
+		scrubContainer(&p.Spec.InitContainers[c], scrubber)
 	}
-	for c := 0; c < len(spec.Containers); c++ {
-		ScrubContainer(&spec.Containers[c], scrubber)
+	for c := 0; c < len(p.Spec.Containers); c++ {
+		scrubContainer(&p.Spec.Containers[c], scrubber)
 	}
 }
 
-// ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
+// scrubAnnotations scrubs sensitive information from pod annotations.
+func scrubAnnotations(annotations map[string]string, scrubber *DataScrubber) {
+	for k, v := range annotations {
+		annotations[k] = scrubber.ScrubAnnotationValue(v)
+	}
+}
+
+func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
+	if probe == nil {
+		return
+	}
+
+	if probe.HTTPGet != nil {
+		for h := 0; h < len(probe.HTTPGet.HTTPHeaders); h++ {
+			if scrubber.ContainsSensitiveWord(probe.HTTPGet.HTTPHeaders[h].Name) {
+				probe.HTTPGet.HTTPHeaders[h].Value = redactedSecret
+			}
+		}
+	}
+
+	if probe.Exec != nil {
+		probe.Exec.Command, _ = scrubber.ScrubSimpleCommand(probe.Exec.Command)
+	}
+}
+
+// scrubContainer scrubs sensitive information in the command line & env vars
+func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
 		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
-			c.Env[e].Value = redactedValue
+			c.Env[e].Value = redactedSecret
 		}
 	}
+
+	// scrub probes http headers
+	scrubContainerProbe(c.LivenessProbe, scrubber)
+	scrubContainerProbe(c.ReadinessProbe, scrubber)
+	scrubContainerProbe(c.StartupProbe, scrubber)
 
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
 			// we still want to obscure to be safe
-			c.Command = []string{redactedValue}
+			c.Command = []string{redactedSecret}
 		}
 	}()
 
@@ -74,12 +130,5 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	}
 	if len(c.Args) > 0 {
 		c.Args = scrubbedMergedCommand[words:]
-	}
-}
-
-// RemoveLastAppliedConfigurationAnnotation redacts the whole "kubectl.kubernetes.io/last-applied-configuration" annotation. As it may contain duplicate information and secrets.
-func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
-	if _, found := annotations["kubectl.kubernetes.io/last-applied-configuration"]; found {
-		annotations["kubectl.kubernetes.io/last-applied-configuration"] = replacedValue
 	}
 }

@@ -3,20 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package stats contains the logic to process APM stats.
 package stats
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"hash/fnv"
+	"sort"
 	"strconv"
 	"strings"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 const (
-	tagStatusCode = "http.status_code"
-	tagSynthetics = "synthetics"
+	tagSynthetics  = "synthetics"
+	tagSpanKind    = "span.kind"
+	tagBaseService = "_dd.base_service"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -27,24 +31,34 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service    string
-	Name       string
-	Resource   string
-	Type       string
-	StatusCode uint32
-	Synthetics bool
+	Service      string
+	Name         string
+	Resource     string
+	Type         string
+	SpanKind     string
+	StatusCode   uint32
+	Synthetics   bool
+	PeerTagsHash uint64
+	IsTraceRoot  pb.Trilean
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
 type PayloadAggregationKey struct {
-	Env         string
-	Hostname    string
-	Version     string
-	ContainerID string
+	Env          string
+	Hostname     string
+	Version      string
+	ContainerID  string
+	GitCommitSha string
+	ImageTag     string
 }
 
-func getStatusCode(s *pb.Span) uint32 {
-	strC := traceutil.GetMetaDefault(s, tagStatusCode, "")
+func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
+	code, ok := metrics[traceutil.TagStatusCode]
+	if ok {
+		// only 7.39.0+, for lesser versions, always use Meta
+		return uint32(code)
+	}
+	strC := meta[traceutil.TagStatusCode]
 	if strC == "" {
 		return 0
 	}
@@ -57,30 +71,60 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
+func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregationKey) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
-	return Aggregation{
+	var isTraceRoot pb.Trilean
+	if s.parentID == 0 {
+		isTraceRoot = pb.Trilean_TRUE
+	} else {
+		isTraceRoot = pb.Trilean_FALSE
+	}
+	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   s.Resource,
-			Service:    s.Service,
-			Name:       s.Name,
-			Type:       s.Type,
-			StatusCode: getStatusCode(s),
-			Synthetics: synthetics,
+			Resource:     s.resource,
+			Service:      s.service,
+			Name:         s.name,
+			SpanKind:     s.spanKind,
+			Type:         s.typ,
+			StatusCode:   s.statusCode,
+			Synthetics:   synthetics,
+			IsTraceRoot:  isTraceRoot,
+			PeerTagsHash: peerTagsHash(s.matchingPeerTags),
 		},
 	}
+	return agg
+}
+
+func peerTagsHash(tags []string) uint64 {
+	if len(tags) == 0 {
+		return 0
+	}
+	if !sort.StringsAreSorted(tags) {
+		sort.Strings(tags)
+	}
+	h := fnv.New64a()
+	for i, t := range tags {
+		if i > 0 {
+			h.Write([]byte{0})
+		}
+		h.Write([]byte(t))
+	}
+	return h.Sum64()
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
-func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
+func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   g.Resource,
-			Service:    g.Service,
-			Name:       g.Name,
-			StatusCode: g.HTTPStatusCode,
-			Synthetics: g.Synthetics,
+			Resource:     g.Resource,
+			Service:      g.Service,
+			Name:         g.Name,
+			SpanKind:     g.SpanKind,
+			StatusCode:   g.HTTPStatusCode,
+			Synthetics:   g.Synthetics,
+			PeerTagsHash: peerTagsHash(g.PeerTags),
+			IsTraceRoot:  g.IsTraceRoot,
 		},
 	}
 }

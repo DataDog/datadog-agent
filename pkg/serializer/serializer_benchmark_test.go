@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
 
 package serializer
 
@@ -12,8 +11,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -22,31 +23,32 @@ import (
 func buildEvents(numberOfEvents int) metricsserializer.Events {
 	events := metricsserializer.Events{}
 	for i := 0; i < numberOfEvents; i++ {
-		event := metrics.Event{
+		event := event.Event{
 			Title:     fmt.Sprintf("test.events%d", i),
 			Text:      fmt.Sprintf("test.events%d", i),
 			Ts:        1,
-			Priority:  metrics.EventPriorityLow,
+			Priority:  event.PriorityLow,
 			Host:      "localHost",
 			Tags:      []string{"tag1", "tag2:yes"},
-			AlertType: metrics.EventAlertTypeInfo,
+			AlertType: event.AlertTypeInfo,
 		}
-		events = append(events, &event)
+		events.EventsArr = append(events.EventsArr, &event)
 	}
 	return events
 }
 
-var results forwarder.Payloads
+var results transaction.BytesPayloads
 
 func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfEvents int) {
 	events := buildEvents(numberOfEvents)
 	marshaler := events.CreateSingleMarshaler()
-	payloadBuilder := stream.NewJSONPayloadBuilder(sharedBuffers)
+	mockConfig := mock.New(b)
+	payloadBuilder := stream.NewJSONPayloadBuilder(sharedBuffers, mockConfig, selector.NewCompressor(mockConfig))
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < passes; i++ {
-			results, _ = payloadBuilder.Build(marshaler)
+			results, _ = stream.BuildJSONPayload(payloadBuilder, marshaler)
 		}
 	}
 }
@@ -55,8 +57,10 @@ func benchmarkSplit(b *testing.B, numberOfEvents int) {
 	events := buildEvents(numberOfEvents)
 	b.ResetTimer()
 
+	mockConfig := mock.New(b)
+	strategy := selector.NewCompressor(mockConfig)
 	for n := 0; n < b.N; n++ {
-		results, _ = split.Payloads(events, true, split.JSONMarshalFct)
+		results, _ = split.Payloads(events, true, split.JSONMarshalFct, strategy)
 	}
 }
 

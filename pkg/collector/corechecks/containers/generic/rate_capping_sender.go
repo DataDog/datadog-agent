@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -23,7 +23,7 @@ const (
 // CappedSender wraps around the standard Sender and overrides
 // the Rate method to implement rate capping
 type CappedSender struct {
-	aggregator.Sender
+	sender.Sender
 	rateCaps  map[string]float64
 	timestamp time.Time // Current time at check Run()
 }
@@ -34,7 +34,7 @@ type ratePoint struct {
 }
 
 // NewCappedSender returns a capped sender
-func NewCappedSender(cappedMetrics map[string]float64, sender aggregator.Sender) aggregator.Sender {
+func NewCappedSender(cappedMetrics map[string]float64, sender sender.Sender) sender.Sender {
 	return &CappedSender{
 		Sender:    sender,
 		rateCaps:  cappedMetrics,

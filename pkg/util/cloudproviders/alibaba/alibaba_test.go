@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -31,7 +31,7 @@ func TestGetHostname(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/latest/meta-data/instance-id")
@@ -44,14 +44,14 @@ func TestGetNTPHosts(t *testing.T) {
 		"ntp4.aliyun.com", "ntp5.aliyun.com", "ntp6.aliyun.com", "ntp7.aliyun.com",
 	}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.Set("cloud_provider_metadata", []string{"alibaba"})
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

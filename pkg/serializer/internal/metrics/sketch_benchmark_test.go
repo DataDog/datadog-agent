@@ -4,7 +4,6 @@
 // Copyright 2016-2021 Datadog, Inc.
 
 //go:build test
-// +build test
 
 package metrics
 
@@ -13,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -28,8 +29,10 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
+	mockConfig := mock.New(b)
+	strategy := selector.NewCompressor(mockConfig)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serializer, true, split.ProtoMarshalFct)
+		split.Payloads(serializer, true, split.ProtoMarshalFct, strategy)
 	}
 }
 
@@ -41,13 +44,15 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	serializer := SketchSeriesList{SketchesSource: testSketchSeries}
 	b.ReportAllocs()
 	b.ResetTimer()
+	mockConfig := mock.New(b)
+	strategy := selector.NewCompressor(mockConfig)
 
 	for n := 0; n < b.N; n++ {
-		payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 		require.NoError(b, err)
 		var pb int
 		for _, p := range payloads {
-			pb += len(*p)
+			pb += p.Len()
 		}
 		b.ReportMetric(float64(pb), "payload-bytes")
 		b.ReportMetric(float64(len(payloads)), "payloads")

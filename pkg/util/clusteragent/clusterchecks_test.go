@@ -31,7 +31,7 @@ var dummyConfigs = `{
 
 func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	ctx := context.Background()
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 
 	dca.rawResponses["/api/v1/clusterchecks/status/mynode"] = dummyStatusResponse
@@ -40,7 +40,7 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	ts, p, err := dca.StartTLS()
 	require.NoError(suite.T(), err)
 	defer ts.Close()
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
@@ -57,11 +57,49 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	assert.Equal(suite.T(), "two", configs.Configs[1].Name)
 }
 
+// Regression test. ServiceID was not propagated to the runners and as a
+// consequence, the cluster checks rebalancing algorithm wasn't working
+// properly.
+func (suite *clusterAgentSuite) TestClusterChecksWithServiceID() {
+	ctx := context.Background()
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+
+	dca.rawResponses["/api/v1/clusterchecks/status/mynode"] = dummyStatusResponse
+	dca.rawResponses["/api/v1/clusterchecks/configs/mynode"] = `{
+"last_change": 42,
+"configs": [
+  {
+    "check_name": "one",
+    "service_id": "kube_service://namespace_1/service_1"
+  }
+]
+}`
+
+	ts, p, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	ca, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	response, err := ca.PostClusterCheckStatus(ctx, "mynode", types.NodeStatus{})
+	require.NoError(suite.T(), err)
+	assert.True(suite.T(), response.IsUpToDate)
+
+	configs, err := ca.GetClusterCheckConfigs(ctx, "mynode")
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), int64(42), configs.LastChange)
+	assert.Equal(suite.T(), "one", configs.Configs[0].Name)
+	assert.Equal(suite.T(), "kube_service://namespace_1/service_1", configs.Configs[0].ServiceID)
+}
+
 func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	ctx := context.Background()
 
 	// Leader starts first
-	leader, err := newDummyClusterAgent()
+	leader, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 	leader.rawResponses["/api/v1/clusterchecks/status/mynode"] = `{"isuptodate": true}`
 	leader.rawResponses["/api/v1/clusterchecks/configs/mynode"] = dummyConfigs
@@ -70,7 +108,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	defer ts.Close()
 
 	// Follower redirects to the leader
-	follower, err := newDummyClusterAgent()
+	follower, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 	follower.redirectURL = fmt.Sprintf("https://127.0.0.1:%d", p)
 	follower.rawResponses["/api/v1/clusterchecks/status/mynode"] = `{"isuptodate": false}`
@@ -83,7 +121,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	assert.Equal(suite.T(), follower.token, leader.token)
 
 	// Client will start at the follower
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 	ca.(*DCAClient).initLeaderClient()

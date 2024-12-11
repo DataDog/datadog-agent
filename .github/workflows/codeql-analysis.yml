@@ -4,51 +4,61 @@ on:
   push:
     branches:
       - main
-      - 7.[0-9][0-9].x
+      - "[0-9]+.[0-9]+.x"
   pull_request:
     branches:
       - main
-      - 7.[0-9][0-9].x
+      - "[0-9]+.[0-9]+.x"
+
+permissions: {}
 
 jobs:
   CodeQL-Build:
-    # CodeQL runs on ubuntu-latest, windows-latest, and macos-latest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
+    permissions:
+      security-events: write
+    strategy:
+      matrix:
+        language: ["go", "javascript", "python", "cpp"]
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Python3
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: '3.x'
-
-      - name: Install Python requirements
-        run: |
-          pip3 install -r requirements.txt
+          python-version: "3.12.6"
+          cache: "pip"
+      - run: pip3 install -r requirements.txt
 
       - name: Setup env variables
         run: |
-          echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
-          echo "$GOPATH/bin" >> $GITHUB_PATH
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
-          go-version-file: '.go-version'
+          go-version-file: ".go-version"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@aa578102511db1f4524ed59b8cc2bae4f6e88195 # v3.27.6
         with:
-          languages: go, javascript, python, cpp
-          setup-python-dependencies: false
-          config-file: .github/codeql_config.yml
-          # Defining a fixed CodeQL bundle version
-          tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20211115/codeql-bundle-linux64.tar.gz
+          languages: ${{ matrix.language }}
+          config: |
+            paths-ignore:
+              - rtloader/build/rtloader/CMakeFiles/datadog-agent-rtloader.dir
+              - rtloader/build/three/CMakeFiles/datadog-agent-three.dir
+              - rtloader/build/test/CMakeFiles/run.dir
+              - rtloader/build/CMakeFiles/clang-format.dir
+
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c
+        with:
+          swap-size-gb: 10
 
       - name: Build DataDog agent
         run: |
@@ -57,4 +67,4 @@ jobs:
           invoke agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@aa578102511db1f4524ed59b8cc2bae4f6e88195 # v3.27.6

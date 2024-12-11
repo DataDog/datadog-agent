@@ -4,21 +4,21 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 /*
@@ -387,17 +387,19 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
+	defer os.Remove(kubelet.testingCertificate)
+	defer os.Remove(kubelet.testingPrivateKey)
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 
 	watcher, err := NewPodWatcher(5 * time.Minute)
 	require.Nil(suite.T(), err)

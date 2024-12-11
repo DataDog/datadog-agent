@@ -1,0 +1,39 @@
+{
+    "vmsets": [
+        {
+            "tags": [
+                "distro_x86_64"
+            ],
+            "recipe": "distro-x86_64",
+            "arch": "x86_64",
+            "console_type": "file",
+            "kernels": [],
+            "disks": [
+                {
+                    "mount_point": "/mnt/docker",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-x86_64.qcow2.xz",
+                    "target": "%KMTDIR%/rootfs/docker-x86_64.qcow2",
+                    "type": "default"
+                }
+            ]
+        },
+        {
+            "tags": [
+                "distro_arm64"
+            ],
+            "recipe": "distro-arm64",
+            "arch": "arm64",
+            "console_type": "file",
+            "kernels": [],
+            "machine": "virt",
+            "disks": [
+                {
+                    "mount_point": "/mnt/docker",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-arm64.qcow2.xz",
+                    "target": "%KMTDIR%/rootfs/docker-arm64.qcow2",
+                    "type": "default"
+                }
+            ]
+        }
+    ]
+}

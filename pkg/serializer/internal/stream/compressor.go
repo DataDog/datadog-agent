@@ -3,24 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
-
+//nolint:revive // TODO(AML) Fix revive linter
 package stream
 
 import (
 	"bytes"
-	"compress/zlib"
 	"errors"
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
-)
 
-const (
-	// Available is true if the code is compiled in
-	Available = true
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
 var (
@@ -63,7 +56,8 @@ func init() {
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	zipper              *zlib.Writer
+	strategy            compression.Component
+	zipper              compression.StreamCompressor
 	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
 	uncompressedWritten int    // uncompressed bytes written
@@ -76,23 +70,28 @@ type Compressor struct {
 	separator           []byte
 }
 
-// NewCompressor TODO <agent-core> : IML-199
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
+// NewCompressor returns a new instance of a Compressor
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, compressor compression.Component) (*Compressor, error) {
 	c := &Compressor{
 		header:              header,
 		footer:              footer,
 		input:               input,
 		compressed:          output,
+		strategy:            compressor,
 		firstItem:           true,
 		maxPayloadSize:      maxPayloadSize,
 		maxUncompressedSize: maxUncompressedSize,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
-		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
 		separator:           separator,
 	}
 
-	c.zipper = zlib.NewWriter(c.compressed)
+	zipper := compressor.NewStreamCompressor(c.compressed)
+	if zipper == nil {
+		return nil, errors.New("Stream compression not available")
+	}
+	c.zipper = zipper
 	n, err := c.zipper.Write(header)
+	c.maxZippedItemSize = maxUncompressedSize - c.strategy.CompressBound(len(footer)+len(header))
 	c.uncompressedWritten += n
 
 	return c, err
@@ -103,7 +102,10 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
 func (c *Compressor) checkItemSize(data []byte) bool {
-	return len(data) < c.maxUnzippedItemSize && compression.CompressBound(len(data)) < c.maxZippedItemSize
+	maxEffectivePayloadSize := c.maxPayloadSize - len(c.footer) - len(c.header)
+	compressedWillFit := c.strategy.CompressBound(len(data)) < c.maxZippedItemSize && c.strategy.CompressBound(len(data)) < maxEffectivePayloadSize
+
+	return len(data) < c.maxUnzippedItemSize && compressedWillFit
 }
 
 // hasRoomForItem checks if the current payload has enough room to store the given item
@@ -112,7 +114,7 @@ func (c *Compressor) hasRoomForItem(item []byte) bool {
 	if !c.firstItem {
 		uncompressedDataSize += len(c.separator)
 	}
-	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
+	return c.strategy.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
 }
 
 // pack flushes the temporary uncompressed buffer input to the compression writer
@@ -170,7 +172,7 @@ func (c *Compressor) AddItem(data []byte) error {
 	return nil
 }
 
-// Close TODO <agent-core> : IML-199
+// Close closes the Compressor, flushing any remaining uncompressed data
 func (c *Compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {

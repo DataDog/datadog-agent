@@ -4,14 +4,14 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build !clusterchecks && !kubeapiserver
-// +build !clusterchecks,!kubeapiserver
 
 package v1
 
 import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/gorilla/mux"
 )
 
-func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
+func installCloudFoundryMetadataEndpoints(_ *mux.Router) {}
 
-func installKubernetesMetadataEndpoints(r *mux.Router) {}
+func installKubernetesMetadataEndpoints(_ *mux.Router, _ workloadmeta.Component) {}

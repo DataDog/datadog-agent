@@ -1,32 +1,53 @@
 # ------------------------------------
 # OS-detection helper functions
 # ------------------------------------
-def linux?()
+def linux_target?()
     return %w(rhel debian fedora suse gentoo slackware arch exherbo).include? ohai['platform_family']
 end
 
-def redhat?()
+def redhat_target?()
+    if not Omnibus::Config.host_distribution().nil?
+      return %w(rhel fedora ociru).include? Omnibus::Config.host_distribution()
+    end
     return %w(rhel fedora).include? ohai['platform_family']
 end
 
-def suse?()
+def suse_target?()
+    if not Omnibus::Config.host_distribution().nil?
+      return Omnibus::Config.host_distribution() == 'suse'
+    end
     return %w(suse).include? ohai['platform_family']
 end
 
-def debian?()
+def debian_target?()
+    if not Omnibus::Config.host_distribution().nil?
+      return Omnibus::Config.host_distribution() == 'debian'
+    end
     return ohai['platform_family'] == 'debian'
 end
 
-def osx?()
+def osx_target?()
     return ohai['platform_family'] == 'mac_os_x'
 end
 
-def windows?()
+def windows_target?()
     return ohai['platform_family'] == 'windows'
 end
 
-def arm?()
+def arm_target?()
     return ohai["kernel"]["machine"].start_with?("aarch", "arm")
+end
+
+def arm7l_target?()
+    return ohai["kernel"]["machine"] == 'armv7l'
+end
+
+def heroku_target?()
+    return ENV['AGENT_FLAVOR'] == 'heroku'
+end
+
+def ot_target?()
+    return ENV['AGENT_FLAVOR'] == 'ot'
 end
 
 def os
@@ -42,7 +63,6 @@ def os
     end
 end
 
-def with_python_runtime?(runtime)
-    python_runtimes = ENV['PY_RUNTIMES'].nil? ? ['3'] : ENV['PY_RUNTIMES'].split(',')
-    return python_runtimes.include? runtime
+def fips_mode?()
+  return ENV['AGENT_FLAVOR'] == "fips" && (linux_target? || windows_target?)
 end

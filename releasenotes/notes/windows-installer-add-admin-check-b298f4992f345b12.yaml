@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add a check to the Windows installer to verify that the caller has the correct membership to install the Agent.

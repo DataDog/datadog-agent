@@ -1,0 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018-present Datadog, Inc.
+
+// Package main defines the main function
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	if len(os.Args) != 3 || os.Args[1] != "arg1" || os.Args[2] != "arg2" {
+		os.Exit(1)
+	}
+	fmt.Printf("{\"handle1\":{\"value\":\"arg_password\"}}")
+}

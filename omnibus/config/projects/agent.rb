@@ -3,8 +3,9 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-
+require "./lib/project_helpers.rb"
 flavor = ENV['AGENT_FLAVOR']
+output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
 if flavor.nil? || flavor == 'base'
   name 'agent'
@@ -16,27 +17,49 @@ end
 license "Apache-2.0"
 license_file "../LICENSE"
 
+third_party_licenses "../LICENSE-3rdparty.csv"
+
 homepage 'http://www.datadoghq.com'
 
-if windows?
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+else
+  COMPRESSION_THREADS = 1
+end
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
+end
+
+BUILD_OCIRU = Omnibus::Config.host_distribution == "ociru"
+
+if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
+  Omnibus::Config.use_git_caching true
+  Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
+end
+
+if windows_target?
+  if ot_target?
+    raise UnknownPlatform
+  end
+
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
   INSTALL_DIR = 'C:/opt/datadog-agent/'
-  PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
-  INSTALL_DIR = '/opt/datadog-agent'
+  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 end
 
 install_dir INSTALL_DIR
 
-if windows?
-  python_2_embedded PYTHON_2_EMBEDDED_DIR
+if windows_target?
   python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  if redhat? || suse?
+  if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
     # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
@@ -50,9 +73,10 @@ else
     runtime_script_dependency :pre, "coreutils"
     runtime_script_dependency :pre, "findutils"
     runtime_script_dependency :pre, "grep"
-    if redhat?
+    if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
+      conflict "glibc-common < 2.17"
     else
       runtime_script_dependency :pre, "glibc"
       runtime_script_dependency :pre, "shadow"
@@ -61,18 +85,37 @@ else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
-  if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
+  if debian_target?
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
 
-  if osx?
+  if osx_target?
     unless ENV['SKIP_SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
     end
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
+  else
+    conflict 'datadog-iot-agent'
   end
+end
+
+do_build = false
+do_package = false
+
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  do_package = true
+  skip_healthcheck true
+else
+  do_build = true
+end
+
+# For now we build and package in the same stage for heroku
+if heroku_target?
+  do_build = true
+  do_package = true
 end
 
 # build_version is computed by an invoke command/function.
@@ -97,11 +140,15 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -112,12 +159,16 @@ end
 
 # .rpm specific flags
 package :rpm do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
@@ -128,7 +179,10 @@ end
 
 # OSX .pkg specific flags
 package :pkg do
+  skip_packager BUILD_OCIRU
   identifier 'com.datadoghq.agent'
+  # This defines where the package will be installed in the target system
+  install_location "/opt/datadog-agent"
   unless ENV['SKIP_SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
   end
@@ -149,208 +203,84 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
-
-    # Always sign everything for binaries zip
-    # noinspection RubyLiteralArrayInspection
-    additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
-    ]
-    if with_python_runtime? "2"
-      additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
-    end
-    if ENV['SIGN_PFX']
-      signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
-    end
   end
 end
 
 package :msi do
+  skip_packager true
+end
 
-  # For a consistent package management, please NEVER change this code
-  arch = "x64"
-  if windows_arch_i386?
-    upgrade_code '2497f989-f07e-4e8c-9e05-841ad3d4405f'
-    arch = "x86"
-  else
-    upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
-  end
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
-
-  # noinspection RubyLiteralArrayInspection
-  additional_sign_files_list = [
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-    "#{install_dir}\\bin\\agent\\ddtray.exe",
-    "#{install_dir}\\embedded3\\python.exe",
-    "#{install_dir}\\embedded3\\\\python3.dll",
-    "#{install_dir}\\embedded3\\\\python38.dll",
-    "#{install_dir}\\embedded3\\\\pythonw.exe"
-  ]
-  if with_python_runtime? '2'
-    # noinspection RubyLiteralArrayInspection
-    additional_sign_files_list.concat [
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
-      "#{install_dir}\\embedded2\\python.exe",
-      "#{install_dir}\\embedded2\\python27.dll",
-      "#{install_dir}\\embedded2\\pythonw.exe"
-    ]
-  end
-  #if ENV['SIGN_WINDOWS']
-  #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
-  #end
-  if ENV['SIGN_PFX']
-    signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
-  end
-  include_sysprobe = "false"
-  if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    include_sysprobe = "true"
-    additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
-  end
-  additional_sign_files additional_sign_files_list
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
-    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
-    'IncludePython2' => "#{with_python_runtime? '2'}",
-    'IncludePython3' => "#{with_python_runtime? '3'}",
-    'Platform' => "#{arch}",
-    'IncludeSysprobe' => "#{include_sysprobe}",
-  })
-  # This block runs before harvesting with heat.exe
-  # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.
-  # Therefore, `install_dir` does not refer to the `install_dir` of the Project but that of the Packager.
-  pre_heat do
-    def generate_embedded_archive(version)
-      safe_embedded_path = windows_safe_path(install_dir, "embedded#{version}")
-      safe_embedded_archive_path = windows_safe_path(install_dir, "embedded#{version}.7z")
-
-      shellout!(
-        <<-EOH.strip
-          7z a -mx=5 -ms=on #{safe_embedded_archive_path} #{safe_embedded_path}
-      EOH
-      )
-      FileUtils.rm_rf "#{safe_embedded_path}"
-    end
-
-    # Create the embedded zips and delete their folders
-    if File.exist?(windows_safe_path(install_dir, "embedded3"))
-      generate_embedded_archive(3)
-    end
-
-    if File.exist?(windows_safe_path(install_dir, "embedded2"))
-      generate_embedded_archive(2)
-    end
-  end
+package :xz do
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 # ------------------------------------
 # Dependencies
 # ------------------------------------
 
-# creates required build directories
-dependency 'datadog-agent-prepare'
+if do_build
+  # Datadog agent
+  dependency 'datadog-agent'
 
-# Linux-specific dependencies
-if linux?
-  dependency 'procps-ng'
-  dependency 'curl'
-end
-
-# Datadog agent
-dependency 'datadog-agent'
-
-# System-probe
-if linux?
-  dependency 'system-probe'
-end
-
-# Additional software
-if windows?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
+  # This depends on the agent and must be added after it
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-security-agent-policies'
   end
-end
-# Bundled cacerts file (is this a good idea?)
-dependency 'cacerts'
 
-if osx?
-  dependency 'datadog-agent-mac-app'
-end
+  # System-probe
+  if sysprobe_enabled?
+    dependency 'system-probe'
+  end
 
-if with_python_runtime? "2"
-  dependency 'pylint2'
-  dependency 'datadog-agent-integrations-py2'
-end
+  if osx_target?
+    dependency 'datadog-agent-mac-app'
+  end
 
-if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
-end
 
-if linux?
-  dependency 'datadog-security-agent-policies'
-end
-
-# Include traps db file in snmp.d/traps_db/
-dependency 'snmp-traps'
-
-# External agents
-dependency 'jmxfetch'
-
-# version manifest file
-dependency 'version-manifest'
-
-# this dependency puts few files out of the omnibus install dir and move them
-# in the final destination. This way such files will be listed in the packages
-# manifest and owned by the package manager. This is the only point in the build
-# process where we operate outside the omnibus install dir, thus the need of
-# the `extra_package_file` directive.
-# This must be the last dependency in the project.
-dependency 'datadog-agent-finalize'
-dependency 'datadog-cf-finalize'
-
-if linux?
-  extra_package_file '/etc/init/datadog-agent.conf'
-  extra_package_file '/etc/init/datadog-agent-process.conf'
-  extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
-  extra_package_file '/etc/init/datadog-agent-trace.conf'
-  extra_package_file '/etc/init/datadog-agent-security.conf'
-  systemd_directory = "/usr/lib/systemd/system"
-  if debian?
-    systemd_directory = "/lib/systemd/system"
-
-    extra_package_file "/etc/init.d/datadog-agent"
-    extra_package_file "/etc/init.d/datadog-agent-process"
-    extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
+  if linux_target?
+    dependency 'datadog-security-agent-policies'
   end
-  extra_package_file "#{systemd_directory}/datadog-agent.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-security.service"
-  extra_package_file '/etc/datadog-agent/'
+
+  # this dependency puts few files out of the omnibus install dir and move them
+  # in the final destination. This way such files will be listed in the packages
+  # manifest and owned by the package manager. This is the only point in the build
+  # process where we operate outside the omnibus install dir, thus the need of
+  # the `extra_package_file` directive.
+  # This must be the last dependency in the project.
+  dependency 'datadog-agent-finalize'
+  dependency 'datadog-cf-finalize'
+  # Special csae for heroku which does build & packaging in a single step
+  if do_package
+    dependency "init-scripts-agent"
+  end
+elsif do_package
+  dependency "package-artifact"
+  dependency "init-scripts-agent"
+end
+
+if linux_target?
+  extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
 end
 
 # all flavors use the same package scripts
-if linux?
-  if debian?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
-  else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+if linux_target?
+  if do_build && !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
   end
-elsif osx?
+  if do_package
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+    end
+  end
+elsif osx_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
 end
 
@@ -359,24 +289,67 @@ resources_path "#{Omnibus::Config.project_root}/resources/agent"
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if windows?
-  #
-  # For Windows build, files need to be stripped must be specified here.
-  #
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+if windows_target?
+  FORBIDDEN_SYMBOLS = [
+    "github.com/golang/glog"
+  ]
+
+  raise_if_forbidden_symbol_found = Proc.new { |symbols|
+    FORBIDDEN_SYMBOLS.each do |fs|
+      count = symbols.scan(fs).count()
+      if count > 0
+        raise ForbiddenSymbolsFoundError.new("#{fs} should not be present in the Agent binary but #{count} was found")
+      end
+    end
+  }
+
+  GO_BINARIES = [
+    "#{install_dir}\\bin\\agent\\agent.exe",
+    "#{install_dir}\\bin\\agent\\trace-agent.exe",
+    "#{install_dir}\\bin\\agent\\process-agent.exe",
+    "#{install_dir}\\bin\\agent\\system-probe.exe"
+  ]
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
+  end
+
+  raise_if_fips_symbol_not_found = Proc.new { |symbols|
+    count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
+    if count == 0
+      raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
+    end
+  }
+
+  GO_BINARIES.each do |bin|
+    # Check the exported symbols from the binary
+    inspect_binary(bin, &raise_if_forbidden_symbol_found)
+
+    if fips_mode?
+      # Check that CNG symbols are present
+      inspect_binary(bin, &raise_if_fips_symbol_not_found)
+    end
+
+    # strip the binary of debug symbols
+    windows_symbol_stripping_file bin
+  end
+
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    BINARIES_TO_SIGN = GO_BINARIES + [
+      "#{install_dir}\\bin\\agent\\ddtray.exe",
+      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+    ]
+
+    BINARIES_TO_SIGN.each do |bin|
+      sign_file bin
+    end
+  end
+
 end
 
-if linux? or windows?
+if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
-  strip_build true
+  strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
 end

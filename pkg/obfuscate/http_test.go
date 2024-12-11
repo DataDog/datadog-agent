@@ -23,6 +23,11 @@ func TestObfuscateHTTP(t *testing.T) {
 		out: testURL,
 	}, nil))
 
+	t.Run("disabledUserinfo", testHTTPObfuscation(&inOutTest{
+		in:  "http://user:password@foo.com/1/2/3?q=james",
+		out: "http://foo.com/1/2/3?q=james",
+	}, nil))
+
 	t.Run("query", func(t *testing.T) {
 		conf := &Config{HTTP: HTTPConfig{
 			RemoveQueryString: true,
@@ -51,6 +56,10 @@ func TestObfuscateHTTP(t *testing.T) {
 			{
 				in:  "http://foo.com/id/123/pa%3Fge/1?blabla",
 				out: "http://foo.com/id/123/pa%3Fge/1?",
+			},
+			{
+				in:  "http://user:password@foo.com/1/2/3?q=james",
+				out: "http://foo.com/1/2/3?",
 			},
 		} {
 			t.Run(strconv.Itoa(ti), testHTTPObfuscation(&tt, conf))
@@ -98,6 +107,10 @@ func TestObfuscateHTTP(t *testing.T) {
 				in:  "http://foo.com/1%3F3/nam%3Fe/abcd9",
 				out: "http://foo.com/?/nam%3Fe/?",
 			},
+			{
+				in:  "http://user:password@foo.com/1/2/3?q=james",
+				out: "http://foo.com/?/?/??q=james",
+			},
 		} {
 			t.Run(strconv.Itoa(ti), testHTTPObfuscation(&tt, conf))
 		}
@@ -136,6 +149,10 @@ func TestObfuscateHTTP(t *testing.T) {
 			{
 				in:  "http://foo.com/id/123/pa%3Fge/1?blabla",
 				out: "http://foo.com/id/?/pa%3Fge/??",
+			},
+			{
+				in:  "http://user:password@foo.com/1/2/3?q=james",
+				out: "http://foo.com/?/?/??",
 			},
 		} {
 			t.Run(strconv.Itoa(ti), testHTTPObfuscation(&tt, conf))

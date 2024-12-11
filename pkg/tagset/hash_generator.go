@@ -102,12 +102,11 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 					hashes[i] = hashes[ntags-1]
 					ntags--
 					break
-				} else {
-					// move 'right' in the hashset because there is already a value,
-					// in this bucket, which is not the one we're dealing with right now,
-					// we may have already seen this tag
-					j = (j + 1) & mask
 				}
+				// move 'right' in the hashset because there is already a value,
+				// in this bucket, which is not the one we're dealing with right now,
+				// we may have already seen this tag
+				j = (j + 1) & mask
 			}
 		}
 		tb.Truncate(ntags)
@@ -140,7 +139,7 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 // tag each tag is present once in either l or r, but not both at the same time.
 //
 // First, duplicates are removed from l. Then duplicates are removed from r, including any tags that
-// are already present in l. Can move tags from one accumulator to another.
+// are already present in l.
 func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumulator) {
 	ntags := l.Len() + r.Len()
 
@@ -154,9 +153,9 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 	//    less than 16 tags
 	//  - n > hashSetSize: sort
 	if ntags > hashSetSize {
-		l.AppendHashingAccumulator(r)
 		l.SortUniq()
-		r.Reset()
+		r.SortUniq()
+		r.removeSorted(l)
 	} else if ntags > bruteforceSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster

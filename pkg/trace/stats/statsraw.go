@@ -6,13 +6,15 @@
 package stats
 
 import (
+	"math"
 	"math/rand"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+
+	"github.com/golang/protobuf/proto"
 
 	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/golang/protobuf/proto"
 )
 
 const (
@@ -36,6 +38,7 @@ type groupedStats struct {
 	duration        float64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
+	peerTags        []string
 }
 
 // round a float to an int, uniformly choosing
@@ -48,18 +51,18 @@ func round(f float64) uint64 {
 	return i
 }
 
-func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
+func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	msg := s.okDistribution.ToProto()
 	okSummary, err := proto.Marshal(msg)
 	if err != nil {
-		return pb.ClientGroupedStats{}, err
+		return &pb.ClientGroupedStats{}, err
 	}
 	msg = s.errDistribution.ToProto()
 	errSummary, err := proto.Marshal(msg)
 	if err != nil {
-		return pb.ClientGroupedStats{}, err
+		return &pb.ClientGroupedStats{}, err
 	}
-	return pb.ClientGroupedStats{
+	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,
 		Resource:       a.Resource,
@@ -72,6 +75,9 @@ func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
 		Synthetics:     a.Synthetics,
+		SpanKind:       a.SpanKind,
+		PeerTags:       s.peerTags,
+		IsTraceRoot:    a.IsTraceRoot,
 	}, nil
 }
 
@@ -101,23 +107,26 @@ type RawBucket struct {
 
 	// this should really remain private as it's subject to refactoring
 	data map[Aggregation]*groupedStats
+
+	containerTagsByID map[string][]string // a map from container ID to container tags
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
 func NewRawBucket(ts, d uint64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
 	return &RawBucket{
-		start:    ts,
-		duration: d,
-		data:     make(map[Aggregation]*groupedStats),
+		start:             ts,
+		duration:          d,
+		data:              make(map[Aggregation]*groupedStats),
+		containerTagsByID: make(map[string][]string),
 	}
 }
 
 // Export transforms a RawBucket into a ClientStatsBucket, typically used
 // before communicating data to the API, as RawBucket is the internal
 // type while ClientStatsBucket is the public, shared one.
-func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
-	m := make(map[PayloadAggregationKey]pb.ClientStatsBucket)
+func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
+	m := make(map[PayloadAggregationKey]*pb.ClientStatsBucket)
 	for k, v := range sb.data {
 		b, err := v.export(k)
 		if err != nil {
@@ -125,14 +134,16 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 			continue
 		}
 		key := PayloadAggregationKey{
-			Hostname:    k.Hostname,
-			Version:     k.Version,
-			Env:         k.Env,
-			ContainerID: k.ContainerID,
+			Hostname:     k.Hostname,
+			Version:      k.Version,
+			Env:          k.Env,
+			ContainerID:  k.ContainerID,
+			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
 		}
 		s, ok := m[key]
 		if !ok {
-			s = pb.ClientStatsBucket{
+			s = &pb.ClientStatsBucket{
 				Start:    sb.start,
 				Duration: sb.duration,
 			}
@@ -144,33 +155,34 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey) {
+func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
 	aggr := NewAggregationFromSpan(s, origin, aggKey)
-	sb.add(s, weight, isTop, aggr)
+	sb.add(s, weight, aggr)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation) {
+func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 	var gs *groupedStats
 	var ok bool
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
+		gs.peerTags = s.matchingPeerTags
 		sb.data[aggr] = gs
 	}
-	if isTop {
+	if s.isTopLevel {
 		gs.topLevelHits += weight
 	}
 	gs.hits += weight
-	if s.Error != 0 {
+	if s.error != 0 {
 		gs.errors += weight
 	}
-	gs.duration += float64(s.Duration) * weight
+	gs.duration += float64(s.duration) * weight
 	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
-	if s.Error != 0 {
+	trundur := nsTimestampToFloat(s.duration)
+	if s.error != 0 {
 		if err := gs.errDistribution.Add(trundur); err != nil {
 			log.Debugf("Error adding error distribution stats: %v", err)
 		}
@@ -181,15 +193,14 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 	}
 }
 
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask int64 = 1 << 10
-
 // nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
 func nsTimestampToFloat(ns int64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
+	b := math.Float64bits(float64(ns))
+	// IEEE-754
+	// the mask include 1 bit sign 11 bits exponent (0xfff)
+	// then we filter the mantissa to 10bits (0xff8) (9 bits as it has implicit value of 1)
+	// 10 bits precision (any value will be +/- 1/1024)
+	// https://en.wikipedia.org/wiki/Double-precision_floating-point_format
+	b &= 0xfffff80000000000
+	return math.Float64frombits(b)
 }

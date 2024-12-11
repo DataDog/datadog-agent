@@ -6,10 +6,12 @@
 package containerlifecycle
 
 import (
+	"context"
 	"strconv"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,33 +34,34 @@ func modelEvents(objIDs ...string) []*model.Event {
 }
 
 func TestSingleQueueAdd(t *testing.T) {
+	hname, _ := hostname.Get(context.TODO())
 	commonChunkSize := 2
 
 	tests := []struct {
 		name string
-		data []model.EventsPayload
+		data []*model.EventsPayload
 		ev   event
-		want []model.EventsPayload
+		want []*model.EventsPayload
 	}{
 		{
 			name: "empty queue",
-			data: []model.EventsPayload{},
+			data: []*model.EventsPayload{},
 			ev:   fakeContainerEvent("obj1"),
-			want: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
+			want: []*model.EventsPayload{{Version: "v1", Host: hname, Events: modelEvents("obj1")}},
 		},
 		{
 			name: "last payload not full",
-			data: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
+			data: []*model.EventsPayload{{Version: "v1", Host: hname, Events: modelEvents("obj1")}},
 			ev:   fakeContainerEvent("obj2"),
-			want: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
+			want: []*model.EventsPayload{{Version: "v1", Host: hname, Events: modelEvents("obj1", "obj2")}},
 		},
 		{
 			name: "last payload full",
-			data: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
+			data: []*model.EventsPayload{{Version: "v1", Host: hname, Events: modelEvents("obj1", "obj2")}},
 			ev:   fakeContainerEvent("obj3"),
-			want: []model.EventsPayload{
-				{Version: "v1", Events: modelEvents("obj1", "obj2")},
-				{Version: "v1", Events: modelEvents("obj3")},
+			want: []*model.EventsPayload{
+				{Version: "v1", Host: hname, Events: modelEvents("obj1", "obj2")},
+				{Version: "v1", Host: hname, Events: modelEvents("obj3")},
 			},
 		},
 	}

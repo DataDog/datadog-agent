@@ -4,14 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package helm implements the Helm cluster check.
 package helm
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,29 +22,28 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	checkName               = "helm"
+	// CheckName is the name of the check
+	CheckName               = "helm"
 	serviceCheckName        = "helm.release_state"
 	maximumWaitForAPIServer = 10 * time.Second
 	defaultExtraSyncTimeout = 120 * time.Second
 	defaultResyncInterval   = 10 * time.Minute
 	labelSelector           = "owner=helm"
 )
-
-func init() {
-	core.RegisterCheck(checkName, factory)
-}
 
 type helmStorage string
 
@@ -66,37 +66,45 @@ type HelmCheck struct {
 	informerFactory   informers.SharedInformerFactory
 	startTS           time.Time
 	once              sync.Once
+	informersStopCh   chan struct{}
 }
 
 type checkConfig struct {
-	CollectEvents                  bool `yaml:"collect_events"`
-	ExtraSyncTimeoutSeconds        int  `yaml:"extra_sync_timeout_seconds"`
-	InformersResyncIntervalMinutes int  `yaml:"informers_resync_interval_minutes"`
+	CollectEvents                  bool              `yaml:"collect_events"`
+	HelmValuesAsTags               map[string]string `yaml:"helm_values_as_tags"`
+	ExtraSyncTimeoutSeconds        int               `yaml:"extra_sync_timeout_seconds"`
+	InformersResyncIntervalMinutes int               `yaml:"informers_resync_interval_minutes"`
 }
 
 // Parse parses the config and sets default values
 func (cc *checkConfig) Parse(data []byte) error {
 	// default values
 	cc.CollectEvents = false
+	cc.HelmValuesAsTags = make(map[string]string)
 
 	return yaml.Unmarshal(data, cc)
 }
 
-func factory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &HelmCheck{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},
 		store:             newReleasesStore(),
-		runLeaderElection: !config.IsCLCRunner(),
+		runLeaderElection: !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		eventsManager:     &eventsManager{},
 	}
 }
 
 // Configure configures the Helm check
-func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
-	hc.BuildID(config, initConfig)
+func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(initConfig, config, source)
+	err := hc.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -115,6 +123,7 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 
 	hc.setSharedInformerFactory(apiClient)
 	hc.startTS = time.Now()
+	hc.informersStopCh = make(chan struct{})
 
 	return nil
 }
@@ -149,7 +158,8 @@ func (hc *HelmCheck) Run() error {
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
-			sender.Gauge("helm.release", 1, "", tagsForMetricsAndEvents(rel, storageDriver, true))
+			tags := append(rel.commonTags, rel.tagsForMetricsAndEvents...)
+			sender.Gauge("helm.release", 1, "", tags)
 		}
 	}
 
@@ -162,24 +172,31 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
-func (hc *HelmCheck) setupInformers() error {
-	stopCh := make(chan struct{})
+// Cancel cancels the check
+func (hc *HelmCheck) Cancel() {
+	close(hc.informersStopCh)
+}
 
+func (hc *HelmCheck) setupInformers() error {
 	secretInformer := hc.informerFactory.Core().V1().Secrets()
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
-	})
-	go secretInformer.Informer().Run(stopCh)
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
+	go secretInformer.Informer().Run(hc.informersStopCh)
 
 	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
-	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addConfigmap,
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
-	})
-	go configmapInformer.Informer().Run(stopCh)
+	}); err != nil {
+		log.Errorf("cannot add event handler to config map informer: %v", err)
+	}
+	go configmapInformer.Informer().Run(hc.informersStopCh)
 
 	return apiserver.SyncInformers(
 		map[apiserver.InformerName]cache.SharedInformer{
@@ -191,17 +208,22 @@ func (hc *HelmCheck) setupInformers() error {
 }
 
 func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
-	hc.informerFactory = informers.NewSharedInformerFactoryWithOptions(
-		apiClient.Cl,
-		hc.getInformersResyncPeriod(),
+	hc.informerFactory = apiClient.GetInformerWithOptions(
+		pointer.Ptr(hc.getInformersResyncPeriod()),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
-		}),
+		}))
+}
+
+func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
+	return append(
+		commonTags(release, storageDriver),
+		hc.tagsForMetricsAndEvents(release, includeRevision)...,
 	)
 }
 
-func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
-	tags := tagsForServiceCheck(release, storageDriver)
+func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision bool) []string {
+	var tags []string
 
 	if includeRevision {
 		tags = append(tags, fmt.Sprintf("helm_revision:%d", release.Version))
@@ -210,10 +232,15 @@ func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includ
 	// I've found releases without a chart reference. Not sure if it's due to
 	// failed deployments, bugs in Helm, etc.
 	if release.Chart != nil && release.Chart.Metadata != nil {
+		// The helm_chart tag matches the value of the standard label helm.sh/chart
+		// https://helm.sh/docs/chart_best_practices/labels/
+		escapedVersion := strings.ReplaceAll(release.Chart.Metadata.Version, "+", "_")
+		helmChartTag := fmt.Sprintf("helm_chart:%s-%s", release.Chart.Metadata.Name, escapedVersion)
 		tags = append(
 			tags,
 			fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
 			fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
+			helmChartTag,
 		)
 	}
 
@@ -221,12 +248,22 @@ func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includ
 		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
 	}
 
+	for helmValue, tagName := range hc.instance.HelmValuesAsTags {
+		value, err := release.getConfigValue(helmValue)
+		if err != nil {
+			log.Tracef("Value for %s specified in helm_values_as_tags not found", helmValue)
+			continue
+		}
+		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))
+	}
+
 	return tags
 }
 
-// tagsForServiceCheck returns the tags needed for the service check which
-// are the ones that don't change between revisions
-func tagsForServiceCheck(release *release, storageDriver helmStorage) []string {
+// commonTags returns the common tags that are included in service checks, the
+// metrics, and the events. These are the tags that don't change between
+// revisions
+func commonTags(release *release, storageDriver helmStorage) []string {
 	tags := []string{
 		fmt.Sprintf("helm_release:%s", release.Name),
 		fmt.Sprintf("helm_storage:%s", storageDriver),
@@ -371,15 +408,29 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 
 	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
 
+	genericTags := commonTags(decodedRelease, storageDriver)
+	tagsMetricsAndEvents := hc.tagsForMetricsAndEvents(decodedRelease, true)
+	allTags := append(genericTags, tagsMetricsAndEvents...)
+
 	if needToEmitEvent {
 		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
-			hc.eventsManager.addEventForUpdatedRelease(previous, decodedRelease, storageDriver)
+			hc.eventsManager.addEventForUpdatedRelease(previous.release, decodedRelease, allTags)
 		} else {
-			hc.eventsManager.addEventForNewRelease(decodedRelease, storageDriver)
+			hc.eventsManager.addEventForNewRelease(decodedRelease, allTags)
 		}
 	}
 
-	hc.store.add(decodedRelease, storageDriver)
+	// The Helm values stored in "Config" and "Chart.Values" are needed only for
+	// the "helm values as tags" option. We've already generated the tags that
+	// we need, so we don't need to store the Helm values. This is important
+	// because the Helm values might need a lot of memory on clusters with many
+	// helm charts and configuration options.
+	decodedRelease.Config = nil
+	if decodedRelease.Chart != nil {
+		decodedRelease.Chart.Values = nil
+	}
+
+	hc.store.add(decodedRelease, storageDriver, genericTags, tagsMetricsAndEvents)
 }
 
 func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
@@ -395,7 +446,8 @@ func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStor
 	// time. To avoid generating many events with the same info, we just emit
 	// one when there are no more revisions left.
 	if hc.instance.CollectEvents && !moreRevisionsLeft {
-		hc.eventsManager.addEventForDeletedRelease(decodedRelease, storageDriver)
+		tags := hc.allTags(decodedRelease, storageDriver, false)
+		hc.eventsManager.addEventForDeletedRelease(decodedRelease, tags)
 	}
 }
 
@@ -404,7 +456,7 @@ func isManagedByHelm(object metav1.Object) bool {
 }
 
 func isLeader() (bool, error) {
-	if !config.Datadog.GetBool("leader_election") {
+	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 		return false, errors.New("leader election not enabled. The check will not run")
 	}
 
@@ -420,15 +472,15 @@ func isLeader() (bool, error) {
 	return true, nil
 }
 
-func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
+func (hc *HelmCheck) sendServiceCheck(sender sender.Sender) {
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
-		for _, rel := range hc.store.getLatestRevisions(storageDriver) {
-			tags := tagsForServiceCheck(rel, storageDriver)
+		for _, taggedRel := range hc.store.getLatestRevisions(storageDriver) {
+			tags := taggedRel.commonTags
 
-			if rel.Info != nil && rel.Info.Status == "failed" {
-				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
+			if taggedRel.release.Info != nil && taggedRel.release.Info.Status == "failed" {
+				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
 			} else {
-				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckOK, "", tags, "")
+				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, "", tags, "")
 			}
 		}
 	}

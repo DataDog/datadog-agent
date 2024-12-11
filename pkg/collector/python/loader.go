@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -16,17 +15,21 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/mohae/deepcopy"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 /*
@@ -53,12 +56,12 @@ const (
 	a7TagReady     = "ready"
 	a7TagNotReady  = "not_ready"
 	a7TagUnknown   = "unknown"
-	a7TagPython3   = "python3" //Already running on python3, linting is disabled
+	a7TagPython3   = "python3" // Already running on python3, linting is disabled
 )
 
 func init() {
-	factory := func() (check.Loader, error) {
-		return NewPythonCheckLoader()
+	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -80,11 +83,18 @@ func init() {
 }
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
-type PythonCheckLoader struct{}
+//
+//nolint:revive // TODO(AML) Fix revive linter
+type PythonCheckLoader struct {
+	logReceiver optional.Option[integrations.Component]
+}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader() (*PythonCheckLoader, error) {
-	return &PythonCheckLoader{}, nil
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
+	initializeCheckContext(senderManager, logReceiver, tagger)
+	return &PythonCheckLoader{
+		logReceiver: logReceiver,
+	}, nil
 }
 
 func getRtLoaderError() error {
@@ -96,18 +106,21 @@ func getRtLoaderError() error {
 }
 
 // Load returns Python loader name
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (cl *PythonCheckLoader) Name() string {
 	return "python"
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
-
 	moduleName := config.Name
+	// FastDigest is used as check id calculation does not account for tags order
+	configDigest := config.FastDigest()
 
 	// Lock the GIL
 	glock, err := newStickyLock()
@@ -117,7 +130,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	defer glock.unlock()
 
 	// Platform-specific preparation
-	if !agentConfig.Datadog.GetBool("win_skip_com_init") {
+	if !pkgconfigsetup.Datadog().GetBool("win_skip_com_init") {
 		log.Debugf("Performing platform loading prep")
 		err = platformLoaderPrep()
 		if err != nil {
@@ -174,7 +187,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getRtLoaderError())
 	}
 
-	if !agentConfig.Datadog.GetBool("disable_py3_validation") && !loadedAsWheel {
+	if !pkgconfigsetup.Datadog().GetBool("disable_py3_validation") && !loadedAsWheel {
 		// Customers, though unlikely might version their custom checks.
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
@@ -194,18 +207,26 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c, err := NewPythonCheck(moduleName, checkClass)
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass)
 	if err != nil {
 		return c, err
 	}
 
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
+		if errors.Is(err, check.ErrSkipCheckInstance) {
+			return nil, err
+		}
+
 		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
 		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())
+	}
+
+	if v, ok := cl.logReceiver.Get(); ok {
+		v.RegisterIntegration(string(c.id), config)
 	}
 
 	c.version = wheelVersion
@@ -224,16 +245,7 @@ func expvarConfigureErrors() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	configureErrorsCopy := map[string][]string{}
-	for k, v := range configureErrors {
-		errors := []string{}
-		for i := range v {
-			errors = append(errors, v[i])
-		}
-		configureErrorsCopy[k] = errors
-	}
-
-	return configureErrorsCopy
+	return deepcopy.Copy(configureErrors)
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
@@ -253,22 +265,12 @@ func expvarPy3Warnings() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	py3WarningsCopy := map[string][]string{}
-	for k, v := range py3Warnings {
-		warnings := []string{}
-		for i := range v {
-			warnings = append(warnings, v[i])
-		}
-		py3WarningsCopy[k] = warnings
-	}
-
-	return py3WarningsCopy
+	return deepcopy.Copy(py3Warnings)
 }
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
 func reportPy3Warnings(checkName string, checkFilePath string) {
-
 	// check if the check has already been linted
 	py3LintedLock.Lock()
 	_, found := py3Linted[checkName]
@@ -287,7 +289,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if strings.TrimSpace(config.Datadog.GetString("python_version")) == "3" {
+		if strings.TrimSpace(pkgconfigsetup.Datadog().GetString("python_version")) == "3" {
 			// the linter used by validatePython3 doesn't work when run from python3
 			status = a7TagPython3
 			metricValue = 1.0

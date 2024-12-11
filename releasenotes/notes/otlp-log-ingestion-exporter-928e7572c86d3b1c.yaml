@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add logsagentexporter, which is used in OTLP agent to translate ingested logs and forward them to logs-agent

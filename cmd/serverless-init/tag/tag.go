@@ -3,20 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package tag
 
 import (
-	"fmt"
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
-type tagPair struct {
+// TagPair contains a pair of tag key and value
+//
+//nolint:revive // TODO(SERV) Fix revive linter
+type TagPair struct {
 	name    string
 	envName string
 }
 
-func getTag(envName string) (string, bool) {
+func getTagFromEnv(envName string) (string, bool) {
 	value := os.Getenv(envName)
 	if len(value) == 0 {
 		return "", false
@@ -24,18 +29,10 @@ func getTag(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags + Cloud Run specific if present
-func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
-	tags := map[string]string{}
-	listTags := []tagPair{
-		{
-			name:    "revision_name",
-			envName: "K_REVISION",
-		},
-		{
-			name:    "service_name",
-			envName: "K_SERVICE",
-		},
+// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags
+func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) map[string]string {
+	tagsMap := map[string]string{}
+	listTags := []TagPair{
 		{
 			name:    "env",
 			envName: "DD_ENV",
@@ -50,26 +47,32 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 		},
 	}
 	for _, tagPair := range listTags {
-		if value, found := getTag(tagPair.envName); found {
-			tags[tagPair.name] = value
+		if value, found := getTagFromEnv(tagPair.envName); found {
+			tagsMap[tagPair.name] = value
 		}
 	}
 
 	for key, value := range metadata {
-		tags[key] = value
+		tagsMap[key] = value
 	}
 
-	tags["origin"] = "cloudrun"
+	tagsMap[versionMode] = tags.GetExtensionVersion()
+	tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
 
-	return tags
+	return tagsMap
 }
 
-// GetBaseTagsArrayWithMetadataTags see GetBaseTagsMapWithMetadata (as array)
-func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
-	tagsMap := GetBaseTagsMapWithMetadata(metadata)
-	tagsArray := make([]string, 0, len(tagsMap))
-	for key, value := range tagsMap {
-		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
+// WithoutHihCardinalityTags creates a new tag map without high cardinality tags we use on traces
+func WithoutHighCardinalityTags(tags map[string]string) map[string]string {
+	newTags := make(map[string]string, len(tags))
+	for k, v := range tags {
+		if k != "container_id" &&
+			k != "gcr.container_id" &&
+			k != "gcrfx.container_id" &&
+			k != "replica_name" &&
+			k != "aca.replica.name" {
+			newTags[k] = v
+		}
 	}
-	return tagsArray
+	return newTags
 }

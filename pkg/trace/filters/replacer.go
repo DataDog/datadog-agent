@@ -6,10 +6,12 @@
 package filters
 
 import (
+	"regexp"
 	"strconv"
+	"strings"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // Replacer is a filter which replaces tag values based on its
@@ -23,6 +25,8 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 	return &Replacer{rules: rules}
 }
 
+const hiddenTagPrefix = "_"
+
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
@@ -31,21 +35,43 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
-					s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
+					if !strings.HasPrefix(k, hiddenTagPrefix) {
+						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
+					}
+				}
+				for k := range s.Metrics {
+					if !strings.HasPrefix(k, hiddenTagPrefix) {
+						f.replaceNumericTag(re, s, k, str)
+					}
 				}
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			case "resource.name":
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			default:
-				if s.Meta == nil {
-					continue
+				if s.Meta != nil {
+					if _, ok := s.Meta[key]; ok {
+						s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
+					}
 				}
-				if _, ok := s.Meta[key]; !ok {
-					continue
+				if s.Metrics != nil {
+					if _, ok := s.Metrics[key]; ok {
+						f.replaceNumericTag(re, s, key, str)
+					}
 				}
-				s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
 			}
 		}
+	}
+}
+
+// replaceNumericTag acts on the `metrics` portion of a span, if the resulting replacement is no longer a string the tag
+// is moved to the `meta`.
+func (f Replacer) replaceNumericTag(re *regexp.Regexp, s *pb.Span, key string, str string) {
+	replacedValue := re.ReplaceAllString(strconv.FormatFloat(s.Metrics[key], 'f', -1, 64), str)
+	if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
+		s.Metrics[key] = rf
+	} else {
+		s.Meta[key] = replacedValue
+		delete(s.Metrics, key)
 	}
 }
 
@@ -60,7 +86,7 @@ func (f Replacer) ReplaceStatsGroup(b *pb.ClientGroupedStats) {
 			b.Resource = re.ReplaceAllString(b.Resource, str)
 			fallthrough
 		case "http.status_code":
-			strcode := re.ReplaceAllString(strconv.Itoa(int(b.HTTPStatusCode)), str)
+			strcode := re.ReplaceAllString(strconv.FormatUint(uint64(b.HTTPStatusCode), 10), str)
 			if code, err := strconv.ParseUint(strcode, 10, 32); err == nil {
 				b.HTTPStatusCode = uint32(code)
 			}

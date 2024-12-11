@@ -13,14 +13,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -63,13 +64,16 @@ func processEvents(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			log("processEvent context done")
 			return
 		default:
 			res, err := extensionClient.NextEvent(ctx)
 			if err != nil {
+				log("an error occurred: %v", err)
 				return
 			}
 			if res.EventType == Shutdown {
+				log("shutdown signal received")
 				time.Sleep(1900 * time.Millisecond)
 				return
 			}
@@ -173,10 +177,10 @@ func (e *Client) NextEvent(ctx context.Context) (*NextEventResponse, error) {
 		return nil, err
 	}
 	if httpRes.StatusCode != 200 {
-		return nil, fmt.Errorf("request failed with status %s", httpRes.Status)
+		return nil, fmt.Errorf("%s %s failed with status %s", httpReq.Method, httpReq.URL.String(), httpRes.Status)
 	}
 	defer httpRes.Body.Close()
-	body, err := ioutil.ReadAll(httpRes.Body)
+	body, err := io.ReadAll(httpRes.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -194,44 +198,33 @@ func Start(port string) {
 }
 
 func startHTTPServer(port string) {
-	http.HandleFunc("/api/beta/sketches", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/beta/sketches", func(_ http.ResponseWriter, r *http.Request) {
 		nbHitMetrics++
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			fmt.Printf("Error while reading HTTP request body: %s \n", err)
+			log("error while reading HTTP request body: %v", err)
 			return
 		}
 		pl := new(gogen.SketchPayload)
 		if err := pl.Unmarshal(body); err != nil {
-			fmt.Printf("Error while unmarshalling sketches %s \n", err)
+			log("error while unmarshalling sketches: %v", err)
 			return
 		}
 
-		for _, sketch := range pl.Sketches {
-			sort.Strings(sketch.Tags)
-			sketch.Dogsketches = make([]gogen.SketchPayload_Sketch_Dogsketch, 0)
-			outputSketches = append(outputSketches, sketch)
-		}
+		outputSketches = append(outputSketches, pl.Sketches...)
 
 		if nbHitMetrics == 3 {
 			// two calls + shutdown
-			sort.SliceStable(outputSketches, func(i, j int) bool {
-				return outputSketches[i].Metric < outputSketches[j].Metric
-			})
 			jsonSketch, err := json.Marshal(outputSketches)
 			if err != nil {
-				fmt.Printf("Error while JSON encoding the sketch")
+				log("error while JSON encoding the sketch: %v", err)
 			}
 			fmt.Printf("%s%s%s\n", "BEGINMETRIC", string(jsonSketch), "ENDMETRIC")
 		}
 	})
 
-	http.HandleFunc("/api/v2/logs", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return
-		}
-		decompressedBody, err := decompress(body)
+	http.HandleFunc("/api/v2/logs", func(_ http.ResponseWriter, r *http.Request) {
+		decompressedBody, err := decodeHTTPBody(r)
 		if err != nil {
 			return
 		}
@@ -240,26 +233,26 @@ func startHTTPServer(port string) {
 			return
 		}
 
+		privateLogPrefix := fmt.Sprintf("[%s]", extensionName)
 		for _, log := range messages {
-			if !strings.Contains(log.Message.Message, "BEGINLOG") && !strings.Contains(log.Message.Message, "BEGINTRACE") {
-				if strings.HasPrefix(log.Message.Message, "REPORT RequestId:") {
-					log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
-					nbReport++
-				}
-				sortedTags := strings.Split(log.Tags, ",")
-				sort.Strings(sortedTags)
-				log.Tags = strings.Join(sortedTags, ",")
-				if !strings.Contains(log.Message.Message, "DATADOG TRACER CONFIGURATION") {
-					// skip dd-trace-go tracer configuration output
-					outputLogs = append(outputLogs, log)
-				}
+			msg := log.Message.Message
+			if strings.Contains(msg, "BEGINMETRIC") ||
+				strings.Contains(msg, "BEGINLOG") ||
+				strings.Contains(msg, "BEGINTRACE") ||
+				// "Private" entries produced by the "log" function are not reported back to the test suites.
+				strings.Contains(msg, privateLogPrefix) {
+				continue
 			}
+			if strings.HasPrefix(msg, "REPORT RequestId:") {
+				nbReport++
+			}
+			outputLogs = append(outputLogs, log)
 		}
 
 		if nbReport == 2 && !hasBeenOutput {
 			jsonLogs, err := json.Marshal(outputLogs)
 			if err != nil {
-				fmt.Printf("Error while JSON encoding the logs")
+				log("error while JSON encoding the logs: %v", err)
 			}
 			fmt.Printf("%s%s%s\n", "BEGINLOG", string(jsonLogs), "ENDLOG")
 			hasBeenOutput = true // make sure not re re-output the logs
@@ -267,37 +260,43 @@ func startHTTPServer(port string) {
 
 	})
 
-	http.HandleFunc("/api/v0.2/traces", func(w http.ResponseWriter, r *http.Request) {
-		nbHitTraces++
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return
-		}
-		decompressedBody, err := decompress(body)
-		if err != nil {
-			return
-		}
-		pl := new(pb.AgentPayload)
-		if err := pl.Unmarshal(decompressedBody); err != nil {
-			fmt.Printf("Error while unmarshalling traces %s \n", err)
-			return
-		}
-
-		outputTraces = append(outputTraces, pl.TracerPayloads...)
-
-		if nbHitTraces == 2 {
-			jsonLogs, err := json.Marshal(outputTraces)
+	for _, version := range []string{"v0.2", "v0.4"} {
+		http.HandleFunc(fmt.Sprintf("/api/%s/traces", version), func(_ http.ResponseWriter, r *http.Request) {
+			nbHitTraces++
+			decompressedBody, err := decodeHTTPBody(r)
 			if err != nil {
-				fmt.Printf("Error while JSON encoding the traces")
+				return
 			}
-			fmt.Printf("%s%s%s\n", "BEGINTRACE", string(jsonLogs), "ENDTRACE")
-		}
-	})
+			pl := new(pb.AgentPayload)
+			if err := pl.Unmarshal(decompressedBody); err != nil {
+				log("error while unmarshalling traces: %s", err)
+				return
+			}
 
-	http.HandleFunc("/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
-	})
+			outputTraces = append(outputTraces, pl.TracerPayloads...)
 
-	http.HandleFunc("/api/v1/check_run", func(w http.ResponseWriter, r *http.Request) {
+			if nbHitTraces == 2 {
+				jsonLogs, err := json.Marshal(outputTraces)
+				if err != nil {
+					log("error while JSON encoding the traces: %v", err)
+				}
+				fmt.Printf("%s%s%s\n", "BEGINTRACE", string(jsonLogs), "ENDTRACE")
+			}
+		})
+	}
+
+	for _, pattern := range []string{
+		"/api/v0.2/stats",
+		"/api/v1/check_run",
+		"/api/v1/series",
+	} {
+		// These endpoints are ignored by the recorder and silently return an empty success response.
+		http.HandleFunc(pattern, func(_ http.ResponseWriter, _ *http.Request) { /* do nothing */ })
+	}
+
+	// This is actually a wildcard handler....
+	http.HandleFunc("/", func(_ http.ResponseWriter, r *http.Request) {
+		log("unexpected request: %s %s", r.Method, r.URL.String())
 	})
 
 	err := http.ListenAndServe(":"+port, nil)
@@ -306,17 +305,37 @@ func startHTTPServer(port string) {
 	}
 }
 
-func decompress(payload []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
+// decodeHTTPBody decodes an HTTP request body based on the Content-Encoding header.
+// It defaults to gzip if the header is not present.
+func decodeHTTPBody(r *http.Request) ([]byte, error) {
+	var reader io.ReadCloser
+	var err error
+
+	encoding := strings.ToLower(r.Header.Get("Content-Encoding"))
+	switch encoding {
+	case "zstd":
+		reader = zstd.NewReader(r.Body)
+		defer reader.Close()
+	case "gzip", "":
+		reader, err = gzip.NewReader(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer reader.Close()
+	default:
+		return nil, fmt.Errorf("unsupported encoding: %s", encoding)
 	}
 
 	var buffer bytes.Buffer
 	_, err = buffer.ReadFrom(reader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	return buffer.Bytes(), nil
+}
+
+// log records a message that is "private" to this extension and will not be reported back in the BEGINLOG...ENDLOG blocks.
+func log(format string, args ...any) {
+	fmt.Printf("[%s] %s\n", extensionName, fmt.Sprintf(format, args...))
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Cluster Agent availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Cluster Agent availability", diagnose)
 }
 
 func diagnose() error {

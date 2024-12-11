@@ -10,7 +10,6 @@
 // license that can be found here: https://github.com/coreos/go-systemd/blob/master/LICENSE
 
 //go:build systemd
-// +build systemd
 
 package systemd
 
@@ -19,8 +18,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/coreos/go-systemd/dbus"
-	godbus "github.com/godbus/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
+	godbus "github.com/godbus/dbus/v5"
 )
 
 // NewSystemdConnection establishes a private, direct connection to systemd.

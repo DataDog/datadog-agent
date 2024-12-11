@@ -13,42 +13,43 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
-	mockConfig.Set("tags", tags)
-	defer mockConfig.Set("tags", nil)
+	mockConfig.SetWithoutSource("tags", tags)
+	defer mockConfig.SetWithoutSource("tags", nil)
 
-	mockConfig.Set("logs_config.expected_tags_duration", "0")
+	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
 
 	p := NewLocalProvider([]string{})
 	assert.Equal(t, 0, len(p.GetTags()))
 }
 
 func TestLocalProviderExpectedTags(t *testing.T) {
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	clock := clock.NewMock()
 
-	oldStartTime := coreConfig.StartTime
-	coreConfig.StartTime = clock.Now()
+	oldStartTime := pkgconfigsetup.StartTime
+	pkgconfigsetup.StartTime = clock.Now()
 	defer func() {
-		coreConfig.StartTime = oldStartTime
+		pkgconfigsetup.StartTime = oldStartTime
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
-	mockConfig.Set("tags", tags)
-	defer mockConfig.Set("tags", nil)
+	mockConfig.SetWithoutSource("tags", tags)
+	defer mockConfig.SetWithoutSource("tags", nil)
 
 	expectedTagsDuration := 5 * time.Second
-	mockConfig.Set("logs_config.expected_tags_duration", "5s")
-	defer mockConfig.Set("logs_config.expected_tags_duration", "0")
+	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "5s")
+	defer mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
 
 	p := newLocalProviderWithClock([]string{}, clock)
 	pp := p.(*localProvider)

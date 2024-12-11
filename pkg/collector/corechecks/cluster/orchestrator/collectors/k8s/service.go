@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -20,6 +19,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewServiceCollectorVersions builds the group of collector versions.
+func NewServiceCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewServiceCollector(),
+	)
+}
+
 // ServiceCollector is a collector for Kubernetes Services.
 type ServiceCollector struct {
 	informer  corev1Informers.ServiceInformer
@@ -33,9 +39,14 @@ type ServiceCollector struct {
 func NewServiceCollector() *ServiceCollector {
 	return &ServiceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "services",
-			NodeType: orchestrator.K8sService,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "services",
+			NodeType:                  orchestrator.K8sService,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
 	}
@@ -48,12 +59,9 @@ func (c *ServiceCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ServiceCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Services()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Services()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ServiceCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ServiceCollector) Metadata() *collectors.CollectorMetadata {
@@ -67,13 +75,7 @@ func (c *ServiceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

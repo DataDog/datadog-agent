@@ -9,12 +9,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	stdlog "log"
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -165,6 +164,59 @@ func Test_snmpSession_Configure(t *testing.T) {
 			},
 		},
 		{
+			name: "valid v3 AuthPriv default protocol config",
+			config: checkconfig.CheckConfig{
+				User:    "myUser",
+				AuthKey: "myAuthKey",
+				PrivKey: "myPrivKey",
+			},
+			expectedVersion:  gosnmp.Version3,
+			expectedMsgFlags: gosnmp.AuthPriv,
+			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 "myUser",
+				AuthenticationProtocol:   gosnmp.MD5,
+				AuthenticationPassphrase: "myAuthKey",
+				PrivacyProtocol:          gosnmp.DES,
+				PrivacyPassphrase:        "myPrivKey",
+			},
+		},
+		{
+			name: "valid v3 Auth default config",
+			config: checkconfig.CheckConfig{
+				User:         "myUser",
+				AuthKey:      "myAuthKey",
+				PrivKey:      "myPrivKey",
+				PrivProtocol: "aes",
+			},
+			expectedVersion:  gosnmp.Version3,
+			expectedMsgFlags: gosnmp.AuthPriv,
+			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 "myUser",
+				AuthenticationProtocol:   gosnmp.MD5,
+				AuthenticationPassphrase: "myAuthKey",
+				PrivacyProtocol:          gosnmp.AES,
+				PrivacyPassphrase:        "myPrivKey",
+			},
+		},
+		{
+			name: "valid v3 Priv default config",
+			config: checkconfig.CheckConfig{
+				User:         "myUser",
+				AuthKey:      "myAuthKey",
+				AuthProtocol: "sha",
+				PrivKey:      "myPrivKey",
+			},
+			expectedVersion:  gosnmp.Version3,
+			expectedMsgFlags: gosnmp.AuthPriv,
+			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 "myUser",
+				AuthenticationProtocol:   gosnmp.SHA,
+				AuthenticationPassphrase: "myAuthKey",
+				PrivacyProtocol:          gosnmp.DES,
+				PrivacyPassphrase:        "myPrivKey",
+			},
+		},
+		{
 			name: "invalid v3 authProtocol",
 			config: checkconfig.CheckConfig{
 				IPAddress:    "1.2.3.4",
@@ -236,7 +288,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 	}
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "info")
 
@@ -253,7 +305,7 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	}
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "trace")
 
@@ -282,7 +334,7 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	gosnmpSess := s.(*GosnmpSession)
 	require.NoError(t, err)
 
-	logger := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "abc", 0))
+	logger := gosnmp.NewLogger(stdlog.New(io.Discard, "abc", 0))
 	gosnmpSess.gosnmpInst.Logger = logger
 	s.Connect()
 	assert.Equal(t, logger, gosnmpSess.gosnmpInst.Logger)
@@ -290,9 +342,114 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	s.Connect()
 	assert.Equal(t, logger, gosnmpSess.gosnmpInst.Logger)
 
-	logger2 := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "123", 0))
+	logger2 := gosnmp.NewLogger(stdlog.New(io.Discard, "123", 0))
 	gosnmpSess.gosnmpInst.Logger = logger2
 	s.Connect()
 	assert.NotEqual(t, logger, gosnmpSess.gosnmpInst.Logger)
 	assert.Equal(t, logger2, gosnmpSess.gosnmpInst.Logger)
+}
+
+func TestFetchAllOIDsUsingGetNext(t *testing.T) {
+	sess := CreateMockSession()
+
+	sess.On("GetNext", []string{"1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.1.0", gosnmp.OctetString, []byte(`123`)), nil)
+
+	// Scalar OIDs
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.2.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.3.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.3.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`)), nil)
+
+	// Table OIDs
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.3"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.9.1.3.1", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.4"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.9.1.4.1", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.5"}).Return(CreateGetNextPacket("999", gosnmp.EndOfMibView, nil), nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.9.1.2.1",
+		"1.3.6.1.2.1.1.9.1.3.1",
+		"1.3.6.1.2.1.1.9.1.4.1",
+	}, resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_invalidColumnOid(t *testing.T) {
+	sess := CreateMockSession()
+
+	sess.On("GetNext", []string{"1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`)), nil)
+	// Table OIDs
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.3"}).Return(CreateGetNextPacket("1.2.3.4.5", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.2.3.4.5"}).Return(CreateGetNextPacket("1.2.3.4.6.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.2.3.4.6.0"}).Return(CreateGetNextPacket("999", gosnmp.EndOfMibView, nil), nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.9.1.2.1",
+		"1.2.3.4.5",
+		"1.2.3.4.6.0",
+	}, resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_handleNonSequentialOIDs(t *testing.T) {
+	sess := CreateMockSession()
+
+	sess.On("GetNext", []string{"1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.3"}).Return(CreateGetNextPacket("1.2.3.4.5", gosnmp.OctetString, []byte(`123`)), nil)
+
+	// invalid non-sequential oid that might lead to infinite loop if not handled
+	sess.On("GetNext", []string{"1.2.3.4.5"}).Return(CreateGetNextPacket("1.2.3.4.5", gosnmp.OctetString, []byte(`123`)), nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.9.1.2.1",
+		"1.2.3.4.5",
+	}, resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_End(t *testing.T) {
+	tests := []struct {
+		valueType gosnmp.Asn1BER
+	}{
+		{
+			valueType: gosnmp.EndOfMibView,
+		},
+		{
+			valueType: gosnmp.EndOfContents,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.valueType.String(), func(t *testing.T) {
+			sess := CreateMockSession()
+			sess.On("GetNext", []string{"1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.1.0", gosnmp.OctetString, []byte(`123`)), nil)
+			sess.On("GetNext", []string{"1.3.6.1.2.1.1.1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.2.0", gosnmp.OctetString, []byte(`123`)), nil)
+			sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(CreateGetNextPacket("", test.valueType, nil), nil)
+			resultOIDs := FetchAllOIDsUsingGetNext(sess)
+			assert.Equal(t, []string{"1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.1.2.0"}, resultOIDs)
+
+		})
+	}
+}
+
+func TestFetchAllOIDsUsingGetNext_invalidMoreThanOneVariables(t *testing.T) {
+	sess := CreateMockSession()
+
+	packets := CreateGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`))
+	packets.Variables = append(packets.Variables, packets.Variables[0])
+	sess.On("GetNext", []string{"1.0"}).Return(packets, nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
+	assert.Equal(t, []string(nil), resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
+	sess := CreateMockSession()
+	packets := &gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{},
+	}
+	sess.On("GetNext", []string{"1.0"}).Return(packets, nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
+	assert.Equal(t, []string(nil), resultOIDs)
 }

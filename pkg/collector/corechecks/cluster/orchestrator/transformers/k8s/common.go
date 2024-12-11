@@ -4,11 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
+// Package k8s provides methods for converting kubernetes resources to protobuf model.
 package k8s
 
 import (
+	"fmt"
+	"strings"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,6 +53,10 @@ func extractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 }
 
 func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequirement {
+	if ls == nil {
+		return nil
+	}
+
 	labelSelectors := make([]*model.LabelSelectorRequirement, 0, len(ls.MatchLabels)+len(ls.MatchExpressions))
 	for k, v := range ls.MatchLabels {
 		s := model.LabelSelectorRequirement{
@@ -69,4 +76,9 @@ func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequir
 	}
 
 	return labelSelectors
+}
+
+// createConditionTag returns tags in a standard format for conditions
+func createConditionTag(conditionType string, conditionStatus string) string {
+	return fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(conditionType), strings.ToLower(conditionStatus))
 }

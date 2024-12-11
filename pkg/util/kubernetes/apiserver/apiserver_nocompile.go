@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !kubeapiserver
-// +build !kubeapiserver
 
+// Package apiserver provides an API client for the Kubernetes API server.
 package apiserver
 
 import (
@@ -19,11 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// ErrNotCompiled is returned if kubernetes apiserver support is not compiled in.
-	// User classes should handle that case as gracefully as possible.
-	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
-)
+// ErrNotCompiled is returned if kubernetes apiserver support is not compiled in.
+// User classes should handle that case as gracefully as possible.
+var ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 
 // APIClient provides authenticated access to the
 type APIClient struct {
@@ -37,19 +35,17 @@ func GetAPIClient() (*APIClient, error) {
 }
 
 // WaitForAPIClient returns the shared ApiClient instance.
-func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func WaitForAPIClient(_ context.Context) (*APIClient, error) {
 	log.Errorf("WaitForAPIClient not implemented %s", ErrNotCompiled.Error())
 	return &APIClient{}, nil
 }
 
-// GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
-	return nil, nil
-}
-
 // GetMetadataMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
-func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error) {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func GetMetadataMapBundleOnNode(_ string) (*apiv1.MetadataResponse, error) {
 	log.Errorf("GetMetadataMapBundleOnNode not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
@@ -61,12 +57,16 @@ func GetMetadataMapBundleOnAllNodes(_ *APIClient) (*apiv1.MetadataResponse, erro
 }
 
 // GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(_ *APIClient, nodeName string) (map[string]string, error) {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func GetNodeLabels(_ *APIClient, _ string) (map[string]string, error) {
 	log.Errorf("GetNodeLabels not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
 // GetKubeClient returns a Kubernetes client.
-func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func GetKubeClient(_ time.Duration, _ float32, _ int) (kubernetes.Interface, error) {
 	return nil, ErrNotCompiled
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -14,7 +13,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -22,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,7 +68,12 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 	if config.caPath != "" {
 		tlsConfig.RootCAs, err = kubernetes.GetCertificateAuthority(config.caPath)
 		if err != nil {
-			return nil, err
+			// Ignore failure in retrieving root CA as kubelet_tls_verify=false make the RootCAs parameter un-used.
+			if tlsConfig.InsecureSkipVerify {
+				log.Debugf("Failed to retrieve root certificate authority from path %s: %s. Ignoring error as kubelet_tls_verify=false", config.caPath, err)
+			} else {
+				return nil, err
+			}
 		}
 	}
 
@@ -146,7 +150,7 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 	}
 	defer response.Body.Close()
 
-	b, err := ioutil.ReadAll(response.Body)
+	b, err := io.ReadAll(response.Body)
 	if err != nil {
 		log.Debugf("Fail to read request %s body: %s", req.URL.String(), err)
 		return nil, 0, err
@@ -160,16 +164,16 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	var err error
 
 	kubeletTimeout := 30 * time.Second
-	kubeletProxyEnabled := config.Datadog.GetBool("eks_fargate")
-	kubeletHost := config.Datadog.GetString("kubernetes_kubelet_host")
-	kubeletHTTPSPort := config.Datadog.GetInt("kubernetes_https_kubelet_port")
-	kubeletHTTPPort := config.Datadog.GetInt("kubernetes_http_kubelet_port")
-	kubeletTLSVerify := config.Datadog.GetBool("kubelet_tls_verify")
-	kubeletCAPath := config.Datadog.GetString("kubelet_client_ca")
-	kubeletTokenPath := config.Datadog.GetString("kubelet_auth_token_path")
-	kubeletClientCertPath := config.Datadog.GetString("kubelet_client_crt")
-	kubeletClientKeyPath := config.Datadog.GetString("kubelet_client_key")
-	kubeletNodeName := config.Datadog.Get("kubernetes_kubelet_nodename")
+	kubeletProxyEnabled := pkgconfigsetup.Datadog().GetBool("eks_fargate")
+	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
+	kubeletHTTPSPort := pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
+	kubeletHTTPPort := pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
+	kubeletTLSVerify := pkgconfigsetup.Datadog().GetBool("kubelet_tls_verify")
+	kubeletCAPath := pkgconfigsetup.Datadog().GetString("kubelet_client_ca")
+	kubeletTokenPath := pkgconfigsetup.Datadog().GetString("kubelet_auth_token_path")
+	kubeletClientCertPath := pkgconfigsetup.Datadog().GetString("kubelet_client_crt")
+	kubeletClientKeyPath := pkgconfigsetup.Datadog().GetString("kubelet_client_key")
+	kubeletNodeName := pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename")
 	var kubeletPathPrefix string
 	var kubeletToken string
 
@@ -205,14 +209,14 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		}
 		kubeletHTTPSPort = int(httpsPort)
 
-		if config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
+		if pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename") != "" {
 			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
-			apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+			apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
 
 			potentialHosts = &connectionInfo{
-				hostnames: []string{apiServerHost},
+				ips: []string{apiServerIP},
 			}
-			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerHost, kubeletHTTPSPort, kubeletPathPrefix)
+			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerIP, kubeletHTTPSPort, kubeletPathPrefix)
 		} else {
 			return nil, errors.New("kubelet proxy mode enabled but nodename is empty - unable to query")
 		}
@@ -264,9 +268,9 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 	for _, ip := range hosts.ips {
 		// If `ip` is an IPv6, it must be enclosed in square brackets
 		if ipv6Re.MatchString(ip) {
-			clientConfig.baseURL = fmt.Sprintf("[%s]:%d", ip, port)
+			clientConfig.baseURL = fmt.Sprintf("[%s]:%d%s", ip, port, prefix)
 		} else {
-			clientConfig.baseURL = fmt.Sprintf("%s:%d", ip, port)
+			clientConfig.baseURL = fmt.Sprintf("%s:%d%s", ip, port, prefix)
 		}
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)

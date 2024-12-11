@@ -8,26 +8,41 @@ package cca
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *schedulers.MockSourceManager) {
-	ac = autodiscovery.NewAutoConfigNoStart(nil)
+func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy *schedulers.MockSourceManager) {
+	ac = fxutil.Test[autodiscovery.Mock](t,
+		fx.Supply(autodiscoveryimpl.MockParams{}),
+		secretsimpl.MockModule(),
+		autodiscoveryimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		core.MockBundle(),
+		taggermock.Module(),
+	)
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return
 }
 
 func TestNothingWhenNoConfig(t *testing.T) {
-	scheduler, _, spy := setup()
-	config := coreConfig.Mock(t)
-	config.Set("logs_config.container_collect_all", false)
+	scheduler, _, spy := setup(t)
+	config := configmock.New(t)
+	config.SetWithoutSource("logs_config.container_collect_all", false)
 
 	scheduler.Start(spy)
 
@@ -35,9 +50,9 @@ func TestNothingWhenNoConfig(t *testing.T) {
 }
 
 func TestAfterACStarts(t *testing.T) {
-	scheduler, ac, spy := setup()
-	config := coreConfig.Mock(t)
-	config.Set("logs_config.container_collect_all", true)
+	scheduler, ac, spy := setup(t)
+	config := configmock.New(t)
+	config.SetWithoutSource("logs_config.container_collect_all", true)
 
 	scheduler.Start(spy)
 

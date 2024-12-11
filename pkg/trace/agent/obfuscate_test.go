@@ -9,45 +9,25 @@ import (
 	"context"
 	"testing"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
-	_, ok := pb.MetaHook()
-	assert.False(t, ok)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.CreditCards.Enabled = true
-	NewAgent(ctx, cfg)
-	_, ok = pb.MetaHook()
-	assert.True(t, ok)
-}
-
-func TestMetaHook(t *testing.T) {
-	cco := newCreditCardsObfuscator(config.CreditCardsConfig{Enabled: true})
-	defer cco.Stop()
-	for _, tt := range []struct {
-		k, v string
-		out  string
-	}{
-		// these tags are not even checked:
-		{"error", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"_dd.something", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"env", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"service", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-		{"version", "5105-1051-0510-5100", "5105-1051-0510-5100"},
-
-		{"card.number", "5105", "5105"},
-		{"card.number", "5105-1051-0510-5100", "?"},
-	} {
-		assert.Equal(t, tt.out, cco.MetaHook(tt.k, tt.v))
-	}
+	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	assert.True(t, a.conf.Obfuscation.CreditCards.Enabled)
 }
 
 func TestObfuscateStatsGroup(t *testing.T) {
@@ -100,16 +80,19 @@ func TestObfuscateDefaults(t *testing.T) {
 		agnt, stop := agentWithDefaults()
 		defer stop()
 		agnt.obfuscateSpan(span)
-		assert.Equal(t, query, span.Meta["sql.query"])
+		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
 	})
 }
 
-func agentWithDefaults() (agnt *Agent, stop func()) {
+func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cfg := config.New()
+	for _, f := range features {
+		cfg.Features[f] = struct{}{}
+	}
 	cfg.Endpoints[0].APIKey = "test"
-	return NewAgent(ctx, cfg), cancelFunc
+	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent()), cancelFunc
 }
 
 func TestObfuscateConfig(t *testing.T) {
@@ -125,7 +108,7 @@ func TestObfuscateConfig(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Obfuscation = ocfg
-			agnt := NewAgent(ctx, cfg)
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
 			agnt.obfuscateSpan(span)
@@ -138,7 +121,18 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&config.ObfuscationConfig{Redis: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Redis: obfuscate.RedisConfig{Enabled: true}},
+	))
+
+	t.Run("redis/remove_all_args", testConfig(
+		"redis",
+		"redis.raw_command",
+		"SET key val",
+		"SET ?",
+		&config.ObfuscationConfig{Redis: obfuscate.RedisConfig{
+			Enabled:       true,
+			RemoveAllArgs: true,
+		}},
 	))
 
 	t.Run("redis/disabled", testConfig(
@@ -154,7 +148,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+		&config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
 		}},
@@ -173,7 +167,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+		&config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
 		}},
@@ -187,19 +181,47 @@ func TestObfuscateConfig(t *testing.T) {
 		&config.ObfuscationConfig{},
 	))
 
-	t.Run("json/enabled", testConfig(
+	t.Run("elasticsearch/enabled", testConfig(
 		"elasticsearch",
 		"elasticsearch.body",
 		`{"role": "database"}`,
 		`{"role":"?"}`,
 		&config.ObfuscationConfig{
-			ES: config.JSONObfuscationConfig{Enabled: true},
+			ES: obfuscate.JSONConfig{Enabled: true},
 		},
 	))
 
-	t.Run("json/disabled", testConfig(
+	t.Run("elasticsearch/disabled", testConfig(
 		"elasticsearch",
 		"elasticsearch.body",
+		`{"role": "database"}`,
+		`{"role": "database"}`,
+		&config.ObfuscationConfig{},
+	))
+
+	t.Run("opensearch/elasticsearch-type", testConfig(
+		"elasticsearch",
+		"opensearch.body",
+		`{"role": "database"}`,
+		`{"role":"?"}`,
+		&config.ObfuscationConfig{
+			OpenSearch: obfuscate.JSONConfig{Enabled: true},
+		},
+	))
+
+	t.Run("opensearch/opensearch-type", testConfig(
+		"opensearch",
+		"opensearch.body",
+		`{"role": "database"}`,
+		`{"role":"?"}`,
+		&config.ObfuscationConfig{
+			OpenSearch: obfuscate.JSONConfig{Enabled: true},
+		},
+	))
+
+	t.Run("opensearch/disabled", testConfig(
+		"elasticsearch",
+		"opensearch.body",
 		`{"role": "database"}`,
 		`{"role": "database"}`,
 		&config.ObfuscationConfig{},
@@ -209,8 +231,19 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached",
 		"memcached.command",
 		"set key 0 0 0\r\nvalue",
+		"",
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{Enabled: true}},
+	))
+
+	t.Run("memcached/keep_command", testConfig(
+		"memcached",
+		"memcached.command",
+		"set key 0 0 0\r\nvalue",
 		"set key 0 0 0",
-		&config.ObfuscationConfig{Memcached: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{
+			Enabled:     true,
+			KeepCommand: true,
+		}},
 	))
 
 	t.Run("memcached/disabled", testConfig(
@@ -220,6 +253,31 @@ func TestObfuscateConfig(t *testing.T) {
 		"set key 0 0 0 noreply\r\nvalue",
 		&config.ObfuscationConfig{},
 	))
+
+	t.Run("creditcard", func(t *testing.T) {
+		for _, tt := range []struct {
+			k, v string
+			out  string
+		}{
+			// these tags are not even checked:
+			{"error", "5105-1051-0510-5100", "5105-1051-0510-5100"},
+			{"_dd.something", "5105-1051-0510-5100", "5105-1051-0510-5100"},
+			{"env", "5105-1051-0510-5100", "5105-1051-0510-5100"},
+			{"service", "5105-1051-0510-5100", "5105-1051-0510-5100"},
+			{"version", "5105-1051-0510-5100", "5105-1051-0510-5100"},
+
+			{"card.number", "5105", "5105"},
+			{"card.number", "5105-1051-0510-5100", "?"},
+		} {
+			t.Run(tt.k, testConfig("generic",
+				tt.k,
+				tt.v,
+				tt.out,
+				&config.ObfuscationConfig{
+					CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+				}))
+		}
+	})
 }
 
 func SQLSpan(query string) *pb.Span {
@@ -234,61 +292,69 @@ func SQLSpan(query string) *pb.Span {
 
 func TestSQLResourceQuery(t *testing.T) {
 	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
-		Meta: map[string]string{
-			"sql.query": "SELECT * FROM users WHERE id = 42",
+	testCases := []*struct {
+		span *pb.Span
+	}{
+		{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     "sql",
+			},
+		},
+		{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     "sql",
+				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
+					"sql.query": "SELECT * FROM users WHERE id = 42",
+				},
+			},
 		},
 	}
 
 	agnt, stop := agentWithDefaults()
 	defer stop()
-	agnt.obfuscateSpan(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
-}
-
-func TestSQLResourceWithoutQuery(t *testing.T) {
-	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
+	for _, tc := range testCases {
+		agnt.obfuscateSpan(tc.span)
+		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
+		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
 	}
-
-	agnt, stop := agentWithDefaults()
-	defer stop()
-	agnt.obfuscateSpan(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
 
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
-	testCases := []struct {
-		span pb.Span
+	testCases := []*struct {
+		span *pb.Span
 	}{
 		{
-			pb.Span{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = '' AND '",
+				Type:     "sql",
+				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
+					"sql.query": "SELECT * FROM users WHERE id = '' AND '",
+				},
+			},
+		},
+		{
+			&pb.Span{
 				Resource: "SELECT * FROM users WHERE id = '' AND '",
 				Type:     "sql",
 			},
 		},
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1",
 				Type:     "sql",
 			},
 		},
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1)",
 				Type:     "sql",
 			},
 		},
-
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: `SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b
 ORDER BY [b].[Name]`,
@@ -300,7 +366,7 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(&tc.span)
+		agnt.obfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
 		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
@@ -308,16 +374,14 @@ ORDER BY [b].[Name]`,
 
 func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("table_names")()
 		span := &pb.Span{
 			Resource: "SELECT * FROM users WHERE id = 42",
 			Type:     "sql",
 		}
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults("table_names")
 		defer stop()
 		agnt.obfuscateSpan(span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
-
 	})
 
 	t.Run("off", func(t *testing.T) {
@@ -330,4 +394,27 @@ func TestSQLTableNames(t *testing.T) {
 		agnt.obfuscateSpan(span)
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
+}
+
+func BenchmarkCCObfuscation(b *testing.B) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		span := &pb.Span{Type: "typ", Meta: map[string]string{
+			"akey":         "somestring",
+			"bkey":         "somestring",
+			"card.number":  "5105-1051-0510-5100",
+			"_sample_rate": "1",
+			"sql.query":    "SELECT * FROM users WHERE id = 42",
+		}}
+		agnt.obfuscateSpan(span)
+	}
 }

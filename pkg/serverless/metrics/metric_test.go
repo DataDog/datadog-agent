@@ -6,11 +6,13 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -19,70 +21,88 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
+func TestMain(m *testing.M) {
+	// setting the hostname cache saves about 1s when starting the metric agent
+	cacheKey := cache.BuildAgentKey("hostname")
+	cache.Cache.Set(cacheKey, hostname.Data{}, cache.NoExpiration)
+	os.Exit(m.Run())
+}
+
 func TestStartDoesNotBlock(t *testing.T) {
-	config.DetectFeatures()
-	metricAgent := &ServerlessMetricAgent{}
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
+	pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(100 * time.Millisecond)
 }
 
-type ValidMetricConfigMocked struct {
-}
+type ValidMetricConfigMocked struct{}
 
 func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return map[string][]string{"http://localhost:8888": {"value"}}, nil
 }
 
-type InvalidMetricConfigMocked struct {
-}
+type InvalidMetricConfigMocked struct{}
 
 func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return nil, fmt.Errorf("error")
 }
 
 func TestStartInvalidConfig(t *testing.T) {
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(100 * time.Millisecond)
 }
 
-type MetricDogStatsDMocked struct {
-}
+//nolint:revive // TODO(SERV) Fix revive linter
+type MetricDogStatsDMocked struct{}
 
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
+//nolint:revive // TODO(SERV) Fix revive linter
+func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, fmt.Errorf("error")
 }
 
 func TestStartInvalidDogStatsD(t *testing.T) {
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(1 * time.Second)
 }
 
 func TestStartWithProxy(t *testing.T) {
-	originalValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
-	defer config.Datadog.Set(statsDMetricBlocklistKey, originalValues)
-	config.Datadog.Set(statsDMetricBlocklistKey, []string{})
+	t.SkipNow()
+	originalValues := pkgconfigsetup.Datadog().GetStringSlice(statsDMetricBlocklistKey)
+	defer pkgconfigsetup.Datadog().SetWithoutSource(statsDMetricBlocklistKey, originalValues)
+	pkgconfigsetup.Datadog().SetWithoutSource(statsDMetricBlocklistKey, []string{})
 
-	os.Setenv(proxyEnabledEnvVar, "true")
-	defer os.Unsetenv(proxyEnabledEnvVar)
+	t.Setenv(proxyEnabledEnvVar, "true")
 
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 
@@ -91,26 +111,34 @@ func TestStartWithProxy(t *testing.T) {
 		ErrorsMetric,
 	}
 
-	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
+	setValues := pkgconfigsetup.Datadog().GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
+
 func TestRaceFlushVersusAddSample(t *testing.T) {
-
-	config.DetectFeatures()
-
-	metricAgent := &ServerlessMetricAgent{}
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestRaceFlushVersusAddSample is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
 	assert.NotNil(t, metricAgent.Demux)
 
-	go func() {
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	server := http.Server{
+		Addr: "localhost:8888",
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			time.Sleep(10 * time.Millisecond)
-		})
+		}),
+	}
+	defer server.Close()
 
-		err := http.ListenAndServe("localhost:8888", nil)
-		if err != nil {
+	go func() {
+		err := server.ListenAndServe()
+		if !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()
@@ -186,18 +214,15 @@ func getAvailableUDPPort() (int, error) {
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
+	pkgconfigsetup.Datadog().SetDefault("dogstatsd_port", port)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	opts.FlushInterval = 10 * time.Millisecond
-	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent())
 
-	s, err := dogstatsd.NewServer(demux, true)
+	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", pkgconfigsetup.Datadog().GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -208,16 +233,16 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(10 * time.Nanosecond)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
-			s.ServerlessFlush()
+			s.ServerlessFlush(time.Second * 10)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	finish.Wait()

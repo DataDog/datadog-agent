@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package signals defines global agent signal channels
 package signals
-
-// This is a new package in order to avoid cyclical imports
 
 var (
 	// Stopper is the channel used by other packages to ask for stopping the agent

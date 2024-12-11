@@ -12,19 +12,23 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-func makeContainer(id string) *model.Container {
-	return &model.Container{
-		Id: id,
+// Returns chunking and no chunking RunOptions
+func getChunkingOption(noChunking bool) *RunOptions {
+	return &RunOptions{RunStandard: true, NoChunking: noChunking}
+}
+
+func testGroupID(groupID int32) func() int32 {
+	return func() int32 {
+		return groupID
 	}
 }
 
@@ -63,7 +67,7 @@ func makeProcessWithCreateTime(pid int32, cmdline string, createTime int64) *pro
 	return p
 }
 
-func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+func makeProcessModel(t *testing.T, process *procutil.Process, processContext []string) *model.Process {
 	t.Helper()
 
 	stats := process.Stats
@@ -80,9 +84,9 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 			SystemPct: float32(cpu.SystemPct),
 			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 		},
-		CreateTime: process.Stats.CreateTime,
-		IoStat:     &model.IOStat{},
-		Networks:   &model.ProcessNetworks{},
+		CreateTime:     process.Stats.CreateTime,
+		IoStat:         &model.IOStat{},
+		ProcessContext: processContext,
 	}
 }
 
@@ -103,48 +107,11 @@ func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*mode
 				SystemPct: float32(cpu.SystemPct),
 				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 			},
-			IoStat:   &model.IOStat{},
-			Networks: &model.ProcessNetworks{},
+			IoStat: &model.IOStat{},
 		})
 	}
 
 	return models
-}
-
-//nolint:deadcode,unused
-// procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
-func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*procutil.Process, maxSize int, cfg *config.AgentConfig) {
-	actualProcs := 0
-	for _, msg := range msgs {
-		payload := msg.(*model.CollectorProc)
-
-		if len(payload.Containers) > 0 {
-			// assume no blacklist involved
-			assert.Equal(t, len(rawContainers), len(payload.Containers))
-
-			procsByPid := make(map[int32]struct{}, len(payload.Processes))
-			for _, p := range payload.Processes {
-				procsByPid[p.Pid] = struct{}{}
-			}
-
-			// make sure all containerized processes are in the payload
-			containeredProcs := 0
-			for _, ctr := range rawContainers {
-				for _, pid := range ctr.Pids {
-					assert.Contains(t, procsByPid, pid)
-					containeredProcs++
-				}
-			}
-			assert.Equal(t, len(payload.Processes), containeredProcs)
-
-			actualProcs += containeredProcs
-		} else {
-			assert.True(t, len(payload.Processes) <= maxSize)
-			actualProcs += len(payload.Processes)
-		}
-		assert.Equal(t, cfg.ContainerHostType, payload.ContainerHostType)
-	}
-	assert.Equal(t, len(rawProcesses), actualProcs)
 }
 
 func TestPercentCalculation(t *testing.T) {
@@ -154,11 +121,21 @@ func TestPercentCalculation(t *testing.T) {
 	// Zero deltaTime case
 	assert.True(t, floatEquals(calculatePct(100, 0, 8), 0.0))
 
+	// Negative CPU values should be sanitized to 0
+	assert.True(t, floatEquals(calculatePct(100, -200, 1), 0.0))
+	assert.True(t, floatEquals(calculatePct(-100, 200, 1), 0.0))
+
 	assert.True(t, floatEquals(calculatePct(0, 8.08, 8), 0.0))
 	if runtime.GOOS != "windows" {
+		// on *nix systems, CPU utilization is multiplied by number of cores to emulate top
 		assert.True(t, floatEquals(calculatePct(100, 200, 2), 100))
 		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 3.960396))
 		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 107.920792))
+	} else {
+		// on Windows, CPU utilization is not multiplied by number of cores
+		assert.True(t, floatEquals(calculatePct(100, 200, 2), 50))
+		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 0.4950495))
+		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 13.490099))
 	}
 }
 

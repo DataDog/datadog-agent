@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func reset() {
@@ -40,7 +40,7 @@ func TestGetHostname(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetHostname(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
@@ -84,7 +84,7 @@ func TestGetHostAliases(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"gce-custom-hostname.custom-domain.gce-project", "gce-instance-name.gce-project"}, val)
 }
 
@@ -110,7 +110,7 @@ func TestGetHostAliasesInstanceNameError(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"gce-custom-hostname.custom-domain.gce-project", "gce-custom-hostname.gce-project"}, val)
 }
 
@@ -128,7 +128,7 @@ func TestGetClusterName(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetClusterName(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
 }
@@ -147,7 +147,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetPublicIPv4(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/network-interfaces/0/access-configs/0/external-ip", lastRequest.URL.Path)
 }
@@ -179,7 +179,7 @@ func TestGetNetwork(t *testing.T) {
 func TestGetNetworkNoInferface(t *testing.T) {
 	reset()
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "")
 	}))
@@ -223,14 +223,14 @@ func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"metadata.google.internal"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"gcp"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

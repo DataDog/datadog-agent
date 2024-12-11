@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -15,9 +16,12 @@ const DefaultPolicyName = "default.policy"
 
 // PolicyProvider defines a rule provider
 type PolicyProvider interface {
-	LoadPolicies([]RuleFilter) ([]*Policy, *multierror.Error)
+	LoadPolicies([]MacroFilter, []RuleFilter) ([]*Policy, *multierror.Error)
 	SetOnNewPoliciesReadyCb(func())
 
 	Start()
 	Close() error
+
+	// Type returns the type of policy provider, like 'directoryPolicyProvider'
+	Type() string
 }

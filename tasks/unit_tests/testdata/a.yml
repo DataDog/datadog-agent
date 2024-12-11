@@ -1,0 +1,6 @@
+---
+include:
+  - tasks/unit_tests/testdata/c.yml
+stages:
+  - a
+  - b

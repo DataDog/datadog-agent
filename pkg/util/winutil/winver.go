@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
+// Package winutil contains Windows OS utilities
 package winutil
 
 import (

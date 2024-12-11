@@ -27,12 +27,13 @@ var (
 type Series []*metrics.Serie
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
-//FIXME(maxime): to be removed when v2 endpoints are available
+// FIXME(maxime): to be removed when v2 endpoints are available
 func (series Series) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing a Series
 	type SeriesAlias Series
 	for _, serie := range series {
 		serie.PopulateDeviceField()
+		serie.PopulateResources()
 	}
 
 	data := map[string][]*metrics.Serie{
@@ -52,11 +53,7 @@ func (series Series) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 	// payload. So we first group series by metric name.
 	metricsPerName := map[string]Series{}
 	for _, s := range series {
-		if _, ok := metricsPerName[s.Name]; ok {
-			metricsPerName[s.Name] = append(metricsPerName[s.Name], s)
-		} else {
-			metricsPerName[s.Name] = Series{s}
-		}
+		metricsPerName[s.Name] = append(metricsPerName[s.Name], s)
 	}
 
 	// if we only have one metric name we cannot split further

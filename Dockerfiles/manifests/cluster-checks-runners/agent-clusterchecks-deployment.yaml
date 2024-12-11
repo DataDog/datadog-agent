@@ -24,15 +24,17 @@ spec:
         app.kubernetes.io/instance: "datadog"
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: clusterchecks-agent
+        admission.datadoghq.com/enabled: "false"
         app: datadog-clusterchecks
       name: datadog-clusterchecks
       annotations: {}
     spec:
       serviceAccountName: datadog-cluster-checks
+      automountServiceAccountToken: true
       imagePullSecrets: []
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.59.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -40,9 +42,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /opt/datadog-agent
+              readOnly: false # Need RW for writing agent config files
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.59.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -50,22 +53,23 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: false # Need RW for writing datadog.yaml config file
           resources: {}
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.59.0"
           command: ["bash", "-c"]
           args:
-            - rm -rf /etc/datadog-agent/conf.d && touch /etc/datadog-agent/datadog.yaml && exec agent run
+            - find /etc/datadog-agent/conf.d/ -name "*.yaml.default" -type f -delete && touch /etc/datadog-agent/datadog.yaml && exec agent run
           imagePullPolicy: IfNotPresent
           env:
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_EXTRA_CONFIG_PROVIDERS
@@ -105,6 +109,8 @@ spec:
               value: "false"
             - name: DD_APM_ENABLED
               value: "false"
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"
             - name: DD_HOSTNAME
               valueFrom:
                 fieldRef:
@@ -117,6 +123,7 @@ spec:
               readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: false # Need RW for config path
           livenessProbe:
             failureThreshold: 6
             httpGet:
@@ -131,6 +138,16 @@ spec:
             failureThreshold: 6
             httpGet:
               path: /ready
+              port: 5557
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          startupProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /startup
               port: 5557
               scheme: HTTP
             initialDelaySeconds: 15

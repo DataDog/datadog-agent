@@ -4,8 +4,8 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package admission runs the admission controller managed by the Cluster Agent.
 package admission
 
 import (
@@ -13,28 +13,60 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	stdLog "log"
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	admicommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 const jsonContentType = "application/json"
 
-type admissionFunc func([]byte, string, dynamic.Interface) ([]byte, error)
+// Request contains the information of an admission request
+type Request struct {
+	// UID is the unique identifier of the AdmissionRequest
+	UID types.UID
+	// Name is the name of the object
+	Name string
+	// Namespace is the namespace of the object
+	Namespace string
+	// Kind is the kind of the object
+	Kind metav1.GroupVersionKind
+	// Operation is the operation of the request
+	Operation admissionregistrationv1.OperationType
+	// UserInfo contains information about the requesting user
+	UserInfo *authenticationv1.UserInfo
+	// Object is the new object being admitted. It is null for DELETE operations
+	Object []byte
+	// OldObject is the existing object. It is null for CREATE and CONNECT operations
+	OldObject []byte
+	// DynamicClient holds a dynamic Kubernetes client
+	DynamicClient dynamic.Interface
+	// APIClient holds a Kubernetes client
+	APIClient kubernetes.Interface
+}
+
+// WebhookFunc is the function that runs the webhook logic.
+// We always return an `admissionv1.AdmissionResponse` as it will be converted to the appropriate version if needed.
+type WebhookFunc func(request *Request) *admiv1.AdmissionResponse
 
 // Server TODO <container-integrations>
 type Server struct {
@@ -71,27 +103,35 @@ func (s *Server) initDecoder() {
 
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
-func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface) {
+func (s *Server) Register(uri string, webhookName string, webhookType admicommon.WebhookType, f WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
-		s.mutateHandler(w, r, f, dc)
+		s.handle(w, r, webhookName, webhookType, f, dc, apiClient)
 	})
 }
 
 // Run starts the kubernetes admission webhook server.
 func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
+	var tlsMinVersion uint16 = tls.VersionTLS13
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
+		tlsMinVersion = tls.VersionTLS10
+	}
+
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
-		Handler: s.mux,
+		Addr:     fmt.Sprintf(":%d", pkgconfigsetup.Datadog().GetInt("admission_controller.port")),
+		Handler:  s.mux,
+		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
-			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				secretNs := common.GetResourcesNamespace()
-				secretName := config.Datadog.GetString("admission_controller.certificate.secret_name")
+				secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
 				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)
 				if err != nil {
 					log.Errorf("Couldn't fetch certificate: %v", err)
 				}
 				return cert, nil
 			},
+			MinVersion: tlsMinVersion,
 		},
 	}
 	go func() error {
@@ -105,23 +145,28 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 	return server.Shutdown(shutdownCtx)
 }
 
-// mutateHandler contains the main logic responsible for handling mutation requests.
+// handle contains the main logic responsible for handling admission requests.
 // It supports both v1 and v1beta1 requests.
-func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
-	metrics.WebhooksReceived.Inc()
+func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName string, webhookType admicommon.WebhookType, webhookFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+	// Increment the metrics for the received webhook.
+	// We send the webhook name twice to keep the backward compatibility with `mutation_type` tag.
+	metrics.WebhooksReceived.Inc(webhookName, webhookName, webhookType.String())
 
+	// Measure the time it takes to process the request.
 	start := time.Now()
 	defer func() {
-		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds())
+		// We send the webhook name twice to keep the backward compatibility with `mutation_type` tag.
+		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds(), webhookName, webhookName, webhookType.String())
 	}()
 
+	// Validate admission request.
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
 		return
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Could not read request body: %v", err)
@@ -135,6 +180,7 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		return
 	}
 
+	// Deserialize admission request.
 	obj, gvk, err := s.decoder.Decode(body, nil, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -142,6 +188,7 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		return
 	}
 
+	// Handle the request based on `GroupVersionKind`.
 	var response runtime.Object
 	switch *gvk {
 	case admiv1.SchemeGroupVersion.WithKind("AdmissionReview"):
@@ -149,23 +196,53 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		if !ok {
 			log.Errorf("Expected v1.AdmissionReview, got type %T", obj)
 		}
-		admissionReviewResp := &admiv1.AdmissionReview{}
-		admissionReviewResp.SetGroupVersionKind(*gvk)
-		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Namespace, dc)
-		admissionReviewResp.Response = mutationResponse(jsonPatch, err)
-		admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
-		response = admissionReviewResp
+
+		admissionReview := &admiv1.AdmissionReview{}
+		admissionReview.SetGroupVersionKind(*gvk)
+		admissionRequest := Request{
+			UID:           admissionReviewReq.Request.UID,
+			Kind:          admissionReviewReq.Request.Kind,
+			Name:          admissionReviewReq.Request.Name,
+			Namespace:     admissionReviewReq.Request.Namespace,
+			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			Object:        admissionReviewReq.Request.Object.Raw,
+			OldObject:     admissionReviewReq.Request.OldObject.Raw,
+			DynamicClient: dc,
+			APIClient:     apiClient,
+		}
+
+		// Generate admission response
+		admissionResponse := webhookFunc(&admissionRequest)
+		admissionReview.Response = admissionResponse
+		admissionReview.Response.UID = admissionReviewReq.Request.UID
+		response = admissionReview
 	case admiv1beta1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		admissionReviewReq, ok := obj.(*admiv1beta1.AdmissionReview)
 		if !ok {
 			log.Errorf("Expected v1beta1.AdmissionReview, got type %T", obj)
 		}
-		admissionReviewResp := &admiv1beta1.AdmissionReview{}
-		admissionReviewResp.SetGroupVersionKind(*gvk)
-		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Namespace, dc)
-		admissionReviewResp.Response = responseV1ToV1beta1(mutationResponse(jsonPatch, err))
-		admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
-		response = admissionReviewResp
+
+		admissionReview := &admiv1beta1.AdmissionReview{}
+		admissionReview.SetGroupVersionKind(*gvk)
+		admissionRequest := Request{
+			UID:           admissionReviewReq.Request.UID,
+			Kind:          admissionReviewReq.Request.Kind,
+			Name:          admissionReviewReq.Request.Name,
+			Namespace:     admissionReviewReq.Request.Namespace,
+			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			Object:        admissionReviewReq.Request.Object.Raw,
+			OldObject:     admissionReviewReq.Request.OldObject.Raw,
+			DynamicClient: dc,
+			APIClient:     apiClient,
+		}
+
+		// Generate admission response
+		admissionResponse := webhookFunc(&admissionRequest)
+		admissionReview.Response = responseV1ToV1beta1(admissionResponse)
+		admissionReview.Response.UID = admissionReviewReq.Request.UID
+		response = admissionReview
 	default:
 		log.Errorf("Group version kind %v is not supported", gvk)
 		w.WriteHeader(http.StatusBadRequest)
@@ -178,29 +255,6 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		log.Warnf("Failed to encode the response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	}
-}
-
-// mutationResponse returns the adequate v1.AdmissionResponse based on the mutation result.
-func mutationResponse(jsonPatch []byte, err error) *admiv1.AdmissionResponse {
-	if err != nil {
-		log.Warnf("Failed to mutate: %v", err)
-
-		return &admiv1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-			Allowed: true,
-		}
-
-	}
-
-	patchType := admiv1.PatchTypeJSONPatch
-
-	return &admiv1.AdmissionResponse{
-		Patch:     jsonPatch,
-		PatchType: &patchType,
-		Allowed:   true,
 	}
 }
 

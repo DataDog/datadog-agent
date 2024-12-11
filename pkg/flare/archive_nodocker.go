@@ -4,14 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !docker
-// +build !docker
 
 package flare
 
-func zipDockerSelfInspect(tempDir, hostname string) error {
-	return nil
+import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+func getDockerSelfInspect(_ optional.Option[workloadmeta.Component]) ([]byte, error) {
+	return nil, nil
 }
 
-func zipDockerPs(tempDir, hostname string) error {
-	return nil
+func getDockerPs() ([]byte, error) {
+	return nil, nil
 }

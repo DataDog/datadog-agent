@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Add a new Probabilistic Sampler sampling mechanism, which is
+    compatible with OpenTelemetry's Probabilistic Sampling Processor.
+other:
+  - |
+    APM: While adding another sampler, we have modified the Rare sampler
+    so that it no longer has a separate TTL for priority traces, meaning
+    it no longer distinguishes between traces with priority > 0 and
+    priority <= 0. It is necessary to detangle the various samplers so
+    they can work independently from each other, in this case, so the
+    Rare sampler can work with the Probabilistic Sampler. This should not
+    have a noticeable impact on users.

@@ -6,113 +6,251 @@
 package checks
 
 import (
-	"context"
 	"errors"
+	"fmt"
+	"math"
+	"regexp"
+	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
-const emptyCtrID = ""
+const (
+	emptyCtrID                 = ""
+	configPrefix               = "process_config."
+	configCustomSensitiveWords = configPrefix + "custom_sensitive_words"
+	configScrubArgs            = configPrefix + "scrub_args"
+	configStripProcArgs        = configPrefix + "strip_proc_arguments"
+	configDisallowList         = configPrefix + "blacklist_patterns"
+	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
+)
 
-// Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+// NewProcessCheck returns an instance of the ProcessCheck.
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component) *ProcessCheck {
+	serviceExtractorEnabled := true
+	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+	check := &ProcessCheck{
+		config:           config,
+		scrubber:         procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:    NewLookupIDProbe(config),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
+		wmeta:            wmeta,
+	}
 
-var _ CheckWithRealTime = (*ProcessCheck)(nil)
+	return check
+}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
+
+const (
+	//nolint:revive // TODO(PROC) Fix revive linter
+	ProcessDiscoveryHint int32 = 1 << iota // 1
+)
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	probe procutil.Probe
+	config pkgconfigmodel.Reader
 
-	sysInfo                    *model.SystemInfo
+	probe procutil.Probe
+	// scrubber is a DataScrubber to hide command line sensitive words
+	scrubber *procutil.DataScrubber
+
+	// disallowList to hide processes
+	disallowList []*regexp.Regexp
+
+	// determine if zombies process will be collected
+	ignoreZombieProcesses bool
+
+	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
-	containerProvider          util.ContainerProvider
-	lastContainerRates         map[string]*util.ContainerRateMetrics
-	realtimeLastContainerRates map[string]*util.ContainerRateMetrics
+	containerProvider          proccontainers.ContainerProvider
+	lastContainerRates         map[string]*proccontainers.ContainerRateMetrics
+	realtimeLastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	networkID                  string
 
 	realtimeLastCPUTime cpu.TimesStat
 	realtimeLastProcs   map[int32]*procutil.Stats
 	realtimeLastRun     time.Time
 
-	notInitializedLogLimit *util.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
-	SysprobeProcessModuleEnabled bool
+	sysProbeConfig *SysProbeConfig
 
 	maxBatchSize  int
 	maxBatchBytes int
+
+	checkCount uint32
+	skipAmount uint32
+
+	lastConnRates     *atomic.Pointer[ProcessConnRates]
+	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
+
+	//nolint:revive // TODO(PROC) Fix revive linter
+	lookupIdProbe *LookupIdProbe
+
+	extractors []metadata.Extractor
+
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
+
+	serviceExtractor *parser.ServiceExtractor
+
+	wmeta workloadmetacomp.Component
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
-	p.sysInfo = info
-	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
-	p.containerProvider = util.GetSharedContainerProvider()
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
+	p.hostInfo = info
+	p.sysProbeConfig = syscfg
+	p.probe = newProcessProbe(p.config,
+		procutil.WithPermission(syscfg.ProcessModuleEnabled),
+		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	p.containerProvider = sharedContainerProvider
 
-	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	var tu net.SysProbeUtil
+
+	if syscfg.NetworkTracerModuleEnabled {
+		// Calling the remote tracer will cause it to initialize and check connectivity
+		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
+		if err != nil {
+			log.Warnf("could not initiate connection with system probe: %s", err)
+		}
+	}
+
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
 	p.networkID = networkID
 
-	p.maxBatchSize = getMaxBatchSize()
-	p.maxBatchBytes = getMaxBatchBytes()
+	p.maxBatchSize = getMaxBatchSize(p.config)
+	p.maxBatchBytes = getMaxBatchBytes(p.config)
+
+	p.skipAmount = uint32(p.config.GetInt32("process_config.process_discovery.hint_frequency"))
+	if p.skipAmount == 0 {
+		log.Warnf("process_config.process_discovery.hint_frequency must be greater than 0. using default value %d",
+			pkgconfigsetup.DefaultProcessDiscoveryHintFrequency)
+		p.skipAmount = pkgconfigsetup.DefaultProcessDiscoveryHintFrequency
+	}
+
+	initScrubber(p.config, p.scrubber)
+
+	p.disallowList = initDisallowList(p.config)
+
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
+
+	p.initConnRates()
+
+	p.extractors = append(p.extractors, p.serviceExtractor)
+
+	if !oneShot && workloadmeta.Enabled(p.config) {
+		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
+
+		// The server is only needed on the process agent
+		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
+			err = p.workloadMetaServer.Start()
+			if err != nil {
+				return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+			}
+		}
+
+		p.extractors = append(p.extractors, p.workloadMetaExtractor)
+	}
+	return nil
+}
+
+func (p *ProcessCheck) initConnRates() {
+	p.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
+	p.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
+
+	go p.updateConnRates()
+}
+
+func (p *ProcessCheck) updateConnRates() {
+	for {
+		connRates, ok := <-p.connRatesReceiver.Ch
+		if !ok {
+			return
+		}
+		p.lastConnRates.Store(&connRates)
+	}
+}
+
+func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
+	if p.lastConnRates == nil {
+		return nil
+	}
+	if result := p.lastConnRates.Load(); result != nil {
+		return *result
+	}
+	return nil
+}
+
+// IsEnabled returns true if the check is enabled by configuration
+func (p *ProcessCheck) IsEnabled() bool {
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
+	return p.config.GetBool("process_config.process_collection.enabled")
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (p *ProcessCheck) SupportsRunOptions() bool {
+	return true
 }
 
 // Name returns the name of the ProcessCheck.
-func (p *ProcessCheck) Name() string { return config.ProcessCheckName }
+func (p *ProcessCheck) Name() string { return ProcessCheckName }
 
-// RealTimeName returns the name of the RTProcessCheck
-func (p *ProcessCheck) RealTimeName() string { return config.RTProcessCheckName }
-
-// RealTime indicates if this check only runs in real-time mode.
-func (p *ProcessCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (p *ProcessCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
-// Run runs the ProcessCheck to collect a list of running processes and relevant
-// stats for each. On most POSIX systems this will use a mix of procfs and other
-// OS-specific APIs to collect this information. The bulk of this collection is
-// abstracted into the `gopsutil` library.
-// Processes are split up into a chunks of at most 100 processes per message to
-// limit the message size on intake.
-// See agent.proto for the schema of the message and models used.
-func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	result, err := p.run(cfg, groupID, false)
-	if err != nil {
-		return nil, err
+// Cleanup frees any resource held by the ProcessCheck before the agent exits
+func (p *ProcessCheck) Cleanup() {
+	if p.workloadMetaServer != nil {
+		p.workloadMetaServer.Stop()
 	}
-
-	return result.Standard, nil
 }
 
-// Cleanup frees any resource held by the ProcessCheck before the agent exits
-func (p *ProcessCheck) Cleanup() {}
-
-func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {
+func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -139,7 +277,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	var containers []*model.Container
 	var pidToCid map[int]string
-	var lastContainerRates map[string]*util.ContainerRateMetrics
+	var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	cacheValidity := cacheValidityNoRT
 	if collectRealTime {
 		cacheValidity = cacheValidityRT
@@ -152,36 +290,43 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
 	}
 
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
+	// Notify the workload meta extractor that the mapping between pid and cid has changed
+	if p.workloadMetaExtractor != nil {
+		p.workloadMetaExtractor.SetLastPidToCid(pidToCid)
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
+	}
 
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
 		p.lastRun = time.Now()
-		p.storeCreateTimes()
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
 			p.realtimeLastProcs = procsToStats(p.lastProcs)
 			p.realtimeLastRun = p.lastRun
 		}
-		return &RunResult{}, nil
+		return CombinedRunResult{}, nil
 	}
 
-	connsByPID := Connections.getLastConnectionsByPID()
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
+	collectorProcHints := p.generateHints()
+	p.checkCount++
+
+	connsRates := p.getLastConnRates()
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor)
+	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.lastProcs = procs
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
-	p.storeCreateTimes()
 
-	result := &RunResult{
+	result := &CombinedRunResult{
 		Standard: messages,
 	}
 	if collectRealTime {
@@ -189,24 +334,24 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsRates)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
 			messages := make([]model.MessageBody, 0, groupSize)
 			for i := 0; i < groupSize; i++ {
 				messages = append(messages, &model.CollectorRealTime{
-					HostName:          cfg.HostName,
+					HostName:          p.hostInfo.HostName,
 					Stats:             chunkedStats[i],
 					ContainerStats:    chunkedCtrStats[i],
 					GroupId:           groupID,
 					GroupSize:         int32(groupSize),
-					NumCpus:           int32(len(p.sysInfo.Cpus)),
-					TotalMemory:       p.sysInfo.TotalMemory,
-					ContainerHostType: cfg.ContainerHostType,
+					NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+					TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+					ContainerHostType: p.hostInfo.ContainerHostType,
 				})
 			}
-			result.RealTime = messages
+			result.Realtime = messages
 		}
 
 		p.realtimeLastCPUTime = p.lastCPUTime
@@ -214,11 +359,22 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		p.realtimeLastRun = p.lastRun
 	}
 
-	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
-	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
-	log.Debugf("collected processes in %s", time.Now().Sub(start))
+	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1) //nolint:errcheck
+	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)       //nolint:errcheck
+	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
+}
+
+func (p *ProcessCheck) generateHints() int32 {
+	var hints int32
+
+	if p.checkCount%p.skipAmount == 0 {
+		log.Tracef("generated a process discovery hint on check #%d", p.checkCount)
+		hints |= ProcessDiscoveryHint
+	}
+	return hints
 }
 
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
@@ -229,42 +385,60 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	return stats
 }
 
-// RunWithOptions collects process data (regular metadata + stats) and/or realtime process data (stats only)
-// Messages are grouped as RunResult instances with CheckName identifying the type
-func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options RunOptions) (*RunResult, error) {
-	if options.RunStandard {
-		log.Tracef("Running process check")
-		return p.run(cfg, nextGroupID(), options.RunRealTime)
+// Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
+func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	if options == nil {
+		return p.run(nextGroupID(), false)
 	}
 
-	if options.RunRealTime {
+	// For no chunking, set max batch size to max value to ensure one chunk
+	if options.NoChunking {
+		oldMaxBatchSize := p.maxBatchSize
+		oldMaxBatchBytes := p.maxBatchBytes
+		p.maxBatchSize = math.MaxInt
+		p.maxBatchBytes = math.MaxInt
+
+		defer func() {
+			p.maxBatchSize = oldMaxBatchSize
+			p.maxBatchBytes = oldMaxBatchBytes
+		}()
+	}
+
+	if options.RunStandard {
+		log.Tracef("Running process check")
+		return p.run(nextGroupID(), options.RunRealtime)
+	}
+
+	if options.RunRealtime {
 		log.Tracef("Running rtprocess check")
-		return p.runRealtime(cfg, nextGroupID())
+		return p.runRealtime(nextGroupID())
 	}
 	return nil, errors.New("invalid run options for check")
 }
 
 func createProcCtrMessages(
+	hostInfo *HostInfo,
 	procsByCtr map[string][]*model.Process,
 	containers []*model.Container,
-	cfg *config.AgentConfig,
 	maxBatchSize int,
 	maxBatchWeight int,
-	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
+	hints int32,
 ) ([]model.MessageBody, int, int) {
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
-	messages := make([]model.MessageBody, 0, len(collectorProcs))
-	for _, m := range collectorProcs {
-		m.GroupSize = int32(len(collectorProcs))
-		m.HostName = cfg.HostName
+	messages := make([]model.MessageBody, 0, len(*collectorProcs))
+	for idx := range *collectorProcs {
+		m := &(*collectorProcs)[idx]
+		m.GroupSize = int32(len(*collectorProcs))
+		m.HostName = hostInfo.HostName
 		m.NetworkId = networkID
-		m.Info = sysInfo
+		m.Info = hostInfo.SystemInfo
 		m.GroupId = groupID
-		m.ContainerHostType = cfg.ContainerHostType
+		m.ContainerHostType = hostInfo.ContainerHostType
+		m.Hints = &model.CollectorProc_HintMask{HintMask: hints}
 
 		messages = append(messages, m)
 	}
@@ -279,11 +453,16 @@ func chunkProcessesAndContainers(
 	containers []*model.Container,
 	maxChunkSize int,
 	maxChunkWeight int,
-) ([]*model.CollectorProc, int, int) {
-	chunker := &collectorProcChunker{}
+) (*[]model.CollectorProc, int, int) {
+	chunker := &util.ChunkAllocator[model.CollectorProc, *model.Process]{
+		AppendToChunk: func(c *model.CollectorProc, ps []*model.Process) {
+			c.Processes = append(c.Processes, ps...)
+		},
+	}
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
+	// we first split non-container processes in chunks
 	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
 	totalContainers := len(containers)
@@ -293,35 +472,38 @@ func chunkProcessesAndContainers(
 
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
-	return chunker.collectorProcs, totalProcs, totalContainers
+	return chunker.GetChunks(), totalProcs, totalContainers
 }
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
-	cfg *config.AgentConfig,
+	scrubber *procutil.DataScrubber,
+	disallowList []*regexp.Regexp,
 	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connsByPID map[int32][]*model.Connection,
+	connRates ProcessConnRates,
+	//nolint:revive // TODO(PROC) Fix revive linter
+	lookupIdProbe *LookupIdProbe,
+	zombiesIgnored bool,
+	serviceExtractor *parser.ServiceExtractor,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
-	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	for _, fp := range procs {
-		if skipProcess(cfg, fp, lastProcs) {
+		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
 
-		// Hide blacklisted args if the Scrubber is enabled
-		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
-
+		// Hide disallow-listed args if the Scrubber is enabled
+		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
-			User:                   formatUser(fp),
+			User:                   formatUser(fp, lookupIdProbe),
 			Memory:                 formatMemory(fp.Stats),
 			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,
@@ -331,7 +513,11 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
-			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
+			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+		}
+
+		if connRates != nil {
+			proc.Networks = connRates[fp.Pid]
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -340,7 +526,7 @@ func fmtProcesses(
 		procsByCtr[proc.ContainerId] = append(procsByCtr[proc.ContainerId], proc)
 	}
 
-	cfg.Scrubber.IncrementCacheAge()
+	scrubber.IncrementCacheAge()
 
 	return procsByCtr
 }
@@ -353,6 +539,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 		OnDisk: false, // TODO
 		Ppid:   fp.Ppid,
 		Exe:    fp.Exe,
+		Comm:   fp.Comm,
 	}
 }
 
@@ -444,43 +631,42 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
 }
 
-// skipProcess will skip a given process if it's blacklisted or hasn't existed
+// skipProcess will skip a given process if it's disallow-listed or hasn't existed
 // for multiple collections.
 func skipProcess(
-	cfg *config.AgentConfig,
+	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
+	zombiesIgnored bool,
 ) bool {
-	if len(fp.Cmdline) == 0 {
-		return true
+	cl := fp.Cmdline
+	if len(cl) == 0 {
+		cl = []string{fp.Exe}
+		log.Debugf("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, cl)
 	}
-	if config.IsBlacklisted(fp.Cmdline, cfg.Blacklist) {
+	if isDisallowListed(cl, disallowList) {
 		return true
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
-		// This means short-lived processes (<2s) will never be captured.
+		// The check runs every 10 seconds by default, so this means
+		// processes that live less than 20 seconds may not be captured.
+		return true
+	}
+	// Skipping zombie processes (defined in docs as Status = "Z") if the config
+	// for skipping zombie processes is on.
+	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false
 }
 
-func (p *ProcessCheck) storeCreateTimes() {
-	createTimes := make(map[int32]int64, len(p.lastProcs))
-	for pid, proc := range p.lastProcs {
-		createTimes[pid] = proc.Stats.CreateTime
-	}
-	ProcessNotify.UpdateCreateTimes(createTimes)
-}
-
-func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
+func (p *ProcessCheck) getRemoteSysProbeUtil() net.SysProbeUtil {
+	if !p.sysProbeConfig.ProcessModuleEnabled {
 		return nil
 	}
 
-	pu, err := net.GetRemoteSystemProbeUtil()
+	pu, err := net.GetRemoteSystemProbeUtil(p.sysProbeConfig.SystemProbeAddress)
 	if err != nil {
 		if p.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
@@ -491,7 +677,7 @@ func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
+func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu net.SysProbeUtil) {
 	pStats, err := pu.GetProcStats(pids)
 	if err == nil {
 		for pid, proc := range procs {
@@ -506,4 +692,55 @@ func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process,
 	} else {
 		log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
 	}
+}
+
+func initScrubber(config pkgconfigmodel.Reader, scrubber *procutil.DataScrubber) {
+	// Enable/Disable the DataScrubber to obfuscate process args
+	if config.IsSet(configScrubArgs) {
+		scrubber.Enabled = config.GetBool(configScrubArgs)
+	}
+
+	if scrubber.Enabled { // Scrubber is enabled by default when it's created
+		log.Debug("Starting process collection with Scrubber enabled")
+	}
+
+	// A custom word list to enhance the default one used by the DataScrubber
+	if config.IsSet(configCustomSensitiveWords) {
+		words := config.GetStringSlice(configCustomSensitiveWords)
+		scrubber.AddCustomSensitiveWords(words)
+		log.Debug("Adding custom sensitives words to Scrubber:", words)
+	}
+
+	// Strips all process arguments
+	if config.GetBool(configStripProcArgs) {
+		log.Debug("Strip all process arguments enabled")
+		scrubber.StripAllArguments = true
+	}
+}
+
+func initDisallowList(config pkgconfigmodel.Reader) []*regexp.Regexp {
+	var disallowList []*regexp.Regexp
+	// A list of regex patterns that will exclude a process if matched.
+	if config.IsSet(configDisallowList) {
+		for _, b := range config.GetStringSlice(configDisallowList) {
+			r, err := regexp.Compile(b)
+			if err != nil {
+				log.Warnf("Ignoring invalid disallow list pattern: %s", b)
+				continue
+			}
+			disallowList = append(disallowList, r)
+		}
+	}
+	return disallowList
+}
+
+// isDisallowListed returns a boolean indicating if the given command is disallow-listed by our config.
+func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
+	cmd := strings.Join(cmdline, " ")
+	for _, b := range disallowList {
+		if b.MatchString(cmd) {
+			return true
+		}
+	}
+	return false
 }

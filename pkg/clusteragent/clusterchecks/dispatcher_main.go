@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -13,52 +12,82 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const firstRunnerStatsMinutes = 2  // collect runner stats after the first 2 minutes
-const secondRunnerStatsMinutes = 5 // collect runner stats after the first 7 minutes
-const finalRunnerStatsMinutes = 10 // collect runner stats endlessly every 10 minutes
-
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	store                 *clusterStore
-	nodeExpirationSeconds int64
-	extraTags             []string
-	clcRunnersClient      clusteragent.CLCRunnerClientInterface
-	advancedDispatching   bool
+	store                         *clusterStore
+	nodeExpirationSeconds         int64
+	extraTags                     []string
+	clcRunnersClient              clusteragent.CLCRunnerClientInterface
+	advancedDispatching           bool
+	excludedChecks                map[string]struct{}
+	excludedChecksFromDispatching map[string]struct{}
+	rebalancingPeriod             time.Duration
 }
 
-func newDispatcher() *dispatcher {
+func newDispatcher(tagger tagger.Component) *dispatcher {
 	d := &dispatcher{
 		store: newClusterStore(),
 	}
-	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
-	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
+	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
+
+	// Attach the cluster agent's global tags to all dispatched checks
+	// as defined in the tagger's workloadmeta collector
+	var err error
+	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
+	if err != nil {
+		log.Warnf("Cannot get global tags from the tagger: %v", err)
+	} else {
+		log.Debugf("Adding global tags to cluster check dispatcher: %v", d.extraTags)
+	}
+
+	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
+	// This option will almost always be empty
+	if len(excludedChecks) > 0 {
+		d.excludedChecks = make(map[string]struct{}, len(excludedChecks))
+		for _, checkName := range excludedChecks {
+			d.excludedChecks[checkName] = struct{}{}
+		}
+	}
+
+	excludedChecksFromDispatching := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching")
+	// This option will almost always be empty
+	if len(excludedChecksFromDispatching) > 0 {
+		d.excludedChecksFromDispatching = make(map[string]struct{}, len(excludedChecksFromDispatching))
+		for _, checkName := range excludedChecksFromDispatching {
+			d.excludedChecksFromDispatching[checkName] = struct{}{}
+		}
+	}
+
+	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
+	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
-		if clusterTagName != "" && !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		d.extraTags = append(d.extraTags, fmt.Sprintf("kube_cluster_name:%s", clusterTagValue))
 	}
 
-	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")
+	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !d.advancedDispatching {
 		return d
 	}
 
-	var err error
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
@@ -75,9 +104,20 @@ func (d *dispatcher) Stop() {
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	for _, c := range configs {
+		if _, found := d.excludedChecks[c.Name]; found {
+			log.Infof("Excluding check due to config: %s", c.Name)
+			continue
+		}
+
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
+
+		if c.HasFilter(containers.MetricsFilter) || c.HasFilter(containers.GlobalFilter) {
+			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
+			continue
+		}
+
 		if c.NodeName != "" {
 			// An endpoint check backed by a pod
 			patched, err := d.patchEndpointsConfiguration(c)
@@ -131,7 +171,7 @@ func (d *dispatcher) reschedule(configs []integration.Config) {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) {
-	target := d.getLeastBusyNode()
+	target := d.getNodeToScheduleCheck()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
 		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
@@ -168,9 +208,8 @@ func (d *dispatcher) run(ctx context.Context) {
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
-	runnerStatsMinutes := firstRunnerStatsMinutes
-	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-	defer runnerStatsTicker.Stop()
+	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
+	defer rebalanceTicker.Stop()
 
 	for {
 		select {
@@ -183,24 +222,13 @@ func (d *dispatcher) run(ctx context.Context) {
 			d.expireNodes()
 
 			// Re-dispatch dangling configs
-			if d.shouldDispatchDanling() {
+			if d.shouldDispatchDangling() {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}
-		case <-runnerStatsTicker.C:
-			// Collect stats with an exponential backoff 2 - 5 - 10 minutes
-			if runnerStatsMinutes == firstRunnerStatsMinutes {
-				runnerStatsMinutes = secondRunnerStatsMinutes
-				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-			} else if runnerStatsMinutes == secondRunnerStatsMinutes {
-				runnerStatsMinutes = finalRunnerStatsMinutes
-				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
-			}
-
-			// Rebalance if needed
+		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
-				// Rebalance checks distribution
-				d.rebalance()
+				d.rebalance(false)
 			}
 		}
 	}

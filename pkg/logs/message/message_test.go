@@ -6,35 +6,20 @@
 package message
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// XXX(remy): all unit tests related to structured/unstructured, the state, etc.
+
 func TestMessage(t *testing.T) {
 
-	message := Message{Content: []byte("hello")}
-	assert.Equal(t, "hello", string(message.Content))
+	message := NewMessage([]byte("hello"), nil, "", 0)
+	assert.Equal(t, "hello", string(message.GetContent()))
 
-	message.Content = []byte("world")
-	assert.Equal(t, "world", string(message.Content))
+	message.SetContent([]byte("world"))
+	assert.Equal(t, "world", string(message.GetContent()))
 	assert.Equal(t, StatusInfo, message.GetStatus())
 
-}
-
-func TestGetHostnameLambda(t *testing.T) {
-	message := Message{
-		Lambda: &Lambda{
-			ARN: "testHostName",
-		},
-	}
-	assert.Equal(t, "testHostName", message.GetHostname())
-}
-
-func TestGetHostname(t *testing.T) {
-	os.Setenv("DD_HOSTNAME", "testHostnameFromEnvVar")
-	defer os.Unsetenv("DD_HOSTNAME")
-	message := Message{Content: []byte("hello")}
-	assert.Equal(t, "testHostnameFromEnvVar", message.GetHostname())
 }

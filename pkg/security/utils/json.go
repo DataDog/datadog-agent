@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package utils holds utils related files
 package utils
 
 import (
 	"errors"
 	"time"
 
+	"github.com/mailru/easyjson"
 	"github.com/mailru/easyjson/jwriter"
 )
 
@@ -20,6 +22,15 @@ type EasyjsonTime struct {
 // NewEasyjsonTime returns a new EasyjsonTime based on the provided time
 func NewEasyjsonTime(t time.Time) EasyjsonTime {
 	return EasyjsonTime{inner: t}
+}
+
+// NewEasyjsonTimeIfNotZero returns a new EasyjsonTime based on the provided time or nil if zero time
+func NewEasyjsonTimeIfNotZero(t time.Time) *EasyjsonTime {
+	if t.IsZero() {
+		return nil
+	}
+	tt := NewEasyjsonTime(t)
+	return &tt
 }
 
 // MarshalEasyJSON does JSON marshaling using easyjson interface
@@ -40,4 +51,18 @@ func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalJSON does JSON unmarshaling
 func (t *EasyjsonTime) UnmarshalJSON(b []byte) error {
 	return t.inner.UnmarshalJSON(b)
+}
+
+// GetInnerTime returns the inner time
+func (t *EasyjsonTime) GetInnerTime() time.Time {
+	return t.inner
+}
+
+// MarshalEasyJSON easyjson marshal helper
+func MarshalEasyJSON(i easyjson.Marshaler) ([]byte, error) {
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	i.MarshalEasyJSON(w)
+	return w.BuildBytes()
 }

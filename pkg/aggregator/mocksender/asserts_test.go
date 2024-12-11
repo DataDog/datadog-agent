@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -12,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 type unittestMock struct {
@@ -93,23 +96,23 @@ func TestMockedServiceCheck(t *testing.T) {
 
 	tags := []string{"one", "two"}
 	message := "message 1"
-	sender.ServiceCheck("docker.exit", metrics.ServiceCheckOK, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckOK, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckOK, "", tags, message)
 
 	tags = append(tags, "a", "b", "c")
 	message = "message 2"
-	sender.ServiceCheck("docker.exit", metrics.ServiceCheckCritical, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckCritical, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckCritical, "", tags, message)
 
 	message = "message 3"
 	tags = []string{"1", "2"}
-	sender.ServiceCheck("docker.exit", metrics.ServiceCheckWarning, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckWarning, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
 
 	message = "message 4"
 	tags = append(tags, "container_name:redis")
-	sender.ServiceCheck("docker.exit", metrics.ServiceCheckWarning, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckWarning, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
 }
 
 func TestMockedEvent(t *testing.T) {
@@ -119,24 +122,24 @@ func TestMockedEvent(t *testing.T) {
 	tags := []string{"one", "two"}
 
 	eventTimestamp := time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC).Unix()
-	eventOne := metrics.Event{
+	eventOne := event.Event{
 		Ts:             eventTimestamp,
 		EventType:      "docker",
 		Tags:           tags,
 		AggregationKey: "docker:busybox",
 		SourceTypeName: "docker",
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 	}
 	sender.Event(eventOne)
 	sender.AssertEvent(t, eventOne, time.Second)
 
-	eventTwo := metrics.Event{
+	eventTwo := event.Event{
 		Ts:             eventTimestamp,
 		EventType:      "docker",
 		Tags:           tags,
 		AggregationKey: "docker:redis",
 		SourceTypeName: "docker",
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 	}
 	sender.AssertEventMissing(t, eventTwo, 0)
 

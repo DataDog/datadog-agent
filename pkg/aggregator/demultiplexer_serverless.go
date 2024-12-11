@@ -6,20 +6,26 @@
 package aggregator
 
 import (
+	"context"
 	"sync"
 	"time"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // ServerlessDemultiplexer is a simple demultiplexer used by the serverless flavor of the Agent
 type ServerlessDemultiplexer struct {
+	log log.Component
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
@@ -32,34 +38,36 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
+	hostTagProvider *HostTagProvider
+
 	*senders
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
-	serializer := serializer.NewSerializer(forwarder, nil, nil)
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
-	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
+	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
+	logger := logimpl.NewTemporaryLoggerWithoutInit()
+	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	h, _ := hostname.Get(context.Background())
+	serializer := serializer.NewSerializer(forwarder, nil, selector.NewCompressor(pkgconfigsetup.Datadog()), pkgconfigsetup.Datadog(), h)
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
+	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
 
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
-	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
-		forwarder:        forwarder,
-		statsdSampler:    statsdSampler,
-		statsdWorker:     statsdWorker,
-		serializer:       serializer,
-		metricSamplePool: metricSamplePool,
-		flushLock:        &sync.Mutex{},
-
+		log:                         logger,
+		forwarder:                   forwarder,
+		statsdSampler:               statsdSampler,
+		statsdWorker:                statsdWorker,
+		serializer:                  serializer,
+		metricSamplePool:            metricSamplePool,
+		flushLock:                   &sync.Mutex{},
+		hostTagProvider:             NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
-
-	// set the global instance
-	demultiplexerInstance = demux
 
 	// start routines
 	go demux.Run()
@@ -72,12 +80,12 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 func (d *ServerlessDemultiplexer) Run() {
 	if d.forwarder != nil {
 		d.forwarder.Start() //nolint:errcheck
-		log.Debug("Forwarder started")
+		d.log.Debug("Forwarder started")
 	} else {
-		log.Debug("not starting the forwarder")
+		d.log.Debug("not starting the forwarder")
 	}
 
-	log.Debug("Demultiplexer started")
+	d.log.Debug("Demultiplexer started")
 	d.statsdWorker.run()
 }
 
@@ -99,8 +107,8 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
-	logPayloads := config.Datadog.GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true, d.hostTagProvider)
 
 	metrics.Serialize(
 		series,
@@ -128,8 +136,8 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 		})
 }
 
-// AddTimeSample send a MetricSample to the TimeSampler.
-func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AggregateSample send a MetricSample to the TimeSampler.
+func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	batch := d.GetMetricSamplePool().GetBatch()
@@ -137,18 +145,22 @@ func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	d.statsdWorker.samplesChan <- batch[:1]
 }
 
-// AddTimeSampleBatch send a MetricSampleBatch to the TimeSampler.
+// AggregateSamples send a MetricSampleBatch to the TimeSampler.
 // The ServerlessDemultiplexer is not using sharding in its DogStatsD pipeline,
 // the `shard` parameter is ignored.
-// In the Serverless Agent, consider using `AddTimeSample` instead.
-func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// In the Serverless Agent, consider using `AggregateSample` instead.
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	d.statsdWorker.samplesChan <- samples
 }
 
-// AddLateMetrics is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
+// SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

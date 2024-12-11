@@ -14,6 +14,7 @@ const (
 	connectionID     = "connection_id"
 	detailType       = "detail_type"
 	endpoint         = "endpoint"
+	eventBridgeTime  = "x-datadog-start-time"
 	eventID          = "event_id"
 	eventName        = "event_name"
 	eventSourceArn   = "event_source_arn"
@@ -35,6 +36,7 @@ const (
 	queueName        = "queuename"
 	receiptHandle    = "receipt_handle"
 	requestID        = "request_id"
+	resourceName     = "x-datadog-resource-name"
 	resourceNames    = "resource_names"
 	senderID         = "sender_id"
 	sentTimestamp    = "SentTimestamp"
@@ -55,11 +57,3 @@ const (
 	// in the payload headers
 	invocationType = "X-Amz-Invocation-Type"
 )
-
-// EventBridgeEvent is used for unmarshalling a EventBridge event.
-// AWS Go libraries do not provide this type of event for deserialization.
-type EventBridgeEvent struct {
-	DetailType string `json:"detail-type"`
-	Source     string `json:"source"`
-	StartTime  string `json:"time"`
-}

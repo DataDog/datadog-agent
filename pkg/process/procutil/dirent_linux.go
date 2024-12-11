@@ -6,16 +6,14 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 
 //go:build linux
-// +build linux
 
 package procutil
 
 import (
 	"bytes"
+	"encoding/binary"
 	"syscall"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 var (
@@ -92,11 +90,11 @@ func readInt(b []byte, off, size uintptr) (u uint64, ok bool) {
 	case 1:
 		return uint64(b[off]), true
 	case 2:
-		return uint64(native.Endian.Uint16(b[off:])), true
+		return uint64(binary.NativeEndian.Uint16(b[off:])), true
 	case 4:
-		return uint64(native.Endian.Uint32(b[off:])), true
+		return uint64(binary.NativeEndian.Uint32(b[off:])), true
 	case 8:
-		return native.Endian.Uint64(b[off:]), true
+		return binary.NativeEndian.Uint64(b[off:]), true
 	default:
 		panic("syscall: readInt with unsupported size")
 	}

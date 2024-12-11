@@ -14,7 +14,7 @@ import (
 	"code.cloudfoundry.org/garden/client"
 	"code.cloudfoundry.org/garden/client/connection"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -65,6 +65,7 @@ type GardenUtilInterface interface {
 	ListContainers() ([]garden.Container, error)
 	GetContainersInfo(handles []string) (map[string]garden.ContainerInfoEntry, error)
 	GetContainersMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error)
+	GetContainer(string) (garden.Container, error)
 }
 
 // GardenUtil wraps interactions with a local garden API.
@@ -77,8 +78,8 @@ type GardenUtil struct {
 func GetGardenUtil() (*GardenUtil, error) {
 	globalGardenUtilLock.Lock()
 	defer globalGardenUtilLock.Unlock()
-	network := config.Datadog.GetString("cloud_foundry_garden.listen_network")
-	address := config.Datadog.GetString("cloud_foundry_garden.listen_address")
+	network := pkgconfigsetup.Datadog().GetString("cloud_foundry_garden.listen_network")
+	address := pkgconfigsetup.Datadog().GetString("cloud_foundry_garden.listen_address")
 	if globalGardenUtil == nil {
 		globalGardenUtil = &GardenUtil{
 			cli: client.New(connection.New(network, address)),
@@ -130,4 +131,9 @@ func ContainersToHandles(containers []garden.Container) []string {
 		handles[i] = gardenContainer.Handle()
 	}
 	return handles
+}
+
+// GetContainer returns a container with the given handle from the local garden API
+func (gu *GardenUtil) GetContainer(handle string) (garden.Container, error) {
+	return gu.cli.Lookup(handle)
 }

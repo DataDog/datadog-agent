@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (functionaltests && !amd64) || (stresstests && !amd64)
-// +build functionaltests,!amd64 stresstests,!amd64
+//go:build linux && functionaltests && arm64
 
 package tests
 
-//nolint:unused
 var supportedSyscalls = map[string]uintptr{}

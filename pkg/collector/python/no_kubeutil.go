@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && !kubelet
-// +build python,!kubelet
 
 package python
 
@@ -15,7 +14,9 @@ package python
 */
 import "C"
 
+//
 //export GetKubeletConnectionInfo
+//nolint:revive // TODO(AML) Fix revive linter
 func GetKubeletConnectionInfo(payload **C.char) {
 	*payload = TrackedCString("{}")
 }

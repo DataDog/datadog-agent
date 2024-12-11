@@ -10,7 +10,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -21,13 +23,14 @@ const linesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lin
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	outputFn          func(*Message)
+	outputFn          func(*message.Message)
 	newContentRe      *regexp.Regexp
 	buffer            *bytes.Buffer
 	flushTimeout      time.Duration
 	flushTimer        *time.Timer
 	lineLimit         int
 	shouldTruncate    bool
+	isBufferTruncated bool
 	linesLen          int
 	status            string
 	timestamp         string
@@ -35,11 +38,17 @@ type MultiLineHandler struct {
 	linesCombinedInfo *status.CountInfo
 	telemetryEnabled  bool
 	linesCombined     int
+	multiLineTagValue string
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputFn func(*Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool) *MultiLineHandler {
-	return &MultiLineHandler{
+func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry, multiLineTagValue string) *MultiLineHandler {
+
+	i := status.NewMappedInfo("Multi-Line Pattern")
+	i.SetMessage("Pattern", newContentRe.String())
+	tailerInfo.Register(i)
+
+	h := &MultiLineHandler{
 		outputFn:          outputFn,
 		newContentRe:      newContentRe,
 		buffer:            bytes.NewBuffer(nil),
@@ -49,7 +58,9 @@ func NewMultiLineHandler(outputFn func(*Message), newContentRe *regexp.Regexp, f
 		linesCombinedInfo: status.NewCountInfo("Lines Combined"),
 		telemetryEnabled:  telemetryEnabled,
 		linesCombined:     0,
+		multiLineTagValue: multiLineTagValue,
 	}
+	return h
 }
 
 func (h *MultiLineHandler) flushChan() <-chan time.Time {
@@ -68,7 +79,7 @@ func (h *MultiLineHandler) flush() {
 // It also makes sure that the content will never exceed the limit
 // and that the length of the lines is properly tracked
 // so that the agent restarts tailing from the right place.
-func (h *MultiLineHandler) process(message *Message) {
+func (h *MultiLineHandler) process(msg *message.Message) {
 	if h.flushTimer != nil && h.buffer.Len() > 0 {
 		// stop the flush timer, as we now have data
 		if !h.flushTimer.Stop() {
@@ -76,7 +87,7 @@ func (h *MultiLineHandler) process(message *Message) {
 		}
 	}
 
-	if h.newContentRe.Match(message.Content) {
+	if h.newContentRe.Match(msg.GetContent()) {
 		h.countInfo.Add(1)
 		// the current line is part of a new message,
 		// send the buffer
@@ -88,30 +99,32 @@ func (h *MultiLineHandler) process(message *Message) {
 
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
-	h.linesLen += message.RawDataLen
-	h.timestamp = message.Timestamp
-	h.status = message.Status
+	h.linesLen += msg.RawDataLen
+	h.timestamp = msg.ParsingExtra.Timestamp
+	h.status = msg.Status
 	h.linesCombined++
 
 	if h.buffer.Len() > 0 {
 		// the buffer already contains some data which means that
 		// the current line is not the first line of the message
-		h.buffer.Write(escapedLineFeed)
+		h.buffer.Write(message.EscapedLineFeed)
 	}
 
 	if isTruncated {
 		// the previous line has been truncated because it was too long,
 		// the new line is just a remainder,
 		// adding the truncated flag at the beginning of the content
-		h.buffer.Write(truncatedFlag)
+		h.buffer.Write(message.TruncatedFlag)
+		h.isBufferTruncated = true
 	}
 
-	h.buffer.Write(message.Content)
+	h.buffer.Write(msg.GetContent())
 
 	if h.buffer.Len() >= h.lineLimit {
 		// the multiline message is too long, it needs to be cut off and send,
 		// adding the truncated flag the end of the content
-		h.buffer.Write(truncatedFlag)
+		h.buffer.Write(message.TruncatedFlag)
+		h.isBufferTruncated = true
 		h.sendBuffer()
 		h.shouldTruncate = true
 	}
@@ -134,6 +147,7 @@ func (h *MultiLineHandler) sendBuffer() {
 		h.linesLen = 0
 		h.linesCombined = 0
 		h.shouldTruncate = false
+		h.isBufferTruncated = false
 	}()
 
 	data := bytes.TrimSpace(h.buffer.Bytes())
@@ -143,13 +157,20 @@ func (h *MultiLineHandler) sendBuffer() {
 	if len(content) > 0 || h.linesLen > 0 {
 		if h.linesCombined > 0 {
 			// -1 to ignore the line matching the pattern. This leave a count of only combined lines.
-			linesCombined := int32(h.linesCombined - 1)
+			linesCombined := int64(h.linesCombined - 1)
 			h.linesCombinedInfo.Add(linesCombined)
 			if h.telemetryEnabled {
 				telemetry.GetStatsTelemetryProvider().Count(linesCombinedTelemetryMetricName, float64(linesCombined), []string{})
 			}
 		}
-
-		h.outputFn(NewMessage(content, h.status, h.linesLen, h.timestamp))
+		msg := message.NewRawMessage(content, h.status, h.linesLen, h.timestamp)
+		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
+		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("multiline_regex"))
+		}
+		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(h.multiLineTagValue))
+		}
+		h.outputFn(msg)
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -514,6 +513,11 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 				Type:  gosnmp.NoSuchInstance,
 				Value: 40,
 			},
+			{
+				Name:  "1.1.1.5",
+				Type:  gosnmp.Null,
+				Value: 50,
+			},
 		},
 	}
 	retryGetPacket := gosnmp.SnmpPacket{
@@ -528,13 +532,18 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 				Type:  gosnmp.Gauge32,
 				Value: 30,
 			},
+			{
+				Name:  "1.1.1.5.0",
+				Type:  gosnmp.Gauge32,
+				Value: 50,
+			},
 		},
 	}
 
-	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket, nil)
-	sess.On("Get", []string{"1.1.1.2.0", "1.1.1.3.0"}).Return(&retryGetPacket, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0", "1.1.1.5"}).Return(&getPacket, nil)
+	sess.On("Get", []string{"1.1.1.2.0", "1.1.1.3.0", "1.1.1.5.0"}).Return(&retryGetPacket, nil)
 
-	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}
+	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0", "1.1.1.5"}
 
 	columnValues, err := fetchScalarOids(sess, oids)
 	assert.Nil(t, err)
@@ -543,6 +552,7 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.2":   {Value: float64(20)},
 		"1.1.1.3":   {Value: float64(30)},
+		"1.1.1.5":   {Value: float64(50)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
@@ -764,7 +774,7 @@ func Test_fetchValues_errors(t *testing.T) {
 func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	require.NoError(t, err)
 	log.SetupLogger(l, "debug")
 

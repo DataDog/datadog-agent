@@ -7,25 +7,35 @@ package containerlifecycle
 
 import (
 	"context"
+	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/agent-payload/v5/contlcycle"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type processor struct {
-	sender          aggregator.Sender
+	sender          sender.Sender
 	podsQueue       *queue
 	containersQueue *queue
+	tasksQueue      *queue
+	store           workloadmeta.Component
 }
 
-func newProcessor(sender aggregator.Sender, chunkSize int) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component) *processor {
 	return &processor{
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
+		tasksQueue:      newQueue(chunkSize),
+		store:           store,
 	}
 }
 
@@ -36,7 +46,7 @@ func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
 
 // processEvents handles workloadmeta events, supports pods and container unset events.
 func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
@@ -57,11 +67,27 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 				log.Debugf("Couldn't process container %q: %v", container.ID, err)
 			}
 		case workloadmeta.KindKubernetesPod:
-			err := p.processPod(event.Entity)
+			pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
+			if !ok {
+				log.Debugf("Expected workloadmeta.KubernetesPod got %T, skipping", event.Entity)
+				continue
+			}
+
+			err := p.processPod(pod)
 			if err != nil {
 				log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
 			}
-		case workloadmeta.KindECSTask: // not supported
+		case workloadmeta.KindECSTask:
+			task, ok := event.Entity.(*workloadmeta.ECSTask)
+			if !ok {
+				log.Debugf("Expected workloadmeta.ECSTask got %T, skipping", event.Entity)
+				continue
+			}
+
+			err := p.processTask(task)
+			if err != nil {
+				log.Debugf("Couldn't process task %q: %v", event.Entity.GetID().ID, err)
+			}
 		default:
 			log.Tracef("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 		}
@@ -89,24 +115,62 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 		event.withContainerExitCode(&code)
 	}
 
+	// Because the container processor is triggered off of runtime events, and the
+	// container runtime would have no knowledge surrounding what owns the container,
+	// we need to query the workloadmeta store to get this information.
+	if c, err := p.store.GetContainer(container.ID); err == nil {
+		if c.Owner != nil {
+			event.withOwnerID(c.Owner.ID)
+			switch c.Owner.Kind {
+			case workloadmeta.KindKubernetesPod:
+				event.withOwnerType(types.ObjectKindPod)
+			case workloadmeta.KindECSTask:
+				event.withOwnerType(types.ObjectKindTask)
+			default:
+				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
+			}
+		}
+	}
+
 	return p.containersQueue.add(event)
 }
 
 // processPod enqueue pod events
-func (p *processor) processPod(pod workloadmeta.Entity) error {
+func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
 	event.withObjectID(pod.GetID().ID)
 	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
 
+	if !pod.FinishedAt.IsZero() {
+		ts := pod.FinishedAt.Unix()
+		event.withPodExitTimestamp(&ts)
+	}
+
 	return p.podsQueue.add(event)
+}
+
+func (p *processor) processTask(task *workloadmeta.ECSTask) error {
+	event := newEvent()
+	event.withObjectKind(types.ObjectKindTask)
+	event.withEventType(types.EventNameDelete)
+	event.withObjectID(task.GetID().ID)
+	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+		event.withSource(string(workloadmeta.SourceRuntime))
+	}
+	// we don't have exit timestamp for tasks in the response of metadata v1 api, so we use the current timestamp
+	ts := time.Now().Unix()
+	event.withTaskExitTimestamp(&ts)
+
+	return p.tasksQueue.add(event)
 }
 
 // processQueues consumes the data available in the queues
 func (p *processor) processQueues(ctx context.Context, pollInterval time.Duration) {
 	ticker := time.NewTicker(pollInterval)
-
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
@@ -122,13 +186,18 @@ func (p *processor) processQueues(ctx context.Context, pollInterval time.Duratio
 func (p *processor) flush() {
 	p.flushContainers()
 	p.flushPods()
+	p.flushTasks()
 }
 
 // flushContainers forwards queued container events to the aggregator
 func (p *processor) flushContainers() {
 	msgs := p.containersQueue.flush()
 	if len(msgs) > 0 {
-		p.sender.ContainerLifecycleEvent(msgs)
+		p.containerLifecycleEvent(msgs)
+
+		for eventType, eventCount := range eventCountByType(msgs) {
+			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindContainer)
+		}
 	}
 }
 
@@ -136,6 +205,47 @@ func (p *processor) flushContainers() {
 func (p *processor) flushPods() {
 	msgs := p.podsQueue.flush()
 	if len(msgs) > 0 {
-		p.sender.ContainerLifecycleEvent(msgs)
+		p.containerLifecycleEvent(msgs)
+
+		for eventType, eventCount := range eventCountByType(msgs) {
+			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindPod)
+		}
 	}
+}
+
+// flushTasks forwards queued task events to the aggregator
+func (p *processor) flushTasks() {
+	msgs := p.tasksQueue.flush()
+	if len(msgs) > 0 {
+		p.containerLifecycleEvent(msgs)
+
+		for eventType, eventCount := range eventCountByType(msgs) {
+			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindTask)
+		}
+	}
+}
+
+func (p *processor) containerLifecycleEvent(msgs []*contlcycle.EventsPayload) {
+	for _, msg := range msgs {
+		encoded, err := proto.Marshal(msg)
+		if err != nil {
+			log.Errorf("Unable to encode message: %+v", err)
+			continue
+		}
+
+		p.sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerLifecycle)
+	}
+}
+
+func eventCountByType(eventPayloads []*contlcycle.EventsPayload) map[string]int {
+	res := make(map[string]int)
+
+	for _, payload := range eventPayloads {
+		for _, ev := range payload.Events {
+			eventType := strings.ToLower(ev.GetEventType().String())
+			res[eventType]++
+		}
+	}
+
+	return res
 }

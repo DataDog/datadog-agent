@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package autoscalers
 
@@ -18,9 +17,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 )
 
 func TestDiffAutoscalter(t *testing.T) {
@@ -210,7 +209,7 @@ func TestDiffAutoscalter(t *testing.T) {
 	}
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			val := AutoscalerMetricsUpdate(testCase.hpaNew, testCase.hpaOld)
+			val := AutoscalerMetricsUpdate(testCase.hpaNew.GetObjectMeta(), testCase.hpaOld.GetObjectMeta())
 			assert.Equal(t, testCase.expected, val)
 		})
 	}
@@ -473,15 +472,14 @@ func makeWPASpec(metricName string, labels map[string]string) v1alpha1.Watermark
 
 func TestDiffExternalMetrics(t *testing.T) {
 	testCases := map[string]struct {
-		informerHPAs  []*autoscalingv2.HorizontalPodAutoscaler
+		informerHPAs  []metav1.Object
 		informerWPAs  []*v1alpha1.WatermarkPodAutoscaler
 		storedMetrics []custommetrics.ExternalMetricValue
 		expected      []custommetrics.ExternalMetricValue
 	}{
 		"delete invalid metric": {
-
-			[]*autoscalingv2.HorizontalPodAutoscaler{
-				{
+			[]metav1.Object{
+				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{
 						UID:       types.UID(fmt.Sprint(5)),
 						Namespace: "nsbar",
@@ -489,7 +487,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					},
 					Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "tagbar"}),
 				},
-				{
+				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{
 						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "zanzi",
@@ -588,8 +586,8 @@ func TestDiffExternalMetrics(t *testing.T) {
 			},
 		},
 		"metric name changed": {
-			[]*autoscalingv2.HorizontalPodAutoscaler{
-				{
+			[]metav1.Object{
+				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{
 						UID:       types.UID(fmt.Sprint(5)),
 						Namespace: "bar",
@@ -597,7 +595,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					},
 					Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "bar"}),
 				},
-				{
+				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{
 						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "baz",
@@ -646,7 +644,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			},
 		},
 		"legacy entry": {
-			[]*autoscalingv2.HorizontalPodAutoscaler{},
+			[]metav1.Object{},
 			[]*v1alpha1.WatermarkPodAutoscaler{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -683,8 +681,8 @@ func TestDiffExternalMetrics(t *testing.T) {
 			},
 		},
 		"metric labels changed": {
-			[]*autoscalingv2.HorizontalPodAutoscaler{
-				{
+			[]metav1.Object{
+				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{
 						UID:       types.UID(fmt.Sprint(5)),
 						Namespace: "bar",
@@ -692,7 +690,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					},
 					Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "bar"}),
 				},
-				{
+				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{
 						UID:       types.UID(fmt.Sprint(7)),
 						Namespace: "baz",
@@ -740,24 +738,25 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 			},
 		},
-		"upgrade from old template": {[]*autoscalingv2.HorizontalPodAutoscaler{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					UID:       types.UID(fmt.Sprint(5)),
-					Namespace: "bar",
-					Name:      "foo",
+		"upgrade from old template": {
+			[]metav1.Object{
+				&autoscalingv2.HorizontalPodAutoscaler{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(fmt.Sprint(5)),
+						Namespace: "bar",
+						Name:      "foo",
+					},
+					Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "bar"}),
 				},
-				Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "bar"}),
-			},
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					UID:       types.UID(fmt.Sprint(7)),
-					Namespace: "baz",
-					Name:      "foo",
+				&autoscalingv2.HorizontalPodAutoscaler{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(fmt.Sprint(7)),
+						Namespace: "baz",
+						Name:      "foo",
+					},
+					Spec: makeSpec("requests_per_s_two", map[string]string{"foo": "foobar"}),
 				},
-				Spec: makeSpec("requests_per_s_two", map[string]string{"foo": "foobar"}),
 			},
-		},
 			[]*v1alpha1.WatermarkPodAutoscaler{},
 			[]custommetrics.ExternalMetricValue{
 				{

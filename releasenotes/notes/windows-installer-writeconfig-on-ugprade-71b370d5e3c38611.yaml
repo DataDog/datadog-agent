@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Create missing default configuration files during the upgrade, change, and repair actions of the Windows Installer.

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -28,7 +27,7 @@ type readerV2 struct {
 	pidMapper         pidMapper
 }
 
-func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
+func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter, pidMapperID string) (*readerV2, error) {
 	controllers, err := readCgroupControllers(cgroupRoot)
 	if err != nil {
 		return nil, err
@@ -38,10 +37,11 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, e
 		cgroupRoot:        cgroupRoot,
 		cgroupControllers: controllers,
 		filter:            filter,
-		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter),
+		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter, pidMapperID),
 	}, nil
 }
 
+// parseCgroups parses the cgroups from the cgroupRoot and returns a map of cgroup id to cgroup.
 func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
@@ -56,9 +56,7 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 					if err != nil {
 						return err
 					}
-
 					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
-
 					if err != nil {
 						return err
 					}

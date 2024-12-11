@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build gce
-// +build gce
 
 package gce
 
@@ -14,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,13 +46,13 @@ func getCachedTags(err error) ([]string, error) {
 		log.Infof("unable to get tags from gce, returning cached tags: %s", err)
 		return gceTags.([]string), nil
 	}
-	return nil, log.Warnf("unable to get tags from gce and cache is empty: %s", err)
+	return nil, fmt.Errorf("unable to get tags from gce and cache is empty: %s", err)
 }
 
 // GetTags gets the tags from the GCE api
 func GetTags(ctx context.Context) ([]string, error) {
 
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
@@ -86,7 +85,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 	}
 	if metadata.Project.ProjectID != "" {
 		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
-		if config.Datadog.GetBool("gce_send_project_id_tag") {
+		if pkgconfigsetup.Datadog().GetBool("gce_send_project_id_tag") {
 			tags = append(tags, fmt.Sprintf("project_id:%s", metadata.Project.ProjectID))
 		}
 	}
@@ -102,6 +101,10 @@ func GetTags(ctx context.Context) ([]string, error) {
 		}
 	}
 
+	if providerKind := pkgconfigsetup.Datadog().GetString("provider_kind"); providerKind != "" {
+		tags = append(tags, fmt.Sprintf("provider_kind:%s", providerKind))
+	}
+
 	// save tags to the cache in case we exceed quotas later
 	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 
@@ -111,7 +114,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 // isAttributeExcluded returns whether the attribute key should be excluded from the tags
 func isAttributeExcluded(attr string) bool {
 
-	excludedAttributes := config.Datadog.GetStringSlice("exclude_gce_tags")
+	excludedAttributes := pkgconfigsetup.Datadog().GetStringSlice("exclude_gce_tags")
 	for _, excluded := range excludedAttributes {
 		if attr == excluded {
 			return true

@@ -6,7 +6,8 @@
 package scrubber
 
 import (
-	"io/ioutil"
+	"bytes"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -69,7 +70,7 @@ func TestSkipComments(t *testing.T) {
 func TestCleanFile(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "test.yml")
-	ioutil.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
+	os.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
 
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{
@@ -94,4 +95,12 @@ func TestScrubLine(t *testing.T) {
 	})
 	res := scrubber.ScrubLine("https://foo:bar@example.com")
 	require.Equal(t, "https://foo:********@example.com", res)
+}
+
+func TestScrubBig(t *testing.T) {
+	scrubber := New()
+	content := bytes.Repeat([]byte("a"), 1000000)
+
+	_, err := scrubber.ScrubBytes(content)
+	require.NoError(t, err)
 }

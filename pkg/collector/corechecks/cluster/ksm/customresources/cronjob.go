@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 package customresources
 
 // This file has most of its logic copied from the KSM cronjob metric family
@@ -15,6 +17,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -24,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
@@ -37,31 +41,35 @@ var (
 	descCronJobLabelsDefaultLabels = []string{"namespace", "cronjob"}
 )
 
-// NewCronJobFactory returns a new CronJob metric family generator factory.
-func NewCronJobFactory() customresource.RegistryFactory {
-	return &cronjobFactory{}
+// NewCronJobV1Beta1Factory returns a new CronJob metric family generator factory.
+func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &cronjobv1beta1Factory{
+		client: client.Cl,
+	}
 }
 
-type cronjobFactory struct{}
+type cronjobv1beta1Factory struct {
+	client kubernetes.Interface
+}
 
-func (f *cronjobFactory) Name() string {
+func (f *cronjobv1beta1Factory) Name() string {
 	return "cronjobs"
 }
 
-// CreateClient is not implemented
-func (f *cronjobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+func (f *cronjobv1beta1Factory) CreateClient(_ *rest.Config) (interface{}, error) {
+	return f.client, nil
 }
 
-func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descCronJobAnnotationsName,
 			descCronJobAnnotationsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", j.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", j.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -73,13 +81,14 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descCronJobLabelsName,
 			descCronJobLabelsHelp,
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", j.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", j.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -91,10 +100,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_info",
 			"Info about cronjob.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				return &metric.Family{
@@ -108,10 +118,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_created",
 			"Unix creation timestamp",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -128,10 +139,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_status_active",
 			"Active holds pointers to currently running jobs.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				return &metric.Family{
@@ -145,10 +157,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_status_last_schedule_time",
 			"LastScheduleTime keeps information of when was the last time the job was successfully scheduled.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -166,10 +179,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_spec_suspend",
 			"Suspend flag tells the controller to suspend subsequent executions.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -187,10 +201,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_spec_starting_deadline_seconds",
 			"Deadline in seconds for starting the job if it misses scheduled time for any reason.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -209,10 +224,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_next_schedule_time",
 			"Next time the cronjob should be scheduled. The time after lastScheduleTime, or after the cron job's creation time if it's never been scheduled. Use this to determine if the job is delayed.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -234,10 +250,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_metadata_resource_version",
 			"Resource version representing a specific version of the cronjob.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				return &metric.Family{
@@ -245,10 +262,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_spec_successful_job_history_limit",
 			"Successful job history limit tells the controller how many completed jobs should be preserved.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -266,10 +284,11 @@ func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabel
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_spec_failed_job_history_limit",
 			"Failed job history limit tells the controller how many failed jobs should be preserved.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
 				ms := []*metric.Metric{}
@@ -304,20 +323,26 @@ func wrapCronJobFunc(f func(*batchv1beta1.CronJob) *metric.Family) func(interfac
 	}
 }
 
-func (f *cronjobFactory) ExpectedType() interface{} {
-	return &batchv1beta1.CronJob{}
+func (f *cronjobv1beta1Factory) ExpectedType() interface{} {
+	return &batchv1beta1.CronJob{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CronJob",
+			APIVersion: batchv1beta1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
-func (f *cronjobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *cronjobv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1beta1().CronJobs(ns).List(context.TODO(), opts)
+			return client.BatchV1beta1().CronJobs(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1beta1().CronJobs(ns).Watch(context.TODO(), opts)
+			return client.BatchV1beta1().CronJobs(ns).Watch(ctx, opts)
 		},
 	}
 }

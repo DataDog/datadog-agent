@@ -4,13 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
 import "gopkg.in/yaml.v2"
 
-// checkName constants used to call ServiceCheck
+// CheckName constants used to call ServiceCheck
 const (
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
@@ -27,9 +26,19 @@ type DockerConfig struct {
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
 	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
 	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
-	CollectEvent             bool               `yaml:"collect_events"`
-	FilteredEventType        []string           `yaml:"filtered_event_types"`
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
+
+	// Event collection configuration
+	CollectEvent            bool `yaml:"collect_events"`
+	UnbundleEvents          bool `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents bool `yaml:"bundle_unspecified_events"`
+
+	// FilteredEventTypes is a slice of docker event types that works as a
+	// deny list of events to filter out.
+	FilteredEventType []string `yaml:"filtered_event_types"`
+
+	// CollectedEventTypes is a slice of docker event types to collect.
+	CollectedEventTypes []string `yaml:"collected_event_types"`
 }
 
 // Parse reads the docker check configuration

@@ -40,6 +40,11 @@ func (ss *Schedulers) AddScheduler(scheduler Scheduler) {
 	}
 }
 
+// GetSources returns all the log source from the source manager.
+func (ss *Schedulers) GetSources() []*sources.LogSource {
+	return ss.mgr.GetSources()
+}
+
 // Start starts all schedulers in the collection.
 func (ss *Schedulers) Start() {
 	for _, s := range ss.schedulers {

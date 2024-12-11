@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build go1.18
+//go:build go1.18 && !windows
 
 package agent
 
@@ -11,33 +11,53 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func FuzzProcessStats(f *testing.F) {
 	agent, cancel := agentWithDefaults()
 	defer cancel()
-	encode := func(pbStats pb.ClientStatsPayload) ([]byte, error) {
-		return pbStats.Marshal()
+	encode := func(pbStats *pb.ClientStatsPayload) ([]byte, error) {
+		return pbStats.MarshalVT()
 	}
-	decode := func(stats []byte) (pb.ClientStatsPayload, error) {
-		var payload pb.ClientStatsPayload
-		err := payload.Unmarshal(stats)
+	decode := func(stats []byte) (*pb.ClientStatsPayload, error) {
+		payload := &pb.ClientStatsPayload{}
+		err := payload.UnmarshalVT(stats)
 		return payload, err
+	}
+	equal := func(x, y *pb.ClientStatsPayload) bool {
+		// This function provides a fuzzier comparison than reflect.DeepEqual,
+		// allowing for empty slices to be equal using cmpopts.EquateEmpty().
+		// cmp.Exporter is an option to compare unexported fields.
+		return cmp.Equal(x, y, cmpopts.EquateEmpty(), cmp.Exporter(func(reflect.Type) bool { return true }))
 	}
 	pbStats := testutil.StatsPayloadSample()
 	stats, err := encode(pbStats)
 	if err != nil {
 		f.Fatalf("Couldn't generate seed corpus: %v", err)
 	}
-	f.Add(stats, "java", "v1")
-	f.Fuzz(func(t *testing.T, stats []byte, lang, version string) {
+	f.Add(stats, "java", "v1", "abc123")
+	f.Fuzz(func(t *testing.T, stats []byte, lang, version, containerID string) {
 		pbStats, err := decode(stats)
 		if err != nil {
 			t.Skipf("Skipping invalid payload: %v", err)
 		}
-		processedStats := agent.processStats(pbStats, lang, version)
+		encPreProcess, err := encode(pbStats)
+		if err != nil {
+			t.Fatalf("Couldn't encode stats before processing: %v", err)
+		}
+		decPreProcess, err := decode(encPreProcess)
+		if err != nil {
+			t.Fatalf("Couldn't decode stats before processing: %v", err)
+		}
+		if !equal(decPreProcess, pbStats) {
+			t.Fatalf("Inconsistent encoding/decoding before processing: (%v) is different from (%v)", decPreProcess, pbStats)
+		}
+		processedStats := agent.processStats(pbStats, lang, version, containerID)
 		encPostProcess, err := encode(processedStats)
 		if err != nil {
 			t.Fatalf("processStats returned an invalid stats payload: %v", err)
@@ -46,7 +66,7 @@ func FuzzProcessStats(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Couldn't decode stats after processing: %v", err)
 		}
-		if !reflect.DeepEqual(decPostProcess, processedStats) {
+		if !equal(decPostProcess, processedStats) {
 			t.Fatalf("Inconsistent encoding/decoding after processing: (%v) is different from (%v)", decPostProcess, processedStats)
 		}
 	})
@@ -58,10 +78,10 @@ func FuzzObfuscateSpan(f *testing.F) {
 	encode := func(pbSpan *pb.Span) ([]byte, error) {
 		return pbSpan.MarshalMsg(nil)
 	}
-	decode := func(span []byte) (pb.Span, error) {
+	decode := func(span []byte) (*pb.Span, error) {
 		var pbSpan pb.Span
 		_, err := pbSpan.UnmarshalMsg(span)
-		return pbSpan, err
+		return &pbSpan, err
 	}
 	seedCorpus := []*pb.Span{
 		{
@@ -92,8 +112,8 @@ func FuzzObfuscateSpan(f *testing.F) {
 		if err != nil {
 			t.Skipf("Skipping invalid span: %v", err)
 		}
-		agent.obfuscateSpan(&pbSpan)
-		encPostObfuscate, err := encode(&pbSpan)
+		agent.obfuscateSpan(pbSpan)
+		encPostObfuscate, err := encode(pbSpan)
 		if err != nil {
 			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
 		}
@@ -108,6 +128,8 @@ func FuzzObfuscateSpan(f *testing.F) {
 }
 
 func FuzzNormalizeTrace(f *testing.F) {
+	agent, cancel := agentWithDefaults()
+	defer cancel()
 	encode := func(pbTrace pb.Trace) ([]byte, error) {
 		return pbTrace.MarshalMsg(nil)
 	}
@@ -128,7 +150,7 @@ func FuzzNormalizeTrace(f *testing.F) {
 			t.Skipf("Skipping invalid trace: %v", err)
 		}
 		ts := newTagStats()
-		if err := normalizeTrace(ts, pbTrace); err != nil {
+		if err := agent.normalizeTrace(ts, pbTrace); err != nil {
 			t.Skipf("Skipping rejected trace: %v", err)
 		}
 		encPostNorm, err := encode(pbTrace)

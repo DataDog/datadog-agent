@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Support the config `additional_endpoints` for Data Streams monitoring.

@@ -6,11 +6,12 @@
 package util
 
 import (
+	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 // ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
@@ -24,12 +25,29 @@ const (
 	CloseConnection
 )
 
+// ReqOptions are options when making a request
+type ReqOptions struct {
+	Conn      ShouldCloseConnection
+	Ctx       context.Context
+	Authtoken string
+}
+
 // GetClient is a convenience function returning an http client
 // `GetClient(false)` must be used only for HTTP requests whose destination is
 // localhost (ie, for Agent commands).
 func GetClient(verify bool) *http.Client {
+	return GetClientWithTimeout(0, verify)
+}
+
+// GetClientWithTimeout is a convenience function returning an http client
+// Arguments correspond to the request timeout duration, and a boolean to
+// verify the server TLS client (false should only be used on localhost
+// trusted endpoints).
+func GetClientWithTimeout(to time.Duration, verify bool) *http.Client {
 	if verify {
-		return &http.Client{}
+		return &http.Client{
+			Timeout: to,
+		}
 	}
 
 	tr := &http.Transport{
@@ -41,13 +59,26 @@ func GetClient(verify bool) *http.Client {
 
 // DoGet is a wrapper around performing HTTP GET requests
 func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
-	req, e := http.NewRequest("GET", url, nil)
+	return DoGetWithOptions(c, url, &ReqOptions{Conn: conn})
+}
+
+// DoGetWithOptions is a wrapper around performing HTTP GET requests
+func DoGetWithOptions(c *http.Client, url string, options *ReqOptions) (body []byte, e error) {
+	if options.Authtoken == "" {
+		options.Authtoken = GetAuthToken()
+	}
+
+	if options.Ctx == nil {
+		options.Ctx = context.Background()
+	}
+
+	req, e := http.NewRequestWithContext(options.Ctx, "GET", url, nil)
 	if e != nil {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
-	if conn == CloseConnection {
+	req.Header.Set("Authorization", "Bearer "+options.Authtoken)
+	if options.Conn == CloseConnection {
 		req.Close = true
 	}
 
@@ -55,16 +86,15 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 	if e != nil {
 		return body, e
 	}
-	body, e = ioutil.ReadAll(r.Body)
+	body, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return body, e
 	}
 	if r.StatusCode >= 400 {
-		return body, fmt.Errorf("%s", body)
+		return body, errors.New(string(body))
 	}
 	return body, nil
-
 }
 
 // DoPost is a wrapper around performing HTTP POST requests
@@ -80,13 +110,13 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	if e != nil {
 		return resp, e
 	}
-	resp, e = ioutil.ReadAll(r.Body)
+	resp, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return resp, e
 	}
 	if r.StatusCode >= 400 {
-		return resp, fmt.Errorf("%s", resp)
+		return resp, errors.New(string(resp))
 	}
 	return resp, nil
 }

@@ -6,9 +6,7 @@
 package uptane
 
 import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // targetStore persists all the target files present in the current director targets.json
@@ -17,10 +15,10 @@ type targetStore struct {
 	targetBucket string
 }
 
-func newTargetStore(db *transactionalStore, cacheKey string) *targetStore {
+func newTargetStore(db *transactionalStore) *targetStore {
 	return &targetStore{
 		db:           db,
-		targetBucket: fmt.Sprintf("%s_targets", cacheKey),
+		targetBucket: "targets",
 	}
 }
 

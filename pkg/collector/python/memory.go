@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -15,9 +14,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/cihub/seelog"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,9 +26,7 @@ import (
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import (
-	"C"
-)
+import "C"
 
 var (
 	pointerCache = sync.Map{}
@@ -70,10 +65,18 @@ func init() {
 }
 
 // MemoryTracker is the method exposed to the RTLoader for memory tracking
+//
 //export MemoryTracker
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// run sync for reliability reasons
-	log.Tracef("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
+
+	// This check looks redundant since the log level is also checked in pkg/util/log,
+	// but from profiling, even passing these vars through as arguments allocates to the heap.
+	// This is an optimization to avoid even evaluating the `Tracef` call if the trace log
+	// level is not enabled.
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
+	}
 	switch op {
 	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
 		pointerCache.Store(ptr, sz)
@@ -89,7 +92,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 		if !ok {
 			log.Debugf("untracked memory was attempted to be freed - set trace level for details")
 			lvl, err := log.GetLogLevel()
-			if err == nil && lvl == seelog.TraceLvl {
+			if err == nil && lvl == log.TraceLvl {
 				stack := string(debug.Stack())
 				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
 			}
@@ -108,10 +111,12 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 
-	if config.Datadog.GetBool("memtrack_enabled") {
+	// TODO(memory-tracking): track the origin of the string (for example check name)
+	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
 		MemoryTracker(unsafe.Pointer(cstr), C.size_t(len(str)+1), C.DATADOG_AGENT_RTLOADER_ALLOCATION)
 	}
 

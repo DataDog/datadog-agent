@@ -4,13 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package dogstatsd
 
 import "testing"
 
 // noop version for unsupported platforms
-func testUDSOriginDetection(t *testing.T) {
+func testUDSOriginDetection(t *testing.T, _ string) {
 	t.Log("Unsupported platform, skip...")
 }

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
+//go:build linux && linux_bpf
 
 package kernel
 
@@ -103,7 +102,7 @@ var targets = map[string]TargetSetup{
 	},
 }
 
-func setup(target types.Target, repos []string, dname string) error {
+func setup(_ types.Target, repos []string, dname string) error {
 	// Make source-list.d
 	sources := fmt.Sprintf(reposSourceDir, dname)
 	if err := os.MkdirAll(sources, 0744); err != nil {

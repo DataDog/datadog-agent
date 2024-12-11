@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: Enable credit card obfuscation by default. There is a small chance that numbers that are similar to valid credit cards may be redacted, this feature can be disabled by using `apm_config.obfuscation.credit_cards.enabled`. Alternatively, it can be made more accurate through luhn checksum verification by using `apm_config.obfuscation.credit_cards.luhn`, however, this increases the performance penalty of this check.

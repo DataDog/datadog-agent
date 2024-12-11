@@ -18,7 +18,7 @@ func TestStats(t *testing.T) {
 	myStat := expvar.Int{}
 
 	s, err := NewStats(10)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

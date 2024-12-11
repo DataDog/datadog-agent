@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -13,6 +12,8 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -38,7 +39,6 @@ func ExtractNode(n *corev1.Node) *model.Node {
 			OsImage:                 n.Status.NodeInfo.OSImage,
 			KernelVersion:           n.Status.NodeInfo.KernelVersion,
 			KubeletVersion:          n.Status.NodeInfo.KubeletVersion,
-			KubeProxyVersion:        n.Status.NodeInfo.KubeProxyVersion,
 		},
 	}
 
@@ -87,6 +87,8 @@ func ExtractNode(n *corev1.Node) *model.Node {
 	}
 
 	addAdditionalNodeTags(msg)
+
+	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(n.ObjectMeta.Labels)...)
 
 	return msg
 }
@@ -153,26 +155,36 @@ func convertNodeStatusToTags(nodeStatus string) []string {
 
 func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
 	// Milli Value ceil(q * 1000), which fits to be the lowest value. CPU -> Millicore and Memory -> byte
-	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU}
-	supportedResources := []corev1.ResourceName{corev1.ResourcePods, corev1.ResourceMemory}
-	setSupportedResources(n, mn, supportedResources, false)
-	setSupportedResources(n, mn, supportedResourcesMilli, true)
+
+	resourcesMilli := map[corev1.ResourceName]bool{
+		corev1.ResourceCPU:    true,
+		corev1.ResourceMemory: false,
+		corev1.ResourcePods:   false,
+	}
+
+	setSupportedResources(n, mn, resourcesMilli)
 }
 
-func setSupportedResources(n *corev1.Node, mn *model.Node, supportedResources []corev1.ResourceName, isMilli bool) {
-	for _, resource := range supportedResources {
-		capacity, hasCapacity := n.Status.Capacity[resource]
-		if hasCapacity && !capacity.IsZero() {
-			if isMilli {
+// The function iterates over the capacity and allocatable resources of the node and sets the corresponding values in the model.Node object.
+// If a resource is in milli format, the milli value is used; otherwise, the regular value is used.
+func setSupportedResources(n *corev1.Node, mn *model.Node, resourcesMilli map[corev1.ResourceName]bool) {
+	// Iterate over the capacity resources of the node
+	for resource, capacity := range n.Status.Capacity {
+		if !capacity.IsZero() {
+			isMilli, ok := resourcesMilli[resource]
+			if ok && isMilli {
 				mn.Status.Capacity[resource.String()] = capacity.MilliValue()
 			} else {
 				mn.Status.Capacity[resource.String()] = capacity.Value()
 			}
 		}
-		allocatable, hasAllocatable := n.Status.Allocatable[resource]
+	}
 
-		if hasAllocatable && !allocatable.IsZero() {
-			if isMilli {
+	// Iterate over the allocatable resources of the node
+	for resource, allocatable := range n.Status.Allocatable {
+		if !allocatable.IsZero() {
+			isMilli, ok := resourcesMilli[resource]
+			if ok && isMilli {
 				mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
 			} else {
 				mn.Status.Allocatable[resource.String()] = allocatable.Value()
@@ -207,7 +219,7 @@ func findNodeRoles(nodeLabels map[string]string) []string {
 	labelNodeRolePrefix := "node-role.kubernetes.io/"
 	nodeLabelRole := "kubernetes.io/role"
 
-	roles := sets.NewString()
+	roles := sets.New[string]()
 	for k, v := range nodeLabels {
 		switch {
 		case strings.HasPrefix(k, labelNodeRolePrefix):
@@ -219,5 +231,5 @@ func findNodeRoles(nodeLabels map[string]string) []string {
 			roles.Insert(v)
 		}
 	}
-	return roles.List()
+	return sets.List(roles)
 }

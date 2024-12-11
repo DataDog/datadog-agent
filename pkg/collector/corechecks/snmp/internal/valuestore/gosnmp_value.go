@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 package valuestore
 
 import (
@@ -11,15 +12,17 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // GetResultValueFromPDU converts gosnmp.SnmpPDU to ResultValue
 // See possible types here: https://github.com/gosnmp/gosnmp/blob/master/helper.go#L59-L271
 //
 // - gosnmp.Opaque: No support for gosnmp.Opaque since the type is processed recursively and never returned:
-//   is never returned https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
+// is never returned https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
 // - gosnmp.Boolean: seems not exist anymore and not handled by gosnmp
 func GetResultValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, ResultValue, error) {
 	name := strings.TrimLeft(pduVariable.Name, ".") // remove leading dot
@@ -98,14 +101,14 @@ func shouldSkip(berType gosnmp.Asn1BER) bool {
 //
 // ZeroBasedCounter64: We don't handle ZeroBasedCounter64 since it's not a type currently provided by gosnmp.
 // This type is currently supported by python impl: https://github.com/DataDog/integrations-core/blob/d6add1dfcd99c3610f45390b8d4cd97390af1f69/snmp/datadog_checks/snmp/pysnmp_inspect.py#L37-L38
-func getSubmissionType(gosnmpType gosnmp.Asn1BER) string {
+func getSubmissionType(gosnmpType gosnmp.Asn1BER) profiledefinition.ProfileMetricType {
 	switch gosnmpType {
 	// Counter Types: From the snmp doc: The Counter32 type represents a non-negative integer which monotonically increases until it reaches a maximum
 	// value of 2^32-1 (4294967295 decimal), when it wraps around and starts increasing again from zero.
 	// We convert snmp counters by default to `rate` submission type, but sometimes `monotonic_count` might be more appropriate.
-	// To achieve that, we can use `forced_type: monotonic_count` or `forced_type: monotonic_count_and_rate`.
+	// To achieve that, we can use `metric_type: monotonic_count` or `metric_type: monotonic_count_and_rate`.
 	case gosnmp.Counter32, gosnmp.Counter64:
-		return "counter"
+		return profiledefinition.ProfileMetricTypeCounter
 	}
 	return ""
 }

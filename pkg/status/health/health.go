@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package health implements the internal healthcheck
 package health
 
 import (
@@ -28,6 +29,8 @@ type component struct {
 	name       string
 	healthChan chan time.Time
 	healthy    bool
+	// if set to true, once the check is healthy, we mark it as healthy forever and we stop checking it
+	once bool
 }
 
 type catalog struct {
@@ -44,7 +47,7 @@ func newCatalog() *catalog {
 }
 
 // register a component with the default 30 seconds timeout, returns a token
-func (c *catalog) register(name string) *Handle {
+func (c *catalog) register(name string, options ...Option) *Handle {
 	c.Lock()
 	defer c.Unlock()
 
@@ -57,6 +60,11 @@ func (c *catalog) register(name string) *Handle {
 		healthChan: make(chan time.Time, bufferSize),
 		healthy:    false,
 	}
+
+	for _, option := range options {
+		option(component)
+	}
+
 	h := &Handle{
 		C: component.healthChan,
 	}
@@ -96,6 +104,10 @@ func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	c.Lock()
 	defer c.Unlock()
 	for _, component := range c.components {
+		// We skip components that are registered to be skipped once they pass once
+		if component.healthy && component.once {
+			continue
+		}
 		select {
 		case component.healthChan <- healthDeadline:
 			component.healthy = true

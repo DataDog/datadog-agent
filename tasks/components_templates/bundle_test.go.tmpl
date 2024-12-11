@@ -1,0 +1,14 @@
+${COPYRIGHT_HEADER}
+
+package ${BUNDLE_NAME}
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+)
+
+func TestBundleDependencies(t *testing.T) {
+	fxutil.TestBundle(t, Bundle)
+}

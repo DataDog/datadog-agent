@@ -3,23 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
+// Package testutil implements a fake ECS client to be used in tests.
 package testutil
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
+	"os"
+	"sync/atomic"
+	"time"
 )
 
 // DummyECS allows tests to mock ECS metadata server responses
 type DummyECS struct {
-	mux          *http.ServeMux
-	fileHandlers map[string]string
-	rawHandlers  map[string]string
-	Requests     chan *http.Request
+	mux               *http.ServeMux
+	fileHandlers      map[string]string
+	fileHandlersDelay map[string]time.Duration
+	rawHandlers       map[string]string
+	rawHandlersDelay  map[string]time.Duration
+	Requests          chan *http.Request
+	RequestCount      atomic.Uint64
 }
 
 // Option represents an option used to create a new mock of the ECS metadata
@@ -34,6 +38,13 @@ func FileHandlerOption(pattern, testDataFile string) Option {
 	}
 }
 
+// FileHandlerDelayOption allows returning to requests matching a pattern with a delay.
+func FileHandlerDelayOption(pattern string, delay time.Duration) Option {
+	return func(d *DummyECS) {
+		d.fileHandlersDelay[pattern] = delay
+	}
+}
+
 // RawHandlerOption allows returning the specified string to requests matching a
 // pattern.
 func RawHandlerOption(pattern, rawResponse string) Option {
@@ -42,28 +53,43 @@ func RawHandlerOption(pattern, rawResponse string) Option {
 	}
 }
 
+// RawHandlerDelayOption allows returning to requests matching a pattern with a delay.
+func RawHandlerDelayOption(pattern string, delay time.Duration) Option {
+	return func(d *DummyECS) {
+		d.rawHandlersDelay[pattern] = delay
+	}
+}
+
 // NewDummyECS create a mock of the ECS metadata API.
 func NewDummyECS(ops ...Option) (*DummyECS, error) {
 	d := &DummyECS{
-		mux:          http.NewServeMux(),
-		fileHandlers: make(map[string]string),
-		rawHandlers:  make(map[string]string),
-		Requests:     make(chan *http.Request, 3),
+		mux:               http.NewServeMux(),
+		fileHandlers:      make(map[string]string),
+		fileHandlersDelay: make(map[string]time.Duration),
+		rawHandlers:       make(map[string]string),
+		rawHandlersDelay:  make(map[string]time.Duration),
+		Requests:          make(chan *http.Request, 10),
 	}
 	for _, o := range ops {
 		o(d)
 	}
 	for pattern, testDataPath := range d.fileHandlers {
-		raw, err := ioutil.ReadFile(testDataPath)
+		raw, err := os.ReadFile(testDataPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to register handler for pattern %s: could not read test data file with path %s", pattern, testDataPath)
 		}
-		d.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		d.mux.HandleFunc(pattern, func(w http.ResponseWriter, _ *http.Request) {
+			if delay, ok := d.fileHandlersDelay[pattern]; ok {
+				time.Sleep(delay)
+			}
 			w.Write(raw)
 		})
 	}
 	for pattern, rawData := range d.rawHandlers {
-		d.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		d.mux.HandleFunc(pattern, func(w http.ResponseWriter, _ *http.Request) {
+			if delay, ok := d.rawHandlersDelay[pattern]; ok {
+				time.Sleep(delay)
+			}
 			w.Write([]byte(rawData))
 		})
 	}
@@ -73,20 +99,12 @@ func NewDummyECS(ops ...Option) (*DummyECS, error) {
 // ServeHTTP is used to handle HTTP requests.
 func (d *DummyECS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("dummyECS received %s on %s\n", r.Method, r.URL.Path)
+	d.RequestCount.Add(1)
 	d.Requests <- r
 	d.mux.ServeHTTP(w, r)
 }
 
 // Start starts the HTTP server
-func (d *DummyECS) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	ecsAgentURL, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	ecsAgentPort, err := strconv.Atoi(ecsAgentURL.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	return ts, ecsAgentPort, nil
+func (d *DummyECS) Start() *httptest.Server {
+	return httptest.NewServer(d)
 }

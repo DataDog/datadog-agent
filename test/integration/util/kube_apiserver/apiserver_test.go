@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build docker && kubeapiserver
-// +build docker,kubeapiserver
 
 package kubernetes
 
@@ -23,7 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -40,11 +40,11 @@ type testSuite struct {
 }
 
 func TestSuiteKube(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	s := &testSuite{}
 
 	// Env detection
-	config.DetectFeatures()
+	env.SetFeatures(t, env.Kubernetes)
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()
@@ -58,7 +58,7 @@ func TestSuiteKube(t *testing.T) {
 	pwd, err := os.Getwd()
 	require.Nil(t, err)
 	s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
+	mockConfig.SetWithoutSource("kubernetes_kubeconfig_path", s.kubeConfigPath)
 	_, err = os.Stat(s.kubeConfigPath)
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 
@@ -96,13 +96,13 @@ func (suite *testSuite) SetupTest() {
 }
 
 func (suite *testSuite) TestKubeEvents() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	resVer := ""
 	eventReadTimeout := int64(1)
 	lastList := time.Now()
 
 	// Init own client to write the events
-	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	mockConfig.SetWithoutSource("kubernetes_kubeconfig_path", suite.kubeConfigPath)
 	c, err := apiserver.GetAPIClient()
 
 	require.NoError(suite.T(), err)
@@ -167,10 +167,10 @@ func (suite *testSuite) TestKubeEvents() {
 
 func (suite *testSuite) TestHostnameProvider() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// Init own client to write the events
-	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	mockConfig.SetWithoutSource("kubernetes_kubeconfig_path", suite.kubeConfigPath)
 	c, err := apiserver.GetAPIClient()
 
 	require.NoError(suite.T(), err)
@@ -193,10 +193,10 @@ func (suite *testSuite) TestHostnameProvider() {
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
-	var testClusterName = "laika"
-	mockConfig.Set("cluster_name", testClusterName)
+	testClusterName := "laika"
+	mockConfig.SetWithoutSource("cluster_name", testClusterName)
 	clustername.ResetClusterName()
-	defer mockConfig.Set("cluster_name", "")
+	defer mockConfig.SetWithoutSource("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	foundHost, err = kubernetes.GetKubeAPIServerHostname(ctx)

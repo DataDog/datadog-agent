@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Flush in-flight requests and pending retries to disk at shutdown when disk-based buffering of metrics is enabled
+    (for example, when `forwarder_storage_max_size_in_bytes` is set).

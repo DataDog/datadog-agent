@@ -14,11 +14,11 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -29,20 +29,19 @@ const (
 // should we add another fied.
 type traceResponse struct {
 	// All the sampling rates recommended, by service
-	Rates      map[string]float64                       `json:"rate_by_service"`
-	Mechanisms map[string]apmsampling.SamplingMechanism `json:"mechanism,omitempty"`
+	Rates map[string]float64 `json:"rate_by_service"`
 }
 
 // httpFormatError is used for payload format errors
-func httpFormatError(w http.ResponseWriter, v Version, err error) {
+func httpFormatError(w http.ResponseWriter, v Version, err error, statsd statsd.ClientInterface) {
 	log.Errorf("Rejecting client request: %v", err)
 	tags := []string{"error:format-error", "version:" + string(v)}
-	metrics.Count(receiverErrorKey, 1, tags, 1)
+	_ = statsd.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 }
 
 // httpDecodingError is used for errors happening in decoding
-func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
+func httpDecodingError(err error, tags []string, w http.ResponseWriter, statsd statsd.ClientInterface) {
 	status := http.StatusBadRequest
 	errtag := "decoding-error"
 	msg := err.Error()
@@ -63,7 +62,7 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	}
 
 	tags = append(tags, fmt.Sprintf("error:%s", errtag))
-	metrics.Count(receiverErrorKey, 1, tags, 1)
+	_ = statsd.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, msg, status)
 }
 
@@ -96,14 +95,14 @@ func (wc *writeCounter) N() uint64 { return wc.n.Load() }
 // httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
 // It returns the number of bytes written and a boolean specifying whether the write was
 // successful.
-func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *sampler.DynamicConfig) (n uint64, ok bool) {
+func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *sampler.DynamicConfig, statsd statsd.ClientInterface) (n uint64, ok bool) {
 	wc := newWriteCounter(w)
 	var err error
 	defer func() {
 		n, ok = wc.N(), err == nil
 		if err != nil {
 			tags := []string{"error:response-error"}
-			metrics.Count(receiverErrorKey, 1, tags, 1)
+			_ = statsd.Count(receiverErrorKey, 1, tags, 1)
 		}
 	}()
 
@@ -113,12 +112,11 @@ func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *samp
 		Rates: currentState.Rates,
 	}
 	if ratesVersion != "" {
-		w.Header().Set(headerRatesPayloadVersion, currentState.Version)
+		w.Header().Set(header.RatesPayloadVersion, currentState.Version)
 		if ratesVersion == currentState.Version {
 			_, err = wc.Write([]byte("{}"))
 			return
 		}
-		response.Mechanisms = currentState.Mechanisms
 	}
 	encoder := json.NewEncoder(wc)
 	err = encoder.Encode(response)

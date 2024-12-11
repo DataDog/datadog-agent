@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package split
 
 import (
 	"expvar"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,8 +62,8 @@ func init() {
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (bool, []byte, []byte, error) {
-	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct)
+func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component) (bool, []byte, []byte, error) {
+	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct, strategy)
 	if err != nil {
 		return false, nil, nil, err
 	}
@@ -73,10 +74,10 @@ func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshal
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (forwarder.Payloads, error) {
+func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component) (transaction.BytesPayloads, error) {
 	marshallers := []marshaler.AbstractMarshaler{m}
-	smallEnoughPayloads := forwarder.Payloads{}
-	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct)
+	smallEnoughPayloads := transaction.BytesPayloads{}
+	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct, strategy)
 	if err != nil {
 		return smallEnoughPayloads, err
 	}
@@ -85,7 +86,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 		log.Debug("The payload was not too big, returning the full payload")
 		splitterNotTooBig.Add(1)
 		tlmSplitterNotTooBig.Inc()
-		smallEnoughPayloads = append(smallEnoughPayloads, &compressedPayload)
+		smallEnoughPayloads = append(smallEnoughPayloads, transaction.NewBytesPayloadWithoutMetaData(compressedPayload))
 		return smallEnoughPayloads, nil
 	}
 	splitterTooBig.Add(1)
@@ -103,7 +104,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 		for _, toSplit := range tempSlice {
 			var e error
 			// we have to do this every time to get the proper payload
-			compressedPayload, payload, e := serializeMarshaller(toSplit, compress, marshalFct)
+			compressedPayload, payload, e := serializeMarshaller(toSplit, compress, marshalFct, strategy)
 			if e != nil {
 				return smallEnoughPayloads, e
 			}
@@ -125,14 +126,14 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 			// after the payload has been split, loop through the chunks
 			for _, chunk := range chunks {
 				// serialize the payload
-				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, marshalFct)
+				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, marshalFct, strategy)
 				if err != nil {
 					log.Debugf("Error serializing a chunk: %s", err)
 					continue
 				}
 				if !tooBigChunk {
 					// if the payload is small enough, return it straight away
-					smallEnoughPayloads = append(smallEnoughPayloads, &compressedPayload)
+					smallEnoughPayloads = append(smallEnoughPayloads, transaction.NewBytesPayloadWithoutMetaData(compressedPayload))
 					log.Debugf("chunk was small enough: %v, smallEnoughPayloads are of length: %v", len(compressedPayload), len(smallEnoughPayloads))
 				} else {
 					// if it is not small enough, append it to the list of payloads
@@ -159,7 +160,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 }
 
 // serializeMarshaller serializes the marshaller and returns both the compressed and uncompressed payloads
-func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) ([]byte, []byte, error) {
+func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component) ([]byte, []byte, error) {
 	var payload []byte
 	var compressedPayload []byte
 	var err error
@@ -169,7 +170,7 @@ func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFc
 		return nil, nil, err
 	}
 	if compress {
-		compressedPayload, err = compression.Compress(payload)
+		compressedPayload, err = strategy.Compress(payload)
 		if err != nil {
 			return nil, nil, err
 		}

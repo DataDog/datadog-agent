@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
@@ -14,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,7 +28,7 @@ type args struct {
 
 type serviceCheck struct {
 	name     string
-	status   metrics.ServiceCheckStatus
+	status   servicecheck.ServiceCheckStatus
 	tags     []string
 	hostname string
 	message  string
@@ -133,7 +132,7 @@ func Test_resourcequotaTransformer(t *testing.T) {
 func Test_cronJobNextScheduleTransformer(t *testing.T) {
 	type serviceCheck struct {
 		name     string
-		status   metrics.ServiceCheckStatus
+		status   servicecheck.ServiceCheckStatus
 		hostname string
 		tags     []string
 		message  string
@@ -160,7 +159,7 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:     "kubernetes_state.cronjob.on_schedule_check",
-				status:   metrics.ServiceCheckOK,
+				status:   servicecheck.ServiceCheckOK,
 				tags:     []string{"cronjob:foo", "namespace:default"},
 				hostname: "foo",
 				message:  "",
@@ -182,7 +181,7 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.on_schedule_check",
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				tags:    []string{"cronjob:foo", "namespace:default"},
 				message: "The cron job check scheduled at 2020-07-23 10:53:35 +0000 UTC is 2 seconds late",
 			},
@@ -270,7 +269,7 @@ func Test_jobCompleteTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckOK,
+				status: servicecheck.ServiceCheckOK,
 				tags:   []string{"job_name:foo", "namespace:default"},
 			},
 		},
@@ -289,7 +288,7 @@ func Test_jobCompleteTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckOK,
+				status: servicecheck.ServiceCheckOK,
 				tags:   []string{"job:foo", "namespace:default"},
 			},
 		},
@@ -348,7 +347,7 @@ func Test_jobFailedTransformer(t *testing.T) {
 			},
 			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckCritical,
+				status: servicecheck.ServiceCheckCritical,
 				tags:   []string{"kube_cronjob:foo", "namespace:default"},
 			},
 			expectedMetric: &metricsExpected{
@@ -373,7 +372,7 @@ func Test_jobFailedTransformer(t *testing.T) {
 			},
 			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckCritical,
+				status: servicecheck.ServiceCheckCritical,
 				tags:   []string{"kube_cronjob:foo", "namespace:default"},
 			},
 			expectedMetric: &metricsExpected{
@@ -545,7 +544,99 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 			},
 		},
 		{
-			name: "irrelevant reason",
+			name: "BackoffLimitExceeded and value 0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:backofflimitexceeded"},
+			},
+			expected: nil,
+		},
+		{
+			name: "BackoffLimitExceeded and value 1",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:backofflimitexceeded"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:backofflimitexceeded"},
+			},
+		},
+		{
+			name: "DeadlineExceeded and value 0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "DeadlineExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
+			},
+			expected: nil,
+		},
+		{
+			name: "DeadlineExceeded and value 1.0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "DeadlineExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:deadlineexceeded"},
+			},
+		},
+		{
+			name: "DeadlineExceeded and value 1.0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "DeadlineExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:deadlineexceeded"},
+			},
+		},
+		{
+			name: "Evicted and 0",
 			args: args{
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
@@ -559,6 +650,26 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
 			},
 			expected: nil,
+		},
+		{
+			name: "Evicted and 1",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "Evicted",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
+			},
 		},
 		{
 			name: "inactive",
@@ -883,6 +994,27 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "CreateContainerConfigError",
+			args: args{
+				name: "kube_pod_container_status_waiting_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "CreateContainerConfigError",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.waiting",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
+			},
+		},
+		{
 			name: "InvalidImageName",
 			args: args{
 				name: "kube_pod_container_status_waiting_reason",
@@ -1192,7 +1324,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:true"},
-				status:  metrics.ServiceCheckOK,
+				status:  servicecheck.ServiceCheckOK,
 				message: "foo is currently reporting Ready = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1218,7 +1350,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:false"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting Ready = false",
 			},
 			expectedMetric: &metricsExpected{
@@ -1244,7 +1376,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:unknown"},
-				status:  metrics.ServiceCheckWarning,
+				status:  servicecheck.ServiceCheckWarning,
 				message: "foo is currently reporting Ready = unknown",
 			},
 			expectedMetric: &metricsExpected{
@@ -1324,7 +1456,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:foo"},
-				status:  metrics.ServiceCheckUnknown,
+				status:  servicecheck.ServiceCheckUnknown,
 				message: "foo is currently reporting Ready = foo",
 			},
 			expectedMetric: &metricsExpected{
@@ -1370,7 +1502,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.out_of_disk",
 				tags:    []string{"node:foo", "condition:OutOfDisk", "status:false"},
-				status:  metrics.ServiceCheckOK,
+				status:  servicecheck.ServiceCheckOK,
 				message: "foo is currently reporting OutOfDisk = false",
 			},
 			expectedMetric: &metricsExpected{
@@ -1396,7 +1528,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.out_of_disk",
 				tags:    []string{"node:foo", "condition:OutOfDisk", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting OutOfDisk = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1422,7 +1554,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.disk_pressure",
 				tags:    []string{"node:foo", "condition:DiskPressure", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting DiskPressure = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1448,7 +1580,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.network_unavailable",
 				tags:    []string{"node:foo", "condition:NetworkUnavailable", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting NetworkUnavailable = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1474,7 +1606,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.memory_pressure",
 				tags:    []string{"node:foo", "condition:MemoryPressure", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting MemoryPressure = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1543,6 +1675,34 @@ func Test_validateJob(t *testing.T) {
 			want1: true,
 		},
 		{
+			name:  "reason:BackoffLimitExceeded",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "reason:BackoffLimitExceeded"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:BackoffLimitExceeded"},
+			want1: true,
+		},
+		{
+			name:  "reason:DeadLineExceeded",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "reason:DeadLineExceeded", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:DeadLineExceeded"},
+			want1: true,
+		},
+		{
+			name:  "empty reason tag",
+			val:   1.0,
+			tags:  []string{"reason:", "foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo"},
+			want1: true,
+		},
+		{
+			name:  "invalid reason",
+			val:   1.0,
+			tags:  []string{"foo:bar", "reason:error", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo"},
+			want1: true,
+		},
+		{
 			name:  "invalid",
 			val:   0.0,
 			tags:  []string{"foo:bar", "job_name:foo"},
@@ -1602,6 +1762,27 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 			},
 			expected: &metricsExpected{
 				name:     "kubernetes_state.container.cpu_requested",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_pod_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.network_bandwidth_requested",
 				val:      2,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1688,6 +1869,111 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "nvidia container gpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "nvidia container mig",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_mig_2g_4gb",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar", "mig_profile:2g-4gb"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "amd container gpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "amd_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "intel container gpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "gpu_intel_com_i915",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.network_bandwidth_limit",
+				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "no resource label",
 			args: args{
 				name: "kube_pod_container_resource_limits",
@@ -1768,6 +2054,90 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "nvidia node gpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "amd node gpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "amd_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "intel node gpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "gpu_intel_com_i915",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "nvidia node mig",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_mig_2c_4g_20gb",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar", "mig_profile:2c-4g-20gb"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "pods",
 			args: args{
 				name: "kube_node_status_allocatable",
@@ -1804,6 +2174,27 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 			},
 			expected: &metricsExpected{
 				name:     "kubernetes_state.node.ephemeral_storage_allocatable",
+				val:      64,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 64,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.network_bandwidth_allocatable",
 				val:      64,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1890,6 +2281,90 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "nvidia node gpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "amd node gpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "amd_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "intel node gpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "gpu_intel_com_i915",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "nvidia node mig",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_mig_2c_4g_20gb",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
+				tags:     []string{"foo:bar", "mig_profile:2c-4g-20gb"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "pods",
 			args: args{
 				name: "kube_node_status_capacity",
@@ -1927,6 +2402,27 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 			expected: &metricsExpected{
 				name:     "kubernetes_state.node.ephemeral_storage_capacity",
 				val:      129,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "kubernetes_io_network_bandwidth",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 64,
+					Labels: map[string]string{
+						"resource": "kubernetes_io_network_bandwidth",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.network_bandwidth_capacity",
+				val:      64,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
 			},
@@ -2009,6 +2505,46 @@ func Test_timestampTransformers(t *testing.T) {
 			tt.transformer(s, tt.name, argsTemplate.metric, argsTemplate.hostname, argsTemplate.tags, currentTime)
 			s.AssertMetric(t, "Gauge", tt.newName, expectedTemplate.val, expectedTemplate.hostname, expectedTemplate.tags)
 			s.AssertNumberOfCalls(t, "Gauge", 1)
+		})
+	}
+}
+
+func Test_removeSecret(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "secret",
+			args: args{
+				name: "kube_ingress_tls",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+				},
+				tags:     []string{"secret:foo", "tls_host:foo"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.ingress.tls",
+				val:  1.0,
+				tags: []string{"tls_host:foo"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := time.Now()
+			removeSecretTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertMetricNotTaggedWith(t, "secret:foo", tt.expected.name, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
 		})
 	}
 }

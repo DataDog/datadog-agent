@@ -3,21 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
-
 package stream
 
 import (
 	"bytes"
+	"errors"
 	"expvar"
 	"sync"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,10 +67,12 @@ type JSONPayloadBuilder struct {
 	shareAndLockBuffers           bool
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
+	config                        config.Component
+	compressor                    compression.Component
 }
 
-// NewJSONPayloadBuilder TODO <agent-core> : IML-199
-func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
+// NewJSONPayloadBuilder returns a new JSONPayloadBuilder
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
@@ -79,12 +80,16 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 			shareAndLockBuffers: true,
 			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
+			config:              config,
+			compressor:          compressor,
 		}
 	}
 	return &JSONPayloadBuilder{
 		inputSizeHint:       4096,
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
+		config:              config,
+		compressor:          compressor,
 	}
 }
 
@@ -99,22 +104,16 @@ const (
 	FailOnErrItemTooBig
 )
 
-// Build serializes a metadata payload and sends it to the forwarder
-func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
-	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)
-}
-
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	maxPayloadSize := b.config.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := b.config.GetInt("serializer_max_uncompressed_payload_size")
 
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()
@@ -138,7 +137,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		output = bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
 	}
 
-	var payloads forwarder.Payloads
+	var payloads transaction.BytesPayloads
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
 	start := time.Now()
@@ -161,11 +160,12 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","))
+		header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
 	if err != nil {
 		return nil, err
 	}
 
+	pointCount := 0
 	ok := m.MoveNext()
 	for ok {
 		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
@@ -180,32 +180,35 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			continue
 		}
 
-		switch compressor.AddItem(jsonStream.Buffer()) {
-		case ErrPayloadFull:
+		switch err = compressor.AddItem(jsonStream.Buffer()); {
+		case errors.Is(err, ErrPayloadFull):
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
-			payload, err := compressor.Close()
+			var payload []byte
+			payload, err = compressor.Close()
 			if err != nil {
 				return payloads, err
 			}
-			payloads = append(payloads, &payload)
+			payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
+			pointCount = 0
 			input.Reset()
 			output.Reset()
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","))
+				header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
 			if err != nil {
 				return nil, err
 			}
-		case nil:
+		case err == nil:
 			// All good, continue to next item
+			pointCount += m.GetCurrentItemPointCount()
 			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
-		case ErrItemTooBig:
+		case errors.Is(err, ErrItemTooBig):
 			if policy == FailOnErrItemTooBig {
 				return nil, ErrItemTooBig
 			}
@@ -225,7 +228,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	if err != nil {
 		return payloads, err
 	}
-	payloads = append(payloads, &payload)
+	payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
 
 	if !b.shareAndLockBuffers {
 		b.inputSizeHint = input.Cap()

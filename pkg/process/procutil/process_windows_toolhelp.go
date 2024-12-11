@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package procutil
 
@@ -17,7 +16,7 @@ import (
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
-	process "github.com/DataDog/gopsutil/process"
+	process "github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -31,6 +30,7 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type IO_COUNTERS struct {
 	ReadOperationCount  uint64
 	WriteOperationCount uint64
@@ -77,7 +77,7 @@ func NewWindowsToolhelpProbe() Probe {
 
 func (p *windowsToolhelpProbe) Close() {}
 
-func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
+func (p *windowsToolhelpProbe) StatsForPIDs(_ []int32, now time.Time) (map[int32]*Stats, error) {
 	procs, err := p.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
@@ -90,11 +90,11 @@ func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[in
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
+func (p *windowsToolhelpProbe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
 	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
-func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
+func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Process, error) {
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -251,6 +251,10 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	}
 
 	cp.parsedArgs = ParseCmdLineArgs(cp.commandLine)
+	if len(cp.commandLine) > 0 && len(cp.parsedArgs) == 0 {
+		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cp.commandLine, pe32.Th32ProcessID)
+	}
+
 	return
 }
 
@@ -259,5 +263,25 @@ func (cp *cachedProcess) close() {
 		windows.CloseHandle(cp.procHandle)
 		cp.procHandle = windows.Handle(0)
 	}
-	return
+}
+
+// GetParentPid looks up the parent process given a pid
+func GetParentPid(pid uint32) (uint32, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var pe32 w32.PROCESSENTRY32
+	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
+
+	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
+	if allProcsSnap == 0 {
+		return 0, windows.GetLastError()
+	}
+	defer w32.CloseHandle(allProcsSnap)
+	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
+		if pid == pe32.Th32ProcessID {
+			return pe32.Th32ParentProcessID, nil
+		}
+	}
+	return 0, nil
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -13,19 +12,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -41,8 +44,6 @@ type DockerUtil struct {
 	queryTimeout time.Duration
 	// tracks the last time we invalidate our internal caches
 	lastInvalidate time.Time
-	// networkMappings by container id
-	networkMappings map[string][]dockerNetwork
 	// image sha mapping cache
 	imageNameBySha map[string]string
 	// event subscribers and state
@@ -52,7 +53,7 @@ type DockerUtil struct {
 // init makes an empty DockerUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (d *DockerUtil) init() error {
-	d.queryTimeout = config.Datadog.GetDuration("docker_query_timeout") * time.Second
+	d.queryTimeout = pkgconfigsetup.Datadog().GetDuration("docker_query_timeout") * time.Second
 
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
@@ -75,7 +76,6 @@ func (d *DockerUtil) init() error {
 
 	d.cfg = cfg
 	d.cli = cli
-	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
 	d.eventState = newEventStreamState()
@@ -102,10 +102,10 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 }
 
 // Images returns a slice of all images.
-func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]types.ImageSummary, error) {
+func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
+	images, err := d.cli.ImageList(ctx, image.ListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -131,16 +131,21 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
 }
 
+// RawClient returns the underlying docker client being used by this object.
+func (d *DockerUtil) RawClient() *client.Client {
+	return d.cli
+}
+
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
-func (d *DockerUtil) RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	return d.cli.ContainerList(ctx, options)
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options types.ContainerListOptions, filter *containers.Filter) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options container.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]types.Container, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -151,8 +156,12 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 	}
 
 	isExcluded := func(container types.Container) bool {
+		var annotations map[string]string
+		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
 		for _, name := range container.Names {
-			if filter.IsExcluded(name, container.Image, "") {
+			if filter.IsExcluded(annotations, name, container.Image, "") {
 				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
 				return true
 			}
@@ -255,6 +264,32 @@ func (d *DockerUtil) GetPreferredImageName(imageID string, repoTags []string, re
 	return preferredName
 }
 
+// ImageInspect returns an image inspect object for a given image ID
+func (d *DockerUtil) ImageInspect(ctx context.Context, imageID string) (types.ImageInspect, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+
+	imageInspect, _, err := d.cli.ImageInspectWithRaw(ctx, imageID)
+	if err != nil {
+		return imageInspect, fmt.Errorf("error inspecting image: %w", err)
+	}
+
+	return imageInspect, nil
+}
+
+// ImageHistory returns the history for a given image ID
+func (d *DockerUtil) ImageHistory(ctx context.Context, imageID string) ([]image.HistoryResponseItem, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+
+	history, err := d.cli.ImageHistory(ctx, imageID)
+	if err != nil {
+		return history, fmt.Errorf("error getting image history: %w", err)
+	}
+
+	return history, nil
+}
+
 // ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.
 // It is similar to ResolveImageName except it tries to match the image to the container Config.Image.
 // For non-sha names we will just return the name as-is.
@@ -321,22 +356,12 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 	return container, nil
 }
 
-// InspectSelf returns the inspect content of the container the current agent is running in
-func (d *DockerUtil) InspectSelf(ctx context.Context) (types.ContainerJSON, error) {
-	cID, err := providers.ContainerImpl().GetAgentCID()
-	if err != nil {
-		return types.ContainerJSON{}, err
-	}
-
-	return d.Inspect(ctx, cID, false)
-}
-
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
 // a map mapping containerID to container labels as a map[string]string
 func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{})
+	containers, err := d.cli.ContainerList(ctx, container.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
@@ -354,17 +379,61 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 }
 
 // GetContainerStats returns docker container stats
-func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
+func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*container.StatsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
-	containerStats := &types.StatsJSON{}
+	containerStats := &container.StatsResponse{}
 	err = json.NewDecoder(stats.Body).Decode(&containerStats)
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
 	return containerStats, nil
+}
+
+// ContainerLogs returns a container logs reader
+func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error) {
+	return d.cli.ContainerLogs(ctx, container, options)
+}
+
+// GetContainerPIDs returns a list of containerID's running PIDs
+func (d *DockerUtil) GetContainerPIDs(ctx context.Context, containerID string) ([]int, error) {
+
+	// Index into the returned [][]string slice for process IDs
+	pidIdx := -1
+
+	// Docker API to collect PIDs associated with containerID
+	procs, err := d.cli.ContainerTop(ctx, containerID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get PIDs for container %s: %s", containerID, err)
+	}
+
+	// get the offset into the string[][] slice for the process ID index
+	for idx, val := range procs.Titles {
+		if val == "PID" {
+			pidIdx = idx
+			break
+		}
+	}
+	if pidIdx == -1 {
+		return nil, fmt.Errorf("unable to locate PID index into returned process slice")
+	}
+
+	// Create slice large enough to hold each PID
+	pids := make([]int, len(procs.Processes))
+
+	// Iterate returned Processes and pull out their PIDs
+	for idx, entry := range procs.Processes {
+		// Convert to ints
+		pid, sterr := strconv.Atoi(entry[pidIdx])
+		if sterr != nil {
+			log.Debugf("unable to convert PID to int: %s", sterr)
+			continue
+		}
+		pids[idx] = pid
+	}
+	return pids, nil
 }

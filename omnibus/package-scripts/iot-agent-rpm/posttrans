@@ -29,7 +29,12 @@ if [ ! -f "$CONFIG_DIR/install_info" ]; then
 
     if command -v rpm >/dev/null 2>&1; then
         tool=rpm
-        tool_version=rpm-$(rpm -q --qf "%{VERSION}" rpm || echo "unknown")
+        # Omnibus will put this script verbatim inside RPM specfile before building.
+        # We need to escape the "%" so that the rpm build machinery doesn't expand
+        # it as a macro (which would expand to the version of Agent being built).
+        # NOTE: on some distros (e.g. opensuse 15.4), "rpm" package doesn't exist,
+        # it's called "rpm-ndb". We query version of package which contains /bin/rpm file.
+        tool_version=rpm-$(rpm -q -f /bin/rpm --queryformat "%%{VERSION}" || echo "unknown")
     else
         tool=unknown
         tool_version=unknown

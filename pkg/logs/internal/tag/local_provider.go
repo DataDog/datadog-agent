@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package tag
 
 import (
 	"context"
 	"sync"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/benbjohnson/clock"
 )
@@ -37,12 +38,12 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 		expectedTags: t,
 	}
 
-	if config.IsExpectedTagsSet() {
-		p.expectedTags = append(p.tags, host.GetHostTags(context.TODO(), false).System...)
+	if config.IsExpectedTagsSet(pkgconfigsetup.Datadog()) {
+		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.
-		expectedTagsDeadline := coreConfig.StartTime.Add(coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration"))
+		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(pkgconfigsetup.Datadog().GetDuration("logs_config.expected_tags_duration"))
 
 		// reset submitExpectedTags after deadline elapsed
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {

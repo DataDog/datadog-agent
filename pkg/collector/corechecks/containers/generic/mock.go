@@ -3,15 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package generic
 
 import (
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 )
 
 // MockContainerAccessor is a dummy ContainerLister for tests
@@ -28,11 +31,13 @@ func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
 func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
-	containerFilter ContainerFilter) (*mocksender.MockSender, *Processor, ContainerAccessor) {
+	containerFilter ContainerFilter,
+	tagger tagger.Component,
+) (*mocksender.MockSender, *Processor, ContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
-		mockProvider.RegisterConcreteCollector(runtime, mockCollector)
+		mockProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(runtime), ""), mockCollector)
 	}
 	for cID, entry := range metricsContainers {
 		mockCollector.SetContainerEntry(cID, entry)
@@ -45,7 +50,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	mockedSender := mocksender.NewMockSender("generic-container")
 	mockedSender.SetupAcceptAll()
 
-	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter)
+	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger)
 
 	return mockedSender, &p, &mockAccessor
 }
@@ -66,8 +71,10 @@ func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
 		},
 		Runtime: workloadmeta.ContainerRuntime(runtime),
 		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
+			Running: true,
+			// Put the creation date in the past as, on Windows, the timer resolution may generate a 0 elapsed.
+			StartedAt: time.Now().Add(-2 * time.Second),
 		},
+		RestartCount: 42,
 	}
 }

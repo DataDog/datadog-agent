@@ -1,0 +1,89 @@
+{
+  "Cluster": "ecs-cluster",
+  "TaskARN": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/e39c666b3b134c2ca2241c4c3c64e6ac",
+  "Family": "nginx",
+  "Revision": "3",
+  "DesiredStatus": "RUNNING",
+  "KnownStatus": "RUNNING",
+  "PullStartedAt": "2023-10-18T19:00:40.015762747Z",
+  "PullStoppedAt": "2023-10-18T19:00:40.229561055Z",
+  "AvailabilityZone": "us-east-1a",
+  "LaunchType": "EC2",
+  "Containers": [
+    {
+      "DockerId": "2ad9e753a0dfbba1c91e0e7bebaaf3a0918d3ef304b7549b1ced5f573bc05645",
+      "Name": "my-nginx",
+      "DockerName": "nginx-my-nginx-aa9883f7f3d6c5f73e00",
+      "Image": "ghcr.io/nginx/my-nginx:main",
+      "ImageID": "sha256:5365aa84ac82631670d111e43553ae75285d0335dd2fcca143cf0e9d6f88cd185",
+      "Ports": [
+        {
+          "ContainerPort": 8125,
+          "Protocol": "udp",
+          "HostPort": 8125,
+          "HostIp": "0.0.0.0"
+        },
+        {
+          "ContainerPort": 8125,
+          "Protocol": "udp",
+          "HostPort": 8125,
+          "HostIp": "::"
+        }
+      ],
+      "Labels": {
+        "baseimage.name": "ubuntu:",
+        "baseimage.os": "ubuntu ",
+        "com.amazonaws.ecs.cluster": "ecs-cluster",
+        "com.amazonaws.ecs.container-name": "nginx",
+        "org.opencontainers.image.ref.name": "ubuntu",
+        "org.opencontainers.image.source": "https://github.com/DataDog/datadog-nginx",
+        "org.opencontainers.image.version": "23.04"
+      },
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Limits": {
+        "CPU": 10,
+        "Memory": 512
+      },
+      "CreatedAt": "2023-10-18T19:00:40.244667009Z",
+      "StartedAt": "2023-10-18T19:00:41.083094165Z",
+      "Type": "NORMAL",
+      "Health": {
+        "status": "HEALTHY",
+        "statusSince": "2023-12-27T15:39:53.043973594Z",
+        "output": "Nginx health: PASS"
+      },
+      "Volumes": [
+        {
+          "Source": "/var/run/docker.sock",
+          "Destination": "/var/run/docker.sock"
+        },
+        {
+          "Source": "/sys/fs/cgroup",
+          "Destination": "/host/sys/fs/cgroup"
+        },
+        {
+          "Source": "/var/lib/ecs/deps/execute-command/config/seelog.xml",
+          "Destination": "/ecs-execute-command/configuration/seelog.xml"
+        }
+      ],
+      "LogDriver": "awslogs",
+      "LogOptions": {
+        "awslogs-group": "nginx",
+        "awslogs-region": "us-east-1",
+        "awslogs-stream": "log_router/nginx"
+      },
+      "ContainerARN": "arn:aws:ecs:us-east-1:601427279990:container/ecs-cluster/14d5ab87e06f/52ff1eab-fb20",
+      "Networks": [
+        {
+          "NetworkMode": "bridge",
+          "IPv4Addresses": [
+            "172.17.0.3"
+          ]
+        }
+      ]
+    }
+  ],
+  "VPCID": "vpc-124",
+  "ServiceName": "nginx-ec2"
+}

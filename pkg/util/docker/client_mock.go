@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -13,6 +12,9 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -20,9 +22,10 @@ import (
 // MockClient is a mock implementation of docker.Client interface
 // Should probably be generated at some point
 type MockClient struct {
+	FakeRawClient                   *client.Client
 	FakeContainerList               []types.Container
 	FakeImageNameMapping            map[string]string
-	FakeImages                      []types.ImageSummary
+	FakeImages                      []image.Summary
 	FakeStorageStats                []*StorageStats
 	FakeAttachedVolumes             int
 	FakeDandlingVolumes             int
@@ -31,37 +34,52 @@ type MockClient struct {
 	FakeError                       error
 }
 
+// RawClient is a mock method
+func (d *MockClient) RawClient() *client.Client {
+	return d.FakeRawClient
+}
+
 // RawContainerList is a mock method
-func (d *MockClient) RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
+func (d *MockClient) RawContainerList(context.Context, container.ListOptions) ([]types.Container, error) {
 	return d.FakeContainerList, d.FakeError
 }
 
 // ResolveImageName is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *MockClient) ResolveImageName(ctx context.Context, image string) (string, error) {
 	return d.FakeImageNameMapping[image], d.FakeError
 }
 
 // Images is a mock method
-func (d *MockClient) Images(ctx context.Context, includeIntermediate bool) ([]types.ImageSummary, error) {
+func (d *MockClient) Images(context.Context, bool) ([]image.Summary, error) {
 	return d.FakeImages, d.FakeError
 }
 
 // GetPreferredImageName is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *MockClient) GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string {
 	return d.FakeImageNameMapping[imageID]
 }
 
 // GetStorageStats is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *MockClient) GetStorageStats(ctx context.Context) ([]*StorageStats, error) {
 	return d.FakeStorageStats, d.FakeError
 }
 
 // CountVolumes is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *MockClient) CountVolumes(ctx context.Context) (int, int, error) {
 	return d.FakeAttachedVolumes, d.FakeDandlingVolumes, d.FakeError
 }
 
 // LatestContainerEvents is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *MockClient) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
 	return d.FakeContainerEvents, d.FakeLastContainerEventTimestamp, d.FakeError
 }

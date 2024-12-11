@@ -3,14 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
+)
+
+var (
+	// ErrMultipleEventTypes is returned when multiple event type were inferred from the expression
+	ErrMultipleEventTypes = errors.New("expression with multiple event types is not supported")
 )
 
 // ErrNonStaticPattern when pattern operator is used on a non static value
@@ -160,4 +167,22 @@ type ErrFieldReadOnly struct {
 
 func (e ErrFieldReadOnly) Error() string {
 	return fmt.Sprintf("read-only field `%s`", e.Field)
+}
+
+// ErrValueOutOfRange error when the given value is not having the correct range for the type
+type ErrValueOutOfRange struct {
+	Field string
+}
+
+func (e ErrValueOutOfRange) Error() string {
+	return fmt.Sprintf("incorrect value for type `%s`, out of range", e.Field)
+}
+
+// ErrIteratorVariable error when the iterator variable constraints are reached
+type ErrIteratorVariable struct {
+	Err error
+}
+
+func (e ErrIteratorVariable) Error() string {
+	return fmt.Sprintf("iterator variable error: %s", e.Err)
 }

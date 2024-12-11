@@ -101,23 +101,27 @@ fi
 echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
 sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
 sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
 if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Start the app only if it's not a script install
-if [ -z "$SCRIPT_INSTALL" ]; then
-    echo "# Starting the app"
-    # -a for application, -F for fresh, do not restore old app
-    TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
-    export TMPDIR
-    sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
+# Start the tray icon app only when not in system-wide installation
+if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+  # Create the tray icon app launchctl service
+  sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+  sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+  # Load the tray app service
+  sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+  # Start the app only if it's not a script install
+  if [ -z "$SCRIPT_INSTALL" ]; then
+      echo "# Starting the app"
+      # -a for application, -F for fresh, do not restore old app
+      TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
+      export TMPDIR
+      sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
+  fi
 fi
-
-echo "# Configuring the login launch of the app"
-sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
 
 # A little debriefing won't hurt
 echo "# State at the end"

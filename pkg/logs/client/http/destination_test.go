@@ -7,57 +7,49 @@ package http
 
 import (
 	"errors"
+	"net/http"
+	"regexp"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		UseSSL: true,
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 0, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		UseSSL: false,
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 0, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		Port:   1234,
-		UseSSL: false,
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 1234, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey:    "bar",
-		Host:      "foo",
-		UseSSL:    false,
-		Version:   config.EPIntakeVersion2,
-		TrackType: "test-track",
-	})
+	e := config.NewEndpoint("bar", "foo", 0, false)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSend200(t *testing.T) {
-	server := NewTestServer(200)
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
@@ -82,8 +74,10 @@ func TestNoRetries(t *testing.T) {
 	testNoRetry(t, 413)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testNoRetry(t *testing.T, statusCode int) {
-	server := NewTestServer(statusCode)
+	cfg := configmock.New(t)
+	server := NewTestServer(statusCode, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
@@ -99,8 +93,9 @@ func testNoRetry(t *testing.T, statusCode int) {
 }
 
 func retryTest(t *testing.T, statusCode int) {
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(statusCode, 0, true, respondChan)
+	server := NewTestServerWithOptions(statusCode, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -128,8 +123,9 @@ func retryTest(t *testing.T, statusCode int) {
 }
 
 func TestDestinationContextCancel(t *testing.T) {
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(429, 0, true, respondChan)
+	server := NewTestServerWithOptions(429, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -153,15 +149,16 @@ func TestDestinationContextCancel(t *testing.T) {
 }
 
 func TestConnectivityCheck(t *testing.T) {
+	cfg := configmock.New(t)
 	// Connectivity is ok when server return 200
-	server := NewTestServer(200)
-	connectivity := CheckConnectivity(server.Endpoint)
+	server := NewTestServer(200, cfg)
+	connectivity := CheckConnectivity(server.Endpoint, cfg)
 	assert.Equal(t, config.HTTPConnectivitySuccess, connectivity)
 	server.Stop()
 
 	// Connectivity is ok when server return 500
-	server = NewTestServer(500)
-	connectivity = CheckConnectivity(server.Endpoint)
+	server = NewTestServer(500, cfg)
+	connectivity = CheckConnectivity(server.Endpoint, cfg)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.Stop()
 }
@@ -173,7 +170,8 @@ func TestErrorToTag(t *testing.T) {
 }
 
 func TestDestinationSendsV2Protocol(t *testing.T) {
-	server := NewTestServer(200)
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
 	server.Destination.protocol = "test-proto"
@@ -183,7 +181,8 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 }
 
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
-	server := NewTestServer(200)
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
 	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
@@ -191,10 +190,38 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }
 
+func TestDestinationSendsTimestampHeaders(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+	currentTimestamp := time.Now().UnixMilli()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Messages: []*message.Message{{
+		IngestionTimestamp: 1234567890_999_999,
+	}}, Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Equal(t, server.request.Header.Get("dd-message-timestamp"), "1234567890")
+
+	ddCurrentTimestamp, err := strconv.ParseInt(server.request.Header.Get("dd-current-timestamp"), 10, 64)
+	assert.Nil(t, err)
+	assert.GreaterOrEqual(t, ddCurrentTimestamp, currentTimestamp)
+}
+
+func TestDestinationSendsUserAgent(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("datadog-agent/.*"), server.request.Header.Values("user-agent"))
+}
+
 func TestDestinationConcurrentSends(t *testing.T) {
+	cfg := configmock.New(t)
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 	server.Destination.Start(input, output, nil)
@@ -246,9 +273,10 @@ func TestDestinationConcurrentSends(t *testing.T) {
 
 // This test ensure the destination's final state is isRetrying = false even if there are pending concurrent sends.
 func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
+	cfg := configmock.New(t)
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
@@ -294,8 +322,9 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 }
 
 func TestBackoffDelayEnabled(t *testing.T) {
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, true, respondChan)
+	server := NewTestServerWithOptions(500, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -310,8 +339,9 @@ func TestBackoffDelayEnabled(t *testing.T) {
 }
 
 func TestBackoffDelayDisabled(t *testing.T) {
+	cfg := configmock.New(t)
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, false, respondChan)
+	server := NewTestServerWithOptions(500, 0, false, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -324,10 +354,143 @@ func TestBackoffDelayDisabled(t *testing.T) {
 	server.Stop()
 }
 
-func TestBackoffDelayDisabledServerless(t *testing.T) {
-	dest := NewDestination(config.Endpoint{
-		Origin: "lambda-extension",
-	}, "", nil, 0, true, "")
+func TestDestinationHA(t *testing.T) {
+	variants := []bool{true, false}
+	for _, variant := range variants {
+		endpoint := config.Endpoint{
+			IsMRF: variant,
+		}
+		isEndpointMRF := endpoint.IsMRF
 
-	assert.False(t, dest.shouldRetry)
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, client.NewNoopDestinationMetadata(), configmock.New(t), metrics.NewNoopPipelineMonitor(""))
+		isDestMRF := dest.IsMRF()
+
+		assert.Equal(t, isEndpointMRF, isDestMRF)
+	}
+}
+
+func TestTransportProtocol_HTTP1(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use HTTP/1
+	c.SetWithoutSource("logs_config.http_protocol", "http1")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	s := NewTestHTTPSServer(false)
+	defer s.Close()
+
+	timeout := 5 * time.Second
+	// Force HTTP/1 transport
+	client := httpClientFactory(timeout, c)()
+
+	// Create an HTTP/1.1 request
+	req, err := http.NewRequest("POST", s.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Client send an HTTP1 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert the protocol is HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP2(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	s := NewTestHTTPSServer(false)
+	defer s.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", s.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Client send an HTTP/2 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert the protocol is HTTP/2.0
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_InvalidProtocol(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to default to ALNP from invalid protocol
+	c.SetWithoutSource("logs_config.http_protocol", "htto2")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// Start the test server
+	server := NewTestHTTPSServer(false)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	// Client send an HTTP/1.1 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server responds with best available protocol(http/2.0)
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// Start the test server that only support HTTP/1.1
+	server := NewTestHTTPSServer(true)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	// Client send HTTP/2 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server automatically falls back to HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
 }

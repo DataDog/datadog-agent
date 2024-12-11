@@ -6,13 +6,13 @@
 package check
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 func TestCollectDefaultMetrics(t *testing.T) {
@@ -71,7 +71,7 @@ func LoadCheck(name, path string) (integration.Config, error) {
 	cf := config{}
 	config := integration.Config{Name: name}
 
-	yamlFile, err := ioutil.ReadFile(path)
+	yamlFile, err := os.ReadFile(path)
 	if err != nil {
 		return config, err
 	}

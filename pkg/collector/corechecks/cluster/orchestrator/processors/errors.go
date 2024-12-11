@@ -4,13 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package processors
 
 import (
+	"fmt"
+	"runtime/debug"
+
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,6 +26,7 @@ func newMarshallingError(cause error) error {
 // RecoverOnPanic is used to recover panics triggered by processors.
 func RecoverOnPanic() {
 	if r := recover(); r != nil {
-		log.Errorf("unable to process resources (panic!): %s", r)
+		stack := debug.Stack()
+		log.Errorc(fmt.Sprintf("unable to process resources (panic!): %s", stack), orchestrator.ExtraLogContext)
 	}
 }

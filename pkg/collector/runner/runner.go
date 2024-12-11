@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package runner
 
 import (
@@ -13,11 +14,14 @@ import (
 
 	"go.uber.org/atomic"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,6 +40,8 @@ var (
 
 // Runner is the object in charge of running all the checks
 type Runner struct {
+	senderManager       sender.SenderManager
+	haAgent             haagent.Component
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
@@ -48,10 +54,12 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner() *Runner {
-	numWorkers := config.Datadog.GetInt("check_runners")
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
+	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	r := &Runner{
+		senderManager:       senderManager,
+		haAgent:             haAgent,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
@@ -61,7 +69,7 @@ func NewRunner() *Runner {
 	}
 
 	if !r.isStaticWorkerCount {
-		numWorkers = config.DefaultNumWorkers
+		numWorkers = pkgconfigsetup.DefaultNumWorkers
 	}
 
 	r.ensureMinWorkers(numWorkers)
@@ -111,6 +119,8 @@ func (r *Runner) AddWorker() {
 // addWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
+		r.senderManager,
+		r.haAgent,
 		r.id,
 		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,
@@ -158,7 +168,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = config.MaxNumWorkers
+		desiredNumWorkers = pkgconfigsetup.MaxNumWorkers
 	}
 
 	r.ensureMinWorkers(desiredNumWorkers)
@@ -167,7 +177,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 // Stop closes the pending channel so all workers will exit their loop and terminate
 // All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
-	if !r.isRunning.CAS(true, false) {
+	if !r.isRunning.CompareAndSwap(true, false) {
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}
@@ -178,7 +188,7 @@ func (r *Runner) Stop() {
 	wg := sync.WaitGroup{}
 
 	// Stop running checks
-	r.checksTracker.WithRunningChecks(func(runningChecks map[check.ID]check.Check) {
+	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {
 		// Stop all python subprocesses
 		terminateChecksRunningProcesses()
 
@@ -237,7 +247,7 @@ func (r *Runner) getScheduler() *scheduler.Scheduler {
 }
 
 // ShouldAddCheckStats returns true if check stats should be preserved or not
-func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
+func (r *Runner) ShouldAddCheckStats(id checkid.ID) bool {
 	r.schedulerLock.RLock()
 	defer r.schedulerLock.RUnlock()
 
@@ -251,7 +261,7 @@ func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
 
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
 // is not running, this is a noop
-func (r *Runner) StopCheck(id check.ID) error {
+func (r *Runner) StopCheck(id checkid.ID) error {
 	done := make(chan bool)
 
 	stopFunc := func(c check.Check) {

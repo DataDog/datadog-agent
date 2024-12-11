@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,16 +19,21 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -45,13 +49,13 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	return receiver
 }
@@ -59,12 +63,14 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
+	conf.DecoderTimeout = 10000
+	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
 }
 
 func TestMain(m *testing.M) {
-	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	// We're about to os.Exit, no need to revert this value to original
 	killProcess = func(format string, args ...interface{}) {
 		fmt.Printf(format, args...)
 		fmt.Println()
@@ -87,32 +93,35 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 
 	// Before going further, make sure receiver is started
 	// since it's running in another goroutine
-	for i := 0; i < 10; i++ {
+	serverReady := false
+	for i := 0; i < 100; i++ {
 		var client http.Client
 
 		body := bytes.NewBufferString("[]")
 		req, err := http.NewRequest("POST", url, body)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
+				serverReady = true
 				break
 			}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	assert.True(serverReady)
 	testBody := func(expectedStatus int, bodyData string) {
 		var client http.Client
 
 		body := bytes.NewBufferString(bodyData)
 		req, err := http.NewRequest("POST", url, body)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		resp, err := client.Do(req)
-		assert.Nil(err)
+		assert.NoError(err)
 		assert.Equal(expectedStatus, resp.StatusCode)
 		resp.Body.Close()
 	}
@@ -124,7 +133,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 func TestListenTCP(t *testing.T) {
 	t.Run("measured", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*measuredListener)
@@ -133,7 +142,7 @@ func TestListenTCP(t *testing.T) {
 
 	t.Run("limited", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*rateLimitedListener)
@@ -141,10 +150,25 @@ func TestListenTCP(t *testing.T) {
 	})
 }
 
+func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+	r.Start()
+	defer r.Stop()
+	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
+
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.New()
+	cfg := newTestReceiverConfig()
 	cfg.AgentVersion = "testVersion"
+	url := fmt.Sprintf("http://%s:%d",
+		cfg.ReceiverHost, cfg.ReceiverPort)
 	r := newTestReceiverFromConfig(cfg)
 	r.Start()
 	defer r.Stop()
@@ -162,7 +186,7 @@ func TestStateHeaders(t *testing.T) {
 		"/v0.5/traces",
 		"/v0.7/traces",
 	} {
-		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		resp, err := http.Post(url+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +219,7 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -260,7 +284,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -320,7 +344,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -362,7 +386,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					t.Fatalf("no data received")
 				}
 
-				body, err := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				assert.Nil(err)
 				assert.Equal("OK\n", string(body))
 			case v04:
@@ -375,18 +399,25 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
-					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_IS amazing!", span.Service)
 					assert.Equal("something &&<@# that should be a metric!", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
+					assert.Equal(1, len(span.SpanLinks))
+					assert.Equal(uint64(42), span.SpanLinks[0].TraceID)
+					assert.Equal(uint64(32), span.SpanLinks[0].TraceIDHigh)
+					assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
+					assert.Equal("v1", span.SpanLinks[0].Attributes["a1"])
+					assert.Equal("v2", span.SpanLinks[0].Attributes["a2"])
+					assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate)
+					assert.Equal(uint32(2147483649), span.SpanLinks[0].Flags)
 				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
-				body, err := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				assert.Nil(err)
 				var tr traceResponse
 				err = json.Unmarshal(body, &tr)
@@ -407,7 +438,7 @@ func TestReceiverDecodingError(t *testing.T) {
 	data := []byte("} invalid json")
 	var client http.Client
 
-	t.Run("no-header", func(t *testing.T) {
+	t.Run("no-header", func(_ *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
@@ -419,11 +450,11 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 
-	t.Run("with-header", func(t *testing.T) {
+	t.Run("with-header", func(_ *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
-		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+		req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := client.Do(req)
@@ -432,6 +463,24 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.Equal(400, resp.StatusCode)
 		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
+}
+
+func TestHandleWithVersionRejectCrossSite(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, nil)
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(http.StatusForbidden, resp.StatusCode)
 }
 
 func TestReceiverUnexpectedEOF(t *testing.T) {
@@ -454,14 +503,14 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.NoError(err)
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", "270")
-	req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+	req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 
 	resp, err := client.Do(req)
 	assert.NoError(err)
 
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
-	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF.Load())
+	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
 }
 
 func TestTraceCount(t *testing.T) {
@@ -473,23 +522,23 @@ func TestTraceCount(t *testing.T) {
 			delete(req.Header, k)
 		}
 		_, err := traceCount(req)
-		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", header.TraceCount))
 	})
 
 	t.Run("value-empty", func(t *testing.T) {
-		req.Header.Set(headerTraceCount, "")
+		req.Header.Set(header.TraceCount, "")
 		_, err := traceCount(req)
-		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", header.TraceCount))
 	})
 
 	t.Run("value-bad", func(t *testing.T) {
-		req.Header.Set(headerTraceCount, "qwe")
+		req.Header.Set(header.TraceCount, "qwe")
 		_, err := traceCount(req)
 		assert.Equal(t, err, errInvalidHeaderTraceCountValue)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		req.Header.Set(headerTraceCount, "123")
+		req.Header.Set(header.TraceCount, "123")
 		count, err := traceCount(req)
 		assert.NoError(t, err)
 		assert.Equal(t, count, int64(123))
@@ -526,14 +575,8 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	req.Header.Set(headerContainerID, "abcdef123789456")
-	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
-		Tags: info.Tags{
-			Lang:          "python",
-			LangVersion:   "3.8.1",
-			TracerVersion: "1.2.3",
-		},
-	})
+	req.Header.Set(header.ContainerID, "abcdef123789456")
+	tp, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -542,6 +585,7 @@ func TestDecodeV05(t *testing.T) {
 		TracerVersion:   "1.2.3",
 		Chunks: []*pb.TraceChunk{
 			{
+				Tags:     make(map[string]string),
 				Priority: int32(sampler.PriorityNone),
 				Spans: []*pb.Span{
 					{
@@ -594,23 +638,25 @@ func TestDecodeV05(t *testing.T) {
 
 type mockStatsProcessor struct {
 	mu                sync.RWMutex
-	lastP             pb.ClientStatsPayload
+	lastP             *pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
+	containerID       string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
+	m.containerID = containerID
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang, m.lastTracerVersion
+	return m.lastP, m.lastLang, m.lastTracerVersion, m.containerID
 }
 
 func TestHandleStats(t *testing.T) {
@@ -624,27 +670,32 @@ func TestHandleStats(t *testing.T) {
 		server := httptest.NewServer(mux)
 
 		var buf bytes.Buffer
-		if err := msgp.Encode(&buf, &p); err != nil {
+		if err := msgp.Encode(&buf, p); err != nil {
 			t.Fatal(err)
 		}
 		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(headerLang, "lang1")
-		req.Header.Set(headerTracerVersion, "0.1.0")
+		req.Header.Set(header.Lang, "lang1")
+		req.Header.Set(header.TracerVersion, "0.1.0")
+		req.Header.Set(header.ContainerID, "abcdef123789456")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != 200 {
-			slurp, _ := ioutil.ReadAll(resp.Body)
+			slurp, _ := io.ReadAll(resp.Body)
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
 
 		resp.Body.Close()
-		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
-		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
-			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
+		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
+		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.Equal(t, "lang1", gotlang, "lang did not match")
+		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
+		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
+
+		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
+		assert.True(t, ok)
 	})
 }
 
@@ -662,9 +713,9 @@ func TestClientComputedStatsHeader(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(headerLang, "lang1")
+			req.Header.Set(header.Lang, "lang1")
 			if on {
-				req.Header.Set(headerComputedStats, "yes")
+				req.Header.Set(header.ComputedStats, "yes")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -736,29 +787,13 @@ func TestHandleTraces(t *testing.T) {
 
 	// We test stats for each app
 	for _, lang := range langs {
-		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
+		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4", Service: "fennel_IS amazing!"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(61822), ts.TracesBytes.Load())
+		assert.Equal(int64(83022), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
-}
-
-// chunkedReader is a reader which forces partial reads, this is required
-// to trigger some network related bugs, such as body not being read fully by server.
-// Without this, all the data could be read/written at once, not triggering the issue.
-type chunkedReader struct {
-	reader io.Reader
-}
-
-func (sr *chunkedReader) Read(p []byte) (n int, err error) {
-	size := 1024
-	if size > len(p) {
-		size = len(p)
-	}
-	buf := p[0:size]
-	return sr.reader.Read(buf)
 }
 
 func TestClientComputedTopLevel(t *testing.T) {
@@ -775,9 +810,9 @@ func TestClientComputedTopLevel(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(headerLang, "lang1")
+			req.Header.Set(header.Lang, "lang1")
 			if on {
-				req.Header.Set(headerComputedTopLevel, "yes")
+				req.Header.Set(header.ComputedTopLevel, "yes")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -823,9 +858,9 @@ func TestClientDropP0s(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 	req.Header.Set("Content-Type", "application/msgpack")
-	req.Header.Set(headerLang, "lang1")
-	req.Header.Set(headerDroppedP0Traces, "153")
-	req.Header.Set(headerDroppedP0Spans, "2331")
+	req.Header.Set(header.Lang, "lang1")
+	req.Header.Set(header.DroppedP0Traces, "153")
+	req.Header.Set(header.DroppedP0Spans, "2331")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -836,52 +871,6 @@ func TestClientDropP0s(t *testing.T) {
 	}
 	p := <-rcv.out
 	assert.Equal(t, p.ClientDroppedP0s, int64(153))
-}
-
-func TestReceiverRateLimiterCancel(t *testing.T) {
-	assert := assert.New(t)
-
-	var wg sync.WaitGroup
-
-	n := 100 // Payloads need to be big enough, else bug is not triggered
-	bts, err := testutil.GetTestTraces(n, n, true).MarshalMsg(nil)
-	assert.Nil(err)
-
-	conf := newTestReceiverConfig()
-	receiver := newTestReceiverFromConfig(conf)
-	receiver.RateLimiter.SetTargetRate(0.000001) // Make sure we sample aggressively
-
-	server := httptest.NewServer(receiver.handleWithVersion(v04, receiver.handleTraces))
-
-	defer server.Close()
-	url := server.URL + "/v0.4/traces"
-
-	// Make sure we use share clients, and they are reused.
-	client := &http.Client{Transport: &http.Transport{
-		MaxIdleConnsPerHost: 100,
-	}}
-	for i := 0; i < 3; i++ {
-		wg.Add(1)
-		go func() {
-			for j := 0; j < 3; j++ {
-				reader := &chunkedReader{reader: bytes.NewReader(bts)}
-				req, err := http.NewRequest("POST", url, reader)
-				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(headerTraceCount, strconv.Itoa(n))
-				assert.Nil(err)
-
-				resp, err := client.Do(req)
-				assert.Nil(err)
-				assert.NotNil(resp)
-				if resp != nil {
-					resp.Body.Close()
-					assert.Equal(http.StatusOK, resp.StatusCode)
-				}
-			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
 }
 
 func BenchmarkHandleTracesFromOneApp(b *testing.B) {
@@ -1015,9 +1004,9 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 
 func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
-	conf := config.New()
+	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1027,7 +1016,7 @@ func BenchmarkWatchdog(b *testing.B) {
 }
 
 func TestReplyOKV5(t *testing.T) {
-	r := newTestReceiverFromConfig(config.New())
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
 	r.Start()
 	defer r.Stop()
 
@@ -1036,7 +1025,7 @@ func TestReplyOKV5(t *testing.T) {
 	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	assert.NoError(t, err)
-	slurp, err := ioutil.ReadAll(resp.Body)
+	slurp, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1049,99 +1038,132 @@ func TestExpvar(t *testing.T) {
 		return
 	}
 
-	r := newTestReceiverFromConfig(config.New())
-	r.Start()
-	defer r.Stop()
+	c := newTestReceiverConfig()
+	c.DebugServerPort = 5012
+	info.InitInfo(c)
+	s := NewDebugServer(c)
+	s.Start()
+	defer s.Stop()
 
-	resp, err := http.Get("http://localhost:8126/debug/vars")
+	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
 
-	if resp.StatusCode == http.StatusOK {
-		var out map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&out)
-		assert.NoError(t, err, "/debug/vars must return valid json")
+	t.Run("read-expvars", func(t *testing.T) {
+		assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+	})
+	t.Run("valid-response", func(t *testing.T) {
+		if resp.StatusCode == http.StatusOK {
+			var out map[string]interface{}
+			err = json.NewDecoder(resp.Body).Decode(&out)
+			assert.NoError(t, err, "/debug/vars must return valid json")
+			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
+		}
+	})
+}
+
+func TestNormalizeHTTPHeader(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "Header: value\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\rAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\r\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "SingleLineHeader: value",
+			expected: "SingleLineHeader: value",
+		},
+		{
+			input:    "\rLeading carriage return",
+			expected: "_Leading carriage return",
+		},
+		{
+			input:    "\nLeading line break",
+			expected: "_Leading line break",
+		},
+		{
+			input:    "Trailing carriage return\r",
+			expected: "Trailing carriage return_",
+		},
+		{
+			input:    "Trailing line break\n",
+			expected: "Trailing line break_",
+		},
+		{
+			input:    "Multiple\r\nline\r\nbreaks",
+			expected: "Multiple_line_breaks",
+		},
+		{
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, test := range tests {
+		result := normalizeHTTPHeader(test.input)
+		if result != test.expected {
+			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
+		}
 	}
 }
 
-func TestWatchdog(t *testing.T) {
-	t.Run("rate-limit", func(t *testing.T) {
-		if testing.Short() {
-			return
-		}
-		defer testutil.WithFeatures("429")()
+func TestUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
 
-		conf := config.New()
-		conf.Endpoints[0].APIKey = "apikey_2"
-		conf.MaxMemory = 1e10
-		conf.WatchdogInterval = time.Minute // we trigger manually
-
-		r := newTestReceiverFromConfig(conf)
-		r.Start()
-		defer r.Stop()
-		go func() {
-			for range r.out {
-			}
-		}()
-
-		data := msgpTraces(t, pb.Traces{
-			testutil.RandomTrace(10, 20),
-			testutil.RandomTrace(10, 20),
-			testutil.RandomTrace(10, 20),
+	var counter int // keeps track of every time the buildHandler function has been called
+	buildHandler := func(*HTTPReceiver) http.Handler {
+		counter++
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, "%d", counter)
 		})
+	}
 
-		// first request is accepted
-		r.watchdog(time.Now())
-		resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("got %d", resp.StatusCode)
-		}
+	testEndpoint := Endpoint{
+		Pattern: "/test",
+		Handler: buildHandler,
+	}
+	AttachEndpoint(testEndpoint)
 
-		// follow-up requests should trigger a reject
-		r.conf.MaxMemory = 1
-		for tries := 0; tries < 100; tries++ {
-			req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
-			if err != nil {
-				t.Fatal(err)
-			}
-			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(headerTraceCount, "3")
-			resp, err = http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusTooManyRequests {
-				break // 👍
-			}
-			r.watchdog(time.Now())
-		}
-		if resp.StatusCode != http.StatusTooManyRequests {
-			t.Fatalf("didn't close, got %d", resp.StatusCode)
-		}
-	})
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.Start()
+	defer receiver.Stop()
 
-	t.Run("disabling", func(t *testing.T) {
-		cfg := config.New()
-		r := &HTTPReceiver{
-			conf:        cfg,
-			RateLimiter: newRateLimiter(),
-		}
+	assert.Equal(1, counter)
 
-		cfg.MaxMemory = 0
-		cfg.MaxCPU = 0
-		r.watchdog(time.Now())
-		assert.Equal(t, 1.0, r.RateLimiter.TargetRate())
+	url := fmt.Sprintf("http://%s:%d/test",
+		conf.ReceiverHost, conf.ReceiverPort)
 
-		cfg.MaxMemory = 1
-		r.watchdog(time.Now())
-		assert.NotEqual(t, 1.0, r.RateLimiter.TargetRate())
-	})
+	for i := 1; i <= 10; i++ {
+		receiver.UpdateAPIKey() // force handler rebuild
+
+		req, err := http.NewRequest("GET", url, nil)
+		assert.NoError(err)
+
+		resp, err := http.DefaultClient.Do(req)
+		assert.NoError(err)
+		defer resp.Body.Close()
+
+		assert.Equal(200, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(err)
+
+		number, err := strconv.Atoi(string(body))
+		assert.NoError(err)
+
+		assert.Equal(counter, number)
+	}
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.config;
 
-option go_package = "pkg/proto/pbgo";  // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 // Backend definitions
 
@@ -52,12 +52,25 @@ message LatestConfigsRequest {
   bytes backend_client_state = 10;
   bool has_error = 11;
   string error = 12;
+  string trace_agent_env = 13;
+  string org_uuid = 14;
+  repeated string tags = 15;
+  string agent_uuid = 16;
 }
 
 message LatestConfigsResponse {
   ConfigMetas config_metas = 1;
   DirectorMetas director_metas = 2;
   repeated File target_files = 3;
+}
+
+message OrgDataResponse {
+  string uuid = 1;
+}
+
+message OrgStatusResponse {
+  bool enabled = 1;
+  bool authorized = 2;
 }
 
 // Client definitions
@@ -73,6 +86,9 @@ message Client {
   ClientAgent client_agent = 9;
   uint64 last_seen = 10;
   bytes capabilities = 11;
+  reserved 12, 13;
+  bool is_updater = 14;
+  ClientUpdater client_updater = 15;
 }
 
 message ClientTracer {
@@ -80,6 +96,7 @@ message ClientTracer {
   string language = 2;
   string tracer_version = 3;
   string service = 4;
+  repeated string extra_services = 8;
   string env = 5;
   string app_version = 6;
   repeated string tags = 7;
@@ -88,6 +105,52 @@ message ClientTracer {
 message ClientAgent {
   string name = 1;
   string version = 2;
+  string cluster_name = 3;
+  string cluster_id = 4;
+  repeated string cws_workloads = 5;
+}
+
+message ClientUpdater {
+  repeated string tags = 1;
+  repeated PackageState packages = 2;
+  uint64 available_disk_space = 3;
+}
+
+message PackageState {
+  string package = 1;
+  string stable_version = 2;
+  string experiment_version = 3;
+  PackageStateTask task = 4;
+  reserved 5;
+  reserved 6;
+  reserved 7;
+  PoliciesState stable_config_state = 8;
+  PoliciesState experiment_config_state = 9;
+  PoliciesState remote_config_state = 10;
+}
+
+message PoliciesState {
+  string version = 1;
+  repeated string matched_policies = 2;
+}
+
+message PackageStateTask {
+  string id = 1;
+  TaskState state = 2;
+  TaskError error = 3;
+}
+
+enum TaskState {
+  IDLE = 0;
+  RUNNING = 1;
+  DONE = 2;
+  INVALID_STATE = 3;
+  ERROR = 4;
+}
+
+message TaskError {
+  uint64 code = 1;
+  string message = 2;
 }
 
 message ConfigState {
@@ -144,6 +207,7 @@ message GetStateConfigResponse {
   map<string, FileMetaState> config_state = 1;
   map<string, FileMetaState> director_state = 2;
   map<string, string> target_filenames = 3;
+  repeated Client active_clients = 4;
 }
 
 

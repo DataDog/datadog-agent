@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +40,7 @@ process_cpu_seconds_total 127923.04
 }
 
 func loadPodsFixture(path string) ([]*Pod, error) {
-	raw, err := ioutil.ReadFile(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubeContainerIDToTaggerEntityID(in)
-			assert.Equal(t, out, res)
+			assert.Equal(t, out, res.String())
 		})
 	}
 }
@@ -90,7 +89,7 @@ func TestKubePodUIDToTaggerEntityID(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubePodUIDToTaggerEntityID(in)
-			assert.Equal(t, out, res)
+			assert.Equal(t, out, res.String())
 		})
 	}
 }
@@ -107,7 +106,7 @@ func TestKubeIDToTaggerEntityID(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubeIDToTaggerEntityID(in)
-			assert.Equal(t, out, res)
+			assert.Equal(t, out, res.String())
 		})
 	}
 }

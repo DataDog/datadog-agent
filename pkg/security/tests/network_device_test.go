@@ -3,22 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -27,12 +31,14 @@ import (
 )
 
 func TestNetDevice(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
 		}
@@ -43,13 +49,13 @@ func TestNetDevice(t *testing.T) {
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	currentNetns, err := utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(uint32(utils.Getpid())))
+	currentNetns, err := utils.NetNSPathFromPid(utils.Getpid()).GetProcessNetworkNamespace()
 	if err != nil {
 		t.Errorf("couldn't retrieve current network namespace ID: %v", err)
 	}
@@ -78,7 +84,7 @@ func TestNetDevice(t *testing.T) {
 			testNetns = uint32(stat.Ino)
 
 			return nil
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "net_device", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -95,7 +101,7 @@ func TestNetDevice(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth0", "type", "veth", "peer", "name", "ns-eth0", "netns", "test_netns")
 			return cmd.Run()
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -119,7 +125,7 @@ func TestNetDevice(t *testing.T) {
 
 			cmd = exec.Command(executable, "link", "set", "ns-eth1", "netns", "test_netns")
 			return cmd.Run()
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -133,4 +139,167 @@ func TestNetDevice(t *testing.T) {
 			t.Error(err)
 		}
 	})
+}
+
+func TestTCFilters(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	// skip the test to avoid nested namespaces issues
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping tc filters test in docker")
+	}
+
+	// dummy rule to force the activation of netdev-related probes
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `dns.question.type == A`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var testModuleCleanedUp bool
+	defer func() {
+		if !testModuleCleanedUp {
+			test.Close()
+		}
+	}()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sleepExecutable := which(t, "sleep")
+
+	var newNetNSSleep *exec.Cmd
+	defer func() {
+		if newNetNSSleep != nil {
+			if newNetNSSleep.Process != nil {
+				_ = newNetNSSleep.Process.Kill()
+			}
+			_ = newNetNSSleep.Wait()
+		}
+	}()
+
+	t.Run("attach_detach_filters", func(t *testing.T) {
+		newNetNSSleep = exec.Command(syscallTester, "new_netns_exec", sleepExecutable, "600")
+		err := newNetNSSleep.Start()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sleepProcPid := uint32(newNetNSSleep.Process.Pid)
+		if sleepProcPid == 0 {
+			t.Fatal("pid of the sleep command is zero")
+		}
+
+		netNs := utils.NetNSPathFromPid(sleepProcPid)
+		// wait for the new net namespace to be created
+		// and for the tc probes to be attached to the new interface
+		time.Sleep(1 * time.Second)
+		nsid, err := netNs.GetProcessNetworkNamespace()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ingressExists, egressExists, err := tcFiltersExist(netNs, "lo", "classifier_ingress", "classifier_egress")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !ingressExists {
+			t.Error("Ingress tc classifier does not exist")
+		}
+		if !egressExists {
+			t.Fatal("Egress tc classifier does not exist")
+		}
+
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Fatal("not supported")
+		}
+
+		if err := p.Manager.CleanupNetworkNamespace(nsid); err != nil {
+			t.Fatal(err)
+		}
+
+		test.Close()
+		test.cleanup()
+		testMod = nil // force a full testModule reinitialization
+		testModuleCleanedUp = true
+
+		ingressExists, egressExists, err = tcFiltersExist(netNs, "lo", "classifier_ingress", "classifier_egress")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if ingressExists {
+			t.Error("Ingress tc classifier wasn't properly detached")
+		}
+
+		if egressExists {
+			t.Fatal("Egress tc classifier wasn't properly detached")
+		}
+	})
+}
+
+func tcFiltersExist(netNs *utils.NetNSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {
+	netNsFile, err := os.Open(netNs.GetPath())
+	if err != nil {
+		return
+	}
+	defer netNsFile.Close()
+
+	netlinkHandle, err := netlink.NewHandleAt(netns.NsHandle(int(netNsFile.Fd())), unix.NETLINK_ROUTE)
+	if err != nil {
+		return
+	}
+	defer netlinkHandle.Close()
+
+	link, err := netlinkHandle.LinkByName(linkName)
+	if err != nil {
+		return
+	}
+
+	bpfFilterExists := func(parentHandle uint32, expectedFilterNamePrefix string) (bool, error) {
+		filters, err := netlinkHandle.FilterList(link, parentHandle)
+		if err != nil {
+			return false, err
+		}
+
+		var found bool
+		bpfType := (&netlink.BpfFilter{}).Type()
+		for _, elem := range filters {
+			if elem.Type() != bpfType {
+				continue
+			}
+
+			bpfFilter, ok := elem.(*netlink.BpfFilter)
+			if !ok {
+				continue
+			}
+
+			if strings.HasPrefix(bpfFilter.Name, expectedFilterNamePrefix) {
+				found = true
+				break
+			}
+		}
+		return found, nil
+	}
+
+	ingressExists, err = bpfFilterExists(netlink.HANDLE_MIN_INGRESS, ingressFilterNamePrefix)
+	if err != nil {
+		return
+	}
+
+	egressExists, err = bpfFilterExists(netlink.HANDLE_MIN_EGRESS, egressFilterNamePrefix)
+	return
 }

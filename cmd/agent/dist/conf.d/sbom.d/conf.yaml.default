@@ -1,0 +1,5 @@
+ad_identifiers:
+  - _sbom
+init_config:
+instances:
+  -

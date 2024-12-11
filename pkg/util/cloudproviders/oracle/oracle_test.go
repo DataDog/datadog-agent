@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetHostAliases(t *testing.T) {
-	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
-	config.Datadog.Set("cloud_provider_metadata", []string{"oracle"})
+	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expected := "ocid1.instance.oc1.iad.anuwcljte6cuweqcz7sarpn43hst2kaaaxbbbccbaaa6vpd66tvcyhgiifsq"
@@ -37,7 +37,7 @@ func TestGetHostAliases(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/opc/v2/instance/id")
@@ -45,14 +45,14 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
-	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
-	config.Datadog.Set("cloud_provider_metadata", []string{"oracle"})
+	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"169.254.169.254"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		io.WriteString(w, "test")
 	}))

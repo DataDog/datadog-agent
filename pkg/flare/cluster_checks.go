@@ -14,21 +14,21 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer, checkName string) error {
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	if !config.Datadog.GetBool("cluster_checks.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
 		fmt.Fprintln(w, "Cluster-checks are not enabled")
 		return nil
 	}
@@ -36,7 +36,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -44,9 +44,9 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
+			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
 		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+			fmt.Fprintf(w, "Failed to query the agent (running?): %s\n", err)
 		}
 		return err
 	}
@@ -65,14 +65,14 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 
 	// Print warmup message
 	if cr.Warmup {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s in progress ===", color.BlueString("Warmup")))
+		fmt.Fprintf(w, "=== %s in progress ===\n", color.BlueString("Warmup"))
 		fmt.Fprintln(w, "No configuration has been processed yet")
 		fmt.Fprintln(w, "")
 	}
 
 	// Print dangling configs
 	if len(cr.Dangling) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s configurations ===", color.RedString("Unassigned")))
+		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
 		for _, c := range cr.Dangling {
 			PrintConfig(w, c, checkName)
 		}
@@ -81,11 +81,11 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 
 	// Print summary of agents
 	if len(cr.Nodes) == 0 {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s agent reporting ===", color.RedString("Zero")))
+		fmt.Fprintf(w, "=== %s agent reporting ===\n", color.RedString("Zero"))
 		fmt.Fprintln(w, "No check will be dispatched until agents report to the cluster-agent")
 		return nil
 	}
-	fmt.Fprintln(w, fmt.Sprintf("=== %d agents reporting ===", len(cr.Nodes)))
+	fmt.Fprintf(w, "=== %d agents reporting ===\n", len(cr.Nodes))
 	sort.Slice(cr.Nodes, func(i, j int) bool { return cr.Nodes[i].Name < cr.Nodes[j].Name })
 	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(table, "\nName\tRunning checks")
@@ -99,7 +99,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		if len(node.Configs) == 0 {
 			continue
 		}
-		fmt.Fprintln(w, fmt.Sprintf("\n===== Checks on %s =====", color.HiMagentaString(node.Name)))
+		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
 		for _, c := range node.Configs {
 			PrintConfig(w, c, checkName)
 		}
@@ -114,7 +114,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
@@ -123,7 +123,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		return err
 	}
 
@@ -131,9 +131,9 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
+			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
 		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+			fmt.Fprintf(w, "Failed to query the agent (running?): %s\n", err)
 		}
 		return err
 	}
@@ -144,7 +144,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	}
 
 	// Print summary of pod-backed endpointschecks
-	fmt.Fprintln(w, fmt.Sprintf("\n===== %d Pod-backed Endpoints-Checks scheduled =====", len(cr.Configs)))
+	fmt.Fprintf(w, "\n===== %d Pod-backed Endpoints-Checks scheduled =====\n", len(cr.Configs))
 	for _, c := range cr.Configs {
 		PrintConfig(w, c, checkName)
 	}
@@ -153,7 +153,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 }
 
 func endpointschecksEnabled() bool {
-	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
+	for _, provider := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
 		if provider == names.KubeEndpointsRegisterName {
 			return true
 		}

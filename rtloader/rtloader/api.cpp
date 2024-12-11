@@ -12,7 +12,9 @@
 #ifndef _WIN32
 // clang-format off
 // handler stuff
+#ifdef HAS_BACKTRACE_LIB
 #include <execinfo.h>
+#endif
 #include <csignal>
 #include <cstring>
 #include <sys/types.h>
@@ -31,16 +33,12 @@
 #include "rtloader_mem.h"
 
 #if __linux__
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif __APPLE__
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif __FreeBSD__
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif _WIN32
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
 #else
 #    error Platform not supported
@@ -67,7 +65,7 @@ static void *rtloader_backend = NULL;
     \return A create_t * function pointer that will allow us to create the relevant python
     backend. In case of failure NULL is returned and the error string is set on the output
     parameter.
-    \sa create_t, make2, make3
+    \sa create_t, make3
 
     This function is windows only. Required by the backend "makers".
 */
@@ -98,21 +96,6 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
         return NULL;
     }
     return create;
-}
-
-rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-{
-
-    if (rtloader_backend != NULL) {
-        *error = strdupe("RtLoader already initialized!");
-        return NULL;
-    }
-
-    create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home, error);
-    if (!create) {
-        return NULL;
-    }
-    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
@@ -150,37 +133,6 @@ void destroy(rtloader_t *rtloader)
 }
 
 #else
-rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-{
-    if (rtloader_backend != NULL) {
-        std::string err_msg = "RtLoader already initialized!";
-        *error = strdupe(err_msg.c_str());
-        return NULL;
-    }
-    // load library
-    rtloader_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY | RTLD_GLOBAL);
-    if (!rtloader_backend) {
-        std::ostringstream err_msg;
-        err_msg << "Unable to open two library: " << dlerror();
-        *error = strdupe(err_msg.str().c_str());
-        return NULL;
-    }
-
-    // reset dl errors
-    dlerror();
-
-    // dlsym class factory
-    create_t *create = (create_t *)dlsym(rtloader_backend, "create");
-    const char *dlsym_error = dlerror();
-    if (dlsym_error) {
-        std::ostringstream err_msg;
-        err_msg << "Unable to open two factory: " << dlsym_error;
-        *error = strdupe(err_msg.str().c_str());
-        return NULL;
-    }
-
-    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
-}
 
 rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 {
@@ -325,6 +277,11 @@ char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->getCheckWarnings(AS_TYPE(RtLoaderPyObject, check));
 }
 
+char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
+}
+
 /*
  * error API
  */
@@ -371,11 +328,14 @@ static inline void core(int sig)
 #    define STACKTRACE_SIZE 500
 void signalHandler(int sig, siginfo_t *, void *)
 {
+#    ifdef HAS_BACKTRACE_LIB
     void *buffer[STACKTRACE_SIZE];
     char **symbols;
 
     size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
+#    endif
     std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << std::endl;
+#    ifdef HAS_BACKTRACE_LIB
     symbols = backtrace_symbols(buffer, nptrs);
     if (symbols == NULL) {
         std::cerr << "Error getting backtrace symbols" << std::endl;
@@ -387,6 +347,7 @@ void signalHandler(int sig, siginfo_t *, void *)
 
         _free(symbols);
     }
+#    endif
 
     // dump core if so configured
     __sync_synchronize();
@@ -501,6 +462,11 @@ void set_get_hostname_cb(rtloader_t *rtloader, cb_get_hostname_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetHostnameCb(cb);
 }
 
+void set_get_host_tags_cb(rtloader_t *rtloader, cb_get_host_tags_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetHostTagsCb(cb);
+}
+
 void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
@@ -514,6 +480,11 @@ void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t c
 void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
+}
+
+void set_send_log_cb(rtloader_t *rtloader, cb_send_log_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSendLogCb(cb);
 }
 
 void set_set_check_metadata_cb(rtloader_t *rtloader, cb_set_check_metadata_t cb)
@@ -561,6 +532,16 @@ void set_get_process_start_time_cb(rtloader_t *rtloader, cb_get_process_start_ti
     AS_TYPE(RtLoader, rtloader)->setGetProcessStartTimeCb(cb);
 }
 
+void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_string_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateMongoDBStringCb(cb);
+}
+
+void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
 /*
  * _util API
  */
@@ -599,4 +580,20 @@ void set_get_connection_info_cb(rtloader_t *rtloader, cb_get_connection_info_t c
 void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setIsExcludedCb(cb);
+}
+
+/*
+ * python allocator stats API
+ */
+void init_pymem_stats(rtloader_t *rtloader)
+{
+    AS_TYPE(RtLoader, rtloader)->initPymemStats();
+}
+
+void get_pymem_stats(rtloader_t *rtloader, pymem_stats_t *stats)
+{
+    if (stats == NULL) {
+        return;
+    }
+    AS_TYPE(RtLoader, rtloader)->getPymemStats(*stats);
 }

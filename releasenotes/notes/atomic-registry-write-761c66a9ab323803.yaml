@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On some slow drives, when the Agent shuts down suddenly the Logs Agent registry file can become corrupt.
+    This means that when the Agent starts again the registry file can't be read and therefore the Logs Agent reads logs from the beginning again.
+    With this update, the Agent now attempts to update the registry file atomically to reduce the chances of a corrupted file.

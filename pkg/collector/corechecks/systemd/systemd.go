@@ -4,31 +4,33 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build systemd
-// +build systemd
 
 package systemd
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
-	"github.com/coreos/go-systemd/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 const (
-	systemdCheckName = "systemd"
+	// CheckName is the name of the check// CheckName
+	CheckName = "systemd"
 
 	unitActiveState = "active"
 	unitLoadedState = "loaded"
@@ -127,13 +129,13 @@ var serviceCheckStateMapping = map[string]string{
 	"deactivating": "unknown",
 }
 
-var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
-	"initializing": metrics.ServiceCheckUnknown,
-	"starting":     metrics.ServiceCheckUnknown,
-	"running":      metrics.ServiceCheckOK,
-	"degraded":     metrics.ServiceCheckCritical,
-	"maintenance":  metrics.ServiceCheckCritical,
-	"stopping":     metrics.ServiceCheckCritical,
+var systemdStatusMapping = map[string]servicecheck.ServiceCheckStatus{
+	"initializing": servicecheck.ServiceCheckUnknown,
+	"starting":     servicecheck.ServiceCheckUnknown,
+	"running":      servicecheck.ServiceCheckOK,
+	"degraded":     servicecheck.ServiceCheckCritical,
+	"maintenance":  servicecheck.ServiceCheckCritical,
+	"stopping":     servicecheck.ServiceCheckCritical,
 }
 
 // SystemdCheck aggregates metrics from one SystemdCheck instance
@@ -180,7 +182,7 @@ func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*db
 }
 
 func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
-	return dbus.NewSystemConnection()
+	return dbus.NewSystemConnectionContext(context.Background())
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -188,15 +190,15 @@ func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
 func (s *defaultSystemdStats) SystemState(c *dbus.Conn) (*dbus.Property, error) {
-	return c.SystemState()
+	return c.SystemStateContext(context.Background())
 }
 
 func (s *defaultSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error) {
-	return conn.ListUnits()
+	return conn.ListUnitsContext(context.Background())
 }
 
 func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error) {
-	return c.GetUnitTypeProperties(unitName, unitType)
+	return c.GetUnitTypePropertiesContext(context.Background(), unitName, unitType)
 }
 
 func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
@@ -232,18 +234,18 @@ func (c *SystemdCheck) Run() error {
 	return nil
 }
 
-func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
+func (c *SystemdCheck) connect(sender sender.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
+		sender.ServiceCheck(canConnectServiceCheck, servicecheck.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
-	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(canConnectServiceCheck, servicecheck.ServiceCheckOK, "", nil, "")
 	return conn, nil
 }
 
-func (c *SystemdCheck) submitSystemdState(sender aggregator.Sender, conn *dbus.Conn) {
+func (c *SystemdCheck) submitSystemdState(sender sender.Sender, conn *dbus.Conn) {
 	systemStateProp, err := c.stats.SystemState(conn)
 	// Expected to fail for Systemd version <212
 	// Source: https://github.com/systemd/systemd/blob/d4ffda38716d33dbc17faaa12034ccb77d0ed68b/NEWS#L7292-L7300
@@ -251,7 +253,7 @@ func (c *SystemdCheck) submitSystemdState(sender aggregator.Sender, conn *dbus.C
 	if err != nil {
 		log.Debugf("err calling SystemState: %v", err)
 	} else {
-		serviceCheckStatus := metrics.ServiceCheckUnknown
+		serviceCheckStatus := servicecheck.ServiceCheckUnknown
 		systemState, ok := systemStateProp.Value.Value().(string)
 		if ok {
 			status, ok := systemdStatusMapping[systemState]
@@ -270,7 +272,7 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 		conn, err = c.getPrivateSocketConnection(c.config.instance.PrivateSocket)
 	} else {
 		defaultPrivateSocket := "/run/systemd/private"
-		if config.IsContainerized() {
+		if env.IsContainerized() {
 			conn, err = c.getPrivateSocketConnection("/host" + defaultPrivateSocket)
 		} else {
 			conn, err = c.getSystemBusSocketConnection()
@@ -306,10 +308,12 @@ func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
 	}
 	checkID := string(c.ID())
 	log.Debugf("Submit version %v for checkID %v", version, checkID)
-	inventories.SetCheckMetadata(checkID, "version.raw", version)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(checkID, "version.raw", version)
+	}
 }
 
-func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
+func (c *SystemdCheck) submitMetrics(sender sender.Sender, conn *dbus.Conn) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
 		return fmt.Errorf("error getting list of units: %v", err)
@@ -349,7 +353,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 	return nil
 }
 
-func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
+func (c *SystemdCheck) submitBasicUnitMetrics(sender sender.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	active := 0
 	if unit.ActiveState == unitActiveState {
 		active = 1
@@ -364,7 +368,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 
 	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
 	if err != nil {
-		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
+		log.Warnf("Error getting unit unitProperties: %s: %v", unit.Name, err)
 		return
 	}
 	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
@@ -375,7 +379,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.UnixNow())), "", tags)
 }
 
-func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
+func (c *SystemdCheck) submitCountMetrics(sender sender.Sender, units []dbus.UnitStatus) {
 	counts := map[string]int{}
 
 	for _, activeState := range unitActiveStates {
@@ -392,7 +396,7 @@ func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus
 	}
 }
 
-func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
+func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender sender.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	for unitType := range metricConfigs {
 		if !strings.HasSuffix(unit.Name, "."+unitType) {
 			continue
@@ -407,16 +411,16 @@ func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, co
 			if err != nil {
 				msg := fmt.Sprintf("Cannot send property '%s' for unit '%s': %v", service.propertyName, unit.Name, err)
 				if service.optional {
-					log.Debugf(msg)
+					log.Debugf("%s", msg)
 				} else {
-					log.Warnf(msg)
+					log.Warnf("%s", msg)
 				}
 			}
 		}
 	}
 }
 
-func sendServicePropertyAsGauge(sender aggregator.Sender, properties map[string]interface{}, service metricConfigItem, tags []string) error {
+func sendServicePropertyAsGauge(sender sender.Sender, properties map[string]interface{}, service metricConfigItem, tags []string) error {
 	if service.accountingProperty != "" {
 		accounting, err := getPropertyBool(properties, service.accountingProperty)
 		if err != nil {
@@ -431,7 +435,12 @@ func sendServicePropertyAsGauge(sender aggregator.Sender, properties map[string]
 	if err != nil {
 		return fmt.Errorf("error getting property %s: %v", service.propertyName, err)
 	}
-	sender.Gauge(service.metricName, float64(value), "", tags)
+
+	// When the value is `[Not set]`, dbus returns MaxUint64
+	if value != math.MaxUint64 {
+		sender.Gauge(service.metricName, float64(value), "", tags)
+	}
+
 	return nil
 }
 
@@ -488,16 +497,16 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 }
 
 // getServiceCheckStatus returns a service check status for a given unit state (or substate) and a provided mapping
-func getServiceCheckStatus(state string, mapping map[string]string) metrics.ServiceCheckStatus {
+func getServiceCheckStatus(state string, mapping map[string]string) servicecheck.ServiceCheckStatus {
 	switch mapping[state] {
 	case "ok":
-		return metrics.ServiceCheckOK
+		return servicecheck.ServiceCheckOK
 	case "warning":
-		return metrics.ServiceCheckWarning
+		return servicecheck.ServiceCheckWarning
 	case "critical":
-		return metrics.ServiceCheckCritical
+		return servicecheck.ServiceCheckCritical
 	}
-	return metrics.ServiceCheckUnknown
+	return servicecheck.ServiceCheckUnknown
 }
 
 // isMonitored verifies if a unit should be monitored.
@@ -520,12 +529,12 @@ func isValidServiceCheckStatus(serviceCheckStatus string) bool {
 }
 
 // Configure configures the systemd checks
-func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	// Make sure check id is different for each different config
 	// Must be called before CommonConfigure that uses checkID
-	c.BuildID(rawInstance, rawInitConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}
@@ -559,13 +568,14 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	return nil
 }
 
-func systemdFactory() check.Check {
-	return &SystemdCheck{
-		stats:     &defaultSystemdStats{},
-		CheckBase: core.NewCheckBase(systemdCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(systemdCheckName, systemdFactory)
+func newCheck() check.Check {
+	return &SystemdCheck{
+		stats:     &defaultSystemdStats{},
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

@@ -6,7 +6,7 @@
 package testutil
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
@@ -17,7 +17,8 @@ const (
 )
 
 // BucketWithSpans returns a stats bucket populated with spans stats
-func BucketWithSpans(spans []*pb.Span) pb.ClientStatsBucket {
+func BucketWithSpans(spans []*pb.Span) *pb.ClientStatsBucket {
+	sc := &stats.SpanConcentrator{}
 	srb := stats.NewRawBucket(0, 1e9)
 	aggKey := stats.PayloadAggregationKey{
 		Env:         defaultEnv,
@@ -28,20 +29,22 @@ func BucketWithSpans(spans []*pb.Span) pb.ClientStatsBucket {
 	for _, s := range spans {
 		// override version to ensure all buckets will have the same payload key.
 		s.Meta["version"] = ""
-		srb.HandleSpan(s, 0, true, "", aggKey)
+		s.Metrics["_dd.measured"] = 1 // All stats in a bucket must be eligible for stats, mark all these spans as measured
+		statSpan, _ := sc.NewStatSpanFromPB(s, nil)
+		srb.HandleSpan(statSpan, 0, "", aggKey)
 	}
 	buckets := srb.Export()
 	if len(buckets) != 1 {
 		panic("All entries must have the same payload key.")
 	}
-	for _, b := range srb.Export() {
+	for _, b := range buckets {
 		return b
 	}
-	return pb.ClientStatsBucket{}
+	return &pb.ClientStatsBucket{}
 }
 
 // RandomBucket returns a bucket made from n random spans, useful to run benchmarks and tests
-func RandomBucket(n int) pb.ClientStatsBucket {
+func RandomBucket(n int) *pb.ClientStatsBucket {
 	spans := make([]*pb.Span, 0, n)
 	for i := 0; i < n; i++ {
 		spans = append(spans, RandomSpan())
@@ -51,12 +54,12 @@ func RandomBucket(n int) pb.ClientStatsBucket {
 }
 
 // StatsPayloadSample returns a populated client stats payload
-func StatsPayloadSample() pb.ClientStatsPayload {
-	bucket := func(start, duration uint64) pb.ClientStatsBucket {
-		return pb.ClientStatsBucket{
+func StatsPayloadSample() *pb.ClientStatsPayload {
+	bucket := func(start, duration uint64) *pb.ClientStatsBucket {
+		return &pb.ClientStatsBucket{
 			Start:    start,
 			Duration: duration,
-			Stats: []pb.ClientGroupedStats{
+			Stats: []*pb.ClientGroupedStats{
 				{
 					Name:     "name",
 					Service:  "service",
@@ -68,11 +71,11 @@ func StatsPayloadSample() pb.ClientStatsPayload {
 			},
 		}
 	}
-	return pb.ClientStatsPayload{
+	return &pb.ClientStatsPayload{
 		Hostname: "h",
 		Env:      "env",
 		Version:  "1.2",
-		Stats: []pb.ClientStatsBucket{
+		Stats: []*pb.ClientStatsBucket{
 			bucket(1, 10),
 			bucket(500, 100342),
 		},

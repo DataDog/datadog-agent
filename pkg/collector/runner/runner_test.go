@@ -15,10 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Fixtures
@@ -27,7 +30,7 @@ type testCheck struct {
 	runCount *atomic.Uint64
 	stopped  *atomic.Bool
 
-	check.StubCheck
+	stub.StubCheck
 	RunLock   sync.Mutex
 	StartLock sync.Mutex
 	StopLock  sync.Mutex
@@ -36,12 +39,12 @@ type testCheck struct {
 	doWarn      bool
 	id          string
 	t           *testing.T
-	runFunc     func(id check.ID)
+	runFunc     func(id checkid.ID)
 	startedChan chan struct{}
 }
 
-func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
-func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
+func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 func (c *testCheck) Stop() {
 	c.StopLock.Lock()
@@ -91,7 +94,7 @@ func (c *testCheck) Run() error {
 
 // Helpers
 
-func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
+func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *testCheck {
 	return &testCheck{
 		runCount: atomic.NewUint64(0),
 		stopped:  atomic.NewBool(false),
@@ -141,16 +144,16 @@ func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bo
 func testSetUp(t *testing.T) {
 	assertAsyncWorkerCount(t, 0)
 	expvars.Reset()
-	config.Datadog.Set("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 }
 
 // Tests
 
 func TestNewRunner(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "3")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -162,9 +165,9 @@ func TestNewRunner(t *testing.T) {
 
 func TestRunnerAddWorker(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "1")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "1")
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -177,9 +180,9 @@ func TestRunnerAddWorker(t *testing.T) {
 
 func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "2")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "2")
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -196,21 +199,21 @@ func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 
 func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "0")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "0")
 
 	testCases := [][]int{
 		{0, 10, 4},
 		{11, 15, 10},
 		{16, 20, 15},
 		{21, 25, 20},
-		{26, 35, config.MaxNumWorkers},
+		{26, 35, pkgconfigsetup.MaxNumWorkers},
 	}
 
 	for _, testCase := range testCases {
 		assertAsyncWorkerCount(t, 0)
 		min, max, expectedWorkers := testCase[0], testCase[1], testCase[2]
 
-		r := NewRunner()
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 		require.NotNil(t, r)
 
 		for checks := min; checks <= max; checks++ {
@@ -232,7 +235,7 @@ func TestRunner(t *testing.T) {
 		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
 	}
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -249,7 +252,7 @@ func TestRunner(t *testing.T) {
 func TestRunnerStop(t *testing.T) {
 	testSetUp(t)
 
-	config.Datadog.Set("check_runners", "10")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -260,7 +263,7 @@ func TestRunnerStop(t *testing.T) {
 		checks[idx].RunLock.Lock()
 	}
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -302,7 +305,7 @@ func TestRunnerStop(t *testing.T) {
 func TestRunnerStopWithStuckCheck(t *testing.T) {
 	testSetUp(t)
 
-	config.Datadog.Set("check_runners", "10")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -318,7 +321,7 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -358,7 +361,7 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 
 func TestRunnerStopCheck(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "3")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
 
 	testCheck := newCheck(t, "mycheck:123", false, nil)
 	blockedCheck := newCheck(t, "mycheck2:123", false, nil)
@@ -367,7 +370,7 @@ func TestRunnerStopCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -383,7 +386,7 @@ func TestRunnerStopCheck(t *testing.T) {
 	require.False(t, testCheck.IsStopped())
 	require.False(t, blockedCheck.IsStopped())
 
-	err := r.StopCheck(check.ID("missingid"))
+	err := r.StopCheck(checkid.ID("missingid"))
 	require.Nil(t, err)
 
 	err = r.StopCheck(testCheck.ID())
@@ -406,12 +409,12 @@ func TestRunnerStopCheck(t *testing.T) {
 
 func TestRunnerScheduler(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "3")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
 
 	sched1 := newScheduler()
 	sched2 := newScheduler()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -426,12 +429,12 @@ func TestRunnerScheduler(t *testing.T) {
 
 func TestRunnerShouldAddCheckStats(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.Set("check_runners", "3")
+	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
 
 	testCheck := newCheck(t, "test", false, nil)
 	sched := newScheduler()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 

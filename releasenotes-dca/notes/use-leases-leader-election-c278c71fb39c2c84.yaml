@@ -1,0 +1,8 @@
+upgrade:
+  - |
+    Add support for leases in leader election which can be enabled by setting 
+    ``leader_election_default_resource`` to ``leases``, available since Kubernetes version 1.14. 
+    If this parameter is empty, leader election automatically detects if leases
+    are available and uses them.
+    Set ``leader_election_default_resource`` to ``configmap`` on clusters running
+    Kubernetes versions previous to 1.14.

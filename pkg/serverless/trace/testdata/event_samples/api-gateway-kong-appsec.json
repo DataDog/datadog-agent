@@ -1,0 +1,54 @@
+{
+    "resource": "/api/kong-app",
+    "isBase64Encoded": true,
+    "multiValueHeaders": {
+        "x-forwarded-port": [
+            "443"
+        ],
+        "x-amzn-trace-id": [
+            "Root=1-6544229f-1a7c2d8464f308595e510082"
+        ],
+        "my-asm-test-header": [
+            "acunetix-product"
+        ],
+        "postman-token": [
+            "69f2b47b-546b-4e88-a304-6c0f7b988b8d"
+        ],
+        "accept-encoding": [
+            "gzip, deflate, br"
+        ],
+        "user-agent": [
+            "PostmanRuntime/7.34.0"
+        ],
+        "host": [
+            "kong-app.net"
+        ],
+        "accept": [
+            "/"
+        ],
+        "x-forwarded-for": [
+            "170.54.126.44"
+        ],
+        "x-forwarded-proto": [
+            "https"
+        ]
+    },
+    "path": "/api/ping",
+    "headers": {
+        "x-forwarded-port": "443",
+        "x-amzn-trace-id": "Root=1-6544229f-1a7c2d8464f308595e510082",
+        "my-asm-test-header": "acunetix-product",
+        "x-forwarded-proto": "https",
+        "accept-encoding": "gzip, deflate, br",
+        "user-agent": "PostmanRuntime/7.34.0",
+        "host": "kong-app.net",
+        "postman-token": "62f3b42b-345c-be8f-a304-6caf7b983bad",
+        "x-forwarded-for": "170.54.126.44",
+        "accept": "/"
+    },
+    "pathParameters": {},
+    "queryStringParameters": {},
+    "multiValueQueryStringParameters": {},
+    "body": "",
+    "httpMethod": "GET"
+}

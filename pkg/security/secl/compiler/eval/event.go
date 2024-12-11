@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
 	"reflect"
-	"unsafe"
 )
 
 // EventType is the type of an event
@@ -27,28 +27,25 @@ type Event interface {
 	GetFieldValue(field Field) (interface{}, error)
 	// GetFieldType returns the Type of the Field
 	GetFieldType(field Field) (reflect.Kind, error)
-	// GetPointer returns an unsafe.Pointer of this object
-	GetPointer() unsafe.Pointer
 	// GetTags returns a list of tags
 	GetTags() []string
 }
 
-func eventTypesFromFields(model Model, state *State) ([]EventType, error) {
-	events := make(map[EventType]bool)
+func eventTypeFromFields(model Model, state *State) (EventType, error) {
+	var eventType EventType
+
 	for field := range state.fieldValues {
-		eventType, err := model.NewEvent().GetFieldEventType(field)
+		evt, err := model.NewEvent().GetFieldEventType(field)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
-		if eventType != "*" {
-			events[eventType] = true
+		if evt != "" {
+			if eventType != "" && eventType != evt {
+				return "", ErrMultipleEventTypes
+			}
+			eventType = evt
 		}
 	}
-
-	var uniq []string
-	for event := range events {
-		uniq = append(uniq, event)
-	}
-	return uniq, nil
+	return eventType, nil
 }

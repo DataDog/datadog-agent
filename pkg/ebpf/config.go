@@ -6,10 +6,9 @@
 package ebpf
 
 import (
-	"strings"
-
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -30,8 +29,17 @@ type Config struct {
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
 
+	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
+	InternalTelemetryEnabled bool
+
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
+
+	// EnableCORE enables the use of CO-RE to load eBPF programs
+	EnableCORE bool
+
+	// BTFPath is the path to BTF data for the current kernel
+	BTFPath string
 
 	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
 	EnableRuntimeCompiler bool
@@ -57,34 +65,49 @@ type Config struct {
 	// ZypperReposDir is the path to the zypper repository directory
 	ZypperReposDir string
 
-	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
-	AllowPrecompiledFallback bool
-}
+	// AllowPrebuiltFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
+	AllowPrebuiltFallback bool
 
-func key(pieces ...string) string {
-	return strings.Join(pieces, ".")
+	// AllowRuntimeCompiledFallback indicates whether we are allowed to fallback to runtime compilation if CO-RE fails.
+	AllowRuntimeCompiledFallback bool
+
+	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
+	AttachKprobesWithKprobeEventsABI bool
+
+	// BypassEnabled is used in tests only.
+	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
+	BypassEnabled bool
 }
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
-	cfg := aconfig.Datadog
-	aconfig.InitSystemProbeConfig(cfg)
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
 
-	return &Config{
-		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
-		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
-		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
-		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
-		ProcRoot:                 util.GetProcRoot(),
+	c := &Config{
+		BPFDebug:                 cfg.GetBool(sysconfig.FullKeyPath(spNS, "bpf_debug")),
+		BPFDir:                   cfg.GetString(sysconfig.FullKeyPath(spNS, "bpf_dir")),
+		ExcludedBPFLinuxVersions: cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "excluded_linux_versions")),
+		EnableTracepoints:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_tracepoints")),
+		ProcRoot:                 kernel.ProcFSRoot(),
+		InternalTelemetryEnabled: cfg.GetBool(sysconfig.FullKeyPath(spNS, "telemetry_enabled")),
 
-		EnableRuntimeCompiler:      cfg.GetBool(key(spNS, "enable_runtime_compiler")),
-		RuntimeCompilerOutputDir:   cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
-		EnableKernelHeaderDownload: cfg.GetBool(key(spNS, "enable_kernel_header_download")),
-		KernelHeadersDirs:          cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:   cfg.GetString(key(spNS, "kernel_header_download_dir")),
-		AptConfigDir:               cfg.GetString(key(spNS, "apt_config_dir")),
-		YumReposDir:                cfg.GetString(key(spNS, "yum_repos_dir")),
-		ZypperReposDir:             cfg.GetString(key(spNS, "zypper_repos_dir")),
-		AllowPrecompiledFallback:   true,
+		EnableCORE: cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
+		BTFPath:    cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
+
+		EnableRuntimeCompiler:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_runtime_compiler")),
+		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),
+		EnableKernelHeaderDownload:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:            cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "kernel_header_download_dir")),
+		AptConfigDir:                 cfg.GetString(sysconfig.FullKeyPath(spNS, "apt_config_dir")),
+		YumReposDir:                  cfg.GetString(sysconfig.FullKeyPath(spNS, "yum_repos_dir")),
+		ZypperReposDir:               cfg.GetString(sysconfig.FullKeyPath(spNS, "zypper_repos_dir")),
+		AllowPrebuiltFallback:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_prebuilt_fallback")),
+		AllowRuntimeCompiledFallback: cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_runtime_compiled_fallback")),
+
+		AttachKprobesWithKprobeEventsABI: cfg.GetBool(sysconfig.FullKeyPath(spNS, "attach_kprobes_with_kprobe_events_abi")),
 	}
+
+	return c
 }

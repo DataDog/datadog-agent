@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -60,8 +61,9 @@ type IntEvaluator struct {
 	OpOverrides *OpOverrides
 
 	// used during compilation of partial
-	isDeterministic bool
-	isDuration      bool
+	isDeterministic           bool
+	isDuration                bool
+	isFromArithmeticOperation bool
 }
 
 // Eval returns the result of the evaluation
@@ -193,7 +195,7 @@ func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
-func (s *StringValuesEvaluator) IsDeterministicFor(field Field) bool {
+func (s *StringValuesEvaluator) IsDeterministicFor(_ Field) bool {
 	return s.isDeterministic
 }
 
@@ -205,13 +207,6 @@ func (s *StringValuesEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *StringValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
-}
-
-// AppendFieldValues append field values
-func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) {
-	for _, value := range values {
-		s.Values.AppendFieldValue(value)
-	}
 }
 
 // Compile the underlying StringValues
@@ -226,10 +221,8 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 
 // AppendMembers add members to the evaluator
 func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
-	var values []FieldValue
-	var value FieldValue
-
 	for _, member := range members {
+		var value FieldValue
 		if member.Pattern != nil {
 			value = FieldValue{
 				Value: *member.Pattern,
@@ -246,10 +239,8 @@ func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
 				Type:  ScalarValueType,
 			}
 		}
-		values = append(values, value)
+		s.Values.AppendFieldValue(value)
 	}
-
-	s.AppendFieldValues(values...)
 }
 
 // IntArrayEvaluator returns an array of int
@@ -321,6 +312,11 @@ func (b *BoolArrayEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
 }
 
+// AppendValues to the array evaluator
+func (b *BoolArrayEvaluator) AppendValues(values ...bool) {
+	b.Values = append(b.Values, values...)
+}
+
 // CIDREvaluator returns a net.IP
 type CIDREvaluator struct {
 	EvalFnc     func(ctx *Context) net.IPNet
@@ -371,7 +367,7 @@ func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
-func (s *CIDRValuesEvaluator) IsDeterministicFor(field Field) bool {
+func (s *CIDRValuesEvaluator) IsDeterministicFor(_ Field) bool {
 	return s.isDeterministic
 }
 

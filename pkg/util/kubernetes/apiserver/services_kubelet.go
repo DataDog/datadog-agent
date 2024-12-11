@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 
 //go:build kubeapiserver && kubelet
-// +build kubeapiserver,kubelet
 
 package apiserver
 
@@ -29,10 +28,10 @@ func ConvertToServiceMapper(m apiv1.NamespacesPodsStringsSet) serviceMapper { //
 // Set updates services for a given namespace and pod name.
 func (m serviceMapper) Set(namespace, podName string, svcs ...string) {
 	if _, ok := m[namespace]; !ok {
-		m[namespace] = make(map[string]sets.String)
+		m[namespace] = make(map[string]sets.Set[string])
 	}
 	if _, ok := m[namespace][podName]; !ok {
-		m[namespace][podName] = sets.NewString()
+		m[namespace][podName] = sets.New[string]()
 	}
 	m[namespace][podName].Insert(svcs...)
 }
@@ -130,7 +129,7 @@ func (m serviceMapper) MapOnRef(_ string, pods []*kubelet.Pod, endpointList v1.E
 
 // mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
-func (metaBundle *metadataMapperBundle) mapServices(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
+func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	var err error
 	serviceMapper := ConvertToServiceMapper(metaBundle.Services)
 	if metaBundle.mapOnIP {

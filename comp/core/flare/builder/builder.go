@@ -1,0 +1,158 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package flarebuilder contains all the types needed by Flare providers without the underlying implementation and dependencies.
+// This allows components to offer flare capabilities without linking to the flare dependencies when the flare feature
+// is not built in the binary.
+package flarebuilder
+
+import "time"
+
+// FlareBuilder contains all the helpers to add files to a flare archive.
+//
+// When adding data to a flare the builder will do multiple things internally.
+//
+// First a log of the archive creation will be kept and shipped with the flare. When using FlareBuilder we
+// should not stop at the first error. We want to collect as much as possible. Any error returned by a FlareBuilder
+// method is added to the flare log. In general, you can safely ignore those errors unless sending a flare without some
+// file/information would not make sense.
+//
+// The builder will automatically scrub any sensitive data from content and copied files. Still carefully analyze what
+// is being added to ensure that it contains no credentials or unnecessary user-specific data. The FlareBuilder scrubs
+// secrets that match pre-programmed patterns, but it is always better to not capture data containing secrets, than to
+// scrub that data.
+//
+// Everytime a file is copied to the flare the original permissions and ownership of the file is recorded (Unix only).
+//
+// There are reserved path in the flare: "permissions.log" and "flare-creationg.log" (both at the root of the flare).
+// Note as well that the flare does nothing to prevent files to be overwritten by different calls. It's up to the caller
+// to make sure the path used in the flare doesn't clash with other modules.
+type FlareBuilder interface {
+	// IsLocal returns true when the flare is created by the CLI instead of the running Agent process. This happens
+	// when the CLI could not reach the Agent process to request a new flare. In that case a flare is still created
+	// directly from the CLI process and will not contain any runtime information.
+	IsLocal() bool
+
+	// Logf adds a formatted log entry to the flare file associated with this effect.
+	// The log entry is created using the specified format and optional parameters.
+	//
+	// Parameters:
+	//   format: A format string that specifies how the log entry should be formatted.
+	//   params: A variadic parameter list that provides the values to be inserted into the format string.
+	//
+	// Usage example:
+	//   Logf("Processing completed in %d ms", elapsedTime)
+	Logf(format string, params ...interface{}) error
+
+	// AddFile creates a new file in the flare with the content.
+	//
+	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
+	// automatically be created.
+	//
+	// 'content' is automatically scrubbed of any sensitive informations before being added to the flare.
+	AddFile(destFile string, content []byte) error
+
+	// AddFileWithoutScrubbing creates a new file in the flare with the content.
+	//
+	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
+	// automatically be created.
+	//
+	// 'content' is NOT scrubbed of any sensitive informations before being added to the flare.
+	// Can be used for binary files that mustn’t be corrupted, like pprof profiles for ex.
+	AddFileWithoutScrubbing(destFile string, content []byte) error
+
+	// AddFileFromFunc creates a new file in the flare with the content returned by the callback.
+	//
+	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
+	// automatically be created.
+	//
+	// If the 'cb' returns an error, the file will not be created, the error is added to the flare's logs and returned to
+	// the caller.
+	//
+	// The data returned by 'cb' is automatically scrubbed of any sensitive informations before being added to the flare.
+	AddFileFromFunc(destFile string, cb func() ([]byte, error)) error
+
+	// CopyFile copies the content of 'srcFile' to the root of the flare.
+	//
+	// The data is automatically scrubbed of any sensitive informations before being copied.
+	//
+	// Example: CopyFile("/etc/datadog/datadog.yaml") will create a copy of "/etc/datadog/datadog.yaml", named
+	// "datadog.yaml", at the root of the flare.
+	CopyFile(srcFile string) error
+
+	// CopyFileTo copies the content of 'srcFile' to 'destFile' in the flare.
+	//
+	// The data is automatically scrubbed of any sensitive informations before being copied.
+	//
+	// 'destFile' is a path relative to the flare root (ex: "path/to/a/file"). Any necessary directory will
+	// automatically be created.
+	//
+	// Example: CopyFile("/etc/datadog/datadog.yaml", "etc/datadog.yaml") will create a copy of "/etc/datadog/datadog.yaml"
+	// at "etc/datadog.yaml" at the root of the flare.
+	CopyFileTo(srcFile string, destFile string) error
+
+	// CopyDirTo copies files from the 'srcDir' to a specific directory in the flare.
+	//
+	// The path for each file in 'srcDir' is passed to the 'shouldInclude' callback. If 'shouldInclude' returns true, the
+	// file is copies to the flare. If not, the file is ignored.
+	//
+	// 'destDir' is a path relative to the flare root (ex: "some/path/to/a/dir").
+	//
+	// The data of each copied file is automatically scrubbed of any sensitive informations before being copied.
+	//
+	// Example: CopyDir("/var/log/datadog/agent", "logs", <callback>) will copy files from "/var/log/datadog/agent/" to
+	// "logs/agent/" in the flare.
+	CopyDirTo(srcDir string, destDir string, shouldInclude func(string) bool) error
+
+	// CopyDirTo copies files from the 'srcDir' to a specific directory in the flare.
+	//
+	// The path for each file in 'srcDir' is passed to the 'shouldInclude' callback. If 'shouldInclude' returns true, the
+	// file is copies to the flare. If not, the file is ignored.
+	//
+	// 'destDir' is a path relative to the flare root (ex: "some/path/to/a/dir").
+	//
+	// The data of each copied file is NOT scrubbed of any sensitive informations before being copied. Only files
+	// already scrubbed should be added in this way (ex: agent logs that are scrubbed at creation).
+	//
+	// Example: CopyDir("/var/log/datadog/agent", "logs", <callback>) will copy files from "/var/log/datadog/agent/" to
+	// "logs/agent/" in the flare.
+	CopyDirToWithoutScrubbing(srcDir string, destDir string, shouldInclude func(string) bool) error
+
+	// PrepareFilePath returns the full path of a file in the flare.
+	//
+	// PrepareFilePath will create the necessary directories in the flare temporary dir so that file can be create, but will
+	// not create the file. This method should only be used when the data is generated by another program/library.
+	//
+	// Example: PrepareFilePath("db-monitoring/db-dump.log") will create the 'db-monitoring' directory at the root of the
+	// flare and return the full path to db-dump.log: "/path/to/the/flare/db-monitoring/db-dump.log".
+	PrepareFilePath(path string) (string, error)
+
+	// RegisterFilePerm add the current permissions for a file to the flare's permissions.log.
+	RegisterFilePerm(path string)
+
+	// RegisterDirPerm add the current permissions for all the files in a directory to the flare's permissions.log.
+	RegisterDirPerm(path string)
+
+	// GetFlareArgs will return the struct of caller-provided arguments that can be referenced by various flare providers
+	GetFlareArgs() FlareArgs
+
+	// Save archives all the data added to the flare, cleanup all the temporary directories and return the path to
+	// the archive file. Upon error the cleanup is still done.
+	// Error or not, once Save as been called the FlareBuilder is no longer capable of receiving new data. It is the caller
+	// responsibility to make sure of this.
+	//
+	// This method must not be used by flare callbacks and will be removed once all flare code has been migrated to
+	// components.
+	Save() (string, error)
+}
+
+// FlareArgs contains the arguments passed in to a specific flare generation request.
+// All consumers of FlareArgs should be able to safely ingest an empty (default) struct.
+type FlareArgs struct {
+	StreamLogsDuration   time.Duration // Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag
+	ProfileDuration      time.Duration // Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s
+	ProfileMutexFraction int           // Set the fraction of mutex contention events that are reported in the mutex profile
+	ProfileBlockingRate  int           // Set the fraction of goroutine blocking events that are reported in the blocking profile
+}

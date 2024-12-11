@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package ad
 
 import (
@@ -11,15 +12,15 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
-	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +37,7 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+func New(ac autodiscovery.Component) schedulers.Scheduler {
 	sch := &Scheduler{}
 	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
 	return sch
@@ -64,13 +65,13 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 		if config.HasFilter(containers.LogsFilter) {
-			log.Debugf("Config %s is filtered out for logs collection, ignoring it", s.configName(config))
+			log.Debugf("Config %s is filtered out for logs collection, ignoring it", configName(config))
 			continue
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("Received a new logs config: %v", s.configName(config))
-			sources, err := s.toSources(config)
+			log.Infof("Received a new logs config: %v", configName(config))
+			sources, err := CreateSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -78,25 +79,8 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.mgr.AddSource(source)
 			}
-		case !ddUtil.CcaInAD() && s.newService(config):
-			entityType, _, err := s.parseEntity(config.TaggerEntity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			// logs only consider container services
-			if entityType != containers.ContainerEntityName {
-				continue
-			}
-			log.Infof("Received a new service: %v", config.ServiceID)
-			service, err := s.toService(config)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			s.mgr.AddService(service)
 		default:
-			// invalid integration config
+			log.Debugf("Invalid integration config: %s, ignoring it", configName(config))
 			continue
 		}
 	}
@@ -112,7 +96,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		case s.newSources(config):
 			log.Infof("New source to remove: entity: %v", config.ServiceID)
 
-			_, identifier, err := s.parseServiceID(config.ServiceID)
+			_, identifier, err := parseServiceID(config.ServiceID)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -131,24 +115,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 					s.mgr.RemoveSource(source)
 				}
 			}
-		case !ddUtil.CcaInAD() && s.newService(config):
-			// new service to remove
-			entityType, _, err := s.parseEntity(config.TaggerEntity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			// logs only consider container services
-			if entityType != containers.ContainerEntityName {
-				continue
-			}
-			log.Infof("New service to remove: entity: %v", config.ServiceID)
-			service, err := s.toService(config)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			s.mgr.RemoveService(service)
 		default:
 			// invalid integration config
 			continue
@@ -161,26 +127,21 @@ func (s *Scheduler) newSources(config integration.Config) bool {
 	return config.Provider != ""
 }
 
-// newService returns true if the config can be mapped to a service.
-func (s *Scheduler) newService(config integration.Config) bool {
-	return config.Provider == "" && config.ServiceID != ""
-}
-
 // configName returns the name of the configuration.
-func (s *Scheduler) configName(config integration.Config) string {
+func configName(config integration.Config) string {
 	if config.Name != "" {
 		return config.Name
 	}
-	service, err := s.toService(config)
+	service, err := toService(config)
 	if err == nil {
 		return service.Type
 	}
 	return config.Provider
 }
 
-// toSources creates new sources from an integration config,
+// createsSources creates new sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
+func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
 	var err error
 
@@ -191,6 +152,13 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 	case names.Container, names.Kubernetes, names.KubeContainer:
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+	case names.RemoteConfig:
+		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+			// config supplied by remote config
+			configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		} else {
+			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
+		}
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
@@ -214,13 +182,13 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 		// this entity is used later on by an input to match a service with a source
 		// to start collecting logs.
 		var err error
-		service, err = s.toService(config)
+		service, err = toService(config)
 		if err != nil {
 			return nil, fmt.Errorf("invalid entity: %v", err)
 		}
 	}
 
-	configName := s.configName(config)
+	configName := configName(config)
 	var sources []*sourcesPkg.LogSource
 	for _, cfg := range configs {
 		// if no service is set fall back to the global one
@@ -231,7 +199,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
@@ -242,6 +210,13 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 		}
 
 		source := sourcesPkg.NewLogSource(configName, cfg)
+		if source.Config.IntegrationName == "" {
+			// If the log integration comes from a config file, we try to match it with the config name
+			// that is most likely the integration name.
+			// If it comes from a container environment, the name was computed based on the `check_names`
+			// labels attached to the same container.
+			source.Config.IntegrationName = configName
+		}
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
@@ -254,26 +229,17 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 }
 
 // toService creates a new service for an integrationConfig.
-func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
-	provider, identifier, err := s.parseServiceID(config.ServiceID)
+func toService(config integration.Config) (*service.Service, error) {
+	provider, identifier, err := parseServiceID(config.ServiceID)
 	if err != nil {
 		return nil, err
 	}
 	return service.NewService(provider, identifier), nil
 }
 
-// parseEntity breaks down an entity into a service provider and a service identifier.
-func (s *Scheduler) parseEntity(entity string) (string, string, error) {
-	components := strings.Split(entity, containers.EntitySeparator)
-	if len(components) != 2 {
-		return "", "", fmt.Errorf("entity is malformed : %v", entity)
-	}
-	return components[0], components[1], nil
-}
-
 // parseServiceID breaks down an AD service ID, assuming it is formatted
 // as `something://something-else`, into its consituent parts.
-func (s *Scheduler) parseServiceID(serviceID string) (string, string, error) {
+func parseServiceID(serviceID string) (string, string, error) {
 	components := strings.Split(serviceID, containers.EntitySeparator)
 	if len(components) != 2 {
 		return "", "", fmt.Errorf("service ID does not have the form `xxx://yyy`: %v", serviceID)

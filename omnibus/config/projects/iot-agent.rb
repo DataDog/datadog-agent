@@ -20,8 +20,8 @@ if ohai['platform'] == "windows"
   install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent'
-  if redhat? || suse?
+  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+  if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
     # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
@@ -34,7 +34,7 @@ else
     # have to list them, because they'll already be there because of preinst
     runtime_script_dependency :pre, "coreutils"
     runtime_script_dependency :pre, "grep"
-    if redhat?
+    if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
     else
@@ -45,9 +45,53 @@ else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
-  if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
+  if debian_target?
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
+  unless osx_target?
+    conflict 'datadog-agent'
+  end
+end
+
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  do_package = true
+  dependency 'init-scripts-iot-agent'
+else
+  # ------------------------------------
+  # Dependencies
+  # ------------------------------------
+
+  # creates required build directories
+  dependency 'preparation'
+
+  dependency "systemd" if linux_target?
+
+  # Datadog agent
+  dependency 'datadog-iot-agent'
+
+  if windows_target?
+    dependency 'datadog-agent-finalize'
+  end
+
+  # version manifest file
+  dependency 'version-manifest'
+
+  do_package = false
+end
+
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+else
+  COMPRESSION_THREADS = 1
+end
+
+if ENV.has_key?('FORCED_PACKAGE_COMPRESSION_LEVEL')
+  COMPRESSION_LEVEL = ENV['FORCED_PACKAGE_COMPRESSION_LEVEL'].to_i
+elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
 end
 
 # build_version is computed by an invoke command/function.
@@ -72,11 +116,15 @@ description 'Datadog IoT Agent
 
 # .deb specific flags
 package :deb do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -87,12 +135,16 @@ end
 
 # .rpm specific flags
 package :rpm do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
@@ -106,19 +158,7 @@ end
 # ------------------------------------
 
 # Linux
-if linux?
-  # Upstart
-  if debian? || redhat? || suse?
-    extra_package_file '/etc/init/datadog-agent.conf'
-  end
-
-  # Systemd
-  if debian?
-    extra_package_file '/lib/systemd/system/datadog-agent.service'
-  else
-    extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
-  end
-
+if linux_target?
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/datadog-agent/datadog.yaml.example'
   extra_package_file '/etc/datadog-agent/conf.d/'
@@ -130,6 +170,12 @@ end
 # Windows .msi specific flags
 package :zip do
   skip_packager true
+end
+
+package :xz do
+  skip_packager do_package
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 package :msi do
@@ -157,9 +203,10 @@ package :msi do
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   #end
-  if ENV['SIGN_PFX']
-    signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    dd_wcssign true
   end
+
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
@@ -169,29 +216,17 @@ package :msi do
   })
 end
 
-# ------------------------------------
-# Dependencies
-# ------------------------------------
-
-# creates required build directories
-dependency 'preparation'
-
-# Datadog agent
-dependency 'datadog-iot-agent'
-
-if windows?
-  dependency 'datadog-agent-finalize'
-end
-
-# version manifest file
-dependency 'version-manifest'
-
 # package scripts
-if linux?
-  if debian?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+if linux_target?
+  if !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
   else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    end
   end
 end
 

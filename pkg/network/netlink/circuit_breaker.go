@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package netlink implements network connection tracking.
 package netlink
 
 import (
@@ -15,8 +16,6 @@ import (
 )
 
 const (
-	tickInterval = 3 * time.Second
-
 	// The lower this number is the more amortized the average is
 	// For example, if ewmaWeight is 1, a single burst of events might
 	// cause the breaker to trip.
@@ -48,7 +47,7 @@ type CircuitBreaker struct {
 
 // NewCircuitBreaker instantiates a new CircuitBreaker that only allows
 // a maxEventsPerSec to pass. The rate of events is calculated using an EWMA.
-func NewCircuitBreaker(maxEventsPerSec int64) *CircuitBreaker {
+func NewCircuitBreaker(maxEventsPerSec int64, tickInterval time.Duration) *CircuitBreaker {
 	// -1 will virtually disable the circuit breaker
 	if maxEventsPerSec == -1 {
 		maxEventsPerSec = math.MaxInt64
@@ -66,6 +65,7 @@ func NewCircuitBreaker(maxEventsPerSec int64) *CircuitBreaker {
 
 	go func() {
 		ticker := time.NewTicker(tickInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case t := <-ticker.C:

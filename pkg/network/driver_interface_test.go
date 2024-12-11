@@ -4,28 +4,30 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package network
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 type TestDriverHandleInfiniteLoop struct {
 	t *testing.T
 	// state variables
-	hasBeenCalled   bool
-	lastReturnBytes uint32
-	lastBufferSize  int
-	lastError       error
+	hasBeenCalled  bool
+	lastBufferSize int
 }
 
+func (tdh *TestDriverHandleInfiniteLoop) RefreshStats() {}
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleInfiniteLoop) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	// check state in struct to see if we've been called before
 	if tdh.hasBeenCalled {
@@ -45,16 +47,14 @@ func (tdh *TestDriverHandleInfiniteLoop) GetWindowsHandle() windows.Handle {
 	return windows.Handle(0)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleInfiniteLoop) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
 	return nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleInfiniteLoop) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
-}
-
-func (tdh *TestDriverHandleInfiniteLoop) GetStatsForHandle() (map[string]map[string]int64, error) {
-	return nil, nil
 }
 
 func (tdh *TestDriverHandleInfiniteLoop) Close() error {
@@ -69,26 +69,17 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 	activeBuf := NewConnectionBuffer(startSize, minSize)
 	closedBuf := NewConnectionBuffer(startSize, minSize)
 
-	di, err := NewDriverInterface(config.New(), func(flags uint32, handleType driver.HandleType) (driver.Handle, error) {
+	di, err := NewDriverInterface(config.New(), func(_ uint32, _ driver.HandleType, _ telemetry.Component) (driver.Handle, error) {
 		return &TestDriverHandleInfiniteLoop{t: t}, nil
-	})
+	}, nil)
 	require.NoError(t, err, "Failed to create new driver interface")
 
-	_, _, err = di.GetConnectionStats(activeBuf, closedBuf, func(c *ConnectionStats) bool {
+	_, err = di.GetClosedConnectionStats(closedBuf, func(_ *ConnectionStats) bool {
 		return true
 	})
 	require.NoError(t, err, "Failed to get connection stats")
-}
-
-type TestDriverHandleFiltersSuccess struct {
-	t *testing.T
-	// state variables
-	hasBeenCalled   bool
-	lastReturnBytes uint32
-	lastBufferSize  int
-	lastError       error
-}
-
-func (tdh *TestDriverHandleFiltersSuccess) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
-	return nil
+	_, err = di.GetOpenConnectionStats(activeBuf, func(_ *ConnectionStats) bool {
+		return true
+	})
+	require.NoError(t, err, "Failed to get connection stats")
 }

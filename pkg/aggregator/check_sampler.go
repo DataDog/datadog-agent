@@ -9,8 +9,11 @@ import (
 	"math"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,30 +22,40 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
-	series          []*metrics.Serie
-	sketches        metrics.SketchSeriesList
-	contextResolver *countBasedContextResolver
-	metrics         metrics.CheckMetrics
-	sketchMap       sketchMap
-	lastBucketValue map[ckey.ContextKey]int64
+	id                     checkid.ID
+	series                 []*metrics.Serie
+	sketches               metrics.SketchSeriesList
+	contextResolver        *countBasedContextResolver
+	metrics                metrics.CheckMetrics
+	sketchMap              sketchMap
+	lastBucketValue        map[ckey.ContextKey]int64
+	deregistered           bool
+	contextResolverMetrics bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMetrics bool, statefulTimeout time.Duration, cache *tags.Store, id checkid.ID, tagger tagger.Component) *CheckSampler {
 	return &CheckSampler{
-		series:          make([]*metrics.Serie, 0),
-		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: newCountBasedContextResolver(expirationCount, cache),
-		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:       make(sketchMap),
-		lastBucketValue: make(map[ckey.ContextKey]int64),
+		id:                     id,
+		series:                 make([]*metrics.Serie, 0),
+		sketches:               make(metrics.SketchSeriesList, 0),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
+		sketchMap:              make(sketchMap),
+		lastBucketValue:        make(map[ckey.ContextKey]int64),
+		contextResolverMetrics: contextResolverMetrics,
 	}
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample)
 
-	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
+	if metricSample.Mtype == metrics.DistributionType {
+		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		return
+	}
+
+	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1, pkgconfigsetup.Datadog()); err != nil {
 		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 	}
 }
@@ -126,7 +139,6 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 		} else {
-
 			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
 		}
 	}
@@ -140,7 +152,9 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		serie.Name = context.Name + serie.NameSuffix
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
+		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
+		serie.Source = context.source
 
 		cs.series = append(cs.series, serie)
 	}
@@ -185,9 +199,37 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	sketches := cs.sketches
 	cs.sketches = make(metrics.SketchSeriesList, 0)
 
+	// update sampler metrics
+	cs.updateMetrics()
+
 	return series, sketches
 }
 
 func (cs *CheckSampler) release() {
+	cs.releaseMetrics()
 	cs.contextResolver.release()
+}
+
+func (cs *CheckSampler) releaseMetrics() {
+	if !cs.contextResolverMetrics {
+		return
+	}
+	idString := string(cs.id)
+	tlmChecksContexts.Delete(idString)
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		mtype := metrics.MetricType(i).String()
+		tlmChecksContextsByMtype.Delete(idString, mtype)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
+	}
+}
+
+func (cs *CheckSampler) updateMetrics() {
+	if !cs.contextResolverMetrics {
+		return
+	}
+	totalContexts := cs.contextResolver.length()
+	idString := string(cs.id)
+
+	tlmChecksContexts.Set(float64(totalContexts), idString)
+	cs.contextResolver.updateMetrics(tlmChecksContextsByMtype, tlmChecksContextsBytesByMtype)
 }

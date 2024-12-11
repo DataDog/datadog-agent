@@ -4,8 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package kubernetesapiserver implements the Kubernetes API Server cluster
+// check.
 package kubernetesapiserver
 
 import (
@@ -15,50 +16,51 @@ import (
 	"strings"
 	"time"
 
-	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
 const (
+	// CheckName is the name of the check
+	CheckName = "kubernetes_apiserver"
+
 	KubeControlPaneCheck          = "kube_apiserver_controlplane.up"
-	kubernetesAPIServerCheckName  = "kubernetes_apiserver"
 	eventTokenKey                 = "event"
 	maxEventCardinality           = 300
 	defaultResyncPeriodInSecond   = 300
 	defaultTimeoutEventCollection = 2000
-
-	defaultCacheExpire = 2 * time.Minute
-	defaultCachePurge  = 10 * time.Minute
 )
 
 var (
 	kubeEvents = telemetry.NewCounterWithOpts(
-		kubernetesAPIServerCheckName,
+		CheckName,
 		"kube_events",
-		[]string{"kind", "component", "type", "reason"},
+		[]string{"kind", "component", "type", "reason", "source"},
 		"Number of Kubernetes events received by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
 	emittedEvents = telemetry.NewCounterWithOpts(
-		kubernetesAPIServerCheckName,
+		CheckName,
 		"emitted_events",
-		[]string{"kind", "type"},
+		[]string{"kind", "type", "source", "is_bundled"},
 		"Number of events emitted by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
@@ -66,36 +68,64 @@ var (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	CollectEvent             bool     `yaml:"collect_events"`
-	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
-	FilteredEventTypes       []string `yaml:"filtered_event_types"`
-	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
-	MaxEventCollection       int      `yaml:"max_events_per_run"`
-	LeaderSkip               bool     `yaml:"skip_leader_election"`
-	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
-	UseComponentStatus       bool     `yaml:"use_component_status"`
+	CollectOShiftQuotas bool `yaml:"collect_openshift_clusterquotas"`
+	LeaderSkip          bool `yaml:"skip_leader_election"`
+	UseComponentStatus  bool `yaml:"use_component_status"`
+
+	// Event collection configuration
+	CollectEvent             bool `yaml:"collect_events"`
+	MaxEventCollection       int  `yaml:"max_events_per_run"`
+	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
+	UnbundleEvents           bool `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
+
+	// FilteredEventTypes is a slice of kubernetes field selectors that
+	// works as a deny list of events to filter out.
+	FilteredEventTypes []string `yaml:"filtered_event_types"`
+
+	// CollectedEventTypes specifies which events to collect.
+	// Only effective when UnbundleEvents = true
+	CollectedEventTypes []collectedEventType `yaml:"collected_event_types"`
+	FilteringEnabled    bool                 `yaml:"filtering_enabled"`
 }
 
-// EventC holds the information pertaining to which event we collected last and when we last re-synced.
-type EventC struct {
-	LastResVer string
-	LastTime   time.Time
+type collectedEventType struct {
+	Kind    string   `yaml:"kind"`
+	Source  string   `yaml:"source"`
+	Reasons []string `yaml:"reasons"`
+}
+
+type eventTransformer interface {
+	Transform([]*v1.Event) ([]event.Event, []error)
+}
+
+type noopEventTransformer struct{}
+
+func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
+	return nil, nil
+}
+
+type eventCollection struct {
+	LastResVer  string
+	LastTime    time.Time
+	Filter      string
+	Transformer eventTransformer
 }
 
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
 	instance        *KubeASConfig
-	eventCollection EventC
-	ignoredEvents   string
+	eventCollection eventCollection
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
-	providerIDCache *cache.Cache
+	tagger          tagger.Component
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
 	// default values
-	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
+	c.CollectEvent = pkgconfigsetup.Datadog().GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 	c.UseComponentStatus = true
@@ -104,22 +134,30 @@ func (c *KubeASConfig) parse(data []byte) error {
 }
 
 // NewKubeASCheck returns a new KubeASCheck
-func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
+func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig, tagger tagger.Component) *KubeASCheck {
 	return &KubeASCheck{
-		CheckBase:       base,
-		instance:        instance,
-		providerIDCache: cache.New(defaultCacheExpire, defaultCachePurge),
+		CheckBase: base,
+		instance:  instance,
+		tagger:    tagger,
 	}
 }
 
-// KubernetesASFactory is exported for integration testing.
-func KubernetesASFactory() check.Check {
-	return NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
+// Factory creates a new check factory
+func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(
+		func() check.Check {
+			return newCheck(tagger)
+		},
+	)
+}
+
+func newCheck(tagger tagger.Component) check.Check {
+	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(initConfig, config, source)
+func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -137,22 +175,31 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 	if k.instance.MaxEventCollection == 0 {
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
-	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
+
+	hostnameDetected, _ := hostname.Get(context.TODO())
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
+
+	// Automatically add events based on activated Datadog products
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
+		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
+			Source: "datadog-workload-autoscaler",
+		})
+	}
+
+	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
+	// When we use only the bundled transformer, we apply filtered_event_types.
+	// When we use only the unbundled transformer, we apply collected_event_types.
+	if (k.instance.UnbundleEvents && k.instance.BundleUnspecifiedEvents) || !k.instance.UnbundleEvents {
+		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
+	}
+
+	if k.instance.UnbundleEvents {
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
+	} else {
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
+	}
 
 	return nil
-}
-
-func convertFilter(conf []string) string {
-	var formatedFilters []string
-	for _, filter := range conf {
-		f := strings.Split(filter, "=")
-		if len(f) == 1 {
-			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
-			continue
-		}
-		formatedFilters = append(formatedFilters, filter)
-	}
-	return strings.Join(formatedFilters, ",")
 }
 
 // Run executes the check.
@@ -163,7 +210,7 @@ func (k *KubeASCheck) Run() error {
 	}
 	defer sender.Commit()
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
@@ -171,7 +218,7 @@ func (k *KubeASCheck) Run() error {
 	// The Cluster Agent will passed in the `skip_leader_election` bool.
 	if !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		}
 		leader, errLeader := cluster.RunLeaderElection()
@@ -226,32 +273,28 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	// Running the event collection.
-	if !k.instance.CollectEvent {
-		return nil
+	if k.instance.CollectEvent {
+		events, err := k.eventCollectionCheck()
+		if err != nil {
+			return err
+		}
+
+		for _, event := range events {
+			sender.Event(event)
+		}
 	}
 
-	// Get the events from the API server
-	events, err := k.eventCollectionCheck()
-	if err != nil {
-		return err
-	}
-
-	// Process the events to have a Datadog format.
-	err = k.processEvents(sender, events)
-	if err != nil {
-		k.Warnf("Could not submit new event %s", err.Error()) //nolint:errcheck
-	}
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) {
+func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// This is to avoid getting in a situation where we list all the events for multiple runs in a row.
+	// This is to avoid getting in a situation where we list all the events
+	// for multiple runs in a row.
 	if resVer == "" && k.eventCollection.LastResVer != "" {
 		log.Errorf("Resource Version stored in the ConfigMap is incorrect. Will resume collecting from %s", k.eventCollection.LastResVer)
 		resVer = k.eventCollection.LastResVer
@@ -260,21 +303,39 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
 	limit := int64(k.instance.MaxEventCollection)
 	resync := int64(k.instance.ResyncPeriodEvents)
-	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, resync, k.ignoredEvents)
 
+	var kubeEvents []*v1.Event
+	kubeEvents, resVer, lastTime, err = k.ac.RunEventCollection(
+		resVer,
+		lastTime,
+		timeout,
+		limit,
+		resync,
+		k.eventCollection.Filter,
+	)
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error()) //nolint:errcheck
 		return nil, err
 	}
 
-	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, k.eventCollection.LastResVer, k.eventCollection.LastTime)
-	if configMapErr != nil {
-		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error()) //nolint:errcheck
+	k.eventCollection.LastResVer = resVer
+	k.eventCollection.LastTime = lastTime
+
+	err = k.ac.UpdateTokenInConfigmap(eventTokenKey, resVer, lastTime)
+	if err != nil {
+		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", err.Error()) //nolint:errcheck
 	}
-	return newEvents, nil
+
+	events, errs := k.eventCollection.Transformer.Transform(kubeEvents)
+
+	for _, err := range errs {
+		k.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
+	}
+
+	return events, nil
 }
 
-func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
+func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
 		if component.ObjectMeta.Name == "" {
 			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
@@ -285,7 +346,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 		}
 
 		for _, condition := range component.Conditions {
-			statusCheck := metrics.ServiceCheckUnknown
+			statusCheck := servicecheck.ServiceCheckUnknown
 			message := ""
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
@@ -297,10 +358,10 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
-				statusCheck = metrics.ServiceCheckOK
+				statusCheck = servicecheck.ServiceCheckOK
 				message = condition.Message
 			case "False":
-				statusCheck = metrics.ServiceCheckCritical
+				statusCheck = servicecheck.ServiceCheckCritical
 				message = condition.Error
 				if message == "" {
 					message = condition.Message
@@ -314,63 +375,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-// processEvents:
-// - iterates over the Kubernetes Events
-// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
-// - formats the bundle and submit the Datadog event
-func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
-	bundlesByObject := make(map[bundleID]*kubernetesEventBundle)
-
-	for _, event := range events {
-		if event.InvolvedObject.Kind == "" ||
-			event.InvolvedObject.Name == "" ||
-			event.Reason == "" ||
-			event.Message == "" {
-			continue
-		}
-
-		id := buildBundleID(event)
-
-		bundle, found := bundlesByObject[id]
-		if !found {
-			bundle = newKubernetesEventBundler(event)
-			bundlesByObject[id] = bundle
-		}
-
-		err := bundle.addEvent(event)
-		if err != nil {
-			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
-			continue
-		}
-
-		kubeEvents.Inc(
-			event.InvolvedObject.Kind,
-			event.Source.Component,
-			event.Type,
-			event.Reason,
-		)
-	}
-
-	ctx := context.TODO()
-	hostnameDetected, _ := hostname.Get(ctx)
-	clusterName := clustername.GetRFC1123CompliantClusterName(ctx, hostnameDetected)
-
-	for id, bundle := range bundlesByObject {
-		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
-		if err != nil {
-			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error()) //nolint:errcheck
-			continue
-		}
-
-		sender.Event(datadogEv)
-
-		emittedEvents.Inc(id.kind, id.evType)
-	}
-
-	return nil
-}
-
-func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
+func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 	componentsStatus, err := k.ac.ComponentStatuses()
 	if err != nil {
 		return err
@@ -379,19 +384,19 @@ func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
 	return k.parseComponentStatus(sender, componentsStatus)
 }
 
-func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
+func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender.Sender) error {
 	ready, err := k.ac.IsAPIServerReady(ctx)
 
 	var (
 		msg    string
-		status metrics.ServiceCheckStatus
+		status servicecheck.ServiceCheckStatus
 	)
 
 	if ready {
 		msg = "ok"
-		status = metrics.ServiceCheckOK
+		status = servicecheck.ServiceCheckOK
 	} else {
-		status = metrics.ServiceCheckCritical
+		status = servicecheck.ServiceCheckCritical
 		if err != nil {
 			msg = err.Error()
 		} else {
@@ -404,22 +409,15 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggreg
 	return nil
 }
 
-type bundleID struct {
-	kind   string
-	uid    string
-	evType string
-}
-
-// buildBundleID generates a unique ID to separate k8s events
-// based on their InvolvedObject UIDs and event Types
-func buildBundleID(e *v1.Event) bundleID {
-	return bundleID{
-		kind:   e.InvolvedObject.Kind,
-		uid:    string(e.InvolvedObject.UID),
-		evType: e.Type,
+func convertFilters(conf []string) string {
+	var formatedFilters []string
+	for _, filter := range conf {
+		f := strings.Split(filter, "=")
+		if len(f) == 1 {
+			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
+			continue
+		}
+		formatedFilters = append(formatedFilters, filter)
 	}
-}
-
-func init() {
-	core.RegisterCheck(kubernetesAPIServerCheckName, KubernetesASFactory)
+	return strings.Join(formatedFilters, ",")
 }

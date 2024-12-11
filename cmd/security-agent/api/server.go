@@ -20,15 +20,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Server implements security agent API server
@@ -38,14 +40,14 @@ type Server struct {
 }
 
 // NewServer creates a new Server instance
-func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) (*Server, error) {
+func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		listener: listener,
-		agent:    agent.NewAgent(runtimeAgent, complianceAgent),
+		agent:    agent.NewAgent(statusComponent, settings, wmeta),
 	}, nil
 }
 
@@ -60,7 +62,7 @@ func (s *Server) Start() error {
 	// Validate token for every request
 	r.Use(validateToken)
 
-	err := util.CreateAndSetAuthToken()
+	err := util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -84,16 +86,17 @@ func (s *Server) Start() error {
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+		MinVersion:   tls.VersionTLS13,
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(4, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(4, log.ErrorLvl)
 
 	srv := &http.Server{
 		Handler:      r,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
-		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		WriteTimeout: pkgconfigsetup.Datadog().GetDuration("server_timeout") * time.Second,
 	}
 	tlsListener := tls.NewListener(s.listener, &tlsConfig)
 

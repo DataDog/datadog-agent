@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +18,8 @@ import (
 
 func TestWritePersistentCache(t *testing.T) {
 	testDir := t.TempDir()
-	mockConfig := config.Mock(t)
-	mockConfig.Set("run_path", testDir)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	err := Write("mykey", "myvalue")
 	assert.Nil(t, err)
 	value, err := Read("mykey")
@@ -32,8 +32,8 @@ func TestWritePersistentCache(t *testing.T) {
 
 func TestWritePersistentCacheColons(t *testing.T) {
 	testDir := t.TempDir()
-	mockConfig := config.Mock(t)
-	mockConfig.Set("run_path", testDir)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	err := Write("my:key", "myvalue")
 	assert.Nil(t, err)
 	value, err := Read("my:key")
@@ -51,8 +51,8 @@ func TestWritePersistentCacheColons(t *testing.T) {
 
 func TestWritePersistentCacheInvalidChar(t *testing.T) {
 	testDir := t.TempDir()
-	mockConfig := config.Mock(t)
-	mockConfig.Set("run_path", testDir)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	err := Write("my/key", "myvalue")
 	assert.Nil(t, err)
 	value, err := Read("my/key")

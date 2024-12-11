@@ -3,54 +3,46 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"fmt"
-	"regexp"
-	"unsafe"
+	"encoding/binary"
 )
 
-// containerIDPattern is the pattern of a container ID
-var containerIDPattern = regexp.MustCompile(fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2))
-
-// FindContainerID extracts the first sub string that matches the pattern of a container ID
-func FindContainerID(s string) string {
-	return containerIDPattern.FindString(s)
-}
-
 // SliceToArray copy src bytes to dst. Destination should have enough space
-func SliceToArray(src []byte, dst unsafe.Pointer) {
-	for i := range src {
-		*(*byte)(unsafe.Pointer(uintptr(dst) + uintptr(i))) = src[i]
+func SliceToArray(src []byte, dst []byte) {
+	if len(src) != len(dst) {
+		panic("different len in SliceToArray")
 	}
+
+	copy(dst, src)
 }
 
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
 	var result []string
-	len := uint32(len(data))
+	length := uint32(len(data))
 
-	for i := uint32(0); i < len; {
-		if i+4 >= len {
+	for i := uint32(0); i < length; {
+		if i+4 >= length {
 			return result, ErrStringArrayOverflow
 		}
 		// size of arg
-		n := ByteOrder.Uint32(data[i : i+4])
+		n := binary.NativeEndian.Uint32(data[i : i+4])
 		if n == 0 {
 			return result, nil
 		}
 		i += 4
 
-		if i+n > len {
+		if i+n > length {
 			// truncated
-			arg := nullTerminatedString(data[i : len-1])
+			arg := NullTerminatedString(data[i:length])
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		arg := nullTerminatedString(data[i : i+n])
+		arg := NullTerminatedString(data[i : i+n])
 		i += n
 
 		result = append(result, arg)
@@ -65,10 +57,11 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	return nullTerminatedString(data[:size]), nil
+	return NullTerminatedString(data[:size]), nil
 }
 
-func nullTerminatedString(d []byte) string {
+// NullTerminatedString returns null-terminated string
+func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {
 		return string(d)

@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -13,35 +13,65 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// tcProbes holds the list of probes used to track network flows
-var tcProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/ingress",
-			EBPFFuncName: "classifier_ingress",
+// GetTCProbes returns the list of TCProbes
+func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
+	out := []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_egress",
+			},
+			NetworkDirection: manager.Egress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
 		},
-		NetworkDirection: manager.Ingress,
-		TCFilterProtocol: unix.ETH_P_ALL,
-		TCFilterPrio:     1,
-		KeepProgramSpec:  true,
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/egress",
-			EBPFFuncName: "classifier_egress",
-		},
-		NetworkDirection: manager.Egress,
-		TCFilterProtocol: unix.ETH_P_ALL,
-		TCFilterPrio:     1,
-		KeepProgramSpec:  true,
-	},
+	}
+
+	if withRawPacket {
+		out = append(out, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_raw_packet_egress",
+			},
+			NetworkDirection: manager.Egress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		})
+	}
+
+	if withNetworkIngress {
+		out = append(out, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_ingress",
+			},
+			NetworkDirection: manager.Ingress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		})
+
+		if withRawPacket {
+			out = append(out, &manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "classifier_raw_packet_ingress",
+				},
+				NetworkDirection: manager.Ingress,
+				TCFilterProtocol: unix.ETH_P_ALL,
+				KeepProgramSpec:  true,
+			})
+		}
+	}
+
+	return out
 }
 
-// GetTCProbes returns the list of TCProbes
-func GetTCProbes() []*manager.Probe {
-	return tcProbes
+// GetRawPacketTCProgramFunctions returns the raw packet functions
+func GetRawPacketTCProgramFunctions() []string {
+	return []string{
+		"classifier_raw_packet",
+		"classifier_raw_packet_sender",
+	}
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
@@ -49,9 +79,12 @@ func GetAllTCProgramFunctions() []string {
 	output := []string{
 		"classifier_dns_request_parser",
 		"classifier_dns_request",
+		"classifier_imds_request",
 	}
 
-	for _, tcProbe := range GetTCProbes() {
+	output = append(output, GetRawPacketTCProgramFunctions()...)
+
+	for _, tcProbe := range GetTCProbes(true, true) {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
 
@@ -66,13 +99,12 @@ func GetAllTCProgramFunctions() []string {
 	return output
 }
 
-func getTCTailCallRoutes() []manager.TailCallRoute {
-	return []manager.TailCallRoute{
+func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
+	tcr := []manager.TailCallRoute{
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "classifier/dns_request",
 				EBPFFuncName: "classifier_dns_request",
 			},
 		},
@@ -80,9 +112,27 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "classifier/dns_request_parser",
 				EBPFFuncName: "classifier_dns_request_parser",
 			},
 		},
+		{
+			ProgArrayName: "classifier_router",
+			Key:           TCIMDSRequestParserKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_imds_request",
+			},
+		},
 	}
+
+	if withRawPacket {
+		tcr = append(tcr, manager.TailCallRoute{
+			ProgArrayName: "raw_packet_classifier_router",
+			Key:           TCRawPacketParserSenderKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_raw_packet_sender",
+			},
+		})
+	}
+
+	return tcr
 }

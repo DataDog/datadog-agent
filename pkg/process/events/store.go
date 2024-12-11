@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,9 +58,9 @@ type pullRequest struct {
 // head points to the oldest event in the buffer, where data should be consumed from
 // tail points to the node where the next event will be inserted into
 // head = tail if
-//		* the store is empty, in which case the underlying ringNode doesn't have any data
-// 		* the store is full. Subsequent Push operations override the data pointed by head and move both head and tail
-//		to the next position
+//   - the store is empty, in which case the underlying ringNode doesn't have any data
+//   - the store is full. Subsequent Push operations override the data pointed by head and move both head and tail
+//     to the next position
 type RingStore struct {
 	head   int
 	tail   int
@@ -80,8 +80,8 @@ type RingStore struct {
 }
 
 // readPositiveInt reads a config stored in the given key and asserts that it's a positive value
-func readPositiveInt(key string) (int, error) {
-	i := ddconfig.Datadog.GetInt(key)
+func readPositiveInt(cfg pkgconfigmodel.Reader, key string) (int, error) {
+	i := cfg.GetInt(key)
 	if i <= 0 {
 		return 0, fmt.Errorf("invalid setting. %s must be > 0", key)
 	}
@@ -90,23 +90,23 @@ func readPositiveInt(key string) (int, error) {
 }
 
 // NewRingStore creates a new RingStore to store process events
-func NewRingStore(client statsd.ClientInterface) (Store, error) {
-	maxItems, err := readPositiveInt("process_config.event_collection.store.max_items")
+func NewRingStore(cfg pkgconfigmodel.Reader, client statsd.ClientInterface) (Store, error) {
+	maxItems, err := readPositiveInt(cfg, "process_config.event_collection.store.max_items")
 	if err != nil {
 		return nil, err
 	}
 
-	maxPushes, err := readPositiveInt("process_config.event_collection.store.max_pending_pushes")
+	maxPushes, err := readPositiveInt(cfg, "process_config.event_collection.store.max_pending_pushes")
 	if err != nil {
 		return nil, err
 	}
 
-	maxPulls, err := readPositiveInt("process_config.event_collection.store.max_pending_pulls")
+	maxPulls, err := readPositiveInt(cfg, "process_config.event_collection.store.max_pending_pulls")
 	if err != nil {
 		return nil, err
 	}
 
-	statsInterval, err := readPositiveInt("process_config.event_collection.store.stats_interval")
+	statsInterval, err := readPositiveInt(cfg, "process_config.event_collection.store.stats_interval")
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) error {
 }
 
 // Pull returns all events stored in the RingStore
-func (s *RingStore) Pull(ctx context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) {
+func (s *RingStore) Pull(_ context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) {
 	q := &pullRequest{
 		results: make(chan []*model.ProcessEvent),
 	}

@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mock
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 	"testing"
 )
@@ -28,7 +29,7 @@ func NewMockLogsIntake(t *testing.T) net.Listener {
 		defer conn.Close()
 
 		for {
-			_, err := ioutil.ReadAll(conn)
+			_, err := io.ReadAll(conn)
 			if err != nil {
 				break
 			}

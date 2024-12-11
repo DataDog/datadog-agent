@@ -3,23 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestBPFEventLoad(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
@@ -31,7 +33,7 @@ func TestBPFEventLoad(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,19 +46,19 @@ func TestBPFEventLoad(t *testing.T) {
 
 	t.Run("prog_load", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "-load-bpf")
-		}, func(event *sprobe.Event, r *rules.Rule) {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfProgTypeKprobe), event.BPF.Program.Type, "wrong program type")
 
-			if !validateBPFSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBPFSchema(t, event)
 		})
 	})
 }
 
 func TestBPFEventMap(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
@@ -68,7 +70,7 @@ func TestBPFEventMap(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,14 +83,49 @@ func TestBPFEventMap(t *testing.T) {
 
 	t.Run("map_lookup", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "-load-bpf", "-clone-bpf")
-		}, func(event *sprobe.Event, r *rules.Rule) {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf", "-clone-bpf")
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
 
-			if !validateBPFSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBPFSchema(t, event)
+		})
+	})
+}
+
+func TestBPFCwsMapConstant(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
+		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_map_create",
+			Expression: `bpf.cmd == BPF_MAP_CREATE && bpf.map.name in CWS_MAP_NAMES && process.file.name == "syscall_go_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("map_lookup", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(model.BpfMapTypeArray), event.BPF.Map.Type, "wrong map type")
+
+			test.validateBPFSchema(t, event)
 		})
 	})
 }

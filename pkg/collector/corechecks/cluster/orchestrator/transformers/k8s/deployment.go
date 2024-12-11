@@ -4,12 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,10 +31,10 @@ func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
 	deploy.DeploymentStrategy = string(d.Spec.Strategy.Type)
 	if deploy.DeploymentStrategy == "RollingUpdate" && d.Spec.Strategy.RollingUpdate != nil {
 		if d.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
-			deploy.MaxUnavailable = d.Spec.Strategy.RollingUpdate.MaxUnavailable.StrVal
+			deploy.MaxUnavailable = d.Spec.Strategy.RollingUpdate.MaxUnavailable.String()
 		}
 		if d.Spec.Strategy.RollingUpdate.MaxSurge != nil {
-			deploy.MaxSurge = d.Spec.Strategy.RollingUpdate.MaxSurge.StrVal
+			deploy.MaxSurge = d.Spec.Strategy.RollingUpdate.MaxSurge.String()
 		}
 	}
 	if d.Spec.Selector != nil {
@@ -48,7 +49,14 @@ func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
 	deploy.UnavailableReplicas = d.Status.UnavailableReplicas
 	deploy.ConditionMessage = extractDeploymentConditionMessage(d.Status.Conditions)
 
+	if len(d.Status.Conditions) > 0 {
+		deployConditions, conditionTags := extractDeploymentConditions(d)
+		deploy.Conditions = deployConditions
+		deploy.Tags = append(deploy.Tags, conditionTags...)
+	}
+
 	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
+	deploy.Tags = append(deploy.Tags, transformers.RetrieveUnifiedServiceTags(d.ObjectMeta.Labels)...)
 
 	return &deploy
 }
@@ -78,4 +86,35 @@ func extractDeploymentConditionMessage(conditions []appsv1.DeploymentCondition) 
 		}
 	}
 	return ""
+}
+
+// extractDeploymentConditions iterates over deployment conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractDeploymentConditions(p *appsv1.Deployment) ([]*model.DeploymentCondition, []string) {
+	conditions := make([]*model.DeploymentCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.DeploymentCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		if !condition.LastUpdateTime.IsZero() {
+			c.LastUpdateTime = condition.LastUpdateTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

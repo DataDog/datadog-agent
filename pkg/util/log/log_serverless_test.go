@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build serverless
-// +build serverless
 
 package log
 
@@ -13,7 +12,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,8 +19,8 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
-	assert.Nil(t, err)
+	l, err := LoggerFromWriterWithMinLevel(w, DebugLvl)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")
 	assert.NotNil(t, logger)

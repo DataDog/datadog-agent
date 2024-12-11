@@ -8,7 +8,7 @@ package testutil
 import (
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -93,12 +93,12 @@ func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),
 		Origin:   "lambda",
-		Spans:    RandomTrace(maxLevels, maxLevels),
+		Spans:    RandomTrace(maxLevels, maxSpans),
 	}
 }
 
-// GetTestTraces returns a []Trace that is composed by ``traceN`` number
-// of traces, each one composed by ``size`` number of spans.
+// GetTestTraces returns a []Trace that is composed by “traceN“ number
+// of traces, each one composed by “size“ number of spans.
 func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 	traces := pb.Traces{}
 
@@ -127,8 +127,8 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 	return traces
 }
 
-// GetTestTraceChunks returns a []TraceChunk that is composed by ``traceN`` number
-// of traces, each one composed by ``size`` number of spans.
+// GetTestTraceChunks returns a []TraceChunk that is composed by “traceN“ number
+// of traces, each one composed by “size“ number of spans.
 func GetTestTraceChunks(traceN, size int, realisticIDs bool) []*pb.TraceChunk {
 	traces := GetTestTraces(traceN, size, realisticIDs)
 	traceChunks := make([]*pb.TraceChunk, 0, len(traces))
@@ -145,6 +145,7 @@ func TraceChunkWithSpan(span *pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Spans:    []*pb.Span{span},
 		Priority: int32(sampler.PriorityNone),
+		Tags:     make(map[string]string),
 	}
 }
 

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -17,10 +16,19 @@ import (
 	"time"
 )
 
+const (
+	// ContainerRegexpStr defines the regexp used to match container IDs
+	// ([0-9a-f]{64}) is standard container id used pretty much everywhere
+	// ([0-9a-f]{32}-\d+) is container id used by AWS ECS
+	// ([0-9a-f]{8}(-[0-9a-f]{4}){4}$) is container id used by Garden
+	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{32}-\\d+)|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
+)
+
 // Reader is the main interface to scrape data from cgroups
 // Calling RefreshCgroups() with your cache toleration is mandatory to retrieve accurate data
 // All Reader methods support concurrent calls
 type Reader struct {
+	pidMapperID            string
 	hostPrefix             string
 	procPath               string
 	cgroupVersion          int
@@ -29,6 +37,7 @@ type Reader struct {
 	impl                   readerImpl
 
 	cgroups         map[string]Cgroup
+	cgroupByInode   map[uint64]Cgroup
 	cgroupsLock     sync.RWMutex
 	scrapeTimestmap time.Time
 }
@@ -41,17 +50,17 @@ type readerImpl interface {
 type ReaderFilter func(path, name string) (string, error)
 
 // DefaultFilter matches all cgroup folders and use folder name as identifier
-func DefaultFilter(path, name string) (string, error) {
+func DefaultFilter(path, _ string) (string, error) {
 	return path, nil
 }
 
 // ContainerRegexp defines the regexp used to match container ids
 // First part is usual containerid (opencontainers standard)
 // Second part is PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
-var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)")
+var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
-func ContainerFilter(path, name string) (string, error) {
+func ContainerFilter(_, name string) (string, error) {
 	match := ContainerRegexp.FindString(name)
 
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
@@ -103,6 +112,13 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 	}
 }
 
+// WithPIDMapper allows to force the selection of a specific PID mapper
+func WithPIDMapper(pidMapperID string) ReaderOption {
+	return func(r *Reader) {
+		r.pidMapperID = pidMapperID
+	}
+}
+
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
 	r := &Reader{}
@@ -133,14 +149,14 @@ func (r *Reader) init() error {
 	if isCgroup1(cgroupMounts) {
 		r.cgroupVersion = 1
 
-		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter)
+		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter, r.pidMapperID)
 		if err != nil {
 			return err
 		}
 	} else if isCgroup2(cgroupMounts) {
 		r.cgroupVersion = 2
 
-		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter)
+		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter, r.pidMapperID)
 		if err != nil {
 			return err
 		}
@@ -177,6 +193,14 @@ func (r *Reader) GetCgroup(id string) Cgroup {
 	return r.cgroups[id]
 }
 
+// GetCgroupByInode returns the cgroup for the given inode.
+func (r *Reader) GetCgroupByInode(inode uint64) Cgroup {
+	r.cgroupsLock.RLock()
+	defer r.cgroupsLock.RUnlock()
+
+	return r.cgroupByInode[inode]
+}
+
 // RefreshCgroups triggers a refresh if data are older than cacheValidity. 0 to always refesh.
 func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	r.cgroupsLock.Lock()
@@ -190,6 +214,13 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
+	}
+
+	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
+	for _, cg := range newCgroups {
+		if inode := cg.Inode(); inode != unknownInode {
+			r.cgroupByInode[inode] = cg
+		}
 	}
 
 	r.scrapeTimestmap = time.Now()

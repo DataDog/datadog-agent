@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -14,10 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,27 +55,25 @@ type Handler struct {
 	m                    sync.RWMutex // Below fields protected by the mutex
 	state                state
 	leaderIP             string
-	port                 int
 	errCount             int
 }
 
 // NewHandler returns a populated Handler
 // It will hook on the specified AutoConfig instance at Start
-func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
+func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, error) {
 	if ac == nil {
 		return nil, errors.New("empty autoconfig object")
 	}
 	h := &Handler{
 		autoconfig:       ac,
 		leaderStatusFreq: 5 * time.Second,
-		warmupDuration:   config.Datadog.GetDuration("cluster_checks.warmup_duration") * time.Second,
+		warmupDuration:   pkgconfigsetup.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
 		leadershipChan:   make(chan state, 1),
-		dispatcher:       newDispatcher(),
-		port:             config.Datadog.GetInt("cluster_agent.cmd_port"),
+		dispatcher:       newDispatcher(tagger),
 	}
 
-	if config.Datadog.GetBool("leader_election") {
-		h.leaderForwarder = api.NewLeaderForwarder(h.port, config.Datadog.GetInt("cluster_agent.max_leader_connections"))
+	if pkgconfigsetup.Datadog().GetBool("leader_election") {
+		h.leaderForwarder = api.GetGlobalLeaderForwarder()
 		callback, err := getLeaderIPCallback()
 		if err != nil {
 			return nil, err

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && kubelet
-// +build docker,kubelet
 
 package kubelet
 
@@ -13,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Kubelet availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Kubelet availability", diagnose)
 }
 
 // diagnose the API server availability

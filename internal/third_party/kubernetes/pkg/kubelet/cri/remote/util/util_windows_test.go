@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 /*
 Copyright 2018 The Kubernetes Authors.
@@ -20,7 +19,6 @@ limitations under the License.
 package util
 
 import (
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -119,7 +117,7 @@ func testPipe(t *testing.T, label string) {
 }
 
 func testRegularFile(t *testing.T, label string, exists bool) {
-	f, err := ioutil.TempFile("", "test-file")
+	f, err := os.CreateTemp("", "test-file")
 	require.NoErrorf(t, err, "Failed to create file for test purposes: %v while setting up: %s", err, label)
 	testFile := f.Name()
 	if !exists {
@@ -133,7 +131,7 @@ func testRegularFile(t *testing.T, label string, exists bool) {
 }
 
 func testUnixDomainSocket(t *testing.T, label string) {
-	f, err := ioutil.TempFile("", "test-domain-socket")
+	f, err := os.CreateTemp("", "test-domain-socket")
 	require.NoErrorf(t, err, "Failed to create file for test purposes: %v while setting up: %s", err, label)
 	testFile := f.Name()
 	f.Close()

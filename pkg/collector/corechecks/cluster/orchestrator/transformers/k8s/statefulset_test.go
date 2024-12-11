@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -16,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -58,6 +58,15 @@ func TestExtractStatefulSet(t *testing.T) {
 					},
 				},
 				Status: appsv1.StatefulSetStatus{
+					Conditions: []appsv1.StatefulSetCondition{
+						{
+							Type:               "Test",
+							Status:             v1.ConditionFalse,
+							LastTransitionTime: timestamp,
+							Reason:             "testing",
+							Message:            "123",
+						},
+					},
 					ObservedGeneration: 3,
 					ReadyReplicas:      2,
 					Replicas:           2,
@@ -73,6 +82,16 @@ func TestExtractStatefulSet(t *testing.T) {
 					Annotations:       []string{"annotation:bar"},
 					ResourceVersion:   "1234",
 				},
+				Conditions: []*model.StatefulSetCondition{
+					{
+						Type:               "Test",
+						Status:             string(v1.ConditionFalse),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "testing",
+						Message:            "123",
+					},
+				},
+				Tags: []string{"kube_condition_test:false"},
 				Spec: &model.StatefulSetSpec{
 					DesiredReplicas: 2,
 					UpdateStrategy:  "RollingUpdate",

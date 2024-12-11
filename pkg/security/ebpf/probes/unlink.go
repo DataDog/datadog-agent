@@ -4,49 +4,45 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// unlinkProbes holds the list of probes used to track unlink events
-var unlinkProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/vfs_unlink",
-			EBPFFuncName: "kprobe_vfs_unlink",
+func getUnlinkProbes(fentry bool) []*manager.Probe {
+	var unlinkProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_vfs_unlink",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_unlinkat",
-			EBPFFuncName: "kprobe_do_unlinkat",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_unlinkat",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/do_unlinkat",
-			EBPFFuncName: "kretprobe_do_unlinkat",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_do_unlinkat",
+			},
 		},
-	},
-}
+	}
 
-func getUnlinkProbes() []*manager.Probe {
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlink",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlinkat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return unlinkProbes
 }

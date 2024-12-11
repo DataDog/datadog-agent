@@ -3,15 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config implements network tracing configuration
 package config
 
 import (
-	"strings"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,12 +22,10 @@ const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
-
-	defaultOffsetThreshold = 400
-	maxOffsetThreshold     = 3000
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -37,14 +38,17 @@ type Config struct {
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
-	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
-	CollectTCPConns bool
+	// CollectTCPv4Conns specifies whether the tracer should collect traffic statistics for TCPv4 connections
+	CollectTCPv4Conns bool
 
-	// CollectUDPConns specifies whether the tracer should collect traffic statistics for UDP connections
-	CollectUDPConns bool
+	// CollectTCPv6Conns specifies whether the tracer should collect traffic statistics for TCPv6 connections
+	CollectTCPv6Conns bool
 
-	// CollectIPv6Conns specifics whether the tracer should capture traffic for IPv6 TCP/UDP connections
-	CollectIPv6Conns bool
+	// CollectUDPv4Conns specifies whether the tracer should collect traffic statistics for UDPv4 connections
+	CollectUDPv4Conns bool
+
+	// CollectUDPv6Conns specifies whether the tracer should collect traffic statistics for UDPv6 connections
+	CollectUDPv6Conns bool
 
 	// CollectLocalDNS specifies whether the tracer should capture traffic for local DNS calls
 	CollectLocalDNS bool
@@ -71,9 +75,50 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
-	// Supported libraries: OpenSSL
-	EnableHTTPSMonitoring bool
+	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP2 traffic
+	EnableHTTP2Monitoring bool
+
+	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
+	EnableKafkaMonitoring bool
+
+	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic.
+	EnablePostgresMonitoring bool
+
+	// EnableRedisMonitoring specifies whether the tracer should monitor Redis traffic.
+	EnableRedisMonitoring bool
+
+	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
+	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
+	EnableNativeTLSMonitoring bool
+
+	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
+	EnableIstioMonitoring bool
+
+	// EnvoyPath specifies the envoy path to be used for Istio monitoring
+	EnvoyPath string
+
+	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
+	EnableNodeJSMonitoring bool
+
+	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
+	// traffic done through Go's standard library's TLS implementation
+	EnableGoTLSSupport bool
+
+	// GoTLSExcludeSelf specifies whether USM's GoTLS module should avoid
+	// hooking the system-probe test binary. Defaults to true.
+	GoTLSExcludeSelf bool
+
+	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
+	// value is currently Windows only
+	MaxTrackedHTTPConnections int64
+
+	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling
+	// to be retrieved.  Currently Windows only
+	HTTPNotificationThreshold int64
+
+	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
+	// Currently Windows only
+	HTTPMaxRequestFragment int64
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -91,24 +136,47 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
-	// being marked as idle and flushed to the perf ring.
-	TCPClosedTimeout time.Duration
-
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
-	MaxTrackedConnections uint
+	MaxTrackedConnections uint32
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
 	// get flushed on every client request (default 30s check interval)
-	MaxClosedConnectionsBuffered int
+	MaxClosedConnectionsBuffered uint32
+
+	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
+	// removed from memory as they are matched to closed connections
+	MaxFailedConnectionsBuffered uint32
+
+	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
+	// the agent to flush the connections.  This value only valid on Windows
+	ClosedConnectionFlushThreshold int
 
 	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBuffered int
 
+	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
+	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	MaxUSMConcurrentRequests uint32
+
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxHTTPStatsBuffered int
+
+	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxKafkaStatsBuffered int
+
+	// MaxPostgresTelemetryBuffer represents the maximum size of the telemetry buffer size for Postgres.
+	MaxPostgresTelemetryBuffer int
+
+	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxPostgresStatsBuffered int
+
+	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxRedisStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -131,12 +199,18 @@ type Config struct {
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
 
+	// ConntrackRateLimitInterval specifies the interval at which the rate limiter is updated
+	ConntrackRateLimitInterval time.Duration
+
 	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
 	ConntrackInitTimeout time.Duration
 
 	// EnableConntrackAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
 	// default is true
 	EnableConntrackAllNamespaces bool
+
+	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
+	EnableEbpfConntracker bool
 
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
@@ -162,83 +236,161 @@ type Config struct {
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
 
+	// EnableProcessEventMonitoring enables consuming CWS process monitoring events from the runtime security module
+	EnableProcessEventMonitoring bool
+
+	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
+	MaxProcessesTracked int
+
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
-}
 
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
+	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
+	HTTP2DynamicTableMapCleanerInterval time.Duration
+
+	// HTTPMapCleanerInterval is the interval to run the cleaner function.
+	HTTPMapCleanerInterval time.Duration
+
+	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
+	HTTPIdleConnectionTTL time.Duration
+
+	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
+	// classifying the L7 protocols being used.
+	ProtocolClassificationEnabled bool
+
+	// TCPFailedConnectionsEnabled specifies whether the tracer will track & report TCP error codes
+	TCPFailedConnectionsEnabled bool
+
+	// EnableNPMConnectionRollup enables aggregating connections by rolling up ephemeral ports
+	EnableNPMConnectionRollup bool
+
+	// EnableUSMQuantization enables endpoint quantization for USM programs
+	EnableUSMQuantization bool
+
+	// NPMRingbuffersEnabled specifies whether ringbuffers are enabled or not
+	NPMRingbuffersEnabled bool
+
+	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
+	EnableUSMConnectionRollup bool
+
+	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on
+	// supported kernels.
+	// Defaults to true. Setting this to false on a Kernel that supports ring
+	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
+	EnableUSMRingBuffers bool
+
+	EnableEbpfless bool
+
+	// EnableUSMEventStream enables USM to use the event stream instead
+	// of netlink for receiving process events.
+	EnableUSMEventStream bool
 }
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.Datadog
-	ddconfig.InitSystemProbeConfig(cfg)
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
-		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
-		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+		NPMEnabled:               cfg.GetBool(sysconfig.FullKeyPath(netNS, "enabled")),
+		ServiceMonitoringEnabled: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
 
-		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
-		TCPConnTimeout:   2 * time.Minute,
-		TCPClosedTimeout: 1 * time.Second,
+		CollectTCPv4Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_tcp_v4")),
+		CollectTCPv6Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_tcp_v6")),
+		TCPConnTimeout:    2 * time.Minute,
 
-		CollectUDPConns:  !cfg.GetBool(join(spNS, "disable_udp")),
-		UDPConnTimeout:   defaultUDPTimeoutSeconds * time.Second,
-		UDPStreamTimeout: defaultUDPStreamTimeoutSeconds * time.Second,
+		CollectUDPv4Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_udp_v4")),
+		CollectUDPv6Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_udp_v6")),
+		UDPConnTimeout:    defaultUDPTimeoutSeconds * time.Second,
+		UDPStreamTimeout:  defaultUDPStreamTimeoutSeconds * time.Second,
 
-		CollectIPv6Conns:               !cfg.GetBool(join(spNS, "disable_ipv6")),
-		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(spNS, "offset_guess_threshold"))),
-		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
-		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
+		OffsetGuessThreshold:           uint64(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "offset_guess_threshold"))),
+		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(sysconfig.FullKeyPath(spNS, "source_excludes")),
+		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(sysconfig.FullKeyPath(spNS, "dest_excludes")),
 
-		MaxTrackedConnections:        uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
-		MaxClosedConnectionsBuffered: cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
-		ClosedChannelSize:            cfg.GetInt(join(spNS, "closed_channel_size")),
-		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
-		ClientStateExpiry:            2 * time.Minute,
+		TCPFailedConnectionsEnabled:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_tcp_failed_connections")),
+		MaxTrackedConnections:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
+		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
+		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_connection_flush_threshold")),
+		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_channel_size")),
+		MaxConnectionsStateBuffered:    cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
+		ClientStateExpiry:              2 * time.Minute,
 
-		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
-		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
-		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),
-		CollectDNSDomains:   cfg.GetBool(join(spNS, "collect_dns_domains")),
-		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
+		DNSInspection:       !cfg.GetBool(sysconfig.FullKeyPath(spNS, "disable_dns_inspection")),
+		CollectDNSStats:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_stats")),
+		CollectLocalDNS:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_local_dns")),
+		CollectDNSDomains:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_domains")),
+		MaxDNSStats:         cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
-		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
+		DNSTimeout:          time.Duration(cfg.GetInt(sysconfig.FullKeyPath(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		ProtocolClassificationEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_protocol_classification")),
 
-		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
-		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
-		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
-		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
-		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
-		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
+		NPMRingbuffersEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ringbuffers")),
 
-		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
+		EnableHTTPMonitoring:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
+		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_postgres_monitoring")),
+		EnableRedisMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_redis_monitoring")),
+		EnableNativeTLSMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
+		EnableIstioMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "istio", "enabled")),
+		EnvoyPath:                  cfg.GetString(sysconfig.FullKeyPath(smNS, "tls", "istio", "envoy_path")),
+		EnableNodeJSMonitoring:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "nodejs", "enabled")),
+		MaxUSMConcurrentRequests:   uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
+		MaxHTTPStatsBuffered:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_kafka_stats_buffered")),
+		MaxPostgresStatsBuffered:   cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_stats_buffered")),
+		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_telemetry_buffer")),
+		MaxRedisStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_redis_stats_buffered")),
 
-		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
+		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "max_tracked_http_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_max_request_fragment")),
 
-		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+		EnableConntrack:              cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(sysconfig.FullKeyPath(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(sysconfig.FullKeyPath(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:   3 * time.Second,
+		EnableConntrackAllNamespaces: cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:         cfg.GetDuration(sysconfig.FullKeyPath(netNS, "conntrack_init_timeout")),
+		EnableEbpfConntracker:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpf_conntracker")),
 
-		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
+		EnableGatewayLookup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_gateway_lookup")),
+
+		EnableMonotonicCount: cfg.GetBool(sysconfig.FullKeyPath(spNS, "windows.enable_monotonic_count")),
+
+		RecordedQueryTypes: cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "dns_recorded_query_types")),
+
+		EnableProcessEventMonitoring: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "enabled")),
+		MaxProcessesTracked:          cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "max_processes_tracked")),
+
+		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
+
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
+
+		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+
+		// Service Monitoring
+		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
+		EnableUSMQuantization:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 	}
 
-	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
-		// make sure max_closed_connections_buffered is equal to
-		// max_tracked_connections, since the former is not set.
-		// this helps with lowering or eliminating dropped
-		// closed connections in environments with mostly short-lived
-		// connections
-		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
-	}
-
-	httpRRKey := join(netNS, "http_replace_rules")
+	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)
@@ -246,50 +398,40 @@ func New() *Config {
 		c.HTTPReplaceRules = rr
 	}
 
-	if c.OffsetGuessThreshold > maxOffsetThreshold {
-		log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
-		c.OffsetGuessThreshold = defaultOffsetThreshold
+	if !c.CollectTCPv4Conns {
+		log.Info("network tracer TCPv4 tracing disabled")
 	}
-
-	if !kernel.IsIPv6Enabled() {
-		c.CollectIPv6Conns = false
-		log.Info("network tracer IPv6 tracing disabled by system")
-	} else if !c.CollectIPv6Conns {
-		log.Info("network tracer IPv6 tracing disabled by configuration")
+	if !c.CollectUDPv4Conns {
+		log.Info("network tracer UDPv4 tracing disabled")
 	}
-
-	if !c.CollectUDPConns {
-		log.Info("network tracer UDP tracing disabled by configuration")
+	if !c.CollectTCPv6Conns {
+		log.Info("network tracer TCPv6 tracing disabled")
 	}
-	if !c.CollectTCPConns {
-		log.Info("network tracer TCP tracing disabled by configuration")
+	if !c.CollectUDPv6Conns {
+		log.Info("network tracer UDPv6 tracing disabled")
 	}
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if c.ServiceMonitoringEnabled {
-		cfg.Set(join(netNS, "enable_http_monitoring"), true)
-		c.EnableHTTPMonitoring = true
-		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
-			cfg.Set(join(netNS, "enable_https_monitoring"), true)
-			c.EnableHTTPSMonitoring = true
-		}
-
-		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
-			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
-			c.EnableRuntimeCompiler = true
-		}
-
-		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
-			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
-			c.EnableKernelHeaderDownload = true
-		}
+	if c.EnableProcessEventMonitoring {
+		log.Info("network process event monitoring enabled")
 	}
-
-	if !c.EnableRootNetNs {
-		c.EnableConntrackAllNamespaces = false
-	}
-
 	return c
+}
+
+// RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
+func (c *Config) RingBufferSupportedNPM() bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+}
+
+// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled
+func (c *Config) FailedConnectionsSupported() bool {
+	if !c.TCPFailedConnectionsEnabled {
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		return false
+	}
+	return true
 }

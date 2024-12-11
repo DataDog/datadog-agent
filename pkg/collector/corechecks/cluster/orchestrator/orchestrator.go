@@ -4,40 +4,51 @@
 // Copyright 2016-2021 Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package orchestrator
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
+	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 )
 
 const (
+	// CheckName is the name of the check
+	CheckName = orchestrator.CheckName
+
 	maximumWaitForAPIServer = 10 * time.Second
 	collectionInterval      = 10 * time.Second
+	defaultResyncInterval   = 300 * time.Second
 )
-
-func init() {
-	core.RegisterCheck(orchestrator.CheckName, OrchestratorFactory)
-}
 
 // OrchestratorInstance is the config of the orchestrator check instance.
 type OrchestratorInstance struct {
@@ -47,7 +58,12 @@ type OrchestratorInstance struct {
 	// collectors:
 	//   - nodes
 	//   - services
-	Collectors              []string `yaml:"collectors"`
+	Collectors []string `yaml:"collectors"`
+	// CRDCollectors defines collectors for custom Kubernetes resource types.
+	// crd_collectors:
+	//   - datadoghq.com/v1alpha1/datadogmetrics
+	//   - stable.example.com/v1/crontabs
+	CRDCollectors           []string `yaml:"crd_collectors"`
 	ExtraSyncTimeoutSeconds int      `yaml:"extra_sync_timeout_seconds"`
 }
 
@@ -58,32 +74,46 @@ func (c *OrchestratorInstance) parse(data []byte) error {
 // OrchestratorCheck wraps the config and the informers needed to run the check
 type OrchestratorCheck struct {
 	core.CheckBase
-	orchestratorConfig *orchcfg.OrchestratorConfig
-	instance           *OrchestratorInstance
-	collectorBundle    *CollectorBundle
-	stopCh             chan struct{}
-	clusterID          string
-	groupID            *atomic.Int32
-	isCLCRunner        bool
-	apiClient          *apiserver.APIClient
+	orchestratorConfig          *orchcfg.OrchestratorConfig
+	instance                    *OrchestratorInstance
+	collectorBundle             *CollectorBundle
+	wlmStore                    workloadmeta.Component
+	cfg                         configcomp.Component
+	tagger                      tagger.Component
+	stopCh                      chan struct{}
+	clusterID                   string
+	groupID                     *atomic.Int32
+	isCLCRunner                 bool
+	apiClient                   *apiserver.APIClient
+	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 }
 
-func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
+func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
 	return &OrchestratorCheck{
 		CheckBase:          base,
 		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
 		instance:           instance,
+		wlmStore:           wlmStore,
+		tagger:             tagger,
+		cfg:                cfg,
 		stopCh:             make(chan struct{}),
 		groupID:            atomic.NewInt32(rand.Int31()),
-		isCLCRunner:        config.IsCLCRunner(),
+		isCLCRunner:        pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 	}
 }
 
-// OrchestratorFactory returns the orchestrator check
-func OrchestratorFactory() check.Check {
+// Factory creates a new check factory
+func Factory(wlm workloadmeta.Component, cfg configcomp.Component, tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check { return newCheck(cfg, wlm, tagger) })
+}
+
+func newCheck(cfg configcomp.Component, wlm workloadmeta.Component, tagger tagger.Component) check.Check {
 	return newOrchestratorCheck(
-		core.NewCheckBase(orchestrator.CheckName),
+		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
+		cfg,
+		wlm,
+		tagger,
 	)
 }
 
@@ -93,10 +123,10 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 }
 
 // Configure configures the orchestrator check
-func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, source string) error {
-	o.BuildID(config, initConfig)
+func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(initConfig, config, source)
+	err := o.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -116,7 +146,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Error("could not parse check instance config")
+		_ = log.Errorc("could not parse check instance config", orchestrator.ExtraLogContext...)
 		return err
 	}
 
@@ -137,6 +167,8 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		return err
 	}
 
+	o.orchestratorInformerFactory = getOrchestratorInformerFactory(o.apiClient)
+
 	// Create a new bundle for the check.
 	o.collectorBundle = NewCollectorBundle(o)
 
@@ -156,8 +188,8 @@ func (o *OrchestratorCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
+			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 
 		leader, errLeader := cluster.RunLeaderElection()
@@ -182,7 +214,22 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infof("Shutting down informers used by the check '%s'", o.ID())
+	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
-	o.CommonCancel()
+}
+
+func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {
+	tweakListOptions := func(options *metav1.ListOptions) {
+		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+	}
+
+	of := &collectors.OrchestratorInformerFactory{
+		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
+		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
+		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
+		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
+		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions)),
+	}
+
+	return of
 }

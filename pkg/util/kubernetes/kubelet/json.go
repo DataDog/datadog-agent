@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -14,7 +13,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // jsoniterConfig mirrors jsoniter.ConfigFastest
@@ -35,7 +34,7 @@ type podUnmarshaller struct {
 
 func newPodUnmarshaller() *podUnmarshaller {
 	pu := &podUnmarshaller{
-		podExpirationDuration: config.Datadog.GetDuration("kubernetes_pod_expiration_duration") * time.Second,
+		podExpirationDuration: pkgconfigsetup.Datadog().GetDuration("kubernetes_pod_expiration_duration") * time.Second,
 		timeNowFunction:       time.Now,
 	}
 
@@ -85,6 +84,8 @@ func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.I
 
 		if !expired {
 			p.Items = append(p.Items, pod)
+		} else {
+			p.ExpiredCount++
 		}
 		return true
 	}

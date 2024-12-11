@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build linux && functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -19,11 +20,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestMkdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdir",
@@ -35,7 +38,7 @@ func TestMkdir(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,14 +59,16 @@ func TestMkdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
-			assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
+			assertInode(t, event.Mkdir.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
 		})
 	}))
 
@@ -79,19 +84,22 @@ func TestMkdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
-			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
-			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Async, false)
+			assertInode(t, event.Mkdir.File.Inode, getInode(t, testatFile))
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		testatFile, _, err := test.Path("testat-mkdir")
 		if err != nil {
 			t.Fatal(err)
@@ -132,7 +140,7 @@ func TestMkdir(t *testing.T) {
 				return fmt.Errorf("failed to create directory with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
@@ -140,7 +148,9 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Async, true)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
 			if err != nil {
@@ -152,6 +162,8 @@ func TestMkdir(t *testing.T) {
 }
 
 func TestMkdirError(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdirat_error",
@@ -159,7 +171,7 @@ func TestMkdirError(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,8 +193,8 @@ func TestMkdirError(t *testing.T) {
 		}
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "mkdirat-error", testatFile)
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assert.Equal(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		})

@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package netlink
 
 import (
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -28,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -43,24 +42,24 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	cfg.EnableConntrackAllNamespaces = false
-	ct, err := NewConntracker(cfg)
+	ct, err := NewConntracker(cfg, nil)
 	require.NoError(t, err)
 	time.Sleep(time.Second)
 
 	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
-	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
+	laddr := nettestutil.MustPingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
 
 	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	testIno, err := util.GetInoForNs(testNs)
+	testIno, err := kernel.GetInoForNs(testNs)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)
 	trans := ct.GetTranslationForConn(
-		network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromNetIP(laddr.IP),
 			SPort:  uint16(laddr.Port),
 			Dest:   util.AddressFromString("2.2.2.4"),
@@ -80,7 +79,7 @@ func TestMessageDump(t *testing.T) {
 
 	testutil.SetupDNAT(t)
 
-	f, err := ioutil.TempFile("", "message_dump")
+	f, err := os.CreateTemp("", "message_dump")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -93,7 +92,7 @@ func TestMessageDump6(t *testing.T) {
 
 	testutil.SetupDNAT6(t)
 
-	f, err := ioutil.TempFile("", "message_dump6")
+	f, err := os.CreateTemp("", "message_dump6")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -108,9 +107,10 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 				ProcRoot: "/proc",
 			},
 			ConntrackRateLimit:           500,
+			ConntrackRateLimitInterval:   time.Second,
 			EnableRootNetNs:              true,
 			EnableConntrackAllNamespaces: false,
-		})
+		}, nil)
 	require.NoError(t, err)
 	events, err := consumer.Events()
 	require.NoError(t, err)
@@ -133,8 +133,10 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 	defer udpServer.Close()
 
 	for i := 0; i < 100; i++ {
-		nettestutil.PingTCP(t, clientIP, natPort)
-		nettestutil.PingUDP(t, clientIP, nonNatPort)
+		tc := nettestutil.MustPingTCP(t, clientIP, natPort)
+		tc.Close()
+		uc := nettestutil.MustPingUDP(t, clientIP, nonNatPort)
+		uc.Close()
 	}
 
 	time.Sleep(time.Second)
@@ -149,9 +151,10 @@ func skipUnless(t *testing.T, requiredArg string) {
 		}
 	}
 
+	//nolint:gosimple // TODO(NET) Fix gosimple linter
 	t.Skip(
 		fmt.Sprintf(
-			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
+			"skipped %s. you can enable it by using running tests with `-args %s`",
 			t.Name(),
 			requiredArg,
 		),
