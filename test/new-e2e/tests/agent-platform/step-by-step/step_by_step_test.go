@@ -214,7 +214,7 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 		arch = *architecture
 	}
 	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -264,7 +264,7 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 	}
 
 	suseRepo := fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -292,7 +292,11 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
-		ExecuteWithoutError(t, VMclient, "sudo registercloudguest --force-new")
-		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
+		_, err = VMclient.Host.Execute(fmt.Sprintf("sudo zypper --non-interactive install %s", *flavorName))
+		if err != nil {
+			t.Logf("Failed to install %s, trying to register the cloud guest and install the package again", *flavorName)
+			ExecuteWithoutError(t, VMclient, "sudo registercloudguest --force-new")
+			ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
+		}
 	})
 }

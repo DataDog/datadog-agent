@@ -1086,7 +1086,7 @@ def version(
     url_safe=False,
     omnibus_format=False,
     git_sha_length=7,
-    major_version='7',
+    major_version='6',
     version_cached=False,
     pipeline_id=None,
     include_git=True,
