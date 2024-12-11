@@ -69,7 +69,7 @@ func generateCertKeyPair() ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("Unable to marshall private key: %v", err)
 	}
 
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: rawKey})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: rawKey})
 
 	return certPEM, keyPEM, nil
 }

@@ -93,7 +93,7 @@ func fetchAgentIPCCert(config configModel.Reader, certCreationAllowed bool) ([]b
 
 	block, _ = pem.Decode(rest)
 
-	if block == nil || block.Type != "RSA PRIVATE KEY" {
+	if block == nil || block.Type != "EC PRIVATE KEY" {
 		return nil, nil, log.Error("failed to decode PEM block containing key")
 	}
 
