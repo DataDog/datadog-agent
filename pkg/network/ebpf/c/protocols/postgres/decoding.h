@@ -65,6 +65,7 @@ static __always_inline void handle_command_complete(conn_tuple_t *conn_tuple, po
     bpf_map_delete_elem(&postgres_in_flight, conn_tuple);
 }
 
+// Handles a TCP termination event by deleting the connection tuple from the in-flight map.
 static void __always_inline postgres_tcp_termination(conn_tuple_t *tup) {
     bpf_map_delete_elem(&postgres_in_flight, tup);
     flip_tuple(tup);
@@ -107,12 +108,70 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
     return SKIP_STRING_FAILED;
 }
 
-// Main processing logic for the Postgres protocol. It reads the first message header and decides what to do based on the
-// message tag. If the message is a new query, it stores the query in the in-flight map. If the message is a command
-// complete, it enqueues the transaction and deletes it from the in-flight map. If the message is not a command complete,
-// it tries to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
-// If the message is not a new query or a command complete, it ignores the message.
-static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
+// Return a pointer to the postgres telemetry record in the corresponding map.
+static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
+    const __u32 plain_key = 0;
+    const __u32 tls_key = 1;
+
+    pktbuf_map_lookup_option_t pg_telemetry_lookup_opt[] = {
+        [PKTBUF_SKB] = {
+            .map = &postgres_telemetry,
+            .key = (void*)&plain_key,
+        },
+        [PKTBUF_TLS] = {
+            .map = &postgres_telemetry,
+            .key = (void*)&tls_key,
+        },
+    };
+    return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
+}
+
+// update_msg_count_telemetry increases the corresponding counter of the telemetry bucket.
+static __always_inline void update_msg_count_telemetry(postgres_kernel_msg_count_t* pg_msg_counts, __u8 count) {
+    // This line can be interpreted as a step function of the difference, multiplied by the difference itself.
+    // The step function of the difference returns 0 if the difference is negative and 1 if it is positive.
+    // As a result, if the difference is negative, the output will be 0; if the difference is positive,
+    // the output will equal the difference.
+    count = count < PG_KERNEL_MSG_COUNT_FIRST_BUCKET ? 0 : count - PG_KERNEL_MSG_COUNT_FIRST_BUCKET;
+
+    // This line functions as a ceiling operation, ensuring that if the count is not a multiple of the bucket size,
+    // it is rounded up to the next bucket. Since eBPF does not support floating-point numbers, the implementation
+    // adds (bucket size - 1) to the count and then divides the result by the bucket size.
+    // This effectively simulates the ceiling function.
+    __u8 bucket_idx = (count + PG_KERNEL_MSG_COUNT_BUCKET_SIZE - 1) / PG_KERNEL_MSG_COUNT_BUCKET_SIZE;
+
+    // This line ensures that the bucket index stays within the range of 0 to PG_KERNEL_MSG_COUNT_NUM_BUCKETS.
+    // While not strictly necessary, we include this check to satisfy the verifier and to explicitly define a lower bound.
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+
+    // This line ensures that the bucket index remains within the range of 0 to PG_KERNEL_MSG_COUNT_NUM_BUCKETS,
+    // preventing any possibility of exceeding the upper bound.
+    bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS-1 : bucket_idx;
+    __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[bucket_idx], 1);
+}
+
+// Reads the first message header and decides what to do based on the
+// message tag. If the message is a new query, it stores the query in the in-flight map.
+// If the message is a parse message, we tail call to the dedicated process_parse_message program.
+// If the message is a command complete, it calls the handle_command_complete program.
+static __always_inline void postgres_handle_message(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
+    // If the message is a parse message, we tail call to the dedicated function to handle it as it is too large to be
+    // inlined in the main function.
+    if (header->message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
+        pktbuf_tail_call_option_t process_parse_tail_call_array[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, process_parse_tail_call_array);
+        return;
+    }
+
     // If the message is a new query, we store the query in the in-flight map.
     // If we had a transaction for the connection, we override it and drops the previous one.
     if (header->message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
@@ -125,27 +184,25 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
         return;
     }
 
-    // We didn't find a new query, thus we assume we're in the middle of a transaction.
-    // We look up the transaction in the in-flight map, and if it doesn't exist, we ignore the message.
-    postgres_transaction_t *transaction = bpf_map_lookup_elem(&postgres_in_flight, conn_tuple);
-    if (!transaction) {
+    const __u32 zero = 0;
+    postgres_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&postgres_iterations, &zero);
+    if (iteration_value == NULL) {
         return;
     }
 
-#pragma unroll(POSTGRES_MAX_MESSAGES)
-    for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES; ++iteration) {
-        if (!read_message_header(pkt, header)) {
-            break;
-        }
-        if (header->message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
-            handle_command_complete(conn_tuple, transaction);
-            break;
-        }
-        // We didn't find a command complete message, so we advance the data offset to the end of the message.
-        // reminder, the message length includes the size of the payload, 4 bytes of the message length itself, but not
-        // the message tag. So we need to add 1 to the message length to jump over the entire message.
-        pktbuf_advance(pkt, header->message_len + 1);
-    }
+    iteration_value->total_msg_count = 0;
+    iteration_value->data_off = 0;
+    pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_POSTGRES_HANDLE_RESPONSE,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = PROG_POSTGRES_HANDLE_RESPONSE,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, handle_response_tail_call_array);
     return;
 }
 
@@ -180,12 +237,99 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
     return;
 }
 
+// Handles Postgres command complete messages by examining packet data for both plaintext and TLS traffic.
+// This function handles multiple messages within a single packet, processing up to POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
+// messages per call. When more messages exist beyond this limit, it uses tail call chaining to continue processing.
+static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple, postgres_kernel_msg_count_t* pg_msg_counts) {
+    const __u32 zero = 0;
+    bool read_result = false;
+    bool found_command_complete = false;
+    struct pg_message_header header;
+
+    postgres_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&postgres_iterations, &zero);
+    if (iteration_value == NULL) {
+        bpf_map_delete_elem(&postgres_in_flight, &conn_tuple);
+        return 0;
+    }
+
+    if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
+        return 0;
+    }
+
+    if (iteration_value->data_off != 0) {
+        pktbuf_set_offset(pkt, iteration_value->data_off);
+    }
+
+    // We didn't find a new query, thus we assume we're in the middle of a transaction.
+    // We look up the transaction in the in-flight map, and if it doesn't exist, we ignore the message.
+    postgres_transaction_t *transaction = bpf_map_lookup_elem(&postgres_in_flight, &conn_tuple);
+    if (!transaction) {
+        return 0;
+    }
+
+    __u8 messages_count = 0;
+#pragma unroll(POSTGRES_MAX_MESSAGES_PER_TAIL_CALL)
+    for (; messages_count < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++messages_count) {
+        read_result = read_message_header(pkt, &header);
+        if (read_result != true) {
+            break;
+        }
+        if (header.message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
+            found_command_complete = true;
+            break;
+        }
+        // We didn't find a command complete message, so we advance the data offset to the end of the message.
+        // reminder, the message length includes the size of the payload, 4 bytes of the message length itself, but not
+        // the message tag. So we need to add 1 to the message length to jump over the entire message.
+        pktbuf_advance(pkt, header.message_len + 1);
+    }
+    iteration_value->total_msg_count += messages_count;
+
+    if (found_command_complete) {
+        handle_command_complete(&conn_tuple, transaction);
+        update_msg_count_telemetry(pg_msg_counts, iteration_value->total_msg_count);
+
+        return 0;
+    }
+
+    if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
+        // reached max messages, add counter and stop iterating.
+        __sync_fetch_and_add(&pg_msg_counts->reached_max_messages, 1);
+        return 0;
+    }
+    if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
+        // stop the iterator if the end of the TCP packet is reached.
+        update_msg_count_telemetry(pg_msg_counts, iteration_value->total_msg_count);
+        return 0;
+    }
+    if (read_result == false) {
+        // the packet was fragmented, add counter stop iterating.
+        __sync_fetch_and_add(&pg_msg_counts->fragmented_packets, 1);
+        return 0;
+    }
+
+    // We didn't find a command complete message, so we need to continue processing the packet.
+    // We save the current data offset.
+    iteration_value->data_off = pktbuf_data_offset(pkt);
+
+    pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_POSTGRES_HANDLE_RESPONSE,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = PROG_POSTGRES_HANDLE_RESPONSE,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, handle_response_tail_call_array);
+    return 0;
+}
+
 // Entrypoint to process plaintext Postgres traffic. Pulls the connection tuple and the packet buffer from the map and
 // calls the main processing function. If the packet is a TCP termination, it calls the termination function.
-// If the message is a parse message, it tail calls to the dedicated function to handle it as it is too large to be
-// inlined in the main entrypoint. Otherwise, it calls the main processing function.
-SEC("socket/postgres_process")
-int socket__postgres_process(struct __sk_buff* skb) {
+SEC("socket/postgres_handle")
+int socket__postgres_handle(struct __sk_buff* skb) {
     skb_info_t skb_info = {};
     conn_tuple_t conn_tuple = {};
 
@@ -206,13 +350,34 @@ int socket__postgres_process(struct __sk_buff* skb) {
         return 0;
     }
 
-    // If the message is a parse message, we tail call to the dedicated function to handle it.
-    if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
+    postgres_handle_message(pkt, &conn_tuple, &header, NO_TAGS);
+    return 0;
+}
+
+// Handles plain text command complete messages for plaintext Postgres traffic. Pulls the connection tuple and the
+// packet buffer from the map and calls the dedicated function to handle the message.
+SEC("socket/postgres_handle_response")
+int socket__postgres_handle_response(struct __sk_buff* skb) {
+    skb_info_t skb_info = {};
+    conn_tuple_t conn_tuple = {};
+
+    if (!fetch_dispatching_arguments(&conn_tuple, &skb_info)) {
         return 0;
     }
 
-    postgres_entrypoint(pkt, &conn_tuple, &header, NO_TAGS);
+    if (is_tcp_termination(&skb_info)) {
+        postgres_tcp_termination(&conn_tuple);
+        return 0;
+    }
+
+    normalize_tuple(&conn_tuple);
+
+    pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+    handle_response(pkt, conn_tuple, pg_msg_counts);
     return 0;
 }
 
@@ -235,10 +400,9 @@ int socket__postgres_process_parse_message(struct __sk_buff* skb) {
 }
 
 // Entrypoint to process TLS Postgres traffic. Pulls the connection tuple and the packet buffer from the map and calls
-// the main processing function. If the packet is a Parse message, it tail calls to the dedicated function to handle it.
-// Otherwise, it calls the main processing function.
-SEC("uprobe/postgres_tls_process")
-int uprobe__postgres_tls_process(struct pt_regs *ctx) {
+// the main processing function.
+SEC("uprobe/postgres_tls_handle")
+int uprobe__postgres_tls_handle(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -255,12 +419,7 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
         return 0;
     }
 
-    // If the message is a parse message, we tail call to the dedicated function to handle it.
-    if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
-        bpf_tail_call_compat(ctx, &tls_process_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
-        return 0;
-    }
-    postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags);
+    postgres_handle_message(pkt, &tup, &header, (__u8)args->tags);
     return 0;
 }
 
@@ -296,6 +455,28 @@ int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
     postgres_tcp_termination(&tup);
+    return 0;
+}
+
+// Handles message parsing for a TLS Postgres traffic.
+SEC("uprobe/postgres_tls_handle_response")
+int uprobe__postgres_tls_handle_response(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+
+    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
+    conn_tuple_t tup = args->tup;
+    handle_response(pkt, tup, pg_msg_counts);
     return 0;
 }
 

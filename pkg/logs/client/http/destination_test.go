@@ -7,6 +7,7 @@ package http
 
 import (
 	"errors"
+	"net/http"
 	"regexp"
 	"strconv"
 	"testing"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -360,9 +362,135 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", configmock.New(t))
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, client.NewNoopDestinationMetadata(), configmock.New(t), metrics.NewNoopPipelineMonitor(""))
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
 	}
+}
+
+func TestTransportProtocol_HTTP1(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use HTTP/1
+	c.SetWithoutSource("logs_config.http_protocol", "http1")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	s := NewTestHTTPSServer(false)
+	defer s.Close()
+
+	timeout := 5 * time.Second
+	// Force HTTP/1 transport
+	client := httpClientFactory(timeout, c)()
+
+	// Create an HTTP/1.1 request
+	req, err := http.NewRequest("POST", s.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Client send an HTTP1 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert the protocol is HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP2(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	s := NewTestHTTPSServer(false)
+	defer s.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", s.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Client send an HTTP/2 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert the protocol is HTTP/2.0
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_InvalidProtocol(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to default to ALNP from invalid protocol
+	c.SetWithoutSource("logs_config.http_protocol", "htto2")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// Start the test server
+	server := NewTestHTTPSServer(false)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	// Client send an HTTP/1.1 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server responds with best available protocol(http/2.0)
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
+	c := configmock.New(t)
+	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	// Skip SSL validation
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// Start the test server that only support HTTP/1.1
+	server := NewTestHTTPSServer(true)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	// Client send HTTP/2 request
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server automatically falls back to HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
 }

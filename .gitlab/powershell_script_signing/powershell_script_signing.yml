@@ -12,5 +12,5 @@ powershell_script_signing:
       - $WINDOWS_POWERSHELL_DIR
   script:
     - mkdir $WINDOWS_POWERSHELL_DIR
-    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e IS_AWS_CONTAINER=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
+    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e IS_AWS_CONTAINER=true registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
     - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1

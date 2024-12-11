@@ -61,7 +61,8 @@ type Event struct {
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// network syscalls
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
+	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
+	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -98,6 +99,23 @@ type CGroupContext struct {
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
+	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`Version of the cgroup API`
+}
+
+// Merge two cgroup context
+func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
+	if cg.CGroupID == "" {
+		cg.CGroupID = cg2.CGroupID
+	}
+	if cg.CGroupFlags == 0 {
+		cg.CGroupFlags = cg2.CGroupFlags
+	}
+	if cg.CGroupFile.Inode == 0 {
+		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
+	}
+	if cg.CGroupFile.MountID == 0 {
+		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
+	}
 }
 
 // SyscallEvent contains common fields for all the event
@@ -537,6 +555,7 @@ type PTraceEvent struct {
 
 	Request uint32          `field:"request"` // SECLDoc[request] Definition:`ptrace request` Constants:`Ptrace constants`
 	PID     uint32          `field:"-"`
+	NSPID   uint32          `field:"-"`
 	Address uint64          `field:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
@@ -639,6 +658,16 @@ type BindEvent struct {
 
 	Addr       IPPortContext `field:"addr"`        // Bound address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+}
+
+// ConnectEvent represents a connect event
+type ConnectEvent struct {
+	SyscallEvent
+
+	Addr       IPPortContext `field:"addr"`        // Connection address
+	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // NetDevice represents a network device

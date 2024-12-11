@@ -8,9 +8,7 @@
 // is not built in the binary.
 package flarebuilder
 
-import (
-	compdef "github.com/DataDog/datadog-agent/comp/def"
-)
+import "time"
 
 // FlareBuilder contains all the helpers to add files to a flare archive.
 //
@@ -137,6 +135,9 @@ type FlareBuilder interface {
 	// RegisterDirPerm add the current permissions for all the files in a directory to the flare's permissions.log.
 	RegisterDirPerm(path string)
 
+	// GetFlareArgs will return the struct of caller-provided arguments that can be referenced by various flare providers
+	GetFlareArgs() FlareArgs
+
 	// Save archives all the data added to the flare, cleanup all the temporary directories and return the path to
 	// the archive file. Upon error the cleanup is still done.
 	// Error or not, once Save as been called the FlareBuilder is no longer capable of receiving new data. It is the caller
@@ -147,19 +148,11 @@ type FlareBuilder interface {
 	Save() (string, error)
 }
 
-// FlareCallback is a function that can be registered as a data provider for flares. This function, if registered, will
-// be called everytime a flare is created.
-type FlareCallback func(fb FlareBuilder) error
-
-// Provider is provided by other components to register themselves to provide flare data.
-type Provider struct {
-	compdef.Out
-	Callback FlareCallback `group:"flare"`
-}
-
-// NewProvider returns a new Provider to be called when a flare is created
-func NewProvider(callback FlareCallback) Provider {
-	return Provider{
-		Callback: callback,
-	}
+// FlareArgs contains the arguments passed in to a specific flare generation request.
+// All consumers of FlareArgs should be able to safely ingest an empty (default) struct.
+type FlareArgs struct {
+	StreamLogsDuration   time.Duration // Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag
+	ProfileDuration      time.Duration // Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s
+	ProfileMutexFraction int           // Set the fraction of mutex contention events that are reported in the mutex profile
+	ProfileBlockingRate  int           // Set the fraction of goroutine blocking events that are reported in the blocking profile
 }

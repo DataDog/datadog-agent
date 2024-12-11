@@ -15,7 +15,7 @@ windows_choco_offline_7_x64:
     - $ErrorActionPreference = "Stop"
     - Get-ChildItem omnibus\pkg
     - copy omnibus\pkg\*.msi .\chocolatey\tools-offline\
-    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
+    - docker run --rm -v "$(Get-Location):c:\mnt" registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg omnibus\pkg
   artifacts:
@@ -41,11 +41,11 @@ windows_choco_online_7_x64:
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir omnibus\pkg
     - >
-      docker run --rm 
+      docker run --rm
       -v "$(Get-Location):c:\mnt"
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e BUCKET_BRANCH="$BUCKET_BRANCH" 
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      -e BUCKET_BRANCH="$BUCKET_BRANCH"
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\chocopack.bat online c:\mnt\temp
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - Remove-Item -Path "temp\" -Recurse -Force

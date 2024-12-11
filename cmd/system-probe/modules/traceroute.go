@@ -22,12 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type traceroute struct {
-	runner *tracerouteutil.Runner
+	runner *runner.Runner
 }
 
 var (
@@ -37,7 +38,7 @@ var (
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	runner, err := tracerouteutil.NewRunner(deps.Telemetry)
+	runner, err := runner.New(deps.Telemetry)
 	if err != nil {
 		return &traceroute{}, err
 	}

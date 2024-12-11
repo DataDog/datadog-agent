@@ -1,7 +1,7 @@
 ---
 create_release_qa_cards:
   stage: .pre
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
     - !reference [.on_deploy_rc]
@@ -9,6 +9,9 @@ create_release_qa_cards:
     - !reference [.setup_agent_github_app]
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - pip install ddqa
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is 
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - pip install ddqa --break-system-packages
     - inv release.create-qa-cards -t ${CI_COMMIT_REF_NAME}
   allow_failure: true

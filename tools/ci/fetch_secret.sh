@@ -9,7 +9,11 @@ set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$parameter_field" ]; then
-        result=$(vault kv get -field="${parameter_field}" kv/k8s/gitlab-runner/datadog-agent/"${parameter_name}" 2> errorFile)
+        vault_name="kv/k8s/gitlab-runner/datadog-agent"
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
+        fi
+        result=$(vault kv get -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)
     else
         result=$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)
     fi

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -17,11 +18,6 @@ import (
 const (
 	// ServiceName is the service tag of the custom event types defined in this package
 	ServiceName = "runtime-security-agent"
-
-	// LostEventsRuleID is the rule ID for the lost_events_* events
-	LostEventsRuleID = "lost_events"
-	//LostEventsRuleDesc is the rule description for the lost_events_* events
-	LostEventsRuleDesc = "Lost events"
 
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RulesetLoadedRuleID = "ruleset_loaded"
@@ -62,22 +58,31 @@ const (
 	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
 	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
 	EBPFLessHelloMessageRuleDesc = "Hello message received"
+
 	// InternalCoreDumpRuleID internal core dump
 	InternalCoreDumpRuleID = "internal_core_dump"
 	// InternalCoreDumpRuleDesc internal core dump
 	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
+// AgentContainerContext is like model.ContainerContext, but without event based resolvers
+type AgentContainerContext struct {
+	ContainerID containerutils.ContainerID `json:"id,omitempty"`
+	CreatedAt   uint64                     `json:"created_at"`
+}
+
 // CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
-	Timestamp time.Time `json:"date"`
-	Service   string    `json:"service"`
+	Timestamp             time.Time              `json:"date"`
+	Service               string                 `json:"service"`
+	AgentContainerContext *AgentContainerContext `json:"container"`
 }
 
 // FillCustomEventCommonFields fills the common fields with default values
-func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
+func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields(acc *AgentContainerContext) {
 	commonFields.Service = ServiceName
 	commonFields.Timestamp = time.Now()
+	commonFields.AgentContainerContext = acc
 }
 
 // NewCustomRule returns a new custom rule
@@ -93,7 +98,6 @@ func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 // AllCustomRuleIDs returns the list of custom rule IDs
 func AllCustomRuleIDs() []string {
 	return []string{
-		LostEventsRuleID,
 		RulesetLoadedRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,

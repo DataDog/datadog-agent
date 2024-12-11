@@ -28,3 +28,17 @@ func GetConfiguredTags(c pkgconfigmodel.Reader, includeDogstatsd bool) []string 
 
 	return combined
 }
+
+// GetConfiguredDCATags returns list of tags from a configuration, based on
+// `cluster_checks.extra_tags` (DD_CLUSTER_CHECKS_EXTRA_TAGS) and
+// `orchestrator_explorer.extra_tags (DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS).
+func GetConfiguredDCATags(c pkgconfigmodel.Reader) []string {
+	clusterCheckTags := c.GetStringSlice("cluster_checks.extra_tags")
+	orchestratorTags := c.GetStringSlice("orchestrator_explorer.extra_tags")
+
+	combined := make([]string, 0, len(clusterCheckTags)+len(orchestratorTags))
+	combined = append(combined, clusterCheckTags...)
+	combined = append(combined, orchestratorTags...)
+
+	return combined
+}

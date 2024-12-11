@@ -9,46 +9,38 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
 
-func (c *ntmConfig) mergeAllLayers() error {
-	root := newInnerNodeImpl()
-
-	treeList := []InnerNode{
-		c.defaults,
-		c.file,
-	}
-
-	// TODO: handle all configuration sources
-	for _, tree := range treeList {
-		err := root.Merge(tree)
-		if err != nil {
-			return err
+func (c *ntmConfig) findConfigFile() {
+	if c.configFile == "" {
+		for _, path := range c.configPaths {
+			configFilePath := filepath.Join(path, c.configName+".yaml")
+			if _, err := os.Stat(configFilePath); err == nil {
+				c.configFile = configFilePath
+				return
+			}
 		}
 	}
-
-	c.root = root
-	return nil
-}
-
-func (c *ntmConfig) getConfigFile() string {
-	if c.configFile == "" {
-		return "datadog.yaml"
-	}
-	return c.configFile
 }
 
 // ReadInConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadInConfig() error {
+	if !c.isReady() {
+		return log.Errorf("attempt to ReadInConfig before config is constructed")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
-	err := c.readInConfig(c.getConfigFile())
+	c.findConfigFile()
+	err := c.readInConfig(c.configFile)
 	if err != nil {
 		return err
 	}
@@ -64,6 +56,10 @@ func (c *ntmConfig) ReadInConfig() error {
 
 // ReadConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
+	if !c.isReady() {
+		return log.Errorf("attempt to ReadConfig before config is constructed")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -71,7 +67,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if err := c.readConfigurationContent(content); err != nil {
+	if err := c.readConfigurationContent(c.file, content); err != nil {
 		return err
 	}
 	return c.mergeAllLayers()
@@ -82,17 +78,19 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	if err != nil {
 		return err
 	}
-	return c.readConfigurationContent(content)
+	return c.readConfigurationContent(c.file, content)
 }
 
-func (c *ntmConfig) readConfigurationContent(content []byte) error {
+func (c *ntmConfig) readConfigurationContent(target InnerNode, content []byte) error {
 	var obj map[string]interface{}
-	if err := yaml.Unmarshal(content, &obj); err != nil {
-		return err
+
+	if strictErr := yaml.UnmarshalStrict(content, &obj); strictErr != nil {
+		log.Errorf("warning reading config file: %v\n", strictErr)
+		if err := yaml.Unmarshal(content, &obj); err != nil {
+			return err
+		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(c.defaults, c.file, obj, "")...)
-	// Mark the config as ready
-	c.ready.Store(true)
+	c.warnings = append(c.warnings, loadYamlInto(c.schema, target, obj, "")...)
 	return nil
 }
 
@@ -126,7 +124,7 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 //
 // The function traverses a object loaded from YAML, checking if each node is known within the configuration.
 // If known, the value from the YAML blob is imported into the 'dest' tree. If unknown, a warning will be created.
-func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{}, path string) []string {
+func loadYamlInto(schema InnerNode, dest InnerNode, data map[string]interface{}, path string) []string {
 	if path != "" {
 		path = path + "."
 	}
@@ -136,22 +134,22 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 		key = strings.ToLower(key)
 		curPath := path + key
 
-		// check if the key is know in the defaults
-		defaultNode, err := defaults.GetChild(key)
+		// check if the key is know in the schema
+		schemaNode, err := schema.GetChild(key)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("unknown key from YAML: %s", curPath))
 			continue
 		}
 
 		// if the default is a leaf we create a new leaf in dest
-		if _, isLeaf := defaultNode.(LeafNode); isLeaf {
+		if _, isLeaf := schemaNode.(LeafNode); isLeaf {
 			// check that dest don't have a inner leaf under that name
 			c, _ := dest.GetChild(key)
 			if _, ok := c.(InnerNode); ok {
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			} else {
-				dest.InsertChildNode(key, newLeafNodeImpl(value, model.SourceFile))
+				dest.InsertChildNode(key, newLeafNode(value, model.SourceFile))
 			}
 			continue
 		}
@@ -161,11 +159,11 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 			warnings = append(warnings, err.Error())
 		}
 
-		// by now we know defaultNode is an InnerNode
-		defaultNext, _ := defaultNode.(InnerNode)
+		// by now we know schemaNode is an InnerNode
+		defaultNext, _ := schemaNode.(InnerNode)
 
 		if !dest.HasChild(key) {
-			destInner := newInnerNodeImpl()
+			destInner := newInnerNode(nil)
 			warnings = append(warnings, loadYamlInto(defaultNext, destInner, mapString, curPath)...)
 			dest.InsertChildNode(key, destInner)
 			continue

@@ -6,6 +6,8 @@ from datetime import datetime
 
 import requests
 
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.utils import get_metric_origin
 from tasks.release import _get_release_json_value
 
 
@@ -36,6 +38,7 @@ def _get_environment_for_cache() -> dict:
             'AGENT_',
             'API_KEY_',
             'APP_KEY_',
+            'ATLASSIAN_',
             'AWS_',
             'BAZEL_',
             'BETA_',
@@ -51,13 +54,14 @@ def _get_environment_for_cache() -> dict:
             'DESTINATION_',
             'DOCKER_',
             'DYNAMIC_',
-            'E2E_TESTS_',
+            'E2E_',
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
             'GITHUB_',
             'GITLAB_',
             'GIT_',
+            'INSTALLER_',
             'JIRA_',
             'K8S_',
             'KITCHEN_',
@@ -101,6 +105,8 @@ def _get_environment_for_cache() -> dict:
             "CHART",
             "CI",
             "CLUSTER",
+            "CODECOV",
+            "CODECOV_TOKEN",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
@@ -122,6 +128,7 @@ def _get_environment_for_cache() -> dict:
             "HOST_IP",
             "INFOPATH",
             "INSTALL_SCRIPT_API_KEY_ORG2",
+            "INSTANCE_TYPE",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
@@ -146,6 +153,7 @@ def _get_environment_for_cache() -> dict:
             "SIGN",
             "SHELL",
             "SHLVL",
+            "SLACK_AGENT",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
@@ -267,6 +275,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
         # We also provide the total duration for the omnibus build as a separate metric
@@ -281,6 +290,7 @@ def send_build_metrics(ctx, overall_duration):
                 ],
                 'unit': 'seconds',
                 'type': 0,
+                "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
             }
         )
         # Stripping might not always be enabled so we conditionally read the metric
@@ -296,6 +306,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
         # And all packagers duration as another separated metric
@@ -312,6 +323,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
     if sys.platform == 'win32':

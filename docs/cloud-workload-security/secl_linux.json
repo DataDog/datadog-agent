@@ -28,6 +28,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -141,6 +146,11 @@
           "name": "process.ancestors.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.ancestors.comm",
@@ -553,6 +563,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "process.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "process.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -911,6 +926,11 @@
           "name": "process.parent.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.parent.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.parent.comm",
@@ -1317,9 +1337,19 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "bind.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "bind.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "bind.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "bind-protocol-doc"
         },
         {
           "name": "bind.retval",
@@ -1804,6 +1834,45 @@
       ]
     },
     {
+      "name": "connect",
+      "definition": "A connect was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "connect.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "connect.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "connect-protocol-doc"
+        },
+        {
+          "name": "connect.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "dns",
       "definition": "A DNS request was sent",
       "type": "Network",
@@ -1851,6 +1920,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -1879,6 +1953,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -1958,6 +2037,11 @@
           "name": "exec.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "exec.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "exec.comm",
@@ -2384,6 +2468,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "exit.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "exit.code",
           "definition": "Exit code of the process or number of the signal that caused the process to terminate",
           "property_doc_link": "exit-code-doc"
@@ -2783,6 +2872,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -2811,6 +2905,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -3655,6 +3754,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "packet.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "packet.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -3688,6 +3792,11 @@
           "name": "packet.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "packet.source.port",
@@ -3782,6 +3891,11 @@
           "name": "ptrace.tracee.ancestors.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.comm",
@@ -4194,6 +4308,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "ptrace.tracee.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "ptrace.tracee.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -4552,6 +4671,11 @@
           "name": "ptrace.tracee.parent.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "ptrace.tracee.parent.comm",
@@ -5716,6 +5840,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "signal.target.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -6126,6 +6255,11 @@
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
+          "name": "signal.target.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
           "name": "signal.target.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -6484,6 +6618,11 @@
           "name": "signal.target.parent.cgroup.manager",
           "definition": "Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.version",
+          "definition": "Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "signal.target.parent.comm",
@@ -8280,6 +8419,7 @@
       "definition": "IP address",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8328,6 +8468,23 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_public",
+      "link": "common-ipportcontext-is_public-doc",
+      "type": "bool",
+      "definition": "Whether the IP address belongs to a public network",
+      "prefixes": [
+        "bind.addr",
+        "connect.addr",
+        "network.destination",
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -9018,6 +9175,7 @@
       "definition": "Port number",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -9060,6 +9218,7 @@
         "chdir",
         "chmod",
         "chown",
+        "connect",
         "link",
         "load_module",
         "mkdir",
@@ -9339,10 +9498,45 @@
       "examples": []
     },
     {
+      "name": "*.version",
+      "link": "common-cgroupcontext-version-doc",
+      "type": "int",
+      "definition": "Version of the cgroup API",
+      "prefixes": [
+        "cgroup",
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
       "definition": "Address family",
+      "prefixes": [
+        "bind"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "bind.protocol",
+      "link": "bind-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
       "prefixes": [
         "bind"
       ],
@@ -9609,6 +9803,30 @@
       "definition": "UID argument of the syscall",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.family",
+      "link": "connect-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.protocol",
+      "link": "connect-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
+      "prefixes": [
+        "connect"
       ],
       "constants": "",
       "constants_link": "",

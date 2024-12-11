@@ -200,6 +200,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 
 	// Create Agent if required
 	if params.agentOptions != nil {
+		params.agentOptions = append(params.agentOptions, dockeragentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		if params.testingWorkload {
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(dogstatsd.DockerComposeManifest.Name, dogstatsd.DockerComposeManifest.Content))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{"HOST_IP": host.Address}))

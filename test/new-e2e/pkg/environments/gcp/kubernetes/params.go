@@ -8,6 +8,7 @@ package gcpkubernetes
 
 import (
 	"fmt"
+
 	"github.com/DataDog/test-infra-definitions/scenarios/gcp/gke"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Cluster Agent: Don't overwrite the LD_PRELOAD environment variable if it's already set, append the path to Datadog's injection library instead.

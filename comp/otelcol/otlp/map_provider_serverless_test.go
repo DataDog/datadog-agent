@@ -77,8 +77,7 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+							"instrumentation_scope_metadata_as_tags":   true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -113,8 +112,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+											"instrumentation_scope_metadata_as_tags":   true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -147,8 +145,7 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+							"instrumentation_scope_metadata_as_tags":   true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -183,8 +180,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+											"instrumentation_scope_metadata_as_tags":   true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -262,7 +258,6 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                1500,
 					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
 					"instrumentation_scope_metadata_as_tags":   false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
@@ -288,8 +283,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                1500,
 							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"instrumentation_scope_metadata_as_tags":   false,
+									"instrumentation_scope_metadata_as_tags":   false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -363,7 +357,6 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                1500,
 					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -388,8 +381,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                1500,
 							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"histograms": map[string]interface{}{
+									"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
 							},
@@ -420,8 +412,7 @@ func TestNewMap(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"histograms": map[string]interface{}{
+							"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
@@ -455,8 +446,7 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"histograms": map[string]interface{}{
+											"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},

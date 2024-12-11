@@ -16,7 +16,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,6 +25,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -92,9 +92,9 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 				log.Warnf("error loading CO-RE conntracker, falling back to runtime compiled: %s", err)
-			} else if cfg.AllowPrecompiledFallback {
+			} else if cfg.AllowPrebuiltFallback {
 				allowRC = false
-				log.Warnf("error loading CO-RE conntracker, falling back to pre-compiled: %s", err)
+				log.Warnf("error loading CO-RE conntracker, falling back to prebuilt: %s", err)
 			} else {
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
@@ -104,7 +104,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	if m == nil && allowRC {
 		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
-			if !cfg.AllowPrecompiledFallback {
+			if !cfg.AllowPrebuiltFallback {
 				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 			}
 
@@ -120,6 +120,10 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		}
 
 		isPrebuilt = true
+	}
+
+	if isPrebuilt && prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt conntracker")
 	}
 
 	err = m.Start()
@@ -234,7 +238,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 	defer tuplePool.Put(src)
 
 	toConntrackTupleFromTuple(src, stats)
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
 
@@ -242,14 +246,14 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 	// NAT rules referencing conntrack are installed there instead
 	// of other network namespaces (for pods, for instance)
 	src.Netns = e.rootNS
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("looking up in conntrack (tuple): %s", src)
 	}
 	dst := e.get(src)
 	if dst == nil && stats.NetNS != e.rootNS {
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("looking up in conntrack (tuple,netns): %s", src)
 		}
 		dst = e.get(src)
@@ -294,7 +298,7 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 
 	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
 			}
 
@@ -425,7 +429,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
-	}, &ebpftelemetry.ErrorsTelemetryModifier{})
+	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {

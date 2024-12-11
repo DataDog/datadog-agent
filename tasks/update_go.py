@@ -10,7 +10,7 @@ from tasks.go import tidy
 from tasks.libs.ciproviders.circleci import update_circleci_config
 from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
-from tasks.modules import DEFAULT_MODULES
+from tasks.libs.common.gomodules import get_default_modules
 
 GO_VERSION_FILE = "./.go-version"
 
@@ -32,7 +32,9 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
-    ("./docs/public/setup.md", "version `", "` or higher", True),
+    ("./docs/public/setup.md", "version `", "` or later", True),
+    ("./go.work", "go ", "", False),
+    ("./go.work", "toolchain go", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -191,7 +193,7 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
 
 
 def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):
-    for path, module in DEFAULT_MODULES.items():
+    for path, module in get_default_modules().items():
         if not include_otel_modules and module.used_by_otel:
             # only update the go directives in go.mod files not used by otel
             # to allow them to keep using the modules
