@@ -31,7 +31,7 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
 #define WITH(...) \
         _WITH(nargs(__VA_ARGS__), __VA_ARGS__)
 
-#define BPF_KPROBE_INSTR(preamble, name, args...) \
+#define BPF_KPROBE_MODIFY(preamble, name, args...) \
     name(struct pt_regs *ctx);						    \
     static __always_inline typeof(name(0))					    \
     ____##name(struct pt_regs *ctx, ##args);				    \
@@ -46,7 +46,7 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
     static __always_inline typeof(name(0))					    \
     ____##name(struct pt_regs *ctx, ##args)
 
-#define BPF_KRETPROBE_INSTR(preamble, name, args...) \
+#define BPF_KRETPROBE_MODIFY(preamble, name, args...) \
     name(struct pt_regs *ctx);						    \
     static __always_inline typeof(name(0))					    \
     ____##name(struct pt_regs *ctx, ##args);				    \
@@ -67,7 +67,7 @@ BPF_ARRAY_MAP(program_bypassed, u32, 1)
  * but are named way less confusingly for SEC("uprobe") and SEC("uretprobe")
  * use cases.
  */
-#define BPF_UPROBE_INSTR(preamble, name, args...)  BPF_KPROBE_INSTR(preamble, name, ##args)
-#define BPF_URETPROBE_INSTR(preamble, name, args...)  BPF_KRETPROBE_INSTR(preamble, name, ##args)
+#define BPF_UPROBE_MODIFY(preamble, name, args...)  BPF_KPROBE_MODIFY(preamble, name, ##args)
+#define BPF_URETPROBE_MODIFY(preamble, name, args...)  BPF_KRETPROBE_MODIFY(preamble, name, ##args)
 
 #endif

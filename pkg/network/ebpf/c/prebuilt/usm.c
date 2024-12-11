@@ -40,7 +40,7 @@ int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
 };
 
 SEC("kprobe/tcp_sendmsg")
-int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_sendmsg, struct sock *sk) {
+int BPF_KPROBE_MODIFY(WITH(BYPASS), kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);

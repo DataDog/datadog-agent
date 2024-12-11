@@ -11,7 +11,7 @@
 #include "sock.h"
 
 SEC("kprobe/tcp_recvmsg")
-int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_recvmsg) {
+int BPF_KPROBE_MODIFY(WITH(BYPASS), kprobe__tcp_recvmsg) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     struct sock *skp = (struct sock*)PT_REGS_PARM2(ctx);
@@ -34,7 +34,7 @@ int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_recvmsg) {
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 
 SEC("kprobe/tcp_recvmsg")
-int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_recvmsg__pre_5_19_0) {
+int BPF_KPROBE_MODIFY(WITH(BYPASS), kprobe__tcp_recvmsg__pre_5_19_0) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int flags = (int)PT_REGS_PARM5(ctx);
     if (flags & MSG_PEEK) {
@@ -46,7 +46,7 @@ int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_recvmsg__pre_5_19_0) {
 }
 
 SEC("kprobe/tcp_recvmsg")
-int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_recvmsg__pre_4_1_0) {
+int BPF_KPROBE_MODIFY(WITH(BYPASS), kprobe__tcp_recvmsg__pre_4_1_0) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_recvmsg: pid_tgid: %llu", pid_tgid);
     int flags = (int)PT_REGS_PARM6(ctx);
@@ -62,7 +62,7 @@ int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_recvmsg__pre_4_1_0) {
 #endif // COMPILE_CORE || COMPILE_PREBUILT
 
 SEC("kretprobe/tcp_recvmsg")
-int BPF_KRETPROBE_INSTR(WITH(BYPASS), kretprobe__tcp_recvmsg, int recv) {
+int BPF_KRETPROBE_MODIFY(WITH(BYPASS), kretprobe__tcp_recvmsg, int recv) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&tcp_recvmsg_args, &pid_tgid);
     if (!skpp) {
@@ -83,7 +83,7 @@ int BPF_KRETPROBE_INSTR(WITH(BYPASS), kretprobe__tcp_recvmsg, int recv) {
 }
 
 SEC("kprobe/tcp_read_sock")
-int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_read_sock, struct sock *skp) {
+int BPF_KPROBE_MODIFY(WITH(BYPASS), kprobe__tcp_read_sock, struct sock *skp) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     // we reuse tcp_recvmsg_args here since there is no overlap
     // between the tcp_recvmsg and tcp_read_sock paths
@@ -92,7 +92,7 @@ int BPF_KPROBE_INSTR(WITH(BYPASS), kprobe__tcp_read_sock, struct sock *skp) {
 }
 
 SEC("kretprobe/tcp_read_sock")
-int BPF_KRETPROBE_INSTR(WITH(BYPASS), kretprobe__tcp_read_sock, int recv) {
+int BPF_KRETPROBE_MODIFY(WITH(BYPASS), kretprobe__tcp_read_sock, int recv) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     // we reuse tcp_recvmsg_args here since there is no overlap
     // between the tcp_recvmsg and tcp_read_sock paths
