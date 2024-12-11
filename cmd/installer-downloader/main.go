@@ -48,7 +48,7 @@ func main() {
 	_ = t.Start(ctx)
 	defer func() { _ = t.Stop(ctx) }()
 	var err error
-	span, ctx := telemetry.StartSpanFromEnv(ctx, "downloader")
+	span, ctx := telemetry.StartSpanFromEnv(ctx, fmt.Sprintf("downloader-%s", Flavor))
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	err = runDownloader(ctx, env, Version, Flavor)
 	if err != nil {
