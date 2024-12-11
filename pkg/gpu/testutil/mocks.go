@@ -66,6 +66,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 	}
 }
 
+// GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
 func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
