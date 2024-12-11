@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strings"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -36,12 +37,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	errNoProtocols = errors.New("no protocol monitors were initialised")
+	errNoProtocols     = errors.New("no protocol monitors were initialised")
+	useKprobeDataHooks = false
 
 	// knownProtocols holds all known protocols supported by USM to initialize.
 	knownProtocols = []*protocols.ProtocolSpec{
@@ -96,8 +99,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
+			{Name: protocols.KprobeDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherClassificationPrograms},
 			{Name: protocols.TLSProtocolDispatcherClassificationPrograms},
+			{Name: protocols.KprobeProtocolDispatcherClassificationPrograms},
 			{Name: connectionStatesMap},
 			{Name: sockFDLookupArgsMap},
 			{Name: tupleByPidFDMap},
@@ -106,7 +111,85 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__tcp_sendmsg",
+					EBPFFuncName: "kprobe__tcp_sendmsg_socket_filter",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__tcp_sendmsg_kprobe",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kretprobe__tcp_sendmsg",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__tcp_recvmsg",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kretprobe__tcp_recvmsg",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__simple_copy_to_iter",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kretprobe__simple_copy_to_iter",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__tcp_splice_read",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__tcp_splice_data_recv",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kretprobe__tcp_splice_data_recv",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__splice_to_socket",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kretprobe__splice_to_socket",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__generic_splice_sendpage",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kretprobe__generic_splice_sendpage",
 					UID:          probeUID,
 				},
 			},
@@ -375,6 +458,99 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 	}
 }
 
+func (e *ebpfProgram) fixupProbes(options *manager.Options) error {
+	socketFilterFunctions := []string{
+		"kprobe__tcp_sendmsg_socket_filter",
+		protocolDispatcherSocketFilterFunction,
+	}
+
+	kprobeDataFunctions := []string{
+		"kprobe__tcp_splice_data_recv",
+		"kretprobe__tcp_splice_data_recv",
+		"kprobe__tcp_splice_read",
+		"kprobe__tcp_sendmsg_kprobe",
+		"kretprobe__tcp_sendmsg",
+		"kprobe__tcp_recvmsg",
+		"kretprobe__tcp_recvmsg",
+		"kprobe__simple_copy_to_iter",
+		"kretprobe__simple_copy_to_iter",
+		"kprobe__splice_to_socket",
+		"kretprobe__splice_to_socket",
+		"kprobe__generic_splice_sendpage",
+		"kretprobe__generic_splice_sendpage",
+	}
+
+	// Reset here since it can get reused in tests
+	useKprobeDataHooks = false
+
+	if e.cfg.EnableUSMKprobeDataHooks {
+		if usmconfig.KprobeDataHooksSupported(e.buildMode) {
+			log.Info("Using kprobe data hooks")
+			useKprobeDataHooks = true
+		} else {
+			log.Warn("Not using kprobe data hooks despite being requested")
+		}
+	} else {
+		log.Info("Not using kprobe data hooks")
+	}
+
+	// fmt.Println to always show when running tests
+	fmt.Println("useNewPacketDataHooks", useKprobeDataHooks)
+
+	var exclude []string
+	if useKprobeDataHooks {
+		exclude = append(exclude, socketFilterFunctions...)
+
+		missing, err := ddebpf.VerifyKernelFuncs("splice_to_socket")
+		if err != nil {
+			return fmt.Errorf("error verifying kernel function presence: %s", err)
+		}
+
+		if _, miss := missing["splice_to_socket"]; miss {
+			exclude = append(exclude, "kprobe__splice_to_socket", "kretprobe__splice_to_socket")
+		} else {
+			exclude = append(exclude, "kprobe__generic_splice_sendpage", "kretprobe__generic_splice_sendpage")
+		}
+	} else {
+		exclude = append(exclude, kprobeDataFunctions...)
+	}
+
+	excludeMap := make(map[string]bool)
+	for _, fn := range exclude {
+		excludeMap[fn] = true
+	}
+
+	options.TailCallRouter = slices.DeleteFunc(options.TailCallRouter, func(tc manager.TailCallRoute) bool {
+		name := tc.ProbeIdentificationPair.EBPFFuncName
+
+		if strings.HasPrefix(name, "socket_") {
+			return useKprobeDataHooks
+		}
+
+		if !useKprobeDataHooks {
+			if !strings.HasPrefix(name, "sk_msg") && !strings.HasPrefix(name, "kprobe_") {
+				return false
+			}
+
+			options.ExcludedFunctions = append(options.ExcludedFunctions, name)
+			return true
+		}
+
+		return false
+	})
+
+	options.ActivatedProbes = slices.DeleteFunc(options.ActivatedProbes, func(p manager.ProbesSelector) bool {
+		ps := p.GetProbesIdentificationPairList()
+		name := ps[0].EBPFFuncName
+		_, found := excludeMap[name]
+		return found
+	})
+
+	options.ExcludedFunctions = append(options.ExcludedFunctions, exclude...)
+
+	return nil
+}
+
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
@@ -467,7 +643,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	err := e.InitWithOptions(buf, &options)
+	err := e.fixupProbes(&options)
+	if err != nil {
+		cleanup()
+		return err
+	}
+
+	err = e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
 	} else {

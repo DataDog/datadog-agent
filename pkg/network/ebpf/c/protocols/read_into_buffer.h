@@ -55,8 +55,8 @@
 
 #define PAGESIZE 4096
 
-#define READ_INTO_USER_BUFFER_INTERNAL(name, total_size, fn)                                                            \
-    static __always_inline void read_into_user_buffer_##name(char *dst, char *src) {                                    \
+#define __READ_INTO_BUFFER_INTERNAL(prefix, name, total_size, fn)                                                       \
+    static __always_inline __maybe_unused void read_into_##prefix##_buffer_##name(char *dst, const char *src) {         \
         bpf_memset(dst, 0, total_size);                                                                                 \
         long ret = fn(dst, total_size, src);                                                                            \
         if (ret >= 0) {                                                                                                 \
@@ -68,7 +68,16 @@
         return;                                                                                                         \
     }
 
+#define READ_INTO_USER_BUFFER_INTERNAL(name, total_size, fn)                                                            \
+    __READ_INTO_BUFFER_INTERNAL(user, name, total_size, fn)
+
+#define READ_INTO_KERNEL_BUFFER_INTERNAL(name, total_size, fn)                                                            \
+    __READ_INTO_BUFFER_INTERNAL(kernel, name, total_size, fn)
+
 #define READ_INTO_USER_BUFFER(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user_with_telemetry)
 #define READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user)
+
+#define READ_INTO_KERNEL_BUFFER(name, total_size) READ_INTO_KERNEL_BUFFER_INTERNAL(name, total_size, bpf_probe_read_kernel_with_telemetry)
+#define READ_INTO_KERNEL_BUFFER_WITHOUT_TELEMETRY(name, total_size) READ_INTO_KERNEL_BUFFER_INTERNAL(name, total_size, bpf_probe_read_kernel)
 
 #endif
