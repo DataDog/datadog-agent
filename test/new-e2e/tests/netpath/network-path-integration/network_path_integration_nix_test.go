@@ -26,6 +26,7 @@ type linuxNetworkPathIntegrationTestSuite struct {
 
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
