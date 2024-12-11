@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -46,7 +47,7 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %w", err)
 	}
-	installerPackageURL := fmt.Sprintf("file://%s", executablePath)
+	installerPackageURL := fmt.Sprintf("file://%s", filepath.Dir(executablePath))
 	installer, err := installer.NewInstaller(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
