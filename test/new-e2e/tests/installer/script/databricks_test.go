@@ -19,7 +19,7 @@ type installScriptDatabricksSuite struct {
 
 func testDatabricksScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptDatabricksSuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer", os, arch, awshost.WithoutFakeIntake()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
 	}
 	s.url = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install-databricks.sh", s.commitHash)
 

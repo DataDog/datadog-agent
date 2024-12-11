@@ -50,19 +50,20 @@
 
 /.circleci/                             @DataDog/agent-devx-infra
 
-/.github/CODEOWNERS                                 # do not notify anyone
-/.github/*_TEMPLATE.md                              @DataDog/agent-devx-loops
-/.github/dependabot.yaml                            @DataDog/agent-devx-infra
-/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-binary-size.yml       @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-integration.yml       @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
-/.github/workflows/gohai.yml                        @DataDog/agent-shared-components
-/.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
-/.github/workflows/buildimages-update.yml           @DataDog/agent-delivery @DataDog/agent-shared-components
+/.github/CODEOWNERS                                  # do not notify anyone
+/.github/*_TEMPLATE.md                               @DataDog/agent-devx-loops
+/.github/dependabot.yaml                             @DataDog/agent-devx-infra
+/.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-integration.yml        @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
+/.github/workflows/gohai.yml                         @DataDog/agent-shared-components
+/.github/workflows/go-update-commenter.yml           @DataDog/agent-shared-components
+/.github/workflows/buildimages-update.yml            @DataDog/agent-delivery @DataDog/agent-shared-components
+/.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry
 
-/.run                                               @DataDog/agent-devx-loops
-/.run/docker/                                       @DataDog/container-integrations @DataDog/container-platform
+/.run                                                @DataDog/agent-devx-loops
+/.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx-infra or agent-delivery
@@ -492,7 +493,6 @@
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks @DataDog/windows-kernel-integrations
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/Networks
-/pkg/process/net/common_windows.go      @DataDog/windows-agent
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/proto/pbgo/trace                   @DataDog/agent-apm
@@ -572,6 +572,7 @@
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/winbuild.py                      @DataDog/windows-agent
 /tasks/windows_resources.py             @DataDog/windows-agent
+/tasks/collector.py                     @DataDog/opentelemetry
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/libs/ciproviders/                @DataDog/agent-devx-infra
