@@ -40,7 +40,6 @@ var (
 		InsecureSkipVerify: true,
 	}
 	serverTLSConfig *tls.Config
-	initialized     sync.Once
 	initSource      int
 )
 
