@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type linuxNetworkPathIntegrationTestSuite05 struct {
+type linuxNetworkPathIntegrationTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite05{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
@@ -33,7 +33,7 @@ func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 
 }
 
-func (s *linuxNetworkPathIntegrationTestSuite05) TestLinuxNetworkPathIntegrationMetrics() {
+func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, s.T(), c, [][]string{
