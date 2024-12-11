@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
     Upgrade `gstatus` binary to version 1.0.9 to work with newer version of Glusterfs.
