@@ -152,7 +152,6 @@ require (
 require go.opentelemetry.io/collector/extension/extensiontest v0.115.0 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/configsync/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect

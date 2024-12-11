@@ -4,7 +4,7 @@ go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../config
-	github.com/DataDog/datadog-agent/comp/core/configsync/def => ../../core/configsync/def
+	github.com/DataDog/datadog-agent/comp/core/configsync/def => ../../configsync/def
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../def
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
 	github.com/DataDog/datadog-agent/comp/def => ../../../def/
