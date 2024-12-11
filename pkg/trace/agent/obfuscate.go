@@ -110,9 +110,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 	}
 }
 
-func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
-	o := a.lazyInitObfuscator()
-
+func obfuscateStatsGroup(o *obfuscate.Obfuscator, b *pb.ClientGroupedStats) {
 	switch b.Type {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLString(b.Resource)

@@ -535,7 +535,8 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			a.obfuscateStatsGroup(b)
+			obfuscator := a.lazyInitObfuscator()
+			obfuscateStatsGroup(obfuscator, b)
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
