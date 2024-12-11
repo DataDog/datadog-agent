@@ -23,7 +23,7 @@ relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
     env = with_standard_compiler_flags(with_embedded_path)
-    env['MAKEOPTS'] = "-j#{workers}"
+    env['MAKEFLAGS'] = "-j#{workers}"
     prefix = if windows_target? then "perl.exe" else "" end
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
