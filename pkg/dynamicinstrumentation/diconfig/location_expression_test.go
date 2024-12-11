@@ -14,26 +14,31 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 )
 
 func TestLocationExpressionGeneration(t *testing.T) {
 	testCases := []struct {
-		Name              string
-		ParameterMetadata bininspect.ParameterMetadata
-		ExpectedOutput    []ditypes.LocationExpression
+		Name           string
+		Parameter      *ditypes.Parameter
+		Limits         *ditypes.InstrumentationInfo
+		ExpectedOutput []ditypes.LocationExpression
 	}{
 		{
 			Name: "DirectlyAssignedRegisterUint",
-			ParameterMetadata: bininspect.ParameterMetadata{
+			Parameter: &ditypes.Parameter{
+				Type:      "uint",
+				Kind:      uint(reflect.Uint),
 				TotalSize: 8,
-				Kind:      reflect.Uint,
-				Pieces: []bininspect.ParameterPiece{
-					{Size: 8, InReg: true, StackOffset: 0, Register: 0},
+				Location: &ditypes.Location{
+					InReg:            true,
+					Register:         1,
+					PointerOffset:    9999, // should not be used
+					StackOffset:      8888, // should not be used
+					NeedsDereference: true, // should not be used
 				},
 			},
 			ExpectedOutput: []ditypes.LocationExpression{
-				ditypes.ReadRegisterLocationExpression(0, 8),
+				ditypes.ReadRegisterLocationExpression(1, 8),
 				ditypes.PopLocationExpression(1, 8),
 			},
 		},
@@ -41,13 +46,8 @@ func TestLocationExpressionGeneration(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.Name, func(t *testing.T) {
-			resultExpressions := GenerateLocationExpression(testcase.ParameterMetadata)
-
-			for i := range resultExpressions {
-				// make sure ID is set, then set to "" for sake of comparison for test
-				require.NotEqual(t, "", resultExpressions[i].InstructionID)
-				resultExpressions[i].InstructionID = ""
-			}
+			GenerateLocationExpression(testcase.Limits, testcase.Parameter)
+			resultExpressions := collectAllLocationExpressions(testcase.Parameter, true)
 			require.Equal(t, testcase.ExpectedOutput, resultExpressions)
 		})
 	}
