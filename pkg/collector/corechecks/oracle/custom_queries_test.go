@@ -57,15 +57,6 @@ func TestCustomQueries(t *testing.T) {
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
 }
 
-func TestCanConnectTags(t *testing.T) {
-	chk, sender := newDefaultCheck(t, "", "")
-	err := chk.Run()
-	require.NoError(t, err)
-
-	expectedHostTag := fmt.Sprintf("host:%s", chk.config.InstanceConfig.Server)
-	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.can_connect", []string{expectedHostTag})
-}
-
 const customQueryTestConfig = `- metric_prefix: oracle.custom_query.test
   query: |
     select 'TAG1', 1.012345 value from dual

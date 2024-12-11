@@ -424,6 +424,15 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 	return connStr
 }
 
+func TestCanConnectTags(t *testing.T) {
+	chk, sender := newDefaultCheck(t, "", "")
+	err := chk.Run()
+	require.NoError(t, err)
+
+	expectedHostTag := fmt.Sprintf("host:%s", chk.config.InstanceConfig.Server)
+	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.can_connect", []string{expectedHostTag})
+}
+
 func TestLargeUint64Binding(t *testing.T) {
 	var err error
 	c, _ := newDefaultCheck(t, "", "")
