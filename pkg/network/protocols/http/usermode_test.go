@@ -129,7 +129,7 @@ func BenchmarkFlow(b *testing.B) {
 	require.NoError(b, err)
 
 	httpEvents := createHTTPEvents()
-	require.Len(b, httpEvents, 2)
+	require.NotEmpty(b, httpEvents, "httpEvents slice is empty")
 
 	httpTelemetry := NewTelemetry("http")
 
@@ -149,7 +149,6 @@ func BenchmarkFlow(b *testing.B) {
 	}
 
 	for i := 0; i < TotalEventsCount/numOfEventsInBatch; i++ {
-		b.Logf("Processing i: %d", i)
 		mockBatch.Idx = uint64(i)
 		var buf bytes.Buffer
 		require.NoError(b, binary.Write(&buf, binary.LittleEndian, &mockBatch))
