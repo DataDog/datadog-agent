@@ -6,7 +6,6 @@
 package ports
 
 import (
-	"fmt"
 	"strings"
 	"unsafe"
 
@@ -37,7 +36,7 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 	// Convert UTF-16 string and handle trailing nulls
 	processName := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(processInfo.ImageName.Buffer)))
 	processName = strings.TrimRight(processName, "\x00")
-	processName = strings.ToLower(strings.TrimSuffix(processName, ".exe"))
-	fmt.Printf("PRE-RETURN VALUE: %s", processName)
+	processName = strings.ToLower(processName)
+	processName = strings.TrimSuffix(processName, ".exe")
 	return processName, nil
 }
