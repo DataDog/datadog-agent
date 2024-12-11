@@ -15,7 +15,11 @@ windows_choco_offline_7_x64:
     - $ErrorActionPreference = "Stop"
     - Get-ChildItem omnibus\pkg
     - copy omnibus\pkg\*.msi .\chocolatey\datadog-agent\offline\tools\
-    - docker run --rm -v "$(Get-Location):c:\mnt" registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
+    - >
+      docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -InstallMethod offline -Flavor $FLAVOR -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg omnibus\pkg
   artifacts:
@@ -24,12 +28,11 @@ windows_choco_offline_7_x64:
       - omnibus/pkg
 
 # The online version of the choco job gets the msi package through the gitlab artifacts
-windows_choco_online_7_x64:
+.windows_choco_online_7_x64:
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch]
   stage: choco_and_install_script_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["deploy_packages_windows-x64-7"]
   variables:
     ARCH: "x64"
   script:
@@ -46,7 +49,7 @@ windows_choco_online_7_x64:
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      c:\mnt\tasks\winbuildscripts\chocopack.bat online c:\mnt\temp
+      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -InstallMethod online -MSIDirectory c:\mnt\temp -Flavor $FLAVOR -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - Remove-Item -Path "temp\" -Recurse -Force
     - copy build-out\*.nupkg omnibus\pkg
@@ -58,3 +61,15 @@ windows_choco_online_7_x64:
       - omnibus/pkg
   # Sometimes Chocolatey is flakey
   retry: 2
+
+windows_choco_online_7_x64:
+  extends: .windows_choco_online_7_x64
+  needs: ["deploy_packages_windows-x64-7"]
+  variables:
+    FLAVOR: "datadog-agent"
+
+windows_choco_online_7_x64-fips:
+  extends: .windows_choco_online_7_x64
+  needs: ["deploy_packages_windows-x64-7-fips"]
+  variables:
+    FLAVOR: "datadog-fips-agent"
