@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Support DDAGENTUSER_NAME containing an @
+    Support ``DDAGENTUSER_NAME`` containing a ``@`` character
