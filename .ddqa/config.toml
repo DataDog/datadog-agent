@@ -177,7 +177,7 @@ github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
 [teams."Container Intake"]
-jira_project = "PROCS"
+jira_project = "CTK"
 jira_issue_type = "Task"
 jira_statuses = ["TRIAGE", "In Progress", "Done"]
 github_team = "container-intake"
