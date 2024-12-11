@@ -270,10 +270,10 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	return nil
 }
 
-// HasConnEstablished is used to avoid a connection appearing before the three-way handshake is complete.
+// HasConnEverEstablished is used to avoid a connection appearing before the three-way handshake is complete.
 // This is done to mirror the behavior of ebpf tracing accept() and connect(), which both return
 // after the handshake is completed.
-func (t *TCPProcessor) HasConnEstablished(conn *network.ConnectionStats) bool {
+func (t *TCPProcessor) HasConnEverEstablished(conn *network.ConnectionStats) bool {
 	st := t.conns[conn.ConnectionTuple]
 
 	// conn.Monotonic.TCPEstablished can be 0 even though isEstablished is true,
