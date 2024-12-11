@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -33,8 +34,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubectlget "k8s.io/kubectl/pkg/cmd/get"
 	kubectlutil "k8s.io/kubectl/pkg/cmd/util"
-
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func dumpEKSClusterState(ctx context.Context, name string) (ret string) {
@@ -288,7 +287,7 @@ func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 	getCmd.SetErr(out)
 	getCmd.SetContext(ctx)
 	getCmd.SetArgs([]string{
-		"nodes,mutatingwebhookconfiguration,validatingwebhookconfiguration,all",
+		"nodes,all",
 		"--all-namespaces",
 		"-o",
 		"wide",
