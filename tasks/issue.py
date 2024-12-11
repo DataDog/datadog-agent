@@ -25,9 +25,16 @@ def assign_owner(_, issue_id, dry_run=False):
         from slack_sdk import WebClient
 
         client = WebClient(os.environ['SLACK_API_TOKEN'])
-        channel = GITHUB_SLACK_MAP.get(owner.lower(), '#agent-ask-anything')
-        message = f':githubstatus_partial_outage: *New Community Issue*\n{issue.title} <{issue.html_url}|{gh.repo.name}#{issue_id}>'
-        message += "\nThe assignation to your team was done automatically, using issue content and title. Please redirect if needed."
+        channel = next(
+            (chan for team, chan in GITHUB_SLACK_MAP.items() if owner.lower() in team), '#agent-ask-anything'
+        )
+        message = f':githubstatus_partial_outage: *New Community Issue*\n{issue.title} <{issue.html_url}|{gh.repo.name}#{issue_id}>\n'
+        if channel == '#agent-ask-anything':
+            message += "The CI bot failed to assign this issue to a team.\nPlease assign it manually."
+        else:
+            message += (
+                "Your team was assigned automatically, using the issue content and title.\nPlease redirect if needed."
+            )
         client.chat_postMessage(channel=channel, text=message)
     return owner
 
