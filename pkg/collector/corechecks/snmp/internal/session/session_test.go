@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -289,7 +288,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 	}
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "info")
 
@@ -306,7 +305,7 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	}
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "trace")
 

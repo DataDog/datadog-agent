@@ -20,7 +20,6 @@ dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # 
 # especially at higher thread counts.
 dependency "libjemalloc" if linux_target?
 
-dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'
@@ -121,7 +120,8 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  delete 'bin/agent/dist/conf.d'
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"

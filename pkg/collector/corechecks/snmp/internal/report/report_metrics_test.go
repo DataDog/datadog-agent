@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -316,7 +315,7 @@ func TestSendMetric(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
@@ -453,7 +452,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
@@ -640,7 +639,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 

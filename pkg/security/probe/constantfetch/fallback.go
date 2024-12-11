@@ -139,6 +139,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFileFinodeOffset(f.kernelVersion)
 	case OffsetNameFileFpath:
 		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameDentryDSb:
+		value = getDentryDsbOffset(f.kernelVersion)
 	case OffsetNameMountMntID:
 		value = getMountIDOffset(f.kernelVersion)
 	case OffsetNameRenameStructOldDentry:
@@ -1011,6 +1013,10 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	default:
 		return 16
 	}
+}
+
+func getDentryDsbOffset(_ *kernel.Version) uint64 {
+	return 104
 }
 
 func getMountIDOffset(kv *kernel.Version) uint64 {

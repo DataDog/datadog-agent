@@ -13,6 +13,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    cancel_pipeline,
     get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
@@ -865,7 +866,7 @@ def test_merge_queue(ctx):
     # Clean up
     print("Cleaning up")
     if success:
-        pipeline.cancel()
+        cancel_pipeline(pipeline)
     pr.edit(state="closed")
     ctx.run(f"git checkout {current_branch}", hide=True)
     ctx.run(f"git branch -D {test_default}", hide=True)
@@ -929,7 +930,7 @@ def compare_to_itself(ctx):
         if attempt == max_attempts - 1:
             # Clean up the branch and possible pipelines
             for pipeline in pipelines:
-                pipeline.cancel()
+                cancel_pipeline(pipeline)
             ctx.run(f"git checkout {current_branch}", hide=True)
             ctx.run(f"git branch -D {new_branch}", hide=True)
             ctx.run(f"git push origin :{new_branch}", hide=True)
@@ -946,7 +947,7 @@ def compare_to_itself(ctx):
         # Clean up
         print("Cleaning up the pipelines")
         for pipeline in pipelines:
-            pipeline.cancel()
+            cancel_pipeline(pipeline)
         print("Cleaning up git")
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
