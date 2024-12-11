@@ -38,6 +38,6 @@ func RetrieveProcessName(pid int, _ string) (string, error) {
 	processName := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(processInfo.ImageName.Buffer)))
 	processName = strings.TrimRight(processName, "\x00")
 	processName = strings.ToLower(strings.TrimSuffix(processName, ".exe"))
-	fmt.Sprintf("PRE-RETURN VALUE: %s", processName)
+	fmt.Printf("PRE-RETURN VALUE: %s", processName)
 	return processName, nil
 }
