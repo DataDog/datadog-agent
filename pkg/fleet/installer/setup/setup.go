@@ -9,24 +9,37 @@ package setup
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
-// Setup is the main function to resolve packages to install and install them
-func Setup(ctx context.Context, env *env.Env) error {
-	if os.Getenv("DD_DJM_FLAVOR") == "databricks" {
-		return djm.SetupDatabricks(ctx, env)
-	}
+const (
+	// FlavorDatabricks is the flavor for the Data Jobs Monitoring databricks setup.
+	FlavorDatabricks = "databricks"
+)
 
-	return defaultSetup(ctx, env)
+// Setup installs Datadog.
+func Setup(ctx context.Context, env *env.Env, flavor string) error {
+	switch flavor {
+	case FlavorDatabricks:
+		if err := packages.SetupInstaller(ctx); err != nil {
+			return fmt.Errorf("failed to setup installer: %w", err)
+		}
+		if err := djm.SetupDatabricks(ctx, env); err != nil {
+			return fmt.Errorf("failed to setup Databricks: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown setup flavor %s", flavor)
+	}
 }
 
-func defaultSetup(ctx context.Context, env *env.Env) error {
+// Agent7InstallScript is the setup used by the agent7 install script.
+func Agent7InstallScript(ctx context.Context, env *env.Env) error {
 	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
 	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {
