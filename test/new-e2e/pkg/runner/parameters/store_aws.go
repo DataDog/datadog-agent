@@ -60,6 +60,6 @@ func (s awsStore) get(key StoreKey) (string, error) {
 
 // awsOverrides is a map of StoreKey to StoreKey used to override key only in AWS store
 var awsOverrides = map[StoreKey]StoreKey{
-	APIKey: "api_key_3",
+	APIKey: "api_key_3_test_invalid",
 	APPKey: "app_key_2",
 }
