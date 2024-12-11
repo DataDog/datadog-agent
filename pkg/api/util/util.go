@@ -22,6 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	uninitialized = iota
+	setAuthToken
+	createAndSetAuthToken
+)
+
 var (
 	tokenLock sync.RWMutex
 	token     string
@@ -35,7 +41,7 @@ var (
 	}
 	serverTLSConfig *tls.Config
 	initialized     sync.Once
-	initializedBy   string
+	initSource      int
 )
 
 // SetAuthToken sets the session token and IPC certificate
@@ -45,10 +51,7 @@ func SetAuthToken(config model.Reader) error {
 	defer tokenLock.Unlock()
 
 	// Noop if token is already set
-	if initializedBy != "" {
-		if initializedBy != "SetAuthToken" {
-			log.Infof("function SetAuthToken was called after CreateAndSetAuthToken was called")
-		}
+	if initSource != uninitialized {
 		return nil
 	}
 
@@ -79,9 +82,7 @@ func SetAuthToken(config model.Reader) error {
 		Certificates: []tls.Certificate{tlsCert},
 	}
 
-	initialized.Do(func() {
-		initializedBy = "SetAuthToken"
-	})
+	initSource = setAuthToken
 
 	return nil
 }
@@ -93,10 +94,11 @@ func CreateAndSetAuthToken(config model.Reader) error {
 	defer tokenLock.Unlock()
 
 	// Noop if token is already set
-	if initializedBy != "" {
-		if initializedBy != "CreateAndSetAuthToken" {
-			log.Warnf("function CreateAndSetAuthToken was called after SetAuthToken was called")
-		}
+	switch initSource {
+	case setAuthToken:
+		log.Infof("function CreateAndSetAuthToken was called after SetAuthToken was called")
+		return nil
+	case createAndSetAuthToken:
 		return nil
 	}
 
@@ -127,16 +129,16 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		Certificates: []tls.Certificate{tlsCert},
 	}
 
-	initialized.Do(func() {
-		initializedBy = "CreateAndSetAuthToken"
-	})
+	initSource = createAndSetAuthToken
 
 	return nil
 }
 
 // IsInitialized return true if the auth_token and IPC cert/key pair have been initialized with SetAuthToken or CreateAndSetAuthToken functions
 func IsInitialized() bool {
-	return initializedBy != ""
+	tokenLock.RLock()
+	defer tokenLock.Unlock()
+	return initSource != uninitialized
 }
 
 // GetAuthToken gets the session token
@@ -150,7 +152,7 @@ func GetAuthToken() string {
 func GetTLSClientConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
-	if initializedBy == "" {
+	if initSource == uninitialized {
 		log.Errorf("GetTLSClientConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
 	}
 	return clientTLSConfig.Clone()
@@ -160,7 +162,7 @@ func GetTLSClientConfig() *tls.Config {
 func GetTLSServerConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
-	if initializedBy == "" {
+	if initSource == uninitialized {
 		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
 	}
 	return serverTLSConfig.Clone()
