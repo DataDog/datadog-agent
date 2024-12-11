@@ -23,7 +23,7 @@ from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
-from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
+from tasks.libs.common.utils import REPO_PATH, color_message, gitlab_section, running_in_ci
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
@@ -66,6 +66,9 @@ def run(
     test_washer=False,
     agent_image="",
     cluster_agent_image="",
+    logs_post_processing=False,
+    logs_post_processing_test_depth=1,
+    logs_folder="e2e_logs",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -108,7 +111,14 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    scrubber_raw_command = ""
+    # Scrub the test output to avoid leaking API or APP keys when running in the CI
+    if running_in_ci():
+        scrubber_raw_command = (
+            # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
+            f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
+        )
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     args = {
         "go_mod": "readonly",
@@ -163,6 +173,27 @@ def run(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
         )
+
+    if logs_post_processing:
+        if len(test_res) == 1:
+            post_processed_output = post_process_output(
+                test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
+            )
+
+            os.makedirs(logs_folder, exist_ok=True)
+            write_result_to_log_files(post_processed_output, logs_folder)
+            try:
+                pretty_print_logs(post_processed_output)
+            except TooManyLogsError:
+                print(
+                    color_message("WARNING", "yellow")
+                    + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+                )
+        else:
+            print(
+                color_message("WARNING", "yellow")
+                + f": Logs post processing expect only test result for test/new-e2e module. Skipping because result contains test for {len(test_res)} modules."
+            )
 
     if not success:
         raise Exit(code=1)
@@ -251,6 +282,94 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
         print(f"Failed to destroy stack {stack}")
+
+
+def post_process_output(path: str, test_depth: int = 1):
+    """
+    Post process the test results to add the test run name
+    path: path to the test result json file
+    test_depth: depth of the test name to consider
+
+    By default the test_depth is set to 1, which means that the logs will be splitted depending on the test suite name.
+    If we use a single test suite to run multiple tests we can increase the test_depth to split the logs per test.
+    For example with:
+    TestPackages/run_ubuntu
+    TestPackages/run_centos
+    TestPackages/run_debian
+    We should set test_depth to 2 to avoid mixing all the logs of the different tested platform
+    """
+
+    def is_parent(parent: list[str], child: list[str]) -> bool:
+        for i in range(len(parent)):
+            if parent[i] != child[i]:
+                return False
+        return True
+
+    logs_per_test = {}
+    with open(path) as f:
+        all_lines = f.readlines()
+
+        # Initalize logs_per_test with all test names
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+            splitted_test = json_line["Test"].split("/")
+            if len(splitted_test) < test_depth:
+                continue
+            if json_line["Package"] not in logs_per_test:
+                logs_per_test[json_line["Package"]] = {}
+
+            test_name = splitted_test[: min(test_depth, len(splitted_test))]
+            logs_per_test[json_line["Package"]]["/".join(test_name)] = []
+
+        for line in all_lines:
+            json_line = json.loads(line)
+            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+                continue
+
+            if "===" in json_line["Output"]:  # Ignore these lines that are produced when running test concurrently
+                continue
+
+            splitted_test = json_line["Test"].split("/")
+
+            if len(splitted_test) < test_depth:  # Append logs to all children tests
+                for test_name in logs_per_test[json_line["Package"]]:
+                    if is_parent(splitted_test, test_name.split("/")):
+                        logs_per_test[json_line["Package"]][test_name].append(json_line["Output"])
+                continue
+
+            logs_per_test[json_line["Package"]]["/".join(splitted_test[:test_depth])].append(json_line["Output"])
+    return logs_per_test
+
+
+def write_result_to_log_files(logs_per_test, log_folder):
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            sanitized_package_name = re.sub(r"[^\w_. -]", "_", package)
+            sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
+            with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
+                f.write("".join(logs))
+
+
+class TooManyLogsError(Exception):
+    pass
+
+
+def pretty_print_logs(logs_per_test, max_size=250000):
+    # Compute size in bytes of what we are about to print. If it exceeds max_size, we skip printing because it will make the Gitlab logs almost completely collapsed.
+    # By default Gitlab has a limit of 500KB per job log, so we want to avoid printing too much.
+    size = 0
+    for _, tests in logs_per_test.items():
+        for _, logs in tests.items():
+            size += len("".join(logs).encode())
+    if size > max_size and running_in_ci():
+        raise TooManyLogsError
+    for package, tests in logs_per_test.items():
+        for test, logs in tests.items():
+            with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
+                print("Complete logs for " + package + "." + test)
+                print("".join(logs))
 
 
 @task
