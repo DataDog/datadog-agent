@@ -60,6 +60,7 @@ generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["trigger_auto_staging_release"]
+  tags: ["arch:amd64"]
   rules:
     - if: $DDR == "true"
       when: never
