@@ -15,14 +15,14 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
-type linuxNetworkPathIntegrationTestSuite01 struct {
+type linuxNetworkPathIntegrationTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite01{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
