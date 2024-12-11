@@ -48,4 +48,19 @@ static __always_inline typeof(name(0)) ____##name(struct pt_regs *ctx, ##args)
 #define BPF_BYPASSABLE_UPROBE(name, args...)  BPF_BYPASSABLE_KPROBE(name, ##args)
 #define BPF_BYPASSABLE_URETPROBE(name, args...)  BPF_BYPASSABLE_KRETPROBE(name, ##args)
 
+#define BPF_BYPASSABLE_PROG(name, args...)						    \
+name(unsigned long long *ctx);						    \
+static __always_inline typeof(name(0))					    \
+____##name(unsigned long long *ctx, ##args);				    \
+typeof(name(0)) name(unsigned long long *ctx)				    \
+{									    \
+	CHECK_BPF_PROGRAM_BYPASSED()    				    \
+	_Pragma("GCC diagnostic push")					    \
+	_Pragma("GCC diagnostic ignored \"-Wint-conversion\"")		    \
+	return ____##name(___bpf_ctx_cast(args));			    \
+	_Pragma("GCC diagnostic pop")					    \
+}									    \
+static __always_inline typeof(name(0))					    \
+____##name(unsigned long long *ctx, ##args)
+
 #endif
