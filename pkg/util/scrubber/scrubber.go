@@ -44,6 +44,7 @@ type Replacer struct {
 	ReplFunc func(b []byte) []byte
 
 	// LastUpdated is the last version when the replacer was updated.
+	// This is used to track when a replacer was last updated to compare with the flare version on the rapid side to decide to apply the replacer or not.
 	LastUpdated *version.Version
 }
 
@@ -85,9 +86,9 @@ type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
 
-	// ShouldApply is a function that can be used to conditionally apply a replacer.
+	// shouldApply is a function that can be used to conditionally apply a replacer.
 	// If the function returns false, the replacer will not be applied.
-	ShouldApply func(repl Replacer) bool
+	shouldApply func(repl Replacer) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -113,6 +114,11 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	case MultiLine:
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
 	}
+}
+
+// SetShouldApply sets a condition function to the scrubber. If the function returns false, the replacer will not be applied.
+func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
+	c.shouldApply = shouldApply
 }
 
 // ScrubFile scrubs credentials from file given by pathname
@@ -194,7 +200,7 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 			continue
 		}
 
-		if c.ShouldApply != nil && !c.ShouldApply(repl) {
+		if c.shouldApply != nil && !c.shouldApply(repl) {
 			continue
 		}
 
