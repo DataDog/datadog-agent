@@ -23,9 +23,6 @@ import (
 const (
 	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
-
-	// systemProbeTestSecurityDescriptorTemplate is a template for a DACL with the current user.
-	systemProbeTestSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;;FA;;;%s)"
 )
 
 func sysprobeSocketPath(_ *testing.T) string {
