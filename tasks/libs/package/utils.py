@@ -1,5 +1,6 @@
 import glob
 import json
+import os
 
 from invoke import Exit, UnexpectedExit
 
@@ -34,6 +35,15 @@ class PackageSize:
     def ko(self):
         return self.diff > self.threshold
 
+    def path(self):
+        if self.os == 'suse':
+            dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
+            return f'{dir}/{self.flavor}-7*{self.arch}.rpm'
+        else:
+            dir = os.environ['OMNIBUS_PACKAGE_DIR']
+            separator = '_' if self.os == 'deb' else '-'
+            return f'{dir}/{self.flavor}{separator}7*{self.arch}.{self.os}'
+
     def compare(self, size, ancestor_size):
         self.size = size
         self.ancestor_size = ancestor_size
@@ -48,7 +58,7 @@ class PackageSize:
         return f"{value / 1000000:.2f}MB"
 
     def log(self):
-        return f"{self.emoji} - {self.name} size {self.mb(self.size)}: {self.mb(self.diff)} diff with previous {self.mb(self.ancestor_size)} (max: {self.mb(self.threshold)})"
+        return f"{self.emoji} - {self.name} size {self.mb(self.size)}: {self.mb(self.diff)} diff[{self.diff}] with previous {self.mb(self.ancestor_size)} (max: {self.mb(self.threshold)})"
 
     def markdown(self):
         elements = (
@@ -62,7 +72,7 @@ class PackageSize:
         return f'|{"|".join(map(str, elements))}|'
 
 
-def get_package_path(glob_pattern):
+def find_package(glob_pattern):
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))

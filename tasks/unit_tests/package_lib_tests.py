@@ -166,11 +166,26 @@ class TestGetUncompressedSize(unittest.TestCase):
         self.assertEqual(_get_uncompressed_size(c, flavor, 'suse'), 69)
 
 
-class TestMarkdownRow(unittest.TestCase):
+class TestPackageSizeMethods(unittest.TestCase):
     def test_markdown_row(self):
         size = PackageSize("amd64", "datadog-agent", "deb", 70000000)
         size.compare(67000000, 68000000)
         self.assertEqual("|datadog-agent-amd64-deb|-1.00MB|✅|67.00MB|68.00MB|70.00MB|", size.markdown())
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'root'})
+    def test_path_deb(self):
+        size = PackageSize("amd64", "datadog-agent", "deb", 70000000)
+        self.assertEqual("root/datadog-agent_7*amd64.deb", size.path())
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': 'root'})
+    def test_path_rpm(self):
+        size = PackageSize("x86_64", "datadog-agent", "rpm", 70000000)
+        self.assertEqual("root/datadog-agent-7*x86_64.rpm", size.path())
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR_SUSE': 'rout'})
+    def test_path_suse(self):
+        size = PackageSize("x86_64", "datadog-agent", "suse", 70000000)
+        self.assertEqual("rout/datadog-agent-7*x86_64.rpm", size.path())
 
 
 class TestCompare(unittest.TestCase):
@@ -220,7 +235,7 @@ class TestCompare(unittest.TestCase):
         res = compare(c, self.package_sizes, '25', s)
         self.assertEqual(res.markdown(), "|datadog-agent-aarch64-suse|1.00MB|⚠️|69.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            f"⚠️ - {flavor}-{arch}-{os_name} size 69.00MB: 1.00MB diff with previous 68.00MB (max: 70.00MB)"
+            f"⚠️ - {flavor}-{arch}-{os_name} size 69.00MB: 1.00MB diff[1000000] with previous 68.00MB (max: 70.00MB)"
         )
 
     @patch.dict(
@@ -241,7 +256,7 @@ class TestCompare(unittest.TestCase):
         res = compare(c, self.package_sizes, '25', s)
         self.assertEqual(res.markdown(), "|datadog-iot-agent-x86_64-rpm|-9.00MB|✅|69.00MB|78.00MB|70.00MB|")
         mock_print.assert_called_with(
-            f"✅ - {flavor}-{arch}-{os_name} size 69.00MB: -9.00MB diff with previous 78.00MB (max: 70.00MB)"
+            f"✅ - {flavor}-{arch}-{os_name} size 69.00MB: -9.00MB diff[-9000000] with previous 78.00MB (max: 70.00MB)"
         )
 
     @patch.dict(
@@ -263,6 +278,6 @@ class TestCompare(unittest.TestCase):
         res = compare(c, self.package_sizes, '25', s)
         self.assertEqual(res.markdown(), "|datadog-agent-aarch64-suse|71.00MB|❌|139.00MB|68.00MB|70.00MB|")
         mock_print.assert_called_with(
-            "\x1b[91m❌ - datadog-agent-aarch64-suse size 139.00MB: 71.00MB diff with previous 68.00MB (max: 70.00MB)\x1b[0m",
+            "\x1b[91m❌ - datadog-agent-aarch64-suse size 139.00MB: 71.00MB diff[71000000] with previous 68.00MB (max: 70.00MB)\x1b[0m",
             file=sys.stderr,
         )

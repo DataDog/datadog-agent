@@ -7,7 +7,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_metric_origin
-from tasks.libs.package.utils import get_package_path
+from tasks.libs.package.utils import find_package
 
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
@@ -162,14 +162,7 @@ def compare(ctx, package_sizes, ancestor, pkg_size):
     """
     Compare (or update, when on main branch) a package size with the ancestor package size.
     """
-    if pkg_size.os == 'suse':
-        dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
-        path = f'{dir}/{pkg_size.flavor}-7*{pkg_size.arch}.rpm'
-    else:
-        dir = os.environ['OMNIBUS_PACKAGE_DIR']
-        separator = '_' if pkg_size.os == 'deb' else '-'
-        path = f'{dir}/{pkg_size.flavor}{separator}7*{pkg_size.arch}.{pkg_size.os}'
-    current_size = _get_uncompressed_size(ctx, get_package_path(path), pkg_size.os)
+    current_size = _get_uncompressed_size(ctx, find_package(pkg_size.path()), pkg_size.os)
     if os.environ['CI_COMMIT_REF_NAME'] == get_default_branch():
         # On main, ancestor is the current commit, so we set the current value
         package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os] = current_size

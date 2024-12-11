@@ -16,7 +16,7 @@ class TestCheckSize(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
         },
     )
-    @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
+    @patch('tasks.libs.package.size.find_package', new=MagicMock(return_value='datadog-agent'))
     @patch('tasks.package.display_message')
     def test_dev_branch_ko(self, display_mock):
         flavor = 'datadog-agent'
@@ -45,7 +45,7 @@ class TestCheckSize(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
         },
     )
-    @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
+    @patch('tasks.libs.package.size.find_package', new=MagicMock(return_value='datadog-agent'))
     @patch('tasks.package.display_message', new=MagicMock())
     @patch('tasks.package.upload_package_sizes')
     def test_dev_branch_ok(self, upload_mock, print_mock):
@@ -70,7 +70,7 @@ class TestCheckSize(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'main',
         },
     )
-    @patch('tasks.libs.package.size.get_package_path', new=MagicMock(return_value='datadog-agent'))
+    @patch('tasks.libs.package.size.find_package', new=MagicMock(return_value='datadog-agent'))
     @patch('tasks.package.display_message', new=MagicMock())
     def test_main_branch_ok(self):
         flavor = 'datadog-agent'
