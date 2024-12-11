@@ -6,6 +6,7 @@
 package invocationlifecycle
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -807,6 +808,92 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 	assert.Equal(t, "6fb5c3a05c73dbfe", executionSpan.Meta["_dd.p.tid"])
 
+}
+
+func TestEndExecutionSpanWithSpanLinks(t *testing.T) {
+	tests := []struct {
+		name           string
+		spanPointers   []SpanPointer
+		expectedHashes []string
+	}{
+		{
+			name: "single span pointer",
+			spanPointers: []SpanPointer{
+				{
+					Hash: "abc",
+					Kind: "aws.s3.object",
+				},
+			},
+			expectedHashes: []string{"abc"},
+		},
+		{
+			name: "multiple span pointers",
+			spanPointers: []SpanPointer{
+				{
+					Hash: "def",
+					Kind: "aws.s3.object",
+				},
+				{
+					Hash: "ghi",
+					Kind: "aws.s3.object",
+				},
+			},
+			expectedHashes: []string{"def", "ghi"},
+		},
+		{
+			name:           "no span pointers",
+			spanPointers:   nil,
+			expectedHashes: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentExecutionInfo := &ExecutionStartInfo{}
+			lp := &LifecycleProcessor{
+				requestHandler: &RequestHandler{
+					executionInfo: currentExecutionInfo,
+					spanPointers:  tt.spanPointers,
+					triggerTags:   make(map[string]string),
+				},
+			}
+
+			startTime := time.Now()
+			startDetails := &InvocationStartDetails{
+				StartTime:          startTime,
+				InvokeEventHeaders: http.Header{},
+			}
+			lp.startExecutionSpan(nil, []byte("{}"), startDetails)
+
+			endDetails := &InvocationEndDetails{
+				EndTime:            startTime.Add(1 * time.Second),
+				RequestID:          "test-request-id",
+				ResponseRawPayload: []byte("{}"),
+			}
+
+			executionSpan := lp.endExecutionSpan(endDetails)
+
+			if len(tt.expectedHashes) == 0 {
+				assert.NotContains(t, executionSpan.Meta, "_dd.span_links")
+				return
+			}
+
+			var spanLinks []map[string]interface{}
+			err := json.Unmarshal([]byte(executionSpan.Meta["_dd.span_links"]), &spanLinks)
+			assert.NoError(t, err)
+			assert.Equal(t, len(tt.expectedHashes), len(spanLinks))
+			for i, spanLink := range spanLinks {
+				attributes, ok := spanLink["attributes"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedHashes[i], attributes["ptr.hash"])
+				assert.Equal(t, "span-pointer", attributes["link.kind"])
+				assert.Equal(t, "u", attributes["ptr.dir"])
+				assert.Equal(t, "aws.s3.object", attributes["ptr.kind"])
+				assert.Equal(t, "0", spanLink["span_id"])
+				assert.Equal(t, "0", spanLink["trace_id"])
+			}
+		})
+	}
 }
 
 func TestParseLambdaPayload(t *testing.T) {
