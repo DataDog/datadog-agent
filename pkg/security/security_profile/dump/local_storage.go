@@ -10,6 +10,7 @@ package dump
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -87,7 +88,11 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 		// remove everything
 		for _, filePath := range *filePaths {
 			if err := os.Remove(filePath); err != nil {
-				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", filePath, err)
+				logFn := seclog.Warnf
+				if errors.Is(err, os.ErrNotExist) {
+					logFn = seclog.Debugf
+				}
+				logFn("Failed to remove dump %s (limit of dumps reach): %v", filePath, err)
 			}
 		}
 
