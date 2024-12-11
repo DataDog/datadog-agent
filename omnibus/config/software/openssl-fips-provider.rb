@@ -22,15 +22,17 @@ source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
+    env = with_standard_compiler_flags(with_embedded_path)
+    env['MAKEOPTS'] = "-j#{workers}"
     prefix = if windows_target? then "perl.exe" else "" end
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #
     # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-    command "#{prefix} ./Configure enable-fips"
+    command "#{prefix} ./Configure enable-fips", env: env
 
-    command "make V=1"
-    command "make install_fips V=1"
+    command "make", env: env
+    command "make install_fips", env: env
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
 
     mkdir "#{install_dir}/embedded/ssl"
