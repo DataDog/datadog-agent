@@ -619,7 +619,7 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
-func getServiceNameFromContainerTags(tags []string) string {
+func getServiceNameFromContainerTags(tags []string) (string, string) {
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -660,10 +660,10 @@ func getServiceNameFromContainerTags(tags []string) string {
 		}
 
 		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return *tag.tagValue
+		return tag.tagName, *tag.tagValue
 	}
 
-	return ""
+	return "", ""
 }
 
 func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
@@ -684,8 +684,9 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	serviceName := getServiceNameFromContainerTags(container.Tags)
+	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
 	service.ContainerServiceName = serviceName
+	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
 	s.mux.Lock()
