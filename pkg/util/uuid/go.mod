@@ -17,9 +17,9 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
@@ -31,3 +31,5 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../version

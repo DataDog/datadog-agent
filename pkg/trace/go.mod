@@ -57,6 +57,7 @@ require go.opentelemetry.io/collector/component/componenttest v0.115.0
 require go.opentelemetry.io/collector/processor v0.115.0 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/go-sqllexer v0.0.17 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -124,3 +125,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../version
