@@ -247,7 +247,7 @@ func flipSourceDest(conn *network.ConnectionStats, pktType uint8) {
 	}
 }
 
-func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8, isLoopback bool) {
+func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8, _isLoopback bool) {
 	t.m.Lock()
 	defer t.m.Unlock()
 
