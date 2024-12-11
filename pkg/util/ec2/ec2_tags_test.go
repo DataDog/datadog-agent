@@ -56,7 +56,7 @@ func TestGetSecurityCreds(t *testing.T) {
 			w.Header().Set("Content-Type", "text/plain")
 			content, err := os.ReadFile("payloads/security_cred.json")
 			require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
-			io.WriteString(w, string(content))
+			w.Write(content)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
@@ -79,7 +79,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		content, err := os.ReadFile("payloads/instance_indentity.json")
 		require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
-		io.WriteString(w, string(content))
+		w.Write(content)
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL

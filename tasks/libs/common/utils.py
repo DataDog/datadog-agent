@@ -61,6 +61,10 @@ class TimedOperationResult:
             return True
 
 
+class TestsNotSupportedError(Exception):
+    pass
+
+
 def get_all_allowed_repo_branches():
     return ALLOWED_REPO_ALL_BRANCHES
 
@@ -657,3 +661,15 @@ def agent_working_directory():
     from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
 
     return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY
+
+
+def is_macos():
+    return sys.platform == 'darwin'
+
+
+def is_linux():
+    return sys.platform.startswith('linux')
+
+
+def is_windows():
+    return sys.platform == 'win32'

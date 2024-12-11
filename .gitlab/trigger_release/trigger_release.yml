@@ -7,7 +7,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
-  # that would make us deploy even when there are kitchen failures etc
+  # that would make us deploy even when there are e2e tests failures etc
   # We only want to allow automatically triggering agent-release-manangement
   # pipelines when everything goes well
   variables:

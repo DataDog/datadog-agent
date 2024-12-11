@@ -23,9 +23,12 @@ dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
 }
 
 dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_d_sb_offset", offset);
+
     dev_t dev;
     struct super_block *sb;
-    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    bpf_probe_read(&sb, sizeof(sb), (char *)dentry + offset);
     bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
     return dev;
 }

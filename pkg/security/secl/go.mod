@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/security/secl
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -8,7 +8,6 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/fatih/structtag v1.2.0
-	github.com/fsnotify/fsnotify v1.8.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gopacket v1.1.19
 	github.com/hashicorp/go-multierror v1.1.1
@@ -18,10 +17,9 @@ require (
 	github.com/spf13/cast v1.7.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
-	golang.org/x/sys v0.27.0
+	golang.org/x/sys v0.28.0
 	golang.org/x/text v0.20.0
 	golang.org/x/tools v0.27.0
-	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/mathutil v1.6.0
 	sigs.k8s.io/yaml v1.4.0
