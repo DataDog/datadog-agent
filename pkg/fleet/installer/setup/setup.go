@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
@@ -25,7 +26,13 @@ const (
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	switch flavor {
 	case FlavorDatabricks:
-		return djm.SetupDatabricks(ctx, env)
+		if err := packages.SetupInstaller(ctx); err != nil {
+			return fmt.Errorf("failed to setup installer: %w", err)
+		}
+		if err := djm.SetupDatabricks(ctx, env); err != nil {
+			return fmt.Errorf("failed to setup Databricks: %w", err)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown setup flavor %s", flavor)
 	}

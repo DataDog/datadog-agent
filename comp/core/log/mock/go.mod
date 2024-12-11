@@ -31,7 +31,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 )
@@ -40,7 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
