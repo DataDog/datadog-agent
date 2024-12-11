@@ -44,7 +44,7 @@ require (
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/metric v1.32.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.27.0
+	golang.org/x/sys v0.28.0
 	golang.org/x/time v0.8.0
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.2
@@ -57,6 +57,7 @@ require go.opentelemetry.io/collector/component/componenttest v0.115.0
 require go.opentelemetry.io/collector/processor v0.115.0 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/go-sqllexer v0.0.17 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -124,3 +125,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../version
