@@ -9,20 +9,22 @@ package networkpathintegration
 import (
 	_ "embed"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
 )
 
-type linuxNetworkPathIntegrationTestSuite struct {
+type linuxNetworkPathIntegrationTestSuite05 struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite05{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
@@ -32,8 +34,11 @@ func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
-	s.assertMetrics([][]string{
-		{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
-		{"destination_hostname:8.8.8.8", "protocol:UDP"},
-	})
+	fakeIntake := s.Env().FakeIntake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		s.assertMetrics(fakeIntake, c, [][]string{
+			{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
+			{"destination_hostname:8.8.8.8", "protocol:UDP"},
+		})
+	}, 5*time.Minute, 3*time.Second)
 }

@@ -9,10 +9,10 @@ package networkpathintegration
 import (
 	_ "embed"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,31 +30,30 @@ type baseNetworkPathIntegrationTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func (s *baseNetworkPathIntegrationTestSuite) assertMetrics(metricTags [][]string) {
-	fakeClient := s.Env().FakeIntake.Client()
+func (s *baseNetworkPathIntegrationTestSuite) assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metricTags [][]string) {
+	fakeClient := fakeIntake.Client()
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.T().Log("try assert datadog.network_path.path.monitored metric")
-		metrics, err := fakeClient.FilterMetrics("datadog.network_path.path.monitored")
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-		for _, metric := range metrics {
-			s.T().Logf("    datadog.network_path.path.monitored metric tags: %+v", metric.Tags)
-		}
-		for _, tags := range metricTags {
-			// assert destination is monitored
-			metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
-			assert.NoError(c, err)
-			assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+	s.T().Log("try assert datadog.network_path.path.monitored metric")
+	metrics, err := fakeClient.FilterMetrics("datadog.network_path.path.monitored")
+	require.NoError(c, err)
+	assert.NotEmpty(c, metrics)
+	for _, metric := range metrics {
+		s.T().Logf("    datadog.network_path.path.monitored metric tags: %+v", metric.Tags)
+	}
+	for _, tags := range metricTags {
+		s.T().Logf("    test metric tags: %+v", tags)
+		// assert destination is monitored
+		metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
 
-			// assert hops
-			metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.hops",
-				fakeintakeclient.WithTags[*aggregator.MetricSeries](tags),
-				fakeintakeclient.WithMetricValueHigherThan(0),
-			)
-			assert.NoError(c, err)
-			assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+		// assert hops
+		metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.hops",
+			fakeintakeclient.WithTags[*aggregator.MetricSeries](tags),
+			fakeintakeclient.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
 
-		}
-	}, 5*time.Minute, 3*time.Second)
+	}
 }
