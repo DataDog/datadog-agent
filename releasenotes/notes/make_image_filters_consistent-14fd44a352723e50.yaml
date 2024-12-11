@@ -12,5 +12,5 @@ fixes:
     Depending on the Agent configuration, filters were sometimes behaving differently
     for metrics and logs. For example, an image filter that worked for excluding logs
     didn't work when used to exclude metrics, and vice versa. 
-    The exclusion logic is now guaranteed to be consistent between metrics and logs.
+    The exclusion logic is now consistent between metrics and logs.
 
