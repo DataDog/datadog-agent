@@ -4,56 +4,33 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package netpath contains e2e tests for Network Path Integration feature
-package netpath
+package network_path_integration
 
 import (
 	_ "embed"
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-type networkPathIntegrationTestSuite struct {
+//go:embed fixtures/system-probe.yaml
+var sysProbeConfig []byte
+
+//go:embed fixtures/network_path.yaml
+var networkPathIntegration []byte
+
+type baseNetworkPathIntegrationTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestNetworkPathIntegrationSuite runs the Network Path Integration e2e suite
-func TestNetworkPathIntegrationSuite(t *testing.T) {
-	// language=yaml
-	sysProbeConfig := `
-traceroute:
-  enabled: true
-`
-
-	// language=yaml
-	networkPathIntegration := `
-instances:
-- hostname: api.datadoghq.eu
-  protocol: TCP
-  port: 443
-- hostname: 8.8.8.8
-  protocol: UDP
-`
-
-	e2e.Run(t, &networkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithSystemProbeConfig(sysProbeConfig),
-			agentparams.WithIntegration("network_path.d", networkPathIntegration),
-		)),
-	))
-}
-
-func (s *networkPathIntegrationTestSuite) TestNetworkPathIntegrationMetrics() {
+func (s *baseNetworkPathIntegrationTestSuite) TestNetworkPathIntegrationMetrics() {
 	fakeClient := s.Env().FakeIntake.Client()
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
