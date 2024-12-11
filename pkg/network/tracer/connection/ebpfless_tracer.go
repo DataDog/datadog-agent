@@ -248,27 +248,20 @@ func flipSourceDest(conn *network.ConnectionStats, pktType uint8) {
 }
 
 func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8, isLoopback bool) {
-	// Loopback interfaces show up twice in packet capture (once incoming, once outgoing).
-	// Similarly, in our tracer, a local connection creates two ConnectionStats: one for the server, one for the client.
-	// So we can just take the pktType and pass it through, it will properly get us both sides
-	if isLoopback {
-		switch pktType {
-		case unix.PACKET_HOST:
-			conn.Direction = network.INCOMING
-		case unix.PACKET_OUTGOING:
-			conn.Direction = network.OUTGOING
-		}
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	ok := t.boundPorts.Find(conn.Type, conn.SPort)
+	if ok {
+		// incoming connection
+		conn.Direction = network.INCOMING
 		return
 	}
 
-	t.m.Lock()
-	defer t.m.Unlock()
-	// For external traffic, we need to compare against bound ports to determine the correct direction
-	isIncoming := t.boundPorts.Find(conn.Type, conn.SPort)
-	if isIncoming {
-		// incoming connection
+	switch pktType {
+	case unix.PACKET_HOST:
 		conn.Direction = network.INCOMING
-	} else {
+	case unix.PACKET_OUTGOING:
 		conn.Direction = network.OUTGOING
 	}
 }
