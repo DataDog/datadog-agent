@@ -29,7 +29,7 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # OpenTelemetry collector packages need to be updated with inv rather than dependabot
       - dependency-name: go.opentelemetry.io/collector/*
-      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
