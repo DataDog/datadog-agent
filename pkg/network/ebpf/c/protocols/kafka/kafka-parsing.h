@@ -124,9 +124,43 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/kafka_filter")
+int kprobe__kafka_filter(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        return 0;
+    }
+
+    kprobe_dispatcher_arguments_t *args = bpf_map_lookup_elem(&kprobe_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
+    if (kafka_tel == NULL) {
+        return 0;
+    }
+
+    // On stack for 4.14
+    conn_tuple_t tup = args->tup;
+
+    pktbuf_t pkt = pktbuf_from_kprobe(ctx, args);
+
+    if (kafka_process_response(ctx, &tup, kafka, pkt, NULL)) {
+        return 0;
+    }
+
+    kafka_process(&tup, kafka, pkt, kafka_tel);
+    return 0;
+}
+
 SEC("uprobe/kafka_tls_termination")
 int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
+
+    log_debug("uprobe_kafka_tls_termination");
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
@@ -1147,6 +1181,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
     case PKTBUF_TLS:
         bpf_tail_call_compat(ctx, &tls_process_progs, index);
         break;
+    case PKTBUF_KPROBE:
+        bpf_tail_call_compat(ctx, &kprobe_protocols_progs, index);
+        break;
     }
 
     // The only reason we would get here if the tail call failed due to too
@@ -1461,6 +1498,56 @@ int uprobe__kafka_tls_produce_response_partition_parser_v9(struct pt_regs *ctx) 
     return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, 11, KAFKA_PRODUCE);
 }
 
+static __always_inline int __kprobe__kafka_response_parser(struct pt_regs *ctx, enum parser_level level, u32 min_api_version, u32 max_api_version, u32 target_api_key) {
+    const __u32 zero = 0;
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        return 0;
+    }
+
+    kprobe_dispatcher_arguments_t *args = bpf_map_lookup_elem(&kprobe_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // Put tuple on stack for 4.14.
+    conn_tuple_t tup = args->tup;
+    kafka_response_parser(kafka, ctx, &tup, pktbuf_from_kprobe(ctx, args), level, min_api_version, max_api_version, target_api_key);
+
+    return 0;
+}
+
+SEC("kprobe/kafka_fetch_response_partition_parser_v0")
+int kprobe__kafka_fetch_response_partition_parser_v0(struct pt_regs *ctx) {
+    return __kprobe__kafka_response_parser(ctx, PARSER_LEVEL_PARTITION, 0, 11, KAFKA_FETCH);
+}
+
+SEC("kprobe/kafka_fetch_response_partition_parser_v12")
+int kprobe__kafka_fetch_response_partition_parser_v12(struct pt_regs *ctx) {
+    return __kprobe__kafka_response_parser(ctx, PARSER_LEVEL_PARTITION, 12, 12, KAFKA_FETCH);
+}
+
+SEC("kprobe/kafka_fetch_response_record_batch_parser_v0")
+int kprobe__kafka_fetch_response_record_batch_parser_v0(struct pt_regs *ctx) {
+    return __kprobe__kafka_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 0, 11, KAFKA_FETCH);
+}
+
+SEC("kprobe/kafka_fetch_response_record_batch_parser_v12")
+int kprobe__kafka_fetch_response_record_batch_parser_v12(struct pt_regs *ctx) {
+    return __kprobe__kafka_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 12, 12, KAFKA_FETCH);
+}
+
+SEC("kprobe/kafka_produce_response_partition_parser_v0")
+int kprobe__kafka_produce_response_partition_parser_v0(struct pt_regs *ctx) {
+    return __kprobe__kafka_response_parser(ctx, PARSER_LEVEL_PARTITION, 0, 8, KAFKA_PRODUCE);
+}
+
+SEC("kprobe/kafka_produce_response_partition_parser_v9")
+int kprobe__kafka_produce_response_partition_parser_v9(struct pt_regs *ctx) {
+    return __kprobe__kafka_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, 11, KAFKA_PRODUCE);
+}
+
+
 // Gets the next expected TCP sequence in the stream, assuming
 // no retransmits and out-of-order segments.
 static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
@@ -1480,8 +1567,8 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
     u32 orig_offset = offset;
 
     // Usually the first packet containts the message size, correlation ID, and the first
-    // fields of the headers up to the partirtion start. However, with TLS, each read from
-    // user space will arrive as a separate "packet".
+    // fields of the headers up to the partition start. However, with TLS or
+    // kprobes, each read from user space will arrive as a separate "packet".
     //
     // In theory the program can read even one byte at a time, but since supporting arbitrary
     // sizes costs instructions we assume some common cases:
@@ -1494,7 +1581,9 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
     // There could be some false positives due to this, if the message size happens to match
     // a valid in-flight correlation ID.
 
-    if (pkt.type != PKTBUF_TLS || pktlen >= 8) {
+    bool maybe_split_header = pkt.type == PKTBUF_TLS || pkt.type == PKTBUF_KPROBE;
+
+    if (!maybe_split_header || pktlen >= 8) {
         offset += sizeof(__s32); // Skip message size
     }
 
@@ -1507,7 +1596,7 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
     bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
     kafka_transaction_t *request = bpf_map_lookup_elem(&kafka_in_flight, &key);
     if (!request) {
-        if (pkt.type == PKTBUF_TLS && pktlen >= 8) {
+        if (maybe_split_header && pktlen >= 8) {
             // Try reading the first value, in case it's case (a) or (c)
             offset = orig_offset;
             PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, correlation_id2, pkt, offset);
@@ -1751,6 +1840,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         }
         // We now know the record count, but we'll have to wait for the response to obtain the error code and latency
         kafka_transaction->records_count = records_count;
+        extra_debug("produce enqueue, records_count %u", records_count);
         break;
     }
     case KAFKA_FETCH:

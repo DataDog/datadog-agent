@@ -22,6 +22,7 @@
 #include "protocols/amqp/helpers.h"
 #include "protocols/redis/helpers.h"
 #include "protocols/classification/dispatcher-helpers.h"
+#include "protocols/classification/dispatcher-helpers-kprobes.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/types.h"
@@ -182,6 +183,8 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     normalize_tuple(&normalized_tuple);
     normalized_tuple.pid = 0;
     normalized_tuple.netns = 0;
+
+    log_debug("tls_finish");
 
     // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
     protocol_stack_t *stack = __get_protocol_stack_if_exists(&normalized_tuple);

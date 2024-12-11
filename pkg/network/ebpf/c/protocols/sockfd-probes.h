@@ -17,6 +17,7 @@
 
 SEC("kprobe/tcp_close")
 int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
+    log_debug("tcp_close sk=%lx", (unsigned long)sk);
     if (sk == NULL) {
         return 0;
     }
@@ -27,7 +28,12 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         return 0;
     }
 
+    log_debug("tcp_close tup: saddr: %08llx %08llx (%u)", t.saddr_h, t.saddr_l, t.sport);
+    log_debug("tcp_close tup: daddr: %08llx %08llx (%u)", t.daddr_h, t.daddr_l, t.dport);
+    log_debug("tcp_close tup: netns: %08x pid: %u", t.netns, t.pid);
+
     pid_fd_t *pid_fd = bpf_map_lookup_elem(&pid_fd_by_tuple, &t);
+    log_debug("tcp_close pid_fd:%p", pid_fd);
     if (pid_fd == NULL) {
         return 0;
     }

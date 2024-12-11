@@ -41,6 +41,7 @@ const (
 	inFlightMap            = "http_in_flight"
 	filterTailCall         = "socket__http_filter"
 	tlsProcessTailCall     = "uprobe__http_process"
+	kprobeProcessTailCall  = "kprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
 	eventStream            = "http"
 )
@@ -85,6 +86,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTPTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.KprobeDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeProcessTailCall,
 			},
 		},
 	},
