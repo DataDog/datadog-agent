@@ -161,28 +161,30 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             NativeMethods.Setup(n => n.IsServiceAccount(userSid)).Returns(false);
             NativeMethods.Setup(n => n.IsDomainAccount(userSid)).Returns(true);
-            NativeMethods.Setup(n => n.LookupAccountName(
-                    $"{userDomain}\\{userName}",
-                    out It.Ref<string>.IsAny,
-                    out It.Ref<string>.IsAny,
-                    out It.Ref<SecurityIdentifier>.IsAny,
-                    out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(new LookupAccountNameDelegate(
-                    (
-                        string _,
-                        out string user,
-                        out string domain,
-                        out SecurityIdentifier sid,
-                        out SID_NAME_USE nameUse
-                    ) =>
-                    {
-                        user = userName;
-                        domain = userDomain;
-                        sid = userSid;
-                        nameUse = userType;
-                    }))
-                .Returns(true);
-
+            foreach (var fqdn in new[] { $"{userDomain}\\{userName}", $"{userName}@{userDomain}" })
+            {
+                NativeMethods.Setup(n => n.LookupAccountName(
+                        fqdn,
+                        out It.Ref<string>.IsAny,
+                        out It.Ref<string>.IsAny,
+                        out It.Ref<SecurityIdentifier>.IsAny,
+                        out It.Ref<SID_NAME_USE>.IsAny))
+                    .Callback(new LookupAccountNameDelegate(
+                        (
+                            string _,
+                            out string user,
+                            out string domain,
+                            out SecurityIdentifier sid,
+                            out SID_NAME_USE nameUse
+                        ) =>
+                        {
+                            user = userName;
+                            domain = userDomain;
+                            sid = userSid;
+                            nameUse = userType;
+                        }))
+                    .Returns(true);
+            }
             return this;
         }
 
