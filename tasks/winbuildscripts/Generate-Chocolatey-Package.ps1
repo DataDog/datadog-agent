@@ -45,22 +45,22 @@ New-Item -ItemType Directory -Path $buildTempDir | Out-Null
 Push-Location -Path $buildTempDir
 try {
     # Set the artifact name and package source based on the flavor
-    if ($flavor -eq "datadog-agent") {
+    if ($Flavor -eq "datadog-agent") {
         # For historical reasons, use a different artifact name for the datadog-agent flavor
-        # See agent-release-mangement for more details
+        # See agent-release-management for more details
         $artifactName = "ddagent-cli"
         $packageSource = "$repoRoot\chocolatey\datadog-agent\$installMethod"
         $nuspecFile = "datadog-agent-$installMethod.nuspec"
-    } elseif ($flavor -eq "datadog-fips-agent") {
+    } elseif ($Flavor -eq "datadog-fips-agent") {
         if ($installMethod -eq "offline") {
-            Write-Error "Offline install method not supported for flavor $flavor"
+            Write-Error "Offline install method not supported for flavor $Flavor"
             exit 1
         }
         $artifactName = "datadog-fips-agent"
         $packageSource = "$repoRoot\chocolatey\datadog-fips-agent\online"
         $nuspecFile = "datadog-fips-agent-online.nuspec"
     } else {
-        Write-Error "Unknown flavor $flavor"
+        Write-Error "Unknown flavor $Flavor"
         exit 1
     }
 
@@ -120,7 +120,7 @@ try {
         (Get-Content $installScript).replace('$__url_from_ci__', '"' +  $url  + '"').replace('$__checksum_from_ci__', '"' +  $checksum  + '"') | Set-Content $installScript
     }
 
-    Write-Host "Generated nupsec file:"
+    Write-Host "Generated nuspec file:"
     Write-Host (Get-Content $installScript | Out-String)
 
     if (!(Test-Path $outputDirectory)) {
