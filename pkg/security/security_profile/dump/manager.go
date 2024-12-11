@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -47,7 +48,7 @@ type ActivityDumpHandler interface {
 
 // SecurityProfileManager is a generic interface used to communicate with the Security Profile manager
 type SecurityProfileManager interface {
-	FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry
+	FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tags.Workload
 	OnLocalStorageCleanup(files []string)
 }
 
@@ -852,6 +853,9 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 	// handle overweight dumps
 	for _, ad := range dumps {
+		// restart a new dump for the same workload
+		newDump := adm.loadController.NextPartialDump(ad)
+
 		// stop the dump but do not release the cgroup
 		ad.Finalize(false)
 		seclog.Infof("tracing paused for [%s]", ad.GetSelectorStr())
@@ -866,9 +870,6 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		} else {
 			adm.emptyDropped.Inc()
 		}
-
-		// restart a new dump for the same workload
-		newDump := adm.loadController.NextPartialDump(ad)
 
 		adm.Lock()
 		if err := adm.insertActivityDump(newDump); err != nil {

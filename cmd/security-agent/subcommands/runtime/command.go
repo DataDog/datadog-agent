@@ -223,6 +223,7 @@ type processCacheDumpCliParams struct {
 	*command.GlobalParams
 
 	withArgs bool
+	format   string
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
@@ -246,6 +247,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
+	processCacheDumpCmd.Flags().StringVar(&cliParams.format, "format", "dot", "process cache dump format")
 
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
@@ -328,7 +330,7 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
+	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs, processCacheDumpArgs.format)
 	if err != nil {
 		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}
@@ -352,7 +354,7 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	}
 
 	if len(resp.GetError()) > 0 {
-		return fmt.Errorf("couldn't dump network namespaces: %w", err)
+		return fmt.Errorf("couldn't dump network namespaces: %s", resp.GetError())
 	}
 
 	fmt.Printf("Network namespace dump: %s\n", resp.GetDumpFilename())
@@ -470,7 +472,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
+	provider, err := rules.NewPoliciesDirProvider(args.dir)
 	if err != nil {
 		return err
 	}
@@ -609,7 +611,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir)
 	if err != nil {
 		return err
 	}

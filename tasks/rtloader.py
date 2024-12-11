@@ -31,33 +31,8 @@ def run_make_command(ctx, command=""):
     ctx.run(f"make -C {get_rtloader_build_path()} {command}", err_stream=sys.stdout)
 
 
-def get_cmake_cache_path(rtloader_path):
-    return os.path.join(rtloader_path, "CMakeCache.txt")
-
-
-def clear_cmake_cache(rtloader_path, settings):
-    """
-    CMake is not regenerated when we change an option. This function detect the
-    current cmake settings and remove the cache if they have change to retrigger
-    a cmake build.
-    """
-    cmake_cache = get_cmake_cache_path(rtloader_path)
-    if not os.path.exists(cmake_cache):
-        return
-
-    settings_not_found = settings.copy()
-    with open(cmake_cache) as cache:
-        for line in cache.readlines():
-            for key, value in settings.items():
-                if line.strip() == key + "=" + value:
-                    settings_not_found.pop(key)
-
-    if settings_not_found:
-        os.remove(cmake_cache)
-
-
 @task
-def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
+def make(ctx, install_prefix=None, cmake_options=''):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
@@ -67,24 +42,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
     if os.getenv('DD_CMAKE_TOOLCHAIN'):
         cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
 
-    python_runtimes = python_runtimes.split(',')
-
-    settings = {
-        "DISABLE_PYTHON2:BOOL": "OFF",
-        "DISABLE_PYTHON3:BOOL": "OFF",
-    }
-    if '2' not in python_runtimes:
-        settings["DISABLE_PYTHON2:BOOL"] = "ON"
-    if '3' not in python_runtimes:
-        settings["DISABLE_PYTHON3:BOOL"] = "ON"
-
     rtloader_build_path = get_rtloader_build_path()
-
-    # clear cmake cache if settings have changed since the last build
-    clear_cmake_cache(rtloader_build_path, settings)
-
-    for option, value in settings.items():
-        cmake_args += f" -D{option}={value} "
 
     if sys.platform == 'darwin':
         cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"

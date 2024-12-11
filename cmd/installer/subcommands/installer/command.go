@@ -9,15 +9,16 @@ package installer
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -46,6 +47,13 @@ const (
 	envAgentMajorVersion           = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion           = "DD_AGENT_MINOR_VERSION"
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
+	envRemoteUpdates               = "DD_REMOTE_UPDATES"
+	envHTTPProxy                   = "HTTP_PROXY"
+	envhttpProxy                   = "http_proxy"
+	envHTTPSProxy                  = "HTTPS_PROXY"
+	envhttpsProxy                  = "https_proxy"
+	envNoProxy                     = "NO_PROXY"
+	envnoProxy                     = "no_proxy"
 )
 
 // BootstrapCommand returns the bootstrap command.
@@ -88,7 +96,7 @@ type cmd struct {
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
-	span, ctx := newSpan(operation)
+	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	setInstallerUmask(span)
 	return &cmd{
 		t:    t,
@@ -161,9 +169,28 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
 	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
 	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
+	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
+	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
+	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
+	cmd.span.SetTag("env.http_proxy", redactURL(os.Getenv(envhttpProxy)))
+	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
+	cmd.span.SetTag("env.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
+	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
+	cmd.span.SetTag("env.no_proxy", os.Getenv(envnoProxy))
 	return &bootstrapperCmd{
 		cmd: cmd,
 	}
+}
+
+func redactURL(u string) string {
+	if u == "" {
+		return ""
+	}
+	url, err := url.Parse(u)
+	if err != nil {
+		return "invalid"
+	}
+	return url.Redacted()
 }
 
 type telemetryConfigFields struct {
@@ -199,26 +226,13 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if site == "" {
 		site = config.Site
 	}
-	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
-	if err != nil {
-		fmt.Printf("failed to initialize telemetry: %v\n", err)
-		return nil
-	}
-	err = t.Start(context.Background())
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
+	err := t.Start(context.Background())
 	if err != nil {
 		fmt.Printf("failed to start telemetry: %v\n", err)
 		return nil
 	}
 	return t
-}
-
-func newSpan(operationName string) (ddtrace.Span, context.Context) {
-	var spanOptions []ddtrace.StartSpanOption
-	spanContext, ok := telemetry.SpanContextFromEnv()
-	if ok {
-		spanOptions = append(spanOptions, tracer.ChildOf(spanContext))
-	}
-	return tracer.StartSpanFromContext(context.Background(), operationName, spanOptions...)
 }
 
 func versionCommand() *cobra.Command {
@@ -246,7 +260,6 @@ func defaultPackagesCommand() *cobra.Command {
 }
 
 func bootstrapCommand() *cobra.Command {
-	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:     "bootstrap",
 		Short:   "Bootstraps the package with the first version.",
@@ -254,17 +267,14 @@ func bootstrapCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			b := newBootstrapperCmd("bootstrap")
 			defer func() { b.Stop(err) }()
-			ctx, cancel := context.WithTimeout(b.ctx, timeout)
-			defer cancel()
-			return bootstrapper.Bootstrap(ctx, b.env)
+			return bootstrapper.Bootstrap(b.ctx, b.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
 	return cmd
 }
 
 func setupCommand() *cobra.Command {
-	var timeout time.Duration
+	flavor := ""
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
@@ -272,12 +282,13 @@ func setupCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
-			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
-			defer cancel()
-			return installer.Setup(ctx, cmd.env)
+			if flavor == "" {
+				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
+			}
+			return setup.Setup(cmd.ctx, cmd.env, flavor)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
+	cmd.Flags().StringVar(&flavor, "flavor", "", "The setup flavor")
 	return cmd
 }
 
@@ -293,7 +304,7 @@ func installCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0], installArgs)
 		},
@@ -313,7 +324,7 @@ func removeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -332,7 +343,7 @@ func purgeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -351,7 +362,7 @@ func installExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -370,7 +381,7 @@ func removeExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -389,7 +400,7 @@ func promoteExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -408,7 +419,7 @@ func installConfigExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 			return i.InstallConfigExperiment(i.ctx, args[0], args[1])
@@ -428,7 +439,7 @@ func removeConfigExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveConfigExperiment(i.ctx, args[0])
 		},
@@ -447,7 +458,7 @@ func promoteConfigExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteConfigExperiment(i.ctx, args[0])
 		},
@@ -466,7 +477,7 @@ func garbageCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -489,7 +500,7 @@ func isInstalledCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err

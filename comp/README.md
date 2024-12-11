@@ -109,8 +109,6 @@ agent flavors and binaries.
 
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
-*Datadog Team*: agent-metrics-logs
-
 Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
@@ -161,6 +159,11 @@ Package lsof provides a flare file with data about files opened by the agent pro
 Package pid writes the current PID to a file, ensuring that the file
 doesn't exist or doesn't contain a PID for a running process.
 
+### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
+
+Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
+status and emit flare data
+
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
 Package secrets decodes secret values by invoking the configured executable command
@@ -184,7 +187,7 @@ component temporarily wraps pkg/config.
 
 *Datadog Team*: container-platform
 
-Package tagger provides the tagger component for the Datadog Agent
+Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
@@ -322,7 +325,7 @@ Package systemprobe is the metadata provider for system-probe process
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
 sender.Sender and the event platform forwarder. This is a temporary module
@@ -334,7 +337,7 @@ Package forwarder exposes the event platform forwarder for netflow.
 
 ## [comp/netflow](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/netflow) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-integrations
 
 Package netflow implements the "netflow" bundle, which listens for netflow
 packets, processes them, and forwards relevant data to the backend.
@@ -482,7 +485,7 @@ Package rctelemetryreporter provides a component that sends RC-specific metrics 
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package snmptraps implements the a server that listens for SNMP trap data
 and sends it to the backend.
@@ -594,6 +597,12 @@ Package datadogclient provides a client to query the datadog API
 
 Package etw provides an ETW tracing interface
 
+### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
+
+*Datadog Team*: ndm-core
+
+Package haagent handles states for HA Agent feature.
+
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
 *Datadog Team*: container-platform
@@ -602,7 +611,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-integrations
 
 Package rdnsquerier provides the reverse DNS querier component.
 
@@ -611,3 +620,9 @@ Package rdnsquerier provides the reverse DNS querier component.
 *Datadog Team*: agent-metrics-logs
 
 Package compression provides a compression implementation based on the configuration or available build tags.
+
+### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
+
+*Datadog Team*: ndm-core
+
+Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device

@@ -79,6 +79,7 @@ func (server *apiServer) startServers() error {
 		tlsConfig(),
 		tlsCertPool,
 		tmf,
+		server.cfg,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

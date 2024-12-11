@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from collections import defaultdict
 
 import yaml
-from invoke import task
+from invoke import Exit, task
 
 from tasks.libs.ciproviders.gitlab_api import (
     resolve_gitlab_ci_configuration,
@@ -128,13 +129,21 @@ class TestWasher:
 
 
 @task
-def generate_flake_finder_pipeline(ctx, n=3):
+def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     """
     Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
     """
-
-    # Read gitlab config
-    config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    if generate_config:
+        # Read gitlab config
+        config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    else:
+        # Read gitlab config, which is computed and stored in compute_gitlab_ci_config job
+        if not os.path.exists("artifacts/after.gitlab-ci.yml"):
+            raise Exit(
+                "The configuration is not stored as artifact. Please ensure you ran the compute_gitlab_ci_config job, or set generate_config to True"
+            )
+        with open("artifacts/after.gitlab-ci.yml") as f:
+            config = yaml.safe_load(f)[".gitlab-ci.yml"]
 
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
@@ -180,6 +189,8 @@ def generate_flake_finder_pipeline(ctx, n=3):
                     and new_job['variables']['E2E_COMMIT_SHA'] == "$CI_COMMIT_SHA"
                 ):
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
+                if 'E2E_PRE_INITIALIZED' in new_job['variables']:
+                    del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
             new_job["needs"] = ["go_e2e_deps"]
             new_jobs[f"{job}-{i}"] = new_job

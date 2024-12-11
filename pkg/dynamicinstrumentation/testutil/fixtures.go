@@ -40,7 +40,7 @@ var basicCaptures = fixtures{
 	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_float64": {"x": capturedValue("float", "-1.646464")},
 }
 
-var multiParamCaptures = fixtures{
+var multiParamCaptures = fixtures{ //nolint:unused // TODO
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_simple_params": {
 		"a": capturedValue("bool", "false"),
 		"b": capturedValue("uint8", "42"),
@@ -167,6 +167,21 @@ var structCaptures = fixtures{
 		"b": capturedValue("string", "bb"),
 		"c": capturedValue("string", "ccc"),
 	}}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver.test_method_receiver": {
+		"r": {
+			Type: "struct", Fields: fieldMap{
+				"u": capturedValue("uint", "1"),
+			}},
+		"a": capturedValue("int", "2"),
+	},
+	// TODO: re-enable when fixing pointer method receivers
+	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.(*receiver).test_pointer_method_receiver": {
+	// 	"r": {
+	// 		Type: "struct", Fields: fieldMap{
+	// 			"u": capturedValue("uint", "3"),
+	// 		}},
+	// 	"a": capturedValue("int", "4"),
+	// },
 	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_lots_of_fields": {"l": {Type: "struct", Fields: fieldMap{
 	// 	"a": capturedValue("uint8", "1"),
 	// 	"b": capturedValue("uint8", "2"),
@@ -226,14 +241,14 @@ var structCaptures = fixtures{
 
 // TODO: this doesn't work yet:
 // could not determine locations of variables from debug information could not inspect param "x" on function: no location field in parameter entry
-var genericCaptures = fixtures{
+var genericCaptures = fixtures{ //nolint:unused // TODO
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.typeWithGenerics[go.shape.string].Guess": {"value": capturedValue("string", "generics work")},
 }
 
 // TODO: check how map entries should be represented, likely that entries have key / value pair fields
 // instead of having the keys hardcoded as string field names
 // maps are no supported at the moment so this fails anyway
-var mapCaptures = fixtures{
+var mapCaptures = fixtures{ //nolint:unused // TODO
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_map_string_to_int": {"m": {Type: "map", Fields: fieldMap{
 		"foo": capturedValue("int", "1"),
 		"bar": capturedValue("int", "2"),

@@ -51,12 +51,12 @@ func TestKeyTuplesFromConn(t *testing.T) {
 	destinationAddress := util.AddressFromString("5.6.7.8")
 	destinationPort := uint16(5678)
 
-	connectionStats := ConnectionStats{
+	connectionStats := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: sourceAddress,
 		SPort:  sourcePort,
 		Dest:   destinationAddress,
 		DPort:  destinationPort,
-	}
+	}}
 	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
 
 	assert.Len(t, keyTuples, 1, "Expected different number of key tuples")

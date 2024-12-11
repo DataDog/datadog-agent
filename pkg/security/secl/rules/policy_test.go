@@ -75,7 +75,7 @@ func TestMacroMerge(t *testing.T) {
 	event.SetFieldValue("open.file.path", "/tmp/test")
 	event.SetFieldValue("process.comm", "/usr/bin/vi")
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,18 +104,40 @@ func TestMacroMerge(t *testing.T) {
 
 func TestRuleMerge(t *testing.T) {
 	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-		}},
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+			},
+			{
+				ID:         "test_rule_foo",
+				Expression: `exec.file.name == "foo"`,
+			},
+			{
+				ID:         "test_rule_bar",
+				Expression: `exec.file.name == "bar"`,
+				Disabled:   true,
+			},
+		},
 	}
 
 	testPolicy2 := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-			Combine:    OverridePolicy,
-		}},
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Combine:    OverridePolicy,
+			},
+			{
+				ID:         "test_rule_foo",
+				Expression: `exec.file.name == "foo"`,
+				Disabled:   true,
+			},
+			{
+				ID:         "test_rule_bar",
+				Expression: `exec.file.name == "bar"`,
+			},
+		},
 	}
 
 	tmpDir := t.TempDir()
@@ -128,7 +150,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,20 +161,36 @@ func TestRuleMerge(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
-	if rule == nil {
-		t.Fatal("failed to find test_rule in ruleset")
-	}
+	t.Run("override", func(t *testing.T) {
+		rule := rs.GetRules()["test_rule"]
+		if rule == nil {
+			t.Fatal("failed to find test_rule in ruleset")
+		}
 
-	testPolicy2.Rules[0].Combine = ""
+		testPolicy2.Rules[0].Combine = ""
 
-	if err := savePolicy(filepath.Join(tmpDir, "test2.policy"), testPolicy2); err != nil {
-		t.Fatal(err)
-	}
+		if err := savePolicy(filepath.Join(tmpDir, "test2.policy"), testPolicy2); err != nil {
+			t.Fatal(err)
+		}
 
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
-		t.Error("expected rule ID conflict")
-	}
+		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected rule ID conflict")
+		}
+	})
+
+	t.Run("enabled-disabled", func(t *testing.T) {
+		rule := rs.GetRules()["test_rule_foo"]
+		if rule != nil {
+			t.Fatal("expected test_rule_foo to not be loaded")
+		}
+	})
+
+	t.Run("disabled-enabled", func(t *testing.T) {
+		rule := rs.GetRules()["test_rule_bar"]
+		if rule == nil {
+			t.Fatal("expected test_rule_bar to be loaded")
+		}
+	})
 }
 
 func TestActionSetVariable(t *testing.T) {
@@ -246,7 +284,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +340,9 @@ func TestActionSetVariableTTL(t *testing.T) {
 					Name:   "var1",
 					Append: true,
 					Value:  []string{"foo"},
-					TTL:    1 * time.Second,
+					TTL: &HumanReadableDuration{
+						Duration: 1 * time.Second,
+					},
 				},
 			}},
 		}},
@@ -314,7 +354,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +420,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +441,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -990,7 +1030,7 @@ func TestPolicySchema(t *testing.T) {
 		},
 	}
 
-	fs := os.DirFS("../../../../pkg/security/tests/schemas")
+	fs := os.DirFS("../../../../pkg/security/secl/schemas")
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(fs))
 
 	for _, test := range tests {

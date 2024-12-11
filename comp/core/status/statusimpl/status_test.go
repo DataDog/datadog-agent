@@ -1097,7 +1097,7 @@ func TestFlareProvider(t *testing.T) {
 	))
 
 	provides := newStatus(deps)
-	flareProvider := provides.FlareProvider.Callback
+	flareProvider := provides.FlareProvider.FlareFiller.Callback
 
 	assert.NotNil(t, flareProvider)
 }

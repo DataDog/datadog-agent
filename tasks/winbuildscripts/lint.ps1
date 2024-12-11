@@ -9,7 +9,7 @@ $LINT_ROOT=(Get-Location).Path
 $Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;$Env:VSTUDIO_ROOT\VC\Tools\Llvm\bin"
 
 & inv -e deps
-& .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
+& .\tasks\winbuildscripts\pre-go-build.ps1
 
 & inv -e rtloader.format --raise-if-changed
 $err = $LASTEXITCODE

@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -37,11 +38,11 @@ type PodHandlers struct {
 }
 
 // NewPodHandlers creates and returns a new PodHanlders object
-func NewPodHandlers(cfg config.Component, store workloadmeta.Component) *PodHandlers {
+func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *PodHandlers {
 	podHandlers := new(PodHandlers)
 
 	// initialise tag provider
-	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store)
+	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store, tagger)
 
 	return podHandlers
 }
@@ -161,6 +162,23 @@ func (h *PodHandlers) ResourceUID(ctx processors.ProcessorContext, resource inte
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
+}
+
+// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
+	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+		return nil
+	}
+	return tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

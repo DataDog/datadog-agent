@@ -21,11 +21,11 @@ if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
 
-& inv -e security-agent.kitchen-prepare --skip-linters
+& inv -e security-agent.e2e-prepare-win
 
 $err = $LASTEXITCODE
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "kitchen prepare failed $err"
+    Write-Host -ForegroundColor Red "e2e prepare failed $err"
     [Environment]::Exit($err)
 }
 Write-Host Test passed

@@ -59,13 +59,9 @@ func TestContainerCreatedAt(t *testing.T) {
 		t.Skip("Skipping created time in containers tests: Docker not available")
 		return
 	}
-
-	if _, err := dockerWrapper.start(); err != nil {
-		t.Fatal(err)
-	}
 	defer dockerWrapper.stop()
 
-	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -78,7 +74,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		})
 	})
 
-	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFileDelay}, nil) // shouldn't trigger an event
 			if err := cmd.Run(); err != nil {
@@ -126,13 +122,9 @@ func TestContainerFlagsDocker(t *testing.T) {
 		t.Skipf("Skipping container test: Docker not available (%s)", err.Error())
 		return
 	}
-
-	if _, err := dockerWrapper.start(); err != nil {
-		t.Fatal(err)
-	}
 	defer dockerWrapper.stop()
 
-	dockerWrapper.Run(t, "container-runtime", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "container-runtime", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -173,13 +165,9 @@ func TestContainerFlagsPodman(t *testing.T) {
 		t.Skip("Skipping created time in containers tests: podman not available")
 		return
 	}
-
-	if _, err := podmanWrapper.start(); err != nil {
-		t.Fatal(err)
-	}
 	defer podmanWrapper.stop()
 
-	podmanWrapper.Run(t, "container-runtime", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	podmanWrapper.Run(t, "container-runtime", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()

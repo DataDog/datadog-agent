@@ -441,35 +441,55 @@ func extractPlatform(platform *ocispec.Platform, outImage *workloadmeta.Containe
 func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
-	// The layers in the manifest don't include the history, and the only way to
-	// match the history with each layer is to rely on the order and take into
-	// account that some history objects don't have an associated layer
-	// (emptyLayer = true).
-	// History is optional in OCI Spec, so we have no guarantee to be able to get it.
+	// If history is present, we use it to associate additional metadata with each layer.
+	// Layers marked as "empty" in history are appended before processing the
+	// corresponding layer. History is optional in the OCI specification, so if no history is available,
+	// the function still processes all layers. Any remaining empty layers in history that
+	// do not correspond to a layer are appended at the end.
 
 	historyIndex := 0
 	for _, manifestLayer := range manifest.Layers {
-		// Look for next history point with emptyLayer = false
-		historyFound := false
-		for ; historyIndex < len(ocispecImage.History); historyIndex++ {
-			if !ocispecImage.History[historyIndex].EmptyLayer {
-				historyFound = true
+		// Append all empty layers encountered before a non-empty layer
+		for historyIndex < len(ocispecImage.History) {
+			history := ocispecImage.History[historyIndex]
+			if history.EmptyLayer {
+				layers = append(layers, workloadmeta.ContainerImageLayer{
+					History: &history,
+				})
+				historyIndex++
+			} else {
+				// Stop at the first non-empty layer
 				break
 			}
 		}
 
+		// Match the non-empty history to this manifest layer, if available
+		var history *ocispec.History
+		if historyIndex < len(ocispecImage.History) {
+			history = &ocispecImage.History[historyIndex]
+			historyIndex++
+		}
+
+		// Create and append the layer with manifest and matched history
 		layer := workloadmeta.ContainerImageLayer{
 			MediaType: manifestLayer.MediaType,
 			Digest:    manifestLayer.Digest.String(),
 			SizeBytes: manifestLayer.Size,
 			URLs:      manifestLayer.URLs,
+			History:   history,
 		}
-		if historyFound {
-			layer.History = &ocispecImage.History[historyIndex]
-			historyIndex++
-		}
-
 		layers = append(layers, layer)
+	}
+
+	// Append any remaining empty layers after processing all manifest layers
+	for historyIndex < len(ocispecImage.History) {
+		history := ocispecImage.History[historyIndex]
+		if history.EmptyLayer {
+			layers = append(layers, workloadmeta.ContainerImageLayer{
+				History: &history,
+			})
+		}
+		historyIndex++
 	}
 
 	return layers

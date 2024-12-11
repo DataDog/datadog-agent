@@ -31,5 +31,5 @@ func TestOTelAgentSampling(t *testing.T) {
 }
 
 func (s *samplingTestSuite) TestSampling() {
-	utils.TestSampling(s)
+	utils.TestSampling(s, true)
 }

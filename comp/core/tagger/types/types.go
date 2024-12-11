@@ -22,13 +22,6 @@ type ApplyFunc[V any] func(EntityID, V)
 type ObjectStore[V any] interface {
 	// Get returns an object with the specified entity ID if it exists in the store
 	Get(EntityID) (V, bool)
-	// GetWithEntityIDStr returns an object with the specified entity ID if it
-	// exists in the store.
-	// This function is needed only for performance reasons. It functions like
-	// Get, but accepts a string instead of an EntityID, creating the EntityID
-	// internally. This reduces the allocations that occur when an EntityID is
-	// passed as a parameter.
-	GetWithEntityIDStr(string) (V, bool)
 	// Set sets a given entityID to a given object in the store
 	Set(EntityID, V)
 	// Unset unsets a given entityID in the store

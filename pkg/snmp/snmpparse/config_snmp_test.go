@@ -20,13 +20,13 @@ import (
 )
 
 func TestOneInstance(t *testing.T) {
-	//define the input
+	// define the input
 	type Data = integration.Data
 	input := integration.Config{
 		Name:      "snmp",
 		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"port\":161,\"community_string\":\"password\",\"snmp_version\":\"2\",\"timeout\":60,\"retries\":3}")},
 	}
-	//define the output
+	// define the output
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "2",
@@ -41,13 +41,13 @@ func TestOneInstance(t *testing.T) {
 }
 
 func TestDefaultSet(t *testing.T) {
-	//define the input
+	// define the input
 	type Data = integration.Data
 	input := integration.Config{
 		Name:      "snmp",
 		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\"}")},
 	}
-	//define the output
+	// define the output
 	Exoutput := []SNMPConfig{
 		{
 			Version:   "",
@@ -60,14 +60,14 @@ func TestDefaultSet(t *testing.T) {
 	assertSNMP(t, input, Exoutput)
 }
 func TestSeveralInstances(t *testing.T) {
-	//define the input
+	// define the input
 	type Data = integration.Data
 	input := integration.Config{
 		Name: "snmp",
 		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"port\":161,\"community_string\":\"password\",\"snmp_version\":\"2\",\"timeout\":60,\"retries\":3}"),
 			Data("{\"ip_address\":\"98.6.18.159\",\"port\":162,\"community_string\":\"drowssap\",\"snmp_version\":\"2\",\"timeout\":30,\"retries\":5}")},
 	}
-	//define the output
+	// define the output
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "2",
@@ -176,7 +176,7 @@ func TestGetSNMPConfigNetwork(t *testing.T) {
 }
 
 func TestGetSNMPConfigNet(t *testing.T) {
-	//if the ip address is a part of network but alos is defined indivudualy
+	// if the ip address is a part of network but alos is defined indivudualy
 	// the ip_address field should be the one that works
 	IPList := []SNMPConfig{
 		{
@@ -218,7 +218,7 @@ func TestGetSNMPConfigNet(t *testing.T) {
 }
 
 func TestGetSNMPConfigNoAddress(t *testing.T) {
-	//if the ip address doesn't match anything
+	// if the ip address doesn't match anything
 	IPList := []SNMPConfig{
 		{
 			Version:         "2",
@@ -251,8 +251,8 @@ func TestGetSNMPConfigNoAddress(t *testing.T) {
 
 }
 func TestGetSNMPConfigEmpty(t *testing.T) {
-	//if the snmp configuration is empty
-	IPList := []SNMPConfig{}
+	// if the snmp configuration is empty
+	var IPList []SNMPConfig
 	input := "192.168.6.4"
 	Exoutput := SNMPConfig{}
 	assertIP(t, input, IPList, Exoutput)
@@ -260,7 +260,7 @@ func TestGetSNMPConfigEmpty(t *testing.T) {
 }
 
 func TestGetSNMPConfigDefault(t *testing.T) {
-	//check if the default setter is valid
+	// check if the default setter is valid
 	input := SNMPConfig{}
 	SetDefault(&input)
 	Exoutput := SNMPConfig{
@@ -297,7 +297,8 @@ func TestParseConfigSnmpMain(t *testing.T) {
 		fx.Replace(config.MockParams{Overrides: rawConf}),
 	)
 
-	Output, _ := parseConfigSnmpMain(conf)
+	Output, err := parseConfigSnmpMain(conf)
+	require.NoError(t, err)
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "1",
@@ -337,7 +338,8 @@ network_devices:
 		fx.Replace(config.MockParams{Overrides: rawConf}),
 	)
 
-	Output, _ := parseConfigSnmpMain(conf)
+	Output, err := parseConfigSnmpMain(conf)
+	require.NoError(t, err)
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "1",

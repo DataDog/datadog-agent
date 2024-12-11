@@ -21,6 +21,10 @@ var EventMonitor = module.Factory{
 	Fn:               createEventMonitorModule,
 }
 
-func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor, _ *netconfig.Config) (eventmonitor.EventConsumerInterface, error) {
-	return nil, nil
+func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor, _ *netconfig.Config) error {
+	return nil
+}
+
+func createGPUProcessEventConsumer(_ *eventmonitor.EventMonitor) error {
+	return nil
 }

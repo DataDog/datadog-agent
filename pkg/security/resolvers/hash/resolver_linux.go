@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
@@ -125,6 +126,12 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		}
 	}
 
+	burst := 1
+	// if the rate limiter is disabled, set the burst to 0
+	if c.HashResolverMaxHashRate == 0 {
+		burst = 0
+	}
+
 	r := &Resolver{
 		opts: ResolverOpts{
 			Enabled:        true,
@@ -134,7 +141,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		},
 		cgroupResolver: cgroupResolver,
 		statsdClient:   statsdClient,
-		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), c.HashResolverMaxHashBurst),
+		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), burst),
 		cache:          cache,
 		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
 		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),
@@ -284,7 +291,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// add pid one for hash resolution outside of a container
 	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(string(ctrID))
+		w, ok := resolver.cgroupResolver.GetWorkload(ctrID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}
@@ -384,23 +391,29 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	}
 
 	for i, algorithm := range resolver.opts.HashAlgorithms {
-		var hashStr string
-		if hashStr = algorithm.String(); len(hashStr) > 0 {
-			hashStr += ":"
+		var hashStr strings.Builder
+		hashStr.WriteString(algorithm.String())
+		if hashStr.Len() > 0 {
+			hashStr.WriteByte(':')
 		}
+		digest := hashers[i].(hash.Hash).Sum(nil)
 		if algorithm == model.SSDEEP {
-			digest := hashers[i].(hash.Hash).Sum(nil)
 			if len(digest) == 0 {
 				// we failed to compute the digest
 				resolver.hashMiss[eventType][model.HashFailed].Inc()
 				continue
 			}
-			hashStr += string(digest)
+			hashStr.Write(digest)
 		} else {
-			hashStr += hex.EncodeToString(hashers[i].(hash.Hash).Sum(nil))
+			hencoder := hex.NewEncoder(&hashStr)
+			if _, err := hencoder.Write(digest); err != nil {
+				// we failed to compute the digest
+				resolver.hashMiss[eventType][model.HashFailed].Inc()
+				continue
+			}
 		}
 
-		file.Hashes = append(file.Hashes, hashStr)
+		file.Hashes = append(file.Hashes, hashStr.String())
 		resolver.hashCount[eventType][algorithm].Inc()
 	}
 

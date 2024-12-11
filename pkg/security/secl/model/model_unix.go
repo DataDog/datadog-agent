@@ -15,6 +15,8 @@ import (
 
 	"modernc.org/mathutil"
 
+	"github.com/google/gopacket"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
@@ -59,7 +61,8 @@ type Event struct {
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// network syscalls
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
+	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
+	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -96,6 +99,23 @@ type CGroupContext struct {
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
+	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`Version of the cgroup API`
+}
+
+// Merge two cgroup context
+func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
+	if cg.CGroupID == "" {
+		cg.CGroupID = cg2.CGroupID
+	}
+	if cg.CGroupFlags == 0 {
+		cg.CGroupFlags = cg2.CGroupFlags
+	}
+	if cg.CGroupFile.Inode == 0 {
+		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
+	}
+	if cg.CGroupFile.MountID == 0 {
+		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
+	}
 }
 
 // SyscallEvent contains common fields for all the event
@@ -260,9 +280,11 @@ type Process struct {
 	ScrubbedArgvResolved bool           `field:"-"`
 	Variables            eval.Variables `field:"-"`
 
-	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecExec      bool `field:"-"`         // Indicates whether the process is an exec following another exec
-	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
+	// IsThread is the negation of IsExec and should be manipulated directly
+	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
+	IsExecExec      bool `field:"-"`                                        // Indicates whether the process is an exec following another exec
+	IsParentMissing bool `field:"-"`                                        // Indicates the direct parent is missing
 
 	Source uint64 `field:"-"`
 
@@ -533,6 +555,7 @@ type PTraceEvent struct {
 
 	Request uint32          `field:"request"` // SECLDoc[request] Definition:`ptrace request` Constants:`Ptrace constants`
 	PID     uint32          `field:"-"`
+	NSPID   uint32          `field:"-"`
 	Address uint64          `field:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
@@ -635,6 +658,16 @@ type BindEvent struct {
 
 	Addr       IPPortContext `field:"addr"`        // Bound address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+}
+
+// ConnectEvent represents a connect event
+type ConnectEvent struct {
+	SyscallEvent
+
+	Addr       IPPortContext `field:"addr"`        // Connection address
+	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // NetDevice represents a network device
@@ -692,4 +725,13 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
+}
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+	TLSContext  TLSContext           `field:"tls"`                                       // SECLDoc[tls] Definition:`TLS context`
+	Filter      string               `field:"filter" op_override:"PacketFilterMatching"` // SECLDoc[filter] Definition:`pcap filter expression`
+	CaptureInfo gopacket.CaptureInfo `field:"-"`
+	Data        []byte               `field:"-"`
 }

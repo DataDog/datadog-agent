@@ -17,7 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -185,7 +186,7 @@ func TestFormatEvent(t *testing.T) {
 				b.addEvent(ev)
 			}
 
-			output, err := b.formatEvents(taggerimpl.SetupFakeTagger(t))
+			output, err := b.formatEvents(mock.SetupFakeTagger(t))
 
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expected.Text, output.Text)
@@ -247,7 +248,7 @@ func TestEventsTagging(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bundle := newKubernetesEventBundler("", tt.k8sEvent)
 			bundle.addEvent(tt.k8sEvent)
-			got, err := bundle.formatEvents(taggerimpl.SetupFakeTagger(t))
+			got, err := bundle.formatEvents(mock.SetupFakeTagger(t))
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedTags, got.Tags)
 		})

@@ -7,7 +7,9 @@ package defaultforwarder
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"time"
@@ -39,6 +41,8 @@ type Worker struct {
 	stopped               chan struct{}
 	blockedList           *blockedEndpoints
 	pointSuccessfullySent PointSuccessfullySent
+	// If the client is for cluster agent
+	isLocal bool
 }
 
 // PointSuccessfullySent is called when sending successfully a point to the intake.
@@ -56,8 +60,9 @@ func NewWorker(
 	requeueChan chan<- transaction.Transaction,
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
+	isLocal bool,
 ) *Worker {
-	return &Worker{
+	worker := &Worker{
 		config:                config,
 		log:                   log,
 		HighPrio:              highPrioChan,
@@ -69,7 +74,14 @@ func NewWorker(
 		Client:                NewHTTPClient(config),
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
+		isLocal:               isLocal,
 	}
+	if isLocal {
+		worker.Client = newBearerAuthHTTPClient()
+	} else {
+		worker.Client = NewHTTPClient(config)
+	}
+	return worker
 }
 
 // NewHTTPClient creates a new http.Client
@@ -79,6 +91,27 @@ func NewHTTPClient(config config.Component) *http.Client {
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
 		Transport: transport,
+	}
+}
+
+func newBearerAuthHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   1 * time.Second,
+				KeepAlive: 20 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     false,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			TLSHandshakeTimeout:   5 * time.Second,
+			MaxConnsPerHost:       1,
+			MaxIdleConnsPerHost:   1,
+			IdleConnTimeout:       60 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ResponseHeaderTimeout: 3 * time.Second,
+		},
+		Timeout: 10 * time.Second,
 	}
 }
 
@@ -209,5 +242,9 @@ func (w *Worker) requeue(t transaction.Transaction) {
 func (w *Worker) resetConnections() {
 	w.log.Debug("Resetting worker's connections")
 	w.Client.CloseIdleConnections()
-	w.Client = NewHTTPClient(w.config)
+	if w.isLocal {
+		w.Client = newBearerAuthHTTPClient()
+	} else {
+		w.Client = NewHTTPClient(w.config)
+	}
 }

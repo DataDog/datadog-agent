@@ -8,6 +8,7 @@ package discovery
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"sync"
@@ -15,7 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -23,6 +26,10 @@ import (
 
 const cacheKeyPrefix = "snmp"
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
+
+var (
+	discoveryVar = expvar.NewMap("snmpDiscovery")
+)
 
 // Discovery handles snmp discovery states
 type Discovery struct {
@@ -57,7 +64,8 @@ type snmpSubnet struct {
 
 	// discoveredDevices contains device failures count with device deviceDigest as map key
 	// see also CheckConfig.DeviceDigest()
-	deviceFailures map[checkconfig.DeviceDigest]int
+	deviceFailures        map[checkconfig.DeviceDigest]int
+	devicesScannedCounter atomic.Uint32
 }
 
 type checkDeviceJob struct {
@@ -79,6 +87,7 @@ func (d *Discovery) Stop() {
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
 func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
+
 	d.discDevMu.RLock()
 	defer d.discDevMu.RUnlock()
 
@@ -127,8 +136,9 @@ func (d *Discovery) discoverDevices() {
 
 		// Since subnet devices fields (`devices` and `deviceFailures`) are changed at the same time
 		// as Discovery.discoveredDevices, we rely on Discovery.discDevMu mutex to protect against concurrent changes.
-		devices:        map[checkconfig.DeviceDigest]string{},
-		deviceFailures: map[checkconfig.DeviceDigest]int{},
+		devices:               map[checkconfig.DeviceDigest]string{},
+		deviceFailures:        map[checkconfig.DeviceDigest]int{},
+		devicesScannedCounter: *atomic.NewUint32(0),
 	}
 
 	d.loadCache(&subnet)
@@ -141,6 +151,8 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
+		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, subnet.cacheKey), &expvar.String{})
+		subnet.devicesScannedCounter.Store(0)
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
@@ -206,7 +218,22 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 			d.createDevice(deviceDigest, job.subnet, deviceIP, true)
 		}
 	}
+
+	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: d.getDevicesFound(), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &discoveryStatus)
+
 	return nil
+}
+
+func (d *Discovery) getDevicesFound() []string {
+	d.discDevMu.RLock()
+	defer d.discDevMu.RUnlock()
+
+	ipsFound := make([]string, 0, len(d.discoveredDevices))
+	for _, device := range d.discoveredDevices {
+		ipsFound = append(ipsFound, device.deviceIP)
+	}
+	return ipsFound
 }
 
 func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,17 +46,19 @@ func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
 	seen[entityID] = struct{}{}
 
 	taskContainers, containerEvents := c.parseTaskContainers(task, seen)
+	taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.TaskARN)
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: taskID,
 		},
-		ClusterName: parseClusterName(task.ClusterName),
-		Region:      parseRegion(task.ClusterName),
-		Family:      task.Family,
-		Version:     task.Version,
-		LaunchType:  workloadmeta.ECSLaunchTypeFargate,
-		Containers:  taskContainers,
+		ClusterName:  parseClusterName(task.ClusterName),
+		Region:       taskRegion,
+		AWSAccountID: taskAccountID,
+		Family:       task.Family,
+		Version:      task.Version,
+		LaunchType:   workloadmeta.ECSLaunchTypeFargate,
+		Containers:   taskContainers,
 
 		// the AvailabilityZone metadata is only available for
 		// Fargate tasks using platform version 1.4 or later

@@ -285,7 +285,7 @@ type Probe struct {
 // GetBPFFuncName cleans the function name to be allowed by the bpf compiler
 func (p *Probe) GetBPFFuncName() string {
 	// can't have '.', '-' or '/' in bpf program name
-	replacer := strings.NewReplacer(".", "_", "/", "_", "-", "_", "[", "_", "]", "_")
+	replacer := strings.NewReplacer(".", "_", "/", "_", "-", "_", "[", "_", "]", "_", "*", "ptr_", "(", "", ")", "")
 	return replacer.Replace(p.FuncName)
 }
 

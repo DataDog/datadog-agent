@@ -246,6 +246,25 @@
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356"
+    },
+    "ubuntu_24.10": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.11.0-8-generic",
+      "os_version": "24.10",
+      "image": "ubuntu-24.10-x86_64.qcow2.xz",
+      "image_version": "20241028_31340374",
+      "alt_version_names": [
+        "oracular"
+      ]
+    },
+    "rocky_9.4": {
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "kernel": "5.14.0-503.15.1.el9_5",
+      "os_version": "9.4",
+      "image": "rocky-9.4-x86_64.qcow2.xz",
+      "image_version": "20241209_f6a14db0"
     }
   },
   "arm64": {
@@ -464,6 +483,25 @@
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.arm64.qcow2.xz",
       "image_version": "20241003_a9a46356"
+    },
+    "ubuntu_24.10": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.11.0-8-generic",
+      "os_version": "24.10",
+      "image": "ubuntu-24.10-arm64.qcow2.xz",
+      "image_version": "20241028_31340374",
+      "alt_version_names": [
+        "oracular"
+      ]
+    },
+    "rocky_9.4": {
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "kernel": "5.14.0-503.15.1.el9_5",
+      "os_version": "9.4",
+      "image": "rocky-9.4-arm64.qcow2.xz",
+      "image_version": "20241209_f6a14db0"
     }
   }
 }

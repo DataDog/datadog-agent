@@ -57,7 +57,7 @@ type AstFiles struct {
 }
 
 // LookupSymbol lookups symbol
-func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
+func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticcheck
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
 			return obj
@@ -248,6 +248,23 @@ func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName
 	}
 }
 
+func addLengthOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
+	lengthField := *field
+	lengthField.IsLength = true
+	lengthField.Name += ".length"
+	lengthField.OrigType = "int"
+	lengthField.BasicType = "int"
+	lengthField.ReturnType = "int"
+	lengthField.Struct = "string"
+	lengthField.AliasPrefix = alias
+	lengthField.Alias = alias + ".length"
+	lengthField.CommentText = doc.SECLDocForLength
+
+	module.Fields[lengthField.Alias] = &lengthField
+
+	return &lengthField
+}
+
 // handleIterator adds iterator to list of exposed SECL iterators of the module
 func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText, opOverrides string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
@@ -271,6 +288,10 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 	}
+
+	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
+	lengthField.Iterator = module.Iterators[alias]
+	lengthField.IsIterator = true
 
 	return module.Iterators[alias]
 }
@@ -311,22 +332,10 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 	}
-
 	module.Fields[alias] = newStructField
 
 	if field.lengthField {
-		var lengthField = *module.Fields[alias]
-		lengthField.IsLength = true
-		lengthField.Name += ".length"
-		lengthField.OrigType = "int"
-		lengthField.BasicType = "int"
-		lengthField.ReturnType = "int"
-		lengthField.Struct = "string"
-		lengthField.AliasPrefix = alias
-		lengthField.Alias = alias + ".length"
-		lengthField.CommentText = doc.SECLDocForLength
-
-		module.Fields[lengthField.Alias] = &lengthField
+		addLengthOpField(module, alias, module.Fields[alias])
 	}
 
 	if _, ok := module.EventTypes[event]; !ok {
@@ -699,7 +708,7 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)

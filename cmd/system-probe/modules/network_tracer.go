@@ -34,6 +34,7 @@ import (
 	redisdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/redis/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,6 +47,8 @@ const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
+
+const maxConntrackDumpSize = 3000
 
 func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
@@ -261,11 +264,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 10*time.Second)
 		defer cancelFunc()
 		table, err := nt.tracer.DebugHostConntrack(ctx)
 		if err != nil {
@@ -274,11 +277,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancelFunc()
 		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
 		if err != nil {
@@ -291,10 +294,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
-	httpMux.HandleFunc("/debug/usm/traced_programs", usm.TracedProgramsEndpoint)
-	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.BlockedPathIDEndpoint)
-	httpMux.HandleFunc("/debug/usm/attach-pid", usm.AttachPIDEndpoint)
-	httpMux.HandleFunc("/debug/usm/detach-pid", usm.DetachPIDEndpoint)
+	httpMux.HandleFunc("/debug/usm/traced_programs", usm.GetTracedProgramsEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.GetBlockedPathIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.GetClearBlockedEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/attach-pid", usm.GetAttachPIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/detach-pid", usm.GetDetachPIDEndpoint(usmconsts.USMModuleName))
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
@@ -384,4 +388,12 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 	// We are marshaling a static string, so we can ignore the error
 	buf, _ := json.Marshal(outputString)
 	w.Write(buf)
+}
+
+func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {
+	err := table.WriteTo(w, maxConntrackDumpSize)
+	if err != nil {
+		log.Errorf("unable to dump conntrack: %s", err)
+		w.WriteHeader(500)
+	}
 }

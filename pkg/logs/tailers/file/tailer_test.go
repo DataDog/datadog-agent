@@ -21,6 +21,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -57,11 +58,12 @@ func (suite *TailerTestSuite) SetupTest() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -111,11 +113,12 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	tailer := NewTailer(tailerOptions)
@@ -278,11 +281,12 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, dirTaggedSource, true),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, dirTaggedSource, true),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -308,11 +312,12 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, dirTaggedSource, false),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, dirTaggedSource, false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -335,11 +340,12 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, dirTaggedSource, true),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, dirTaggedSource, true),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -366,11 +372,12 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, source, true),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, source, true),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -398,11 +405,12 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), true),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), true),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -433,11 +441,12 @@ func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
 	info := status.NewInfoRegistry()
 
 	tailerOptions := &TailerOptions{
-		OutputChan:    suite.outputChan,
-		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration: sleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
-		Info:          info,
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
 	}
 
 	tailer := NewTailer(tailerOptions)

@@ -119,25 +119,44 @@ func TestTargetEnvs(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedMap := envs.GetExpectedMap()
-	require.Equal(t, vars.Vars, expectedMap)
+	for k, v := range expectedMap {
+		val, ok := vars.Get(k)
+		require.True(t, ok)
+		require.Equal(t, val, v)
+	}
 
 	// check unexpected env variables
-	require.NotContains(t, vars.Vars, "HOME")
-	require.NotContains(t, vars.Vars, "PATH")
-	require.NotContains(t, vars.Vars, "SHELL")
+	val, ok := vars.Get("HOME")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("PATH")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("SHELL")
+	require.Empty(t, val)
+	require.False(t, ok)
+
+	// check that non-target variables return an empty map.
+	vars = envs.NewVariables(map[string]string{
+		"NON_TARGET1": "some",
+		"NON_TARGET2": "some",
+	})
+	val, ok = vars.Get("NON_TARGET1")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("NON_TARGET2")
+	require.Empty(t, val)
+	require.False(t, ok)
 }
 
 // BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.
 func BenchmarkGetEnvs(b *testing.B) {
-	proc, err := customNewProcess(int32(os.Getpid()))
-	if err != nil {
-		return
-	}
+	proc := &process.Process{Pid: int32(os.Getpid())}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = getEnvs(proc)
-		if err != nil {
+		if _, err := getEnvs(proc); err != nil {
 			return
 		}
 	}
@@ -145,16 +164,12 @@ func BenchmarkGetEnvs(b *testing.B) {
 
 // BenchmarkGetEnvsTarget benchmarks reading of target environment variables only from /proc/<pid>/environ.
 func BenchmarkGetEnvsTarget(b *testing.B) {
-	proc, err := customNewProcess(int32(os.Getpid()))
-	if err != nil {
-		return
-	}
+	proc := &process.Process{Pid: int32(os.Getpid())}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = getTargetEnvs(proc)
-		if err != nil {
+		if _, err := getTargetEnvs(proc); err != nil {
 			return
 		}
 	}

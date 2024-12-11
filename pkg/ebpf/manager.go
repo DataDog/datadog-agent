@@ -14,6 +14,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,6 +22,7 @@ import (
 // for this instance.
 type Manager struct {
 	*manager.Manager
+	Name             names.ModuleName
 	EnabledModifiers []Modifier // List of enabled modifiers
 }
 
@@ -32,20 +34,21 @@ var defaultModifiers []Modifier
 
 // NewManager creates a manager wrapper.
 // Optionally one can provide a list of modifiers to attach to the manager
-func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
+func NewManager(mgr *manager.Manager, name string, modifiers ...Modifier) *Manager {
 	log.Tracef("Creating new manager with modifiers: %v", modifiers)
 	return &Manager{
 		Manager:          mgr,
+		Name:             names.NewModuleName(name),
 		EnabledModifiers: modifiers,
 	}
 }
 
 // NewManagerWithDefault creates a manager wrapper with default modifiers.
-func NewManagerWithDefault(mgr *manager.Manager, modifiers ...Modifier) *Manager {
+func NewManagerWithDefault(mgr *manager.Manager, name string, modifiers ...Modifier) *Manager {
 	modifiersSync.Do(func() {
 		defaultModifiers = []Modifier{&PrintkPatcherModifier{}}
 	})
-	return NewManager(mgr, append(defaultModifiers, modifiers...)...)
+	return NewManager(mgr, name, append(defaultModifiers, modifiers...)...)
 }
 
 // Modifier is an interface that can be implemented by a package to
@@ -62,28 +65,36 @@ func NewManagerWithDefault(mgr *manager.Manager, modifiers ...Modifier) *Manager
 type Modifier interface {
 	fmt.Stringer
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
-	BeforeInit(*manager.Manager, *manager.Options) error
+	// names.ModuleName refers to the name associated with Manager instance.
+	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
-	AfterInit(*manager.Manager, *manager.Options) error
+	AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
+	// we must load the ELF file before initialization,
+	// to build the collection specs, because some modifiers
+	// inspect these to make changes to the eBPF resources.
+	if err := m.LoadELF(bytecode); err != nil {
+		return fmt.Errorf("failed to load elf from reader: %w", err)
+	}
+
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier BeforeInit", mod)
-		if err := mod.BeforeInit(m.Manager, opts); err != nil {
+		if err := mod.BeforeInit(m.Manager, m.Name, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}
 
-	if err := m.Manager.InitWithOptions(bytecode, *opts); err != nil {
+	if err := m.Manager.InitWithOptions(nil, *opts); err != nil {
 		return err
 	}
 
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier AfterInit", mod)
-		if err := mod.AfterInit(m.Manager, opts); err != nil {
+		if err := mod.AfterInit(m.Manager, m.Name, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}

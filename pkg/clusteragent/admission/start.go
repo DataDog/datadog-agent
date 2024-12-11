@@ -11,6 +11,7 @@ package admission
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
@@ -35,6 +36,7 @@ type ControllerContext struct {
 	Client              kubernetes.Interface
 	StopCh              chan struct{}
 	ValidatingStopCh    chan struct{}
+	Demultiplexer       demultiplexer.Component
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -67,12 +69,17 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		return webhooks, err
 	}
 
+	matchConditionsSupported, err := supportsMatchConditions(ctx.Client.Discovery())
+	if err != nil {
+		return webhooks, err
+	}
+
 	v1Enabled, err := UseAdmissionV1(ctx.Client.Discovery())
 	if err != nil {
 		return webhooks, err
 	}
 
-	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
+	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported)
 	webhookController := webhook.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
@@ -84,6 +91,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		wmeta,
 		pa,
 		datadogConfig,
+		ctx.Demultiplexer,
 	)
 
 	go secretController.Run(ctx.StopCh)

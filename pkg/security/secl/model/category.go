@@ -57,7 +57,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		MProtectEventType.String(),
 		PTraceEventType.String(),
 		UnloadModuleEventType.String(),
-		BindEventType.String():
+		BindEventType.String(),
+		ConnectEventType.String():
 		return KernelCategory
 
 	// Network

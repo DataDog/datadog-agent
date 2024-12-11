@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,44 +22,41 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 		},
 	}
 
-	n, err := NewNode(obj)
+	node, err := NewNodeTree(obj, model.SourceDefault)
 	assert.NoError(t, err)
 
-	keys, err := n.ChildrenKeys()
-	assert.NoError(t, err)
+	n, ok := node.(InnerNode)
+	assert.True(t, ok)
+
+	keys := n.ChildrenKeys()
 	assert.Equal(t, keys, []string{"a", "b", "c"})
 
 	first, err := n.GetChild("a")
 	assert.NoError(t, err)
 
 	firstLeaf := first.(LeafNode)
-	str, err := firstLeaf.GetString()
-	assert.NoError(t, err)
+	str := firstLeaf.Get()
 	assert.Equal(t, str, "apple")
 
 	second, err := n.GetChild("b")
 	assert.NoError(t, err)
 
 	secondLeaf := second.(LeafNode)
-	num, err := secondLeaf.GetInt()
-	assert.NoError(t, err)
+	num := secondLeaf.Get()
 	assert.Equal(t, num, 123)
 
-	third, err := n.GetChild("c")
+	child, err := n.GetChild("c")
 	assert.NoError(t, err)
-	_, ok := third.(LeafNode)
-	assert.Equal(t, ok, false)
+	third := child.(InnerNode)
 
-	keys, err = third.ChildrenKeys()
-	assert.NoError(t, err)
+	keys = third.ChildrenKeys()
 	assert.Equal(t, keys, []string{"d", "e"})
 
 	fourth, err := third.GetChild("d")
 	assert.NoError(t, err)
 
 	fourthLeaf := fourth.(LeafNode)
-	b, err := fourthLeaf.GetBool()
-	assert.NoError(t, err)
+	b := fourthLeaf.Get()
 	assert.Equal(t, b, true)
 
 	_, err = third.GetChild("e")

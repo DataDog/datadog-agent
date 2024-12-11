@@ -106,7 +106,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 		lastSearchedEvents = searchedEvents
 		return j == len(events.Events)
-	}, 30*time.Second, 1*time.Second)
+	}, 60*time.Second, 1*time.Second)
 
 	if !success {
 		logs := h.journaldLogsSince(since)

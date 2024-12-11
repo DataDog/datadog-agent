@@ -7,7 +7,6 @@
 package config
 
 import (
-	"strings"
 	"time"
 
 	cebpf "github.com/cilium/ebpf"
@@ -20,11 +19,10 @@ import (
 )
 
 const (
-	spNS   = "system_probe_config"
-	netNS  = "network_config"
-	smNS   = "service_monitoring_config"
-	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".tls.java"
+	spNS  = "system_probe_config"
+	netNS = "network_config"
+	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -110,10 +108,6 @@ type Config struct {
 	// hooking the system-probe test binary. Defaults to true.
 	GoTLSExcludeSelf bool
 
-	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
-	// traffic done through Java's TLS implementation
-	EnableJavaTLSSupport bool
-
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
 	// value is currently Windows only
 	MaxTrackedHTTPConnections int64
@@ -125,21 +119,6 @@ type Config struct {
 	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
 	// Currently Windows only
 	HTTPMaxRequestFragment int64
-
-	// JavaAgentDebug will enable debug output of the injected USM agent
-	JavaAgentDebug bool
-
-	// JavaAgentArgs arguments pass through injected USM agent
-	JavaAgentArgs string
-
-	// JavaAgentAllowRegex (Higher priority) define a regex, if matching /proc/pid/cmdline the java agent will be injected
-	JavaAgentAllowRegex string
-
-	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
-	JavaAgentBlockRegex string
-
-	// JavaDir is the directory to load the java agent program from
-	JavaDir string
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -283,10 +262,6 @@ type Config struct {
 	// TCPFailedConnectionsEnabled specifies whether the tracer will track & report TCP error codes
 	TCPFailedConnectionsEnabled bool
 
-	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
-	// instead of the status code family.
-	EnableHTTPStatsByStatusCode bool
-
 	// EnableNPMConnectionRollup enables aggregating connections by rolling up ephemeral ports
 	EnableNPMConnectionRollup bool
 
@@ -312,10 +287,6 @@ type Config struct {
 	EnableUSMEventStream bool
 }
 
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
-}
-
 // New creates a config for the network tracer
 func New() *Config {
 	cfg := pkgconfigsetup.SystemProbe()
@@ -324,109 +295,102 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
-		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
-		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+		NPMEnabled:               cfg.GetBool(sysconfig.FullKeyPath(netNS, "enabled")),
+		ServiceMonitoringEnabled: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
 
-		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
-		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
+		CollectTCPv4Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_tcp_v4")),
+		CollectTCPv6Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_tcp_v6")),
 		TCPConnTimeout:    2 * time.Minute,
 
-		CollectUDPv4Conns: cfg.GetBool(join(netNS, "collect_udp_v4")),
-		CollectUDPv6Conns: cfg.GetBool(join(netNS, "collect_udp_v6")),
+		CollectUDPv4Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_udp_v4")),
+		CollectUDPv6Conns: cfg.GetBool(sysconfig.FullKeyPath(netNS, "collect_udp_v6")),
 		UDPConnTimeout:    defaultUDPTimeoutSeconds * time.Second,
 		UDPStreamTimeout:  defaultUDPStreamTimeoutSeconds * time.Second,
 
-		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(spNS, "offset_guess_threshold"))),
-		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
-		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
+		OffsetGuessThreshold:           uint64(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "offset_guess_threshold"))),
+		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(sysconfig.FullKeyPath(spNS, "source_excludes")),
+		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(sysconfig.FullKeyPath(spNS, "dest_excludes")),
 
-		TCPFailedConnectionsEnabled:    cfg.GetBool(join(netNS, "enable_tcp_failed_connections")),
-		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
-		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
-		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(join(netNS, "max_failed_connections_buffered"))),
-		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
-		ClosedChannelSize:              cfg.GetInt(join(spNS, "closed_channel_size")),
-		MaxConnectionsStateBuffered:    cfg.GetInt(join(spNS, "max_connection_state_buffered")),
+		TCPFailedConnectionsEnabled:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_tcp_failed_connections")),
+		MaxTrackedConnections:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
+		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
+		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_connection_flush_threshold")),
+		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(spNS, "closed_channel_size")),
+		MaxConnectionsStateBuffered:    cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:              2 * time.Minute,
 
-		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
-		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
-		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),
-		CollectDNSDomains:   cfg.GetBool(join(spNS, "collect_dns_domains")),
-		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
+		DNSInspection:       !cfg.GetBool(sysconfig.FullKeyPath(spNS, "disable_dns_inspection")),
+		CollectDNSStats:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_stats")),
+		CollectLocalDNS:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_local_dns")),
+		CollectDNSDomains:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_domains")),
+		MaxDNSStats:         cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
-		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
+		DNSTimeout:          time.Duration(cfg.GetInt(sysconfig.FullKeyPath(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
+		ProtocolClassificationEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_protocol_classification")),
 
-		NPMRingbuffersEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
+		NPMRingbuffersEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ringbuffers")),
 
-		EnableHTTPMonitoring:       cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring:      cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableKafkaMonitoring:      cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
-		EnablePostgresMonitoring:   cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
-		EnableRedisMonitoring:      cfg.GetBool(join(smNS, "enable_redis_monitoring")),
-		EnableNativeTLSMonitoring:  cfg.GetBool(join(smNS, "tls", "native", "enabled")),
-		EnableIstioMonitoring:      cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
-		EnvoyPath:                  cfg.GetString(join(smNS, "tls", "istio", "envoy_path")),
-		EnableNodeJSMonitoring:     cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
-		MaxUSMConcurrentRequests:   uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
-		MaxHTTPStatsBuffered:       cfg.GetInt(join(smNS, "max_http_stats_buffered")),
-		MaxKafkaStatsBuffered:      cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
-		MaxPostgresStatsBuffered:   cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
-		MaxPostgresTelemetryBuffer: cfg.GetInt(join(smNS, "max_postgres_telemetry_buffer")),
-		MaxRedisStatsBuffered:      cfg.GetInt(join(smNS, "max_redis_stats_buffered")),
+		EnableHTTPMonitoring:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
+		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_postgres_monitoring")),
+		EnableRedisMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_redis_monitoring")),
+		EnableNativeTLSMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
+		EnableIstioMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "istio", "enabled")),
+		EnvoyPath:                  cfg.GetString(sysconfig.FullKeyPath(smNS, "tls", "istio", "envoy_path")),
+		EnableNodeJSMonitoring:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "nodejs", "enabled")),
+		MaxUSMConcurrentRequests:   uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
+		MaxHTTPStatsBuffered:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_kafka_stats_buffered")),
+		MaxPostgresStatsBuffered:   cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_stats_buffered")),
+		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_telemetry_buffer")),
+		MaxRedisStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_redis_stats_buffered")),
 
-		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
+		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "max_tracked_http_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_max_request_fragment")),
 
-		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
-		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
-		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		EnableConntrack:              cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(sysconfig.FullKeyPath(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(sysconfig.FullKeyPath(spNS, "conntrack_rate_limit")),
 		ConntrackRateLimitInterval:   3 * time.Second,
-		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
-		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
-		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
-		EnableEbpfConntracker:        cfg.GetBool(join(netNS, "enable_ebpf_conntracker")),
+		EnableConntrackAllNamespaces: cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:         cfg.GetDuration(sysconfig.FullKeyPath(netNS, "conntrack_init_timeout")),
+		EnableEbpfConntracker:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpf_conntracker")),
 
-		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
+		EnableGatewayLookup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_gateway_lookup")),
 
-		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
+		EnableMonotonicCount: cfg.GetBool(sysconfig.FullKeyPath(spNS, "windows.enable_monotonic_count")),
 
-		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+		RecordedQueryTypes: cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "dns_recorded_query_types")),
 
-		EnableProcessEventMonitoring: cfg.GetBool(join(evNS, "network_process", "enabled")),
-		MaxProcessesTracked:          cfg.GetInt(join(evNS, "network_process", "max_processes_tracked")),
+		EnableProcessEventMonitoring: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "enabled")),
+		MaxProcessesTracked:          cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "max_processes_tracked")),
 
-		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
+		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
 
-		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
-		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
-		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
+		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
-		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
+		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
-		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
-		JavaAgentDebug:              cfg.GetBool(join(smjtNS, "debug")),
-		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
-		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
-		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
-		JavaDir:                     cfg.GetString(join(smjtNS, "dir")),
-		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
-		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
-		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
-		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:        cfg.GetBool(join(smNS, "enable_event_stream")),
+		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
+		EnableUSMQuantization:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 	}
 
-	httpRRKey := join(smNS, "http_replace_rules")
+	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)

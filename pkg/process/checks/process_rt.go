@@ -160,7 +160,7 @@ func calculateRate(cur, prev uint64, before time.Time) float32 {
 }
 
 // mergeStatWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, pu *net.RemoteSysProbeUtil) {
+func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, pu net.SysProbeUtil) {
 	pStats, err := pu.GetProcStats(pids)
 	if err == nil {
 		for pid, stats := range stats {

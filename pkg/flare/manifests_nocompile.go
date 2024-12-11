@@ -33,3 +33,8 @@ func getClusterAgentDeployment() ([]byte, error) {
 func getHelmValues() ([]byte, error) {
 	return nil, log.Errorf("getHelmValues not implemented %s", ErrNotCompiled.Error())
 }
+
+// getDatadogAgentManifest retrieves the user-defined manifest for the Datadog Agent resource (managed by the Operator)
+func getDatadogAgentManifest() ([]byte, error) {
+	return nil, log.Errorf("getDatadogAgentManifest not implemented %s", ErrNotCompiled.Error())
+}

@@ -7,12 +7,17 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
+)
+
+const (
+	maxRegisterIteration = 100
 )
 
 // RuleID - ID of a Rule
@@ -43,6 +48,8 @@ type RuleEvaluator struct {
 	fields      []Field
 
 	partialEvals map[Field]BoolEvalFnc
+
+	registers []Register
 }
 
 // NewRule returns a new rule
@@ -217,11 +224,52 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 	}
 
+	// handle rule with iterator registers
+	if len(state.registers) > 0 {
+		// NOTE: limit to only one register for now to avoid computation and evaluation
+		// of all the combination
+		if len(state.registers) > 1 {
+			return nil, &ErrIteratorVariable{Err: errors.New("iterator variable limit to one per rule")}
+		}
+
+		regID, field := state.registers[0].ID, state.registers[0].Field
+		lenEval, err := model.GetEvaluator(field+".length", regID)
+		if err != nil {
+			return nil, &ErrIteratorVariable{Err: err}
+		}
+
+		evalBoolFnc := evalBool.EvalFnc
+
+		// eval with each possible value of the registers
+		evalBool.EvalFnc = func(ctx *Context) bool {
+			size := lenEval.Eval(ctx).(int)
+			if size > maxRegisterIteration {
+				size = maxRegisterIteration
+			}
+
+			for i := 0; i != size; i++ {
+				ctx.Registers[regID] = i
+				if evalBoolFnc(ctx) {
+					// invalidate the cache
+					clear(ctx.RegisterCache)
+
+					return true
+				}
+
+				// invalidate the cache
+				clear(ctx.RegisterCache)
+			}
+
+			return false
+		}
+	}
+
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventType:   eventType,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
+		registers:   state.registers,
 	}, nil
 }
 
