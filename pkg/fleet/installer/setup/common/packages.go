@@ -5,7 +5,7 @@
 
 package common
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+import "fmt"
 
 const (
 	DatadogAgentPackage            string = "datadog-agent"
@@ -33,23 +33,31 @@ var (
 	}
 )
 
-func (s *Setup) installPackages() error {
+func resolvePackages(packages Packages) []packageWithVersion {
+	var resolved []packageWithVersion
 	for _, pkg := range order {
-		if version, ok := s.Packages.install[pkg]; ok {
-			url := oci.PackageURL(s.Env, pkg, version)
-			err := s.installer.Install(s.Ctx, url, nil)
-			if err != nil {
-				return err
-			}
+		if p, ok := packages.install[pkg]; ok {
+			resolved = append(resolved, p)
 		}
 	}
-	return nil
+	if len(resolved) != len(packages.install) {
+		panic(fmt.Sprintf("unknown package requested: %v", packages.install))
+	}
+	return resolved
 }
 
 type Packages struct {
-	install map[string]string
+	install map[string]packageWithVersion
+}
+
+type packageWithVersion struct {
+	name    string
+	version string
 }
 
 func (p *Packages) Install(pkg string, version string) {
-	p.install[pkg] = version
+	p.install[pkg] = packageWithVersion{
+		name:    pkg,
+		version: version,
+	}
 }

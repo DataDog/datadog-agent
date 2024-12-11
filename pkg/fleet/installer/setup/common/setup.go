@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -60,7 +61,7 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 			IntegrationConfigs: make(map[string]IntegrationConfig),
 		},
 		Packages: Packages{
-			install: make(map[string]string),
+			install: make(map[string]packageWithVersion),
 		},
 	}
 	return s, nil
@@ -73,9 +74,13 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	err = s.installPackages()
-	if err != nil {
-		return fmt.Errorf("failed to install packages: %w", err)
+	packages := resolvePackages(s.Packages)
+	for _, p := range packages {
+		url := oci.PackageURL(s.Env, p.name, p.version)
+		err = s.installer.Install(s.Ctx, url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to install package %s: %w", url, err)
+		}
 	}
 	return nil
 }
