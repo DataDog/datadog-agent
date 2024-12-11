@@ -71,7 +71,7 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 // Run installs the packages and writes the configurations
 func (s *Setup) Run() (err error) {
 	defer func() { s.Span.Finish(tracer.WithError(err)) }()
-	err = s.writeConfigs()
+	err = writeConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}

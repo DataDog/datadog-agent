@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -22,17 +22,17 @@ const (
 	injectTracerConfigFile = "inject/tracer.yaml"
 )
 
-func (s *Setup) writeConfigs() error {
-	err := writeConfig(filepath.Join(s.configDir, datadogConfFile), s.Config.DatadogYAML, 0640, true)
+func writeConfigs(config Config, configDir string) error {
+	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
-	err = writeConfig(filepath.Join(s.configDir, injectTracerConfigFile), s.Config.InjectTracerYAML, 0644, false)
+	err = writeConfig(filepath.Join(configDir, injectTracerConfigFile), config.InjectTracerYAML, 0644, false)
 	if err != nil {
 		return fmt.Errorf("could not write tracer.yaml: %w", err)
 	}
-	for name, config := range s.Config.IntegrationConfigs {
-		err = writeConfig(filepath.Join(s.configDir, "conf.d", name), config, 0644, false)
+	for name, config := range config.IntegrationConfigs {
+		err = writeConfig(filepath.Join(configDir, "conf.d", name), config, 0644, false)
 		if err != nil {
 			return fmt.Errorf("could not write %s.yaml: %w", name, err)
 		}
@@ -49,25 +49,28 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize config: %w", err)
 	}
-	var override map[string]interface{}
-	err = yaml.Unmarshal(serializedConfig, &override)
+	var new map[string]interface{}
+	err = yaml.Unmarshal(serializedConfig, &new)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal config: %w", err)
 	}
-	var base map[string]interface{}
+	if len(new) == 0 {
+		return nil
+	}
+	var existing map[string]interface{}
 	if merge {
 		existingConfig, err := os.ReadFile(path)
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("could not read existing config: %w", err)
 		}
 		if err == nil {
-			err = yaml.Unmarshal(existingConfig, &base)
+			err = yaml.Unmarshal(existingConfig, &existing)
 			if err != nil {
 				return fmt.Errorf("could not unmarshal existing config: %w", err)
 			}
 		}
 	}
-	merged, err := mergeConfig(base, override)
+	merged, err := mergeConfig(existing, new)
 	if err != nil {
 		return fmt.Errorf("could not merge config: %w", err)
 	}
@@ -113,17 +116,17 @@ type DatadogConfigProcessConfig struct {
 
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config"`
-	Instances  []any                   `yaml:"instances"`
-	Logs       []IntegrationConfigLogs `yaml:"logs"`
+	InitConfig []any                   `yaml:"init_config,omitempty"`
+	Instances  []any                   `yaml:"instances,omitempty"`
+	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
 
 // IntegrationConfigLogs represents the configuration for the logs of an integration
 type IntegrationConfigLogs struct {
-	Type    string `yaml:"type"`
-	Path    string `yaml:"path"`
-	Service string `yaml:"service"`
-	Source  string `yaml:"source"`
+	Type    string `yaml:"type,omitempty"`
+	Path    string `yaml:"path,omitempty"`
+	Service string `yaml:"service,omitempty"`
+	Source  string `yaml:"source,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration
@@ -136,9 +139,9 @@ type IntegrationConfigInstanceSpark struct {
 
 // InjectTracerConfig represents the configuration to write in /etc/datadog-agent/inject/tracer.yaml
 type InjectTracerConfig struct {
-	Version       int                        `yaml:"version"`
-	ConfigSources string                     `yaml:"config_sources"`
-	EnvsToInject  []InjectTracerConfigEnvVar `yaml:"additional_environment_variables"`
+	Version                        int                        `yaml:"version,omitempty"`
+	ConfigSources                  string                     `yaml:"config_sources,omitempty"`
+	AdditionalEnvironmentVariables []InjectTracerConfigEnvVar `yaml:"additional_environment_variables,omitempty"`
 }
 
 // InjectTracerConfigEnvVar represents an environment variable to inject

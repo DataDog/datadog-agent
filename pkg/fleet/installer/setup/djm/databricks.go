@@ -115,7 +115,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaVersion)
 
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:driver")
-	s.Config.InjectTracerYAML.EnvsToInject = tracerEnvConfig
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfig
 
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
