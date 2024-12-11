@@ -105,12 +105,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-					catalog := workloadmeta.NodeAgent
-					if config.GetBool("security_agent.remote_workloadmeta") {
-						catalog = workloadmeta.Remote
-					}
 					return workloadmeta.Params{
-						AgentType: catalog,
+						AgentType: workloadmeta.Remote,
 					}
 				}),
 				remoteTaggerfx.Module(tagger.RemoteParams{
