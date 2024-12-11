@@ -549,23 +549,20 @@ func (e *EbpfProgram) initPrebuilt() error {
 
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-	if err == nil && len(missing) == 0 {
-		return true
-	}
+	return err == nil && len(missing) == 0
+}
 
+func isFexitSupported() bool {
 	kversion, err := kernel.HostVersion()
-
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
+	return err == nil && kversion >= kernel.VersionCode(5, 5, 0)
 }
 
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
 // system calls.
 func (e *EbpfProgram) initializedProbes() {
+	openat2Supported := sysOpenAt2Supported()
+	fexitSupported := isFexitSupported()
+
 	advancedProbes := []manager.ProbeIdentificationPair{
 		{
 			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
@@ -574,6 +571,9 @@ func (e *EbpfProgram) initializedProbes() {
 	}
 
 	openatProbes := []string{openatSysCall}
+	if openat2Supported {
+		openatProbes = append(openatProbes, openat2SysCall)
+	}
 	// amd64 has open(2), arm64 doesn't
 	if runtime.GOARCH == "amd64" {
 		openatProbes = append(openatProbes, openSysCall)
@@ -589,7 +589,7 @@ func (e *EbpfProgram) initializedProbes() {
 		}
 	}
 
-	if sysOpenAt2Supported() {
+	if fexitSupported && openat2Supported {
 		e.enabledProbes = advancedProbes
 		e.disabledProbes = oldProbes
 	} else {

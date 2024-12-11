@@ -131,6 +131,20 @@ int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
     return 0;
 }
 
+SEC("tracepoint/syscalls/sys_enter_openat2")
+int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    do_sys_open_helper_enter(args->filename);
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_openat2")
+int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    do_sys_open_helper_exit(args);
+    return 0;
+}
+
 SEC("fexit/do_sys_openat2")
 int BPF_BYPASSABLE_PROG(do_sys_openat2_exit, int dirfd, const char *pathname, void *how, long ret) {
     lib_path_t path = { 0 };
