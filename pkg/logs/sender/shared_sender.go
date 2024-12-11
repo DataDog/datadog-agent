@@ -30,7 +30,7 @@ type PipelineComponent interface {
 type SharedSender struct {
 	senders []*Sender
 
-	inputs []chan *message.Payload
+	queues []chan *message.Payload
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -39,38 +39,43 @@ type SharedSender struct {
 }
 
 // NewSharedSender returns a new sender.
-func NewSharedSender(pipelinesCount int, sendersPerPipeline int,
-	config pkgconfigmodel.Reader, auditor auditor.Auditor, destinations *client.Destinations, bufferSize int,
-	senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *SharedSender {
+func NewSharedSender(pipelinesCount int, config pkgconfigmodel.Reader, auditor auditor.Auditor, destinations *client.Destinations,
+	bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *SharedSender {
 	var senders []*Sender
 
-	inputs := make([]chan *message.Payload, pipelinesCount)
-	log.Infof("shared sender creating %d inputs", len(inputs))
-	for i := 0; i < pipelinesCount; i++ {
-		inputs[i] = make(chan *message.Payload, sendersPerPipeline+1)
+	queuesCount := config.GetInt("logs_config.queues_count")
+	sendersPerQueue := config.GetInt("logs_config.senders_per_queue")
+
+	queues := make([]chan *message.Payload, queuesCount)
+	log.Infof("shared sender creating %d queues", len(queues))
+
+	for i := 0; i < queuesCount; i++ {
+		// create a queue
+		queues[i] = make(chan *message.Payload, sendersPerQueue+1)
 		log.Infof("input created for pipeline %d", i)
-		for j := 0; j < sendersPerPipeline; j++ {
-			sender := NewSender(config, inputs[i], auditor, destinations, bufferSize,
+		// output of this queue, create senders
+		for j := 0; j < sendersPerQueue; j++ {
+			sender := NewSender(config, queues[i], auditor, destinations, bufferSize,
 				senderDoneChan, flushWg, pipelineMonitor)
 			sender.isShared = true
 			senders = append(senders, sender)
 		}
-		log.Infof("created %d senders for input %d", sendersPerPipeline, i)
+		log.Infof("created %d senders for queue %d", sendersPerQueue, i)
 	}
 
 	return &SharedSender{
 		senders:         senders,
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("shared_sender"),
-		inputs:          inputs,
+		queues:          queues,
 	}
 }
 
 // In is the input channel of the shared sender
 func (s *SharedSender) In() chan *message.Payload {
 	s.idx++
-	log.Infof("redistributed to input %d", s.idx%len(s.inputs))
-	return s.inputs[s.idx%len(s.inputs)]
+	log.Infof("redistributed to input %d", s.idx%len(s.queues))
+	return s.queues[s.idx%len(s.queues)]
 }
 
 // PipelineMonitor returns the pipeline monitor of the shared senders.
@@ -91,7 +96,7 @@ func (s *SharedSender) Stop() {
 	for _, s := range s.senders {
 		s.Stop()
 	}
-	for i := range s.inputs {
-		close(s.inputs[i])
+	for i := range s.queues {
+		close(s.queues[i])
 	}
 }
