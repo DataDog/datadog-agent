@@ -23,7 +23,7 @@ const (
 )
 
 // Setup installs Datadog.
-func Setup(ctx context.Context, env *env.Env, flavor string, url string) error {
+func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	s, err := common.NewSetup(ctx, env, flavor)
 	if err != nil {
 		return err
