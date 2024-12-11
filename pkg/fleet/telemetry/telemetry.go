@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -212,14 +211,7 @@ func StartSpanFromEnv(ctx context.Context, operationName string, spanOptions ...
 	if ok {
 		spanOptions = append([]ddtrace.StartSpanOption{tracer.ChildOf(spanContext)}, spanOptions...)
 	}
-	span, ctx := tracer.StartSpanFromContext(ctx, operationName, spanOptions...)
-	setSpanInEnv(span)
 	return tracer.StartSpanFromContext(ctx, operationName, spanOptions...)
-}
-
-func setSpanInEnv(span ddtrace.Span) {
-	os.Setenv(EnvParentID, strconv.FormatUint(span.Context().SpanID(), 10))
-	os.Setenv(EnvTraceID, strconv.FormatUint(span.Context().TraceID(), 10))
 }
 
 // spanContextFromEnv injects the traceID and parentID from the environment into the context if available.
@@ -239,13 +231,16 @@ func spanContextFromEnv() (ddtrace.SpanContext, bool) {
 	return spanCtx, true
 }
 
-// EnvFromSpanContext returns the environment variables for the span context.
-func EnvFromSpanContext(spanCtx ddtrace.SpanContext) []string {
-	env := []string{
+// EnvFromContext returns the environment variables for the context.
+func EnvFromContext(ctx context.Context) []string {
+	spanCtx, ok := SpanContextFromContext(ctx)
+	if !ok {
+		return []string{}
+	}
+	return []string{
 		fmt.Sprintf("%s=%d", EnvTraceID, spanCtx.TraceID()),
 		fmt.Sprintf("%s=%d", EnvParentID, spanCtx.SpanID()),
 	}
-	return env
 }
 
 // SpanContextFromContext extracts the span context from the context if available.
