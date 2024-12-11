@@ -16,8 +16,8 @@ from tasks.libs.package.size import (
 from tasks.libs.package.utils import (
     PackageSize,
     display_message,
+    find_package,
     get_ancestor,
-    get_package_path,
     list_packages,
     retrieve_package_sizes,
     upload_package_sizes,
@@ -66,11 +66,11 @@ def compare_size(ctx, new_package, stable_package, package_type, last_stable, th
     mb = 1000000
 
     if package_type.endswith('deb'):
-        new_package_size = _get_deb_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_deb_uncompressed_size(ctx, get_package_path(stable_package))
+        new_package_size = _get_deb_uncompressed_size(ctx, find_package(new_package))
+        stable_package_size = _get_deb_uncompressed_size(ctx, find_package(stable_package))
     else:
-        new_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(stable_package))
+        new_package_size = _get_rpm_uncompressed_size(ctx, find_package(new_package))
+        stable_package_size = _get_rpm_uncompressed_size(ctx, find_package(stable_package))
 
     threshold = int(threshold)
 
