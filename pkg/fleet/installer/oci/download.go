@@ -35,7 +35,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

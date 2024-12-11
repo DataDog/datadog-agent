@@ -68,7 +68,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.21.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
@@ -129,11 +129,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
