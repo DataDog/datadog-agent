@@ -179,7 +179,7 @@ func setupDatabricksDriver(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
 	}
-	if os.Getenv("DB_DRIVER_IP") != "" || os.Getenv("DB_DRIVER_PORT") != "" {
+	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
 			common.IntegrationConfigInstanceSpark{
 				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
@@ -189,7 +189,7 @@ func setupDatabricksDriver(s *common.Setup) {
 			},
 		}
 	} else {
-		log.Warn("DB_DRIVER_IP or DB_DRIVER_PORT not set")
+		log.Warn("DB_DRIVER_IP not set")
 	}
 	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
