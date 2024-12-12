@@ -122,7 +122,6 @@ struct cgroup_tracing_event_t {
     struct container_context_t container;
     struct activity_dump_config config;
     u64 cookie;
-    u32 pid;
 };
 
 struct cgroup_write_event_t {

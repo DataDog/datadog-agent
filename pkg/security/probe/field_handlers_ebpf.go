@@ -516,11 +516,11 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			if err := fh.resolvers.ResolveCGroup(entry, e.CGroupFile, e.CGroupFlags); err != nil {
+			if cgroupContext, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err != nil {
 				seclog.Debugf("Failed to resolve cgroup: %s", err)
+			} else {
+				*e = *cgroupContext
 			}
-
-			e.CGroupID = entry.CGroup.CGroupID
 		}
 	}
 

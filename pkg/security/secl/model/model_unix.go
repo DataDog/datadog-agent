@@ -624,7 +624,6 @@ type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
-	Pid              uint32
 	ConfigCookie     uint64
 }
 
