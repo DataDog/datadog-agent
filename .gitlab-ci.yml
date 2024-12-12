@@ -412,7 +412,7 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
-;
+
 .on_mergequeue:
   - <<: *if_mergequeue
     when: on_success
