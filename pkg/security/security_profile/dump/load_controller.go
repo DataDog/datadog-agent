@@ -85,6 +85,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
 	newDump := NewActivityDump(ad.adm)
 	newDump.Metadata.ContainerID = ad.Metadata.ContainerID
+	newDump.Metadata.CGroupContext = ad.Metadata.CGroupContext
 	newDump.Metadata.DifferentiateArgs = ad.Metadata.DifferentiateArgs
 	newDump.Tags = ad.Tags
 	newDump.selector = ad.selector

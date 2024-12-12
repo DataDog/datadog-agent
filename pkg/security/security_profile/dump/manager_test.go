@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
@@ -197,7 +198,7 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 
 			adm := &ActivityDumpManager{
 				activeDumps:        tt.fields.activeDumps,
-				ignoreFromSnapshot: make(map[string]bool),
+				ignoreFromSnapshot: make(map[model.PathKey]bool),
 			}
 
 			expiredDumps := adm.getExpiredDumps()
@@ -474,7 +475,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 					},
 				},
 				statsdClient:       &statsd.NoOpClient{},
-				ignoreFromSnapshot: make(map[string]bool),
+				ignoreFromSnapshot: make(map[model.PathKey]bool),
 			}
 
 			compareListOfDumps(t, adm.getOverweightDumps(), tt.overweightDumps)
