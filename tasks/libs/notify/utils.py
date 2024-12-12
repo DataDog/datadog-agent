@@ -47,22 +47,24 @@ def get_ci_visibility_job_url(
 
 
 def should_notify():
+    """
+    Check if the pipeline should notify the channel: only for non-downstream pipelines, unless conductor triggered it
+    """
     from tasks.libs.ciproviders.gitlab_api import get_pipeline
 
     CONDUCTOR_ID = 8278
-    # agent = get_gitlab_repo()
-    # pipeline = agent.pipelines.get(os.environ['CI_PIPELINE_ID'])
     pipeline = get_pipeline(PROJECT_NAME, os.environ['CI_PIPELINE_ID'])
-    if (
+    return (
         os.environ['CI_PIPELINE_SOURCE'] != 'pipeline'
         or os.environ['CI_PIPELINE_SOURCE'] == 'pipeline'
         and pipeline.user['id'] == CONDUCTOR_ID
-    ):
-        return True
-    return False
+    )
 
 
 def notification_type():
+    """
+    Return the type of notification to send (related to the type of pipeline, amongst 'deploy', 'trigger' and 'merge')
+    """
     if os.environ['DEPLOY_AGENT'] == 'true':
         return 'deploy'
     elif os.environ['CI_PIPELINE_SOURCE'] != 'push':
