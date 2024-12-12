@@ -48,7 +48,7 @@ import (
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -105,14 +105,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-					catalog := workloadmeta.NodeAgent
-					if config.GetBool("security_agent.remote_workloadmeta") {
-						catalog = workloadmeta.Remote
-					}
-					return workloadmeta.Params{
-						AgentType: catalog,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
 				remoteTaggerfx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {

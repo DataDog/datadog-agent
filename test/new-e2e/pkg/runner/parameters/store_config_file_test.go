@@ -52,7 +52,7 @@ func Test_NewConfigFileStore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "totoro", value)
 
-	value, err = store.Get(PublicKeyPath)
+	value, err = store.Get(AWSPublicKeyPath)
 	assert.NoError(t, err)
 	assert.Equal(t, "/Users/totoro/.ssh/id_rsa.pub", value)
 
@@ -81,7 +81,7 @@ func Test_NewConfigFileStoreNoAWSAccount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "totoro", value)
 
-	value, err = store.Get(PublicKeyPath)
+	value, err = store.Get(AWSPublicKeyPath)
 	assert.NoError(t, err)
 	assert.Equal(t, "/Users/totoro/.ssh/id_rsa.pub", value)
 

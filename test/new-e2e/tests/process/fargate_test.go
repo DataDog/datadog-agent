@@ -73,14 +73,27 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSFargateSuite) TestProcessCheckInCoreAgent() {
-	t := s.T()
+type ECSFargateCoreAgentSuite struct {
+	e2e.BaseSuite[environments.ECS]
+}
+
+func TestECSFargateCoreAgentTestSuite(t *testing.T) {
+	t.Parallel()
+	s := ECSFargateCoreAgentSuite{}
 
 	extraConfig := runner.ConfigMap{
 		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=true"},
 	}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		getFargateProvisioner(extraConfig),
+	),
+	}
 
-	s.UpdateEnv(getFargateProvisioner(extraConfig))
+	e2e.Run(t, &s, e2eParams...)
+}
+
+func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
+	t := s.T()
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()

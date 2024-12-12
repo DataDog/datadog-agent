@@ -6,10 +6,11 @@
 package checks
 
 import (
+	"net/http"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -38,8 +39,8 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return nil, err
 	}
 
-	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
-		mergeStatWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
+	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
+		mergeStatWithSysprobeStats(p.lastPIDs, procs, p.sysprobeClient)
 	}
 
 	var containers []*model.Container
@@ -160,8 +161,8 @@ func calculateRate(cur, prev uint64, before time.Time) float32 {
 }
 
 // mergeStatWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, pu net.SysProbeUtil) {
-	pStats, err := pu.GetProcStats(pids)
+func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, client *http.Client) {
+	pStats, err := net.GetProcStats(client, pids)
 	if err == nil {
 		for pid, stats := range stats {
 			if s, ok := pStats.StatsByPID[pid]; ok {

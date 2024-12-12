@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.22.5
-
-toolchain go1.22.8
+go 1.23.0
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -45,13 +43,13 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.137
+	github.com/DataDog/agent-payload/v5 v5.0.138
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.2
-	github.com/DataDog/datadog-agent/pkg/version v0.59.0
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.31.0
@@ -60,7 +58,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241129143439-1f340fd450e3
+	github.com/DataDog/test-infra-definitions v0.0.0-20241211124138-9c7c5005ca28
 	github.com/aws/aws-sdk-go-v2 v1.32.5
 	github.com/aws/aws-sdk-go-v2/config v1.28.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -76,28 +74,27 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.8.1 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.18.3
 	github.com/pulumi/pulumi/sdk/v3 v3.140.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
-	golang.org/x/crypto v0.29.0
-	golang.org/x/sys v0.27.0
-	golang.org/x/term v0.26.0
+	golang.org/x/crypto v0.31.0
+	golang.org/x/sys v0.28.0
+	golang.org/x/term v0.27.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.31.2
-	k8s.io/apimachinery v0.31.2
+	k8s.io/api v0.31.3
+	k8s.io/apimachinery v0.31.3
 	k8s.io/cli-runtime v0.31.2
-	k8s.io/client-go v0.31.2
+	k8s.io/client-go v0.31.3
 	k8s.io/kubectl v0.31.2
 )
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
-	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -256,14 +253,14 @@ require (
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect
 	go.starlark.net v0.0.0-20231101134539-556fd59b42f6 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
+	golang.org/x/exp v0.0.0-20241210194714-1829a127f884
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.31.0
+	golang.org/x/net v0.32.0
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/sync v0.9.0 // indirect
-	golang.org/x/text v0.20.0
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/text v0.21.0
 	golang.org/x/time v0.8.0 // indirect
-	golang.org/x/tools v0.27.0 // indirect
+	golang.org/x/tools v0.28.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241104194629-dd2ea8efbc28 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
@@ -305,20 +302,20 @@ require (
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
 	github.com/onsi/gomega v1.34.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.73.1 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.73.1 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.73.1 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.73.1 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v3 v3.3.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.opentelemetry.io/collector/component v0.114.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.114.0 // indirect
-	go.opentelemetry.io/collector/extension v0.114.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.20.0 // indirect
+	go.opentelemetry.io/collector/component v0.115.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.115.0 // indirect
+	go.opentelemetry.io/collector/extension v0.115.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.21.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect

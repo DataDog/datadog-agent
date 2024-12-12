@@ -473,7 +473,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
+	provider, err := rules.NewPoliciesDirProvider(args.dir)
 	if err != nil {
 		return err
 	}
@@ -612,7 +612,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir)
 	if err != nil {
 		return err
 	}

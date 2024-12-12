@@ -43,16 +43,20 @@ func (s *EbpfProgramSuite) TestCanInstantiateMultipleTimes() {
 
 	prog := GetEBPFProgram(cfg)
 	require.NotNil(t, prog)
-	t.Cleanup(prog.Stop)
+	t.Cleanup(func() {
+		if prog != nil {
+			prog.Stop()
+		}
+	})
 
 	require.NoError(t, prog.InitWithLibsets(LibsetCrypto))
 	prog.Stop()
+	prog = nil
 
 	prog2 := GetEBPFProgram(cfg)
 	require.NotNil(t, prog2)
-
-	require.NoError(t, prog.InitWithLibsets(LibsetCrypto))
 	t.Cleanup(prog2.Stop)
+	require.NoError(t, prog2.InitWithLibsets(LibsetCrypto))
 }
 
 func (s *EbpfProgramSuite) TestProgramReceivesEventsWithSingleLibset() {
