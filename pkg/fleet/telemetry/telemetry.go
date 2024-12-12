@@ -11,9 +11,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -216,8 +218,14 @@ func StartSpanFromEnv(ctx context.Context, operationName string, spanOptions ...
 
 // spanContextFromEnv injects the traceID and parentID from the environment into the context if available.
 func spanContextFromEnv() (ddtrace.SpanContext, bool) {
-	traceID := os.Getenv(EnvTraceID)
-	parentID := os.Getenv(EnvParentID)
+	traceID, ok := os.LookupEnv(EnvTraceID)
+	if !ok {
+		traceID = strconv.FormatUint(rand.Uint64(), 10)
+	}
+	parentID, ok := os.LookupEnv(EnvParentID)
+	if !ok {
+		parentID = "0"
+	}
 	ctxCarrier := tracer.TextMapCarrier{
 		tracer.DefaultTraceIDHeader:  traceID,
 		tracer.DefaultParentIDHeader: parentID,
@@ -231,13 +239,16 @@ func spanContextFromEnv() (ddtrace.SpanContext, bool) {
 	return spanCtx, true
 }
 
-// EnvFromSpanContext returns the environment variables for the span context.
-func EnvFromSpanContext(spanCtx ddtrace.SpanContext) []string {
-	env := []string{
+// EnvFromContext returns the environment variables for the context.
+func EnvFromContext(ctx context.Context) []string {
+	spanCtx, ok := SpanContextFromContext(ctx)
+	if !ok {
+		return []string{}
+	}
+	return []string{
 		fmt.Sprintf("%s=%d", EnvTraceID, spanCtx.TraceID()),
 		fmt.Sprintf("%s=%d", EnvParentID, spanCtx.SpanID()),
 	}
-	return env
 }
 
 // SpanContextFromContext extracts the span context from the context if available.

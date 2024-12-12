@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/gopsutil/host"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
-	host2 "github.com/shirou/gopsutil/v3/host"
+	host2 "github.com/shirou/gopsutil/v4/host"
 	"github.com/yusufpapurcu/wmi"
 )
 
