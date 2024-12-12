@@ -412,7 +412,7 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
-
+;
 .on_mergequeue:
   - <<: *if_mergequeue
     when: on_success
@@ -462,6 +462,10 @@ workflow:
 .on_deploy_failure:
   - <<: *if_deploy
     when: on_failure
+
+.on_deploy_always:
+  - <<: *if_deploy
+    when: always
 
 .on_deploy_rc:
   - <<: *if_not_deploy
