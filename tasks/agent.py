@@ -896,3 +896,37 @@ def build_remote_agent(ctx, env=None):
     """
     cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
     return ctx.run(cmd, env=env or {})
+
+
+@task()
+def get_datadog_secret_backend(ctx, env=None):
+    """
+    Retrieves the latest release of DataDog/datadog-secret-backend from GitHub.
+    """
+    dist_folder = os.path.join(".", "bin", "datadog-secret-backend")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    os.mkdir(dist_folder)
+
+    arch = platform.machine()
+    if arch in ['x86_64', 'amd64']:
+        arch = 'amd64'
+    elif arch in ['aarch64', 'arm64']:
+        arch = 'arm64'
+    elif arch in ['i386', '386']:
+        arch = '386'
+    else:
+        raise Exit(f"Unsupported architecture: {arch}", code=1)
+
+    dest_os = platform.system().lower()
+    if dest_os not in ['linux', 'darwin', 'windows']:
+        raise Exit(f"Unsupported OS: {dest_os}", code=1)
+
+    url = f"https://github.com/DataDog/datadog-secret-backend/releases/latest/download/datadog-secret-backend-{dest_os}-{arch}.tar.gz"
+
+    # Download the tarball
+    tarball_path = f"/tmp/datadog-secret-backend-{dest_os}-{arch}.tar.gz"
+    ctx.run(f"curl -L -o {tarball_path} {url}")
+
+    # Extract the tarball
+    ctx.run(f"tar -xzf {tarball_path} -C {dist_folder}")
