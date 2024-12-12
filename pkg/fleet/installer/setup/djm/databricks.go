@@ -90,7 +90,7 @@ func SetupDatabricks(s *common.Setup) error {
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
-	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = -1 // avoid port conflict
+	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
 	for env, tag := range envToTags {
 		if val, ok := os.LookupEnv(env); ok {
 			s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tag+":"+val)
