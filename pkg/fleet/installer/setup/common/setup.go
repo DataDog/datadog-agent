@@ -11,13 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
+
+const (
+	installerOCILayoutURL = "file://." // the installer OCI layout is written by the downloader in the current directory
 )
 
 var (
@@ -27,9 +30,8 @@ var (
 
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
-	configDir           string
-	installer           installer.Installer
-	installerPackageURL string
+	configDir string
+	installer installer.Installer
 
 	Env      *env.Env
 	Ctx      context.Context
@@ -43,23 +45,17 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 	if env.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
-	executablePath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
-	}
-	installerPackageURL := fmt.Sprintf("file://%s", filepath.Dir(executablePath))
 	installer, err := installer.NewInstaller(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", name))
 	s := &Setup{
-		configDir:           configDir,
-		installer:           installer,
-		installerPackageURL: installerPackageURL,
-		Env:                 env,
-		Ctx:                 ctx,
-		Span:                span,
+		configDir: configDir,
+		installer: installer,
+		Env:       env,
+		Ctx:       ctx,
+		Span:      span,
 		Config: Config{
 			DatadogYAML: DatadogConfig{
 				APIKey:   env.APIKey,
@@ -83,7 +79,7 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	err = s.installer.Install(s.Ctx, s.installerPackageURL, nil)
+	err = s.installer.Install(s.Ctx, installerOCILayoutURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}

@@ -72,6 +72,7 @@ func runDownloader(ctx context.Context, env *env.Env, version string, flavor str
 		return fmt.Errorf("failed to download installer: %w", err)
 	}
 	cmd := exec.CommandContext(ctx, filepath.Join(tmpDir, installerBinPath), "setup", "--flavor", flavor)
+	cmd.Dir = tmpDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), telemetry.EnvFromContext(ctx)...)
