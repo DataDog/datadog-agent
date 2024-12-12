@@ -36,6 +36,7 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 
 	// TODO: ensure rate limiters are removed once probes are removed
 	rateLimiters := ratelimiter.NewMultiProbeRateLimiter(rate)
+	rateLimiters.SetRate(ditypes.ConfigBPFProbeID, 0)
 
 	go func() {
 		for {
