@@ -5,6 +5,8 @@ import itertools
 import json
 import os
 import platform
+import random
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Union, cast
 from urllib.parse import urlparse
 
@@ -14,7 +16,7 @@ from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
-from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping
+from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_ls, arch_mapping
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
@@ -78,48 +80,9 @@ kernels = [
     "4.19",
     "4.20",
 ]
-distributions = {
-    # Ubuntu mappings
-    "ubuntu_16": "ubuntu_16.04",
-    "ubuntu_18": "ubuntu_18.04",
-    "ubuntu_20": "ubuntu_20.04",
-    "ubuntu_22": "ubuntu_22.04",
-    "ubuntu_23": "ubuntu_23.10",
-    "xenial": "ubuntu_16.04",
-    "bionic": "ubuntu_18.04",
-    "focal": "ubuntu_20.04",
-    "jammy": "ubuntu_22.04",
-    "mantic": "ubuntu_23.10",
-    # Amazon Linux mappings
-    "amazon_4.14": "amzn_4.14",
-    "amazon_5.4": "amzn_5.4",
-    "amazon_5.10": "amzn_5.10",
-    "amzn_4.14": "amzn_4.14",
-    "amzn_414": "amzn_4.14",
-    "amzn_5.4": "amzn_5.4",
-    "amzn_5.10": "amzn_5.10",
-    "amzn_2023": "amzn_2023",
-    "amazon_2023": "amzn_2023",
-    "al3": "amzn_2023",
-    "amzn_3": "amzn_2023",
-    # Fedora mappings
-    "fedora_37": "fedora_37",
-    "fedora_38": "fedora_38",
-    # Debian mappings
-    "debian_10": "debian_10",
-    "debian_11": "debian_11",
-    "debian_12": "debian_12",
-    # CentOS mappings
-    "centos_79": "centos_79",
-    "centos_7": "centos_79",
-    "centos_8": "centos_8",
-    # Rocky Linux mappings
-    "rocky_8.5": "rocky_8.5",
-    "rocky_9.3": "rocky_9.3",
-}
 
-TICK = "\u2713"
-CROSS = "\u2718"
+TICK = "\033[32m\u2713\033[0m"
+CROSS = "\033[31m\u2718\033[0m"
 table = [
     ["Image", "x86_64", "arm64"],
     ["ubuntu-18 (bionic)", TICK, CROSS],
@@ -153,22 +116,71 @@ def lte_414(version: str) -> bool:
     return (int(major) <= 4) and (int(minor) <= 14)
 
 
-def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
-    custom_kernels: List[List[str]] = list()
-    for k in kernels:
+def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
+    headers = [
+        "VM name",
+        "OS Name",
+        "OS Version",
+        "Kernel",
+        "x86_64",
+        "arm64",
+        "Alternative names",
+        "Example VM tags to use with --vms (fuzzy matching)",
+    ]
+    custom_kernels: list[list[str]] = list()
+    for k in sorted(kernels, key=lambda x: tuple(map(int, x.split('.')))):
         if lte_414(k):
-            custom_kernels.append([f"custom kernel v{k}", TICK, CROSS])
+            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
         else:
-            custom_kernels.append([f"custom kernel v{k}", TICK, TICK])
+            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, TICK, "", f"custom-{k}-x86_64"])
 
-    if (not (distro or custom)) or (distro and custom):
-        return table + custom_kernels
-    elif distro:
-        return table
-    elif custom:
-        return custom_kernels
-    else:
-        return []
+    distro_kernels: list[list[str]] = list()
+    platforms = get_platforms()
+    mappings = get_distribution_mappings()
+    # Group kernels by name and kernel version, show whether one or two architectures are supported
+    for arch in arch_ls:
+        for name, platinfo in platforms[arch].items():
+            if isinstance(platinfo, str):
+                continue  # Old format
+
+            # See if we've already added this kernel but for a different architecture. If not, create the entry.
+            entry = None
+            for row in distro_kernels:
+                if row[0] == name and row[3] == platinfo.get('kernel'):
+                    entry = row
+                    break
+            if entry is None:
+                names = {k for k, v in mappings.items() if v == name}
+                # Take two random names for the table so users get an idea of possible mappings
+                names = random.choices(list(names), k=min(2, len(names)))
+
+                entry = [
+                    name,
+                    platinfo.get("os_name"),
+                    platinfo.get("os_version"),
+                    platinfo.get("kernel"),
+                    CROSS,
+                    CROSS,
+                    ", ".join(platinfo.get("alt_version_names", [])),
+                    ", ".join(f"distro-{n}-{arch}" for n in names),
+                ]
+                distro_kernels.append(entry)
+
+            if arch == "x86_64":
+                entry[4] = TICK
+            else:
+                entry[5] = TICK
+
+    # Sort by name
+    distro_kernels.sort(key=lambda x: x[0])
+
+    table = [headers]
+    if distro:
+        table += distro_kernels
+    if custom:
+        table += custom_kernels
+
+    return table
 
 
 def check_memory_and_vcpus(memory: List[Any], vcpus: List[Any]):
@@ -187,8 +199,51 @@ def empty_config(file_path: str):
         f.write(j)
 
 
-def list_possible() -> List[str]:
-    distros = list(distributions.keys())
+def get_distribution_mappings() -> dict[str, str]:
+    platforms = get_platforms()
+    distro_mappings: dict[str, str] = dict()
+    alternative_spellings = {"amzn": ["amazon", "al"]}
+    mapping_candidates: dict[str, set[str]] = defaultdict(
+        set
+    )  # Store here maps that could generate duplicates. Values are the possible targets
+
+    for arch in arch_ls:
+        for name, platinfo in platforms[arch].items():
+            if isinstance(platinfo, str):
+                continue  # Avoid a crash if we have the old format in the platforms file
+            if name in distro_mappings:
+                continue  # Ignore already existing images (from other arch)
+
+            distro_mappings[name] = name  # Direct name
+            distro_mappings[name.replace('.', '')] = name  # Allow name without dots
+            for alt in platinfo.get("alt_version_names", []):
+                distro_mappings[alt] = name  # Alternative version names map directly to the main name
+
+            os_id = platinfo.get("os_id", "")
+            version = platinfo.get('version', "")
+
+            if version != "":
+                if (
+                    os_id != "" and os_id != name.split('_')[0]
+                ):  # If the os_id is different from the main name, add it too
+                    distro_mappings[f"{os_id}_{version}"] = name
+
+                for alt in alternative_spellings.get(os_id, []):
+                    distro_mappings[f"{alt}_{version}"] = name
+
+                name_no_minor_version = f"{os_id}_{version.split('.')[0]}"
+                mapping_candidates[name_no_minor_version].add(name)
+
+    # Add candidates that didn't have any duplicates
+    for name, candidates in mapping_candidates.items():
+        if len(candidates) == 1:
+            distro_mappings[name] = candidates.pop()
+
+    return distro_mappings
+
+
+def list_possible() -> list[str]:
+    distros = list(get_distribution_mappings().keys())
     archs = list(arch_mapping.keys())
     archs.append(local_arch)
 
@@ -222,7 +277,7 @@ def normalize_vm_def(possible: List[str], vm: str) -> VMDef:
         arch = arch_mapping[arch]
 
     if recipe == "distro":
-        version = distributions[version]
+        version = get_distribution_mappings()[version]
     elif recipe != "custom":
         raise Exit(f"Invalid recipe {recipe}")
 
@@ -273,7 +328,10 @@ def get_kernel_config(
         arch = arch_mapping[platform.machine()]
 
     url_base = platforms["url_base"]
-    kernel_path = platforms[arch][version]
+    platinfo = platforms[arch][version]
+    if "image" not in platinfo or "image_version" not in platinfo:
+        raise Exit(f"image not found in platform information for {version}")
+    kernel_path = f"{platinfo['image_version']}/{platinfo['image']}"
     kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
 
     return {"tag": version, "image_source": os.path.join(url_base, kernel_path), "dir": kernel_name}
