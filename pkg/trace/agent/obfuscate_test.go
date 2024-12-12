@@ -49,7 +49,7 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		agnt, stop := agentWithDefaults()
 		defer stop()
 		obfuscator := agnt.lazyInitObfuscator()
-		obfuscateStatsGroup(obfuscator, tt.in)
+		ObfuscateStatsGroup(obfuscator, tt.in)
 		assert.Equal(t, tt.in.Resource, tt.out)
 	}
 }

@@ -536,7 +536,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 				continue
 			}
 			obfuscator := a.lazyInitObfuscator()
-			obfuscateStatsGroup(obfuscator, b)
+			ObfuscateStatsGroup(obfuscator, b)
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
