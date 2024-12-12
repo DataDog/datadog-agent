@@ -26,7 +26,7 @@ import (
 
 const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 const gpuInstanceType = "g4dn.xlarge"
-const nvidiaPCIVendorId = "10de"
+const nvidiaPCIVendorID = "10de"
 
 const defaultGpuCheckConfig = `
 init_config:
@@ -76,14 +76,20 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 		if err != nil {
 			return err
 		}
-		host.Export(ctx, &env.RemoteHost.HostOutput)
+		err = host.Export(ctx, &env.RemoteHost.HostOutput)
+		if err != nil {
+			return err
+		}
 
 		// Create the fakeintake instance
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
 		if err != nil {
 			return err
 		}
-		fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
 
 		// install the ECR credentials helper
 		// required to get pipeline agent images or other internally hosted images
@@ -131,7 +137,7 @@ func validateGPUDevices(e aws.Environment, vm *remote.Host) (*goremote.Command, 
 	pciValidate, err := vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("pci-validate"),
 		&command.Args{
-			Create: pulumi.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorId),
+			Create: pulumi.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
 			Sudo:   false,
 		},
 	)
