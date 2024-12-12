@@ -492,7 +492,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
 
-	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": fileAPM1, "datadog/2/APM_SAMPLING/id/2": fileAPM2}, nil)
+	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": fileAPM1, "datadog/2/APM_SAMPLING/id/2": fileAPM2}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -602,7 +602,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
-	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
+	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -1262,5 +1262,26 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			require.Len(t, u.TUFRoots, 1)
 			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
 		})
+	}
+}
+
+func listsEqual(mustMatch []string) func(candidate []string) bool {
+	return func(candidate []string) bool {
+		if len(candidate) != len(mustMatch) {
+			return false
+		}
+
+		candidateSet := make(map[string]struct{})
+		for _, item := range candidate {
+			candidateSet[item] = struct{}{}
+		}
+
+		for _, item := range mustMatch {
+			if _, ok := candidateSet[item]; !ok {
+				return false
+			}
+		}
+
+		return true
 	}
 }
