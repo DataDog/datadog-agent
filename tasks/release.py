@@ -530,14 +530,14 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         )
 
         # Step 4 - If slack workflow webhook is provided, send a slack message
-        if slack_webhook:
-            print(color_message("Sending slack notification", "bold"))
-            payload = {
-                "pr_url": pr_url,
-                "version": str(new_highest_version),
-            }
+        # if slack_webhook:
+        #     print(color_message("Sending slack notification", "bold"))
+        #     payload = {
+        #         "pr_url": pr_url,
+        #         "version": str(new_highest_version),
+        #     }
 
-            ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
+        #     ctx.run(f"curl -X POST -H 'Content-Type: application/json' --data '{json.dumps(payload)}' {slack_webhook}")
 
 
 @task
