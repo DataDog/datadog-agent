@@ -431,6 +431,11 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
+// ReleaseStats release objects back to pool, not implemented yet, to satisfy protocol.
+func (p *Protocol) ReleaseStats() {
+	return
+}
+
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.
 func (*Protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true

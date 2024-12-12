@@ -225,6 +225,11 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
+// ReleaseStats release objects back to pool.
+func (p *protocol) ReleaseStats() {
+	p.statkeeper.ReleaseSketches()
+}
+
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
