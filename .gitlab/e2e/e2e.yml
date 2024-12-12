@@ -43,7 +43,7 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    # AWS SSH Key configuration  
+    # AWS SSH Key configuration
     E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
     E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
@@ -512,7 +512,7 @@ new-e2e-ha-agent:
     TEAM: ndm-core
 
 new-e2e-netpath:
-  extends: .new_e2e_template_needs_deb_x64
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]

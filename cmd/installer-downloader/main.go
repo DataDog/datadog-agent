@@ -72,6 +72,7 @@ func runDownloader(ctx context.Context, env *env.Env, version string, flavor str
 		return fmt.Errorf("failed to download installer: %w", err)
 	}
 	cmd := exec.CommandContext(ctx, filepath.Join(tmpDir, installerBinPath), "setup", "--flavor", flavor)
+	cmd.Dir = tmpDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), telemetry.EnvFromContext(ctx)...)
@@ -91,6 +92,10 @@ func downloadInstaller(ctx context.Context, env *env.Env, version string, tmpDir
 	}
 	if downloadedPackage.Name != installerPackage {
 		return fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, installerPackage)
+	}
+	err = downloadedPackage.WriteOCILayout(tmpDir)
+	if err != nil {
+		return fmt.Errorf("failed to write OCI layout: %w", err)
 	}
 	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
