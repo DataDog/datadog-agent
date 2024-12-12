@@ -23,20 +23,22 @@ var GPUUUIDs = []string{
 	"GPU-00000000-1234-1234-1234-123456789014",
 }
 
+var GPUCores = []int{DefaultGpuCores, 20, 30}
+
 // DefaultGpuUUID is the UUID for the default device returned by the mock
 var DefaultGpuUUID = GPUUUIDs[0]
 
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
-func GetDeviceMock(uuid string) *nvmlmock.Device {
+func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
 		GetNumGpuCoresFunc: func() (int, nvml.Return) {
-			return DefaultGpuCores, nvml.SUCCESS
+			return GPUCores[deviceIdx], nvml.SUCCESS
 		},
 		GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
 			return 7, 5, nvml.SUCCESS
 		},
 		GetUUIDFunc: func() (string, nvml.Return) {
-			return uuid, nvml.SUCCESS
+			return GPUUUIDs[deviceIdx], nvml.SUCCESS
 		},
 	}
 }
@@ -49,7 +51,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 			return len(GPUUUIDs), nvml.SUCCESS
 		},
 		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-			return GetDeviceMock(GPUUUIDs[index]), nvml.SUCCESS
+			return GetDeviceMock(index), nvml.SUCCESS
 		},
 		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
 			return 7, 5, nvml.SUCCESS
