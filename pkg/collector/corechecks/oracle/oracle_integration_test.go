@@ -429,8 +429,7 @@ func TestCanConnectTags(t *testing.T) {
 	err := chk.Run()
 	require.NoError(t, err)
 
-	expectedHostTag := fmt.Sprintf("host:%s", chk.config.InstanceConfig.Server)
-	sender.AssertServiceCheck(t, "oracle.can_connect", servicecheck.ServiceCheckOK, "", []string{expectedHostTag}, "")
+	sender.AssertServiceCheck(t, "oracle.can_connect", servicecheck.ServiceCheckOK, chk.dbHostname, nil, "")
 }
 
 func TestLargeUint64Binding(t *testing.T) {
