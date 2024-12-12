@@ -24,7 +24,10 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 	assert.Equal(t,
 		map[string]interface{}{
 			"a":     struct{}{},
+			"b":     struct{}{},
 			"b.c":   struct{}{},
+			"d":     struct{}{},
+			"d.e":   struct{}{},
 			"d.e.f": struct{}{},
 		},
 		cfg.GetKnownKeysLowercased())
@@ -37,8 +40,25 @@ func TestGet(t *testing.T) {
 
 	assert.Equal(t, 1234, cfg.Get("a"))
 
-	cfg.Set("a", "test", model.SourceAgentRuntime)
-	assert.Equal(t, "test", cfg.Get("a"))
+	cfg.Set("a", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, 9876, cfg.Get("a"))
+
+	assert.Equal(t, nil, cfg.Get("does_not_exists"))
+}
+
+func TestGetCastToDefault(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a", []string{})
+	cfg.BuildSchema()
+
+	// This test that we mimic viper's behavior on Get where we convert the value from the config to the same type
+	// from the default.
+
+	cfg.Set("a", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, []string{"9876"}, cfg.Get("a"))
+
+	cfg.Set("a", "a b c", model.SourceAgentRuntime)
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.Get("a"))
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 }

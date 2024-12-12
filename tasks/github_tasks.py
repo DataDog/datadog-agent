@@ -18,9 +18,10 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
@@ -36,7 +37,7 @@ def concurrency_key():
     current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
+    if re.search(rf'^({get_default_branch()}|\d+\.\d+\.x)$', current_ref):
         return None
 
     return current_ref
@@ -68,7 +69,7 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
 def trigger_macos(
     _,
     workflow_type="build",
-    datadog_agent_ref=DEFAULT_BRANCH,
+    datadog_agent_ref=None,
     release_version="nightly-a7",
     major_version="7",
     destination=".",
@@ -79,6 +80,13 @@ def trigger_macos(
     test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
+    """
+    Args:
+        datadog_agent_ref: If None, will be the default branch.
+    """
+
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
+
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
             # Provide the release version to be able to fetch the associated
@@ -446,7 +454,7 @@ def pr_merge_dd_event_sender(
 
     tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
     labels = set(github.get_pr_labels(pr.number))
-    all_qa_labels = {'qa/done', 'qa/no-code-change'}
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
     qa_labels = all_qa_labels.intersection(labels)
     if len(qa_labels) == 0:
         tags.append('qa_label:missing')
@@ -487,7 +495,7 @@ def extract_test_qa_description(pr_body: str) -> str:
     pr_body_lines = pr_body.splitlines()
     index_of_test_qa_section = -1
     for i, line in enumerate(pr_body_lines):
-        if line.startswith('### Describe how to test'):
+        if line.startswith('### Describe how you validated your changes'):
             index_of_test_qa_section = i
             break
     if index_of_test_qa_section == -1:
@@ -538,3 +546,64 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
             print(
                 "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
             )
+
+
+@task
+def get_required_checks(_, branch: str = "main"):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (read).
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    required_checks = gh.get_branch_required_checks(branch)
+    print(required_checks)
+
+
+@task(iterable=['check'])
+def add_required_checks(_, branch: str, check: str, force: bool = False):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (write).
+
+    Use it like this:
+    inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not check:
+        raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
+
+    gh = GithubAPI()
+    gh.add_branch_required_check(branch, check, force)
+
+
+@task
+def check_qa_labels(_, labels: str):
+    """
+    Check if the PR has one of qa/[done|no-code-change|rc-required] label
+    """
+    labels = set(labels.split(" "))
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
+    qa_labels = all_qa_labels.intersection(labels)
+    docs = "\n".join(
+        [
+            "You must set one of:",
+            "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities",
+            "  Examples: code owner changes, e2e test framework changes, documentation changes",
+            "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed.",
+            "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge.",
+            "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet.",
+            "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment",
+            "",
+            "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details.",
+        ]
+    )
+    if len(qa_labels) == 0:
+        raise Exit(f"No QA label set.\n{docs}", code=1)
+    if len(qa_labels) > 1:
+        raise Exit(f"More than one QA label set.\n{docs}", code=1)
+    print("QA label set correctly")

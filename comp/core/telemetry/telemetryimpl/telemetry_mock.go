@@ -14,7 +14,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	sdk "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -40,13 +39,11 @@ type telemetryImplMock struct {
 
 func newMock(deps testDependencies) telemetry.Mock {
 	reg := prometheus.NewRegistry()
-	provider := newProvider(reg)
 
 	telemetry := &telemetryImplMock{
 		telemetryImpl{
 			mutex:           &mutex,
 			registry:        reg,
-			meterProvider:   provider,
 			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}
@@ -142,10 +139,4 @@ func (t *telemetryImplMock) getMetric(metricType dto.MetricType, subsystem, name
 	}
 
 	return internalMetrics, nil
-}
-
-func (t *telemetryImplMock) GetMeterProvider() *sdk.MeterProvider {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	return t.meterProvider
 }

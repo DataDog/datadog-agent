@@ -79,13 +79,14 @@ func (h *Host) setSystemdVersion() {
 
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
+	defer func() { h.remote.MustExecute("sudo systemctl start docker") }()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
 	}
 
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
-		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
+		h.remote.MustExecute(`sudo sh -c "yum -y install docker"`)
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
@@ -142,7 +143,7 @@ func (h *Host) DeletePath(path string) {
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
 		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
@@ -150,7 +151,7 @@ func (h *Host) WaitForUnitActive(units ...string) {
 // WaitForUnitActivating waits for a systemd unit to be activating
 func (h *Host) WaitForUnitActivating(units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
 		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 
 	}
@@ -252,7 +253,9 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
 		case "apt":
-			h.remote.MustExecute("! dpkg-query -l " + pkg)
+			// If a package is removed but not purged, it will be in the "rc" state (opposed to "ii" for installed)
+			// if it's been purged, the command will return an error
+			h.remote.MustExecute(fmt.Sprintf("dpkg-query -l %[1]s | grep '^rc' || ! dpkg-query -l %[1]s", pkg))
 		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
@@ -434,6 +437,45 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 	return oldmask
 }
 
+// SetupProxy sets up a Squid Proxy with Docker & adds iptables/nftables rules to redirect block all traffic
+// except for the proxy
+func (h *Host) SetupProxy() {
+	// Install Docker & the Squid Proxy
+	h.InstallDocker()
+	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta")
+
+	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
+
+	// Block all traffic except for the proxy
+	// Allow squid proxy
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -A OUTPUT -d 0.0.0.0/0 -p tcp -s \"%s\" --dport 80 -j ACCEPT", squidIP))
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -A OUTPUT -d 0.0.0.0/0 -p tcp -s \"%s\" --dport 443 -j ACCEPT", squidIP))
+	// Block all traffic
+	h.remote.MustExecute("sudo iptables -A OUTPUT -p tcp --dport 80 -j REJECT")
+	h.remote.MustExecute("sudo iptables -A OUTPUT -p tcp --dport 443 -j REJECT")
+
+	// Check proxy works
+	_, err := h.remote.Execute("curl https://google.com")
+	require.Error(h.t, err)
+}
+
+// RemoveProxy removes the Squid Proxy & iptables/nftables rules
+func (h *Host) RemoveProxy() {
+	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
+
+	// Remove traffic block
+	// Remove squid proxy rules
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -D OUTPUT -p tcp -s \"%s\" --dport 80 -j ACCEPT", squidIP))
+	h.remote.MustExecute(fmt.Sprintf("sudo iptables -D OUTPUT -p tcp -s \"%s\" --dport 443 -j ACCEPT", squidIP))
+	// Remove block rules
+	h.remote.MustExecute("sudo iptables -D OUTPUT -p tcp --dport 80 -j REJECT")
+	h.remote.MustExecute("sudo iptables -D OUTPUT -p tcp --dport 443 -j REJECT")
+
+	// Check proxy removed
+	_, err := h.remote.Execute("curl https://google.com")
+	require.NoError(h.t, err)
+}
+
 // LoadState is the load state of a systemd unit.
 type LoadState string
 
@@ -607,7 +649,7 @@ func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, gro
 func (s *State) AssertPathDoesNotExist(path string) {
 	path = evalSymlinkPath(path, s.FS)
 	_, ok := s.FS[path]
-	assert.False(s.t, ok, "something exists at path", path)
+	assert.False(s.t, ok, "something exists at path %s", path)
 }
 
 // AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.

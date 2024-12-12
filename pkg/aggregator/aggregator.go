@@ -16,6 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -252,6 +253,7 @@ type BufferedAggregator struct {
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
+	haAgent                haagent.Component
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -283,7 +285,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -326,6 +328,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
+		haAgent:                     haAgent,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -607,6 +610,19 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		SourceTypeName: "System",
 	})
 
+	if agg.haAgent.Enabled() {
+		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
+		// Send along a metric to show if HA Agent is running with agent_state tag.
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(haAgentTags),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
@@ -860,6 +876,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
+	}
+	if agg.haAgent.Enabled() {
+		tags = append(tags, "agent_group:"+agg.haAgent.GetGroup())
 	}
 	// nil to empty string
 	// This is expected by other components/tests

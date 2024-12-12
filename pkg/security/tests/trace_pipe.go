@@ -94,6 +94,9 @@ func (t *TracePipe) ReadLine() (*TraceEvent, error) {
 	if err != nil {
 		return nil, err
 	}
+	if line == "\n" {
+		return nil, io.EOF
+	}
 	traceEvent, err := parseTraceLine(line)
 	if err != nil {
 		return nil, err

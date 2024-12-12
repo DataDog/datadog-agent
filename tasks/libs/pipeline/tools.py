@@ -11,10 +11,10 @@ from gitlab import GitlabError
 from gitlab.exceptions import GitlabJobPlayError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
-from tasks.libs.ciproviders.gitlab_api import refresh_pipeline
+from tasks.libs.ciproviders.gitlab_api import cancel_pipeline, refresh_pipeline
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import DEFAULT_BRANCH
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -64,7 +64,7 @@ def cancel_pipelines_with_confirmation(repo: Project, pipelines: list[ProjectPip
         )
 
         if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
-            pipeline.cancel()
+            cancel_pipeline(pipeline)
             print(f"Pipeline {color_message(pipeline.id, 'bold')} has been cancelled.\n")
         else:
             print(f"Pipeline {color_message(pipeline.id, 'bold')} will keep running.\n")
@@ -115,7 +115,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
 
 def trigger_agent_pipeline(
     repo: Project,
-    ref=DEFAULT_BRANCH,
+    ref=None,
     release_version_6="nightly",
     release_version_7="nightly-a7",
     branch="nightly",
@@ -130,10 +130,12 @@ def trigger_agent_pipeline(
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
     - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
-    - run a pipeline with all kitchen tests,
+    - run a pipeline with all e2e tests,
     - run a pipeline with all end-to-end tests,
-    - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
+    - run a deploy pipeline (includes all builds & e2e tests + uploads artifacts to staging repositories);
     """
+
+    ref = ref or get_default_branch()
     args = {}
 
     if deploy:
