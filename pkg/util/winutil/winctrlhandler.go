@@ -35,10 +35,7 @@ func boolToInt(b bool) int {
 func SetConsoleCtrlHandler(handler func(uint32) bool, add bool) error {
 	ret, _, err := setConsoleCtrlHandler.Call(
 		uintptr(windows.NewCallback(func(sig uint32) uintptr {
-			if handler(sig) {
-				return 1
-			}
-			return 0
+			return uintptr(boolToInt(handler(sig)))
 		})),
 		uintptr(boolToInt(add)))
 	if ret == 0 {
