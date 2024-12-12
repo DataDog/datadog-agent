@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -47,6 +49,7 @@ func init() {
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
 	registerFeature(PodResources)
+	registerFeature(NVML)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -71,6 +74,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
 	detectPodResources(features, cfg)
+	detectNVML(features, cfg)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -240,6 +244,17 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 		log.Infof("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)
+	}
+}
+
+func detectNVML(features FeatureMap, cfg model.Reader) {
+	// TODO: Add configuration option for NVML library path
+	nvmlLib := nvml.New()
+	ret := nvmlLib.Init()
+	if ret == nvml.SUCCESS || ret == nvml.ERROR_ALREADY_INITIALIZED {
+		features[NVML] = struct{}{}
+	} else {
+		log.Infof("Agent did not find NVML library for NVIDIA GPU detection: %v", nvml.ErrorString(ret))
 	}
 }
 
