@@ -32,6 +32,7 @@ var validProducts = map[string]struct{}{
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
+	ProductHaAgent:                      {},
 }
 
 const (
@@ -87,4 +88,6 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
+	// ProductHaAgent is the HA Agent product
+	ProductHaAgent = "HA_AGENT"
 )

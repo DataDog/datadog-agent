@@ -65,12 +65,12 @@ type Host struct {
 // reconnect retry logic
 func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")
 	if err != nil {
 		return nil, err
 	}
-
-	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPasswordSuffix), "")
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 	host := &Host{
 		context:              context,
 		username:             hostOutput.Username,
-		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, 22),
+		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),

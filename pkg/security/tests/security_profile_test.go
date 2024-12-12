@@ -277,7 +277,7 @@ func TestAnomalyDetection(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -308,7 +308,7 @@ func TestAnomalyDetection(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
 			// don't do anything
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection.")
 			return false
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -342,7 +342,7 @@ func TestAnomalyDetection(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"google.com"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -377,7 +377,7 @@ func TestAnomalyDetection(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
 			// don't do anything
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -460,7 +460,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*5, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -471,7 +471,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -482,7 +482,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance1.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -501,7 +501,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance2.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*5, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -514,7 +514,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -525,7 +525,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance2.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -536,7 +536,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd := testDockerInstance1.Command("nslookup", []string{"foo.baz"}, []string{})
 			cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -615,7 +615,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -649,7 +649,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -680,7 +680,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -717,7 +717,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -852,7 +852,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
@@ -871,7 +871,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
@@ -1019,7 +1019,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 		cmd := dockerInstance.Command("/bin/date", []string{"--help"}, []string{})
 		_, err = cmd.CombinedOutput()
 		return err
-	}, func(r *rules.Rule, event *events.CustomEvent) bool {
+	}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 		return true
 	}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	if err != nil {
@@ -1104,7 +1104,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			cmd := dockerInstanceV1.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -1125,7 +1125,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			cmd := dockerInstanceV1.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1150,7 +1150,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			cmd := dockerInstanceV2.Command("iconv", []string{"-l"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1163,7 +1163,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			cmd := dockerInstanceV2.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -1174,7 +1174,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			cmd := dockerInstanceV1.Command("iconv", []string{"-l"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -1194,7 +1194,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			cmd := dockerInstanceV1.Command("scanelf", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -1278,7 +1278,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -1293,7 +1293,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1319,7 +1319,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.es"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1335,7 +1335,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -1346,7 +1346,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.es"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -1366,7 +1366,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.co.uk"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -1453,7 +1453,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 			cmd := dockerInstanceV1.Command("sleep", []string{"1"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// We shouldn't see anything: the profile is still learning
 			data, _ := event.MarshalJSON()
 			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
@@ -1471,7 +1471,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 			cmd := dockerInstanceV1.Command("sleep", []string{"1"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// this time we shouldn't see anything new.
 			data, _ := event.MarshalJSON()
 			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
@@ -1485,7 +1485,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(r *rules.Rule, _ *events.CustomEvent) bool {
 			assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
 			return true
 		}, time.Second*3, model.SyscallsEventType, events.AnomalyDetectionRuleID)
@@ -1513,7 +1513,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 			cmd := dockerInstanceV2.Command("date", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(r *rules.Rule, _ *events.CustomEvent) bool {
 			// we should see an anomaly that will be inserted in the profile
 			assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
 			gotSyscallsEvent = true
@@ -1530,7 +1530,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 			cmd := dockerInstanceV2.Command("date", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// this time we shouldn't see anything new.
 			data, _ := event.MarshalJSON()
 			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
@@ -1552,7 +1552,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// We shouldn't see anything: the profile is unstable
 			data, _ := event.MarshalJSON()
 			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
@@ -1640,7 +1640,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 			cmd := dockerInstanceV1.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -1661,7 +1661,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 			cmd := dockerInstanceV1.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1686,7 +1686,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 			cmd := dockerInstanceV2.Command("iconv", []string{"-l"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1731,7 +1731,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 			cmd := dockerInstanceV3.Command("getconf", []string{"-a"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1818,7 +1818,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.fr"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
@@ -1839,7 +1839,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1864,7 +1864,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.es"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1909,7 +1909,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 			cmd := dockerInstanceV3.Command("nslookup", []string{"google.fr"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -1996,7 +1996,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			cmd := dockerInstanceV1.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -2017,7 +2017,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			cmd := dockerInstanceV1.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -2040,7 +2040,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			cmd := dockerInstanceV2.Command("iconv", []string{"-l"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -2063,7 +2063,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			cmd := dockerInstanceV3.Command("getconf", []string{"-a"}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			t.Fatal(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -2083,7 +2083,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			cmd := dockerInstanceV3.Command("getent", []string{}, []string{})
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -2195,7 +2195,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 		err = test.GetEventSent(t, func() error {
 			_, err := dockerInstance2.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			t.Fatal("Got an event that should have been suppressed")
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -2211,7 +2211,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			dockerInstance2.Command("getent", []string{}, []string{}).CombinedOutput()
 			return nil
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {
@@ -2224,7 +2224,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			_, err := dockerInstance2.Command("/bin/echo", []string{"aaa"}, []string{}).CombinedOutput()
 			return err
-		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 		if err != nil {

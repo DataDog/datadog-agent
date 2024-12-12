@@ -27,6 +27,7 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -305,6 +306,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		},
 		EbpfConfig:         &cfg.Config,
 		PerformInitialScan: cfg.InitialProcessSync,
+		SharedLibsLibset:   sharedlibraries.LibsetGPU,
 	}
 }
 

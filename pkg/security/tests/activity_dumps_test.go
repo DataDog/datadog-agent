@@ -568,7 +568,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
@@ -587,7 +587,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
@@ -677,7 +677,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
 			_, err := cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
@@ -696,7 +696,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}

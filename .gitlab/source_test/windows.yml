@@ -16,7 +16,7 @@
     - If ($FAST_TESTS -eq "true") { $FAST_TESTS_FLAG="--only-impacted-packages" }
     - >
       docker run --rm
-      -m 16384M
+      -m 24576M
       --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
       -e DD_ENV=prod
@@ -85,7 +85,7 @@ tests_windows-x64:
   artifacts:
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+      - $CI_PROJECT_DIR/test/new-e2e/tests/sysprobe-functional/artifacts
 
 .tests_windows_secagent:
   stage: source_test

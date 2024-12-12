@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -22,7 +23,9 @@ const (
 
 // apmConfig represents the injector configuration from the CDN.
 type apmConfig struct {
-	version        string
+	version   string
+	policyIDs []string
+
 	injectorConfig []byte
 }
 
@@ -32,14 +35,18 @@ type apmConfigLayer struct {
 	InjectorConfig map[string]interface{} `json:"apm_ssi_config"`
 }
 
-// Version returns the version (hash) of the agent configuration.
-func (i *apmConfig) Version() string {
-	return i.version
+// State returns the APM configs state
+func (i *apmConfig) State() *pbgo.PoliciesState {
+	return &pbgo.PoliciesState{
+		MatchedPolicies: i.policyIDs,
+		Version:         i.version,
+	}
 }
 
 func newAPMConfig(hostTags []string, orderedLayers ...[]byte) (*apmConfig, error) {
 	// Compile ordered layers into a single config
 	// TODO: maybe we don't want that and we should reject if there are more than one config?
+	policyIDs := []string{}
 	compiledLayer := &apmConfigLayer{
 		InjectorConfig: map[string]interface{}{},
 	}
@@ -50,12 +57,14 @@ func newAPMConfig(hostTags []string, orderedLayers ...[]byte) (*apmConfig, error
 			continue
 		}
 
+		// Only add layers that match the injector
 		if layer.InjectorConfig != nil {
 			injectorConfig, err := merge(compiledLayer.InjectorConfig, layer.InjectorConfig)
 			if err != nil {
 				return nil, err
 			}
 			compiledLayer.InjectorConfig = injectorConfig.(map[string]interface{})
+			policyIDs = append(policyIDs, layer.ID)
 		}
 	}
 
@@ -76,7 +85,9 @@ func newAPMConfig(hostTags []string, orderedLayers ...[]byte) (*apmConfig, error
 	}
 
 	return &apmConfig{
-		version:        fmt.Sprintf("%x", hash.Sum(nil)),
+		version:   fmt.Sprintf("%x", hash.Sum(nil)),
+		policyIDs: policyIDs,
+
 		injectorConfig: injectorConfig,
 	}, nil
 }
@@ -86,8 +97,8 @@ func (i *apmConfig) Write(dir string) error {
 	if i.injectorConfig != nil {
 		err := os.WriteFile(filepath.Join(dir, injectorConfigFilename), []byte(i.injectorConfig), 0644) // Must be world readable
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", injectorConfigFilename, err)
 		}
 	}
-	return nil
+	return writePolicyMetadata(i, dir)
 }

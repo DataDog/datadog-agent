@@ -89,8 +89,6 @@ func TestLoginUID(t *testing.T) {
 				return err
 			}
 
-			t.Logf("test out: %s\n", string(out))
-
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")

@@ -14,7 +14,7 @@ import (
 	"path"
 	"regexp"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,7 +65,7 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		return ServiceMetadata{}, false
 	}
 
-	return NewServiceMetadata(string(name)), true
+	return NewServiceMetadata(string(name), Rails), true
 }
 
 // findRailsApplicationName scans the `config/application.rb` file to find the
