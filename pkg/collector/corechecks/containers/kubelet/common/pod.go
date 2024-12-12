@@ -190,7 +190,7 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *c
 		return "", ErrContainerNotFound
 	}
 
-	if filter.IsExcluded(pod.EntityMeta.Annotations, container.Name, container.Image.Name, pod.Namespace) {
+	if filter.IsExcluded(pod.EntityMeta.Annotations, container.Name, container.Image.RawName, pod.Namespace) {
 		return "", ErrContainerExcluded
 	}
 
