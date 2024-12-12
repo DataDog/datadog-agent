@@ -32,12 +32,6 @@ If `api_key` is unset, set to an empty string or set to a secret, the converter 
 
 The converter will automatically set `datadogconnector` config `trace.span_name_as_resource_name` to true in any datadog connectors in your configuration.
 
-## Provided and enhanced config
-
-`GetProvidedConf` and `GetEnhancedConf` return the string representation of the user provided and autoconfigured conf respectively. Currently, these APIs have two limitations:
-- They do not redact sensitive data
-- They do not provide the effective config (including defaults...etc)
-
 ## Opting out of converter
 
 It is possible to opt out of the converter by setting env var `DD_OTELCOLLECTOR_CONVERTER_ENABLED` or agent config `otelcollector.converter.enabled` to `false` (`true` by default). Please note that by doing so, you are removing functionality including flare collection from otel-agent, health metrics from collector, or infra level tagging on your telemetry data. If you want to opt out of some components, you can disable all and add the components that you require manually:
