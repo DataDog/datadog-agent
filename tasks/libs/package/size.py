@@ -7,7 +7,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_metric_origin
-from tasks.libs.package.utils import get_package_path
+from tasks.libs.package.utils import find_package
 
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
@@ -158,33 +158,23 @@ def compute_package_size_metrics(
     return series
 
 
-def compare(ctx, package_sizes, ancestor, arch, flavor, os_name, threshold):
+def compare(ctx, package_sizes, ancestor, pkg_size):
     """
-    Compare (or update) a package size with the ancestor package size.
+    Compare (or update, when on main branch) a package size with the ancestor package size.
     """
-    if os_name == 'suse':
-        dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
-        path = f'{dir}/{flavor}-7*{arch}.rpm'
-    else:
-        dir = os.environ['OMNIBUS_PACKAGE_DIR']
-        separator = '_' if os_name == 'deb' else '-'
-        path = f'{dir}/{flavor}{separator}7*{arch}.{os_name}'
-    package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
+    current_size = _get_uncompressed_size(ctx, find_package(pkg_size.path()), pkg_size.os)
     if os.environ['CI_COMMIT_REF_NAME'] == get_default_branch():
-        package_sizes[ancestor][arch][flavor][os_name] = package_size
+        # On main, ancestor is the current commit, so we set the current value
+        package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os] = current_size
         return
-    previous_size = package_sizes[ancestor][arch][flavor][os_name]
-    diff = package_size - previous_size
+    previous_size = package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os]
+    pkg_size.compare(current_size, previous_size)
 
-    message = f"{flavor}-{arch}-{os_name} size {mb(package_size)} is OK: {mb(diff)} diff with previous {mb(previous_size)} (max: {mb(threshold)})"
-
-    if diff > threshold:
-        emoji = "❌"
-        print(color_message(message.replace('OK', 'too large'), Color.RED), file=sys.stderr)
+    if pkg_size.ko():
+        print(color_message(pkg_size.log(), Color.RED), file=sys.stderr)
     else:
-        emoji = "✅" if diff <= 0 else "⚠️"
-        print(message)
-    return f"|{flavor}-{arch}-{os_name}|{mb(diff)}|{emoji}|{mb(package_size)}|{mb(previous_size)}|{mb(threshold)}|"
+        print(pkg_size.log())
+    return pkg_size
 
 
 def mb(value):
