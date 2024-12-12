@@ -241,9 +241,7 @@ func TestGetStatsMultiGPU(t *testing.T) {
 	endKtime := startKtime + int64(1*time.Second)
 
 	pid := uint32(1)
-	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
-	shmemSize := uint64(10)
 
 	// Add kernels for all devices
 	for i, uuid := range testutil.GPUUUIDs {
@@ -251,19 +249,12 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		streamKey := streamKey{pid: pid, stream: streamID, gpuUUID: uuid}
 		streamHandlers[streamKey] = &StreamHandler{
 			processEnded: false,
-			kernelLaunches: []enrichedKernelLaunch{
+			kernelSpans: []*kernelSpan{
 				{
-					CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
-						Header: gpuebpf.CudaEventHeader{
-							Ktime_ns:  uint64(startKtime),
-							Pid_tgid:  pidTgid,
-							Stream_id: streamID,
-						},
-						Kernel_addr:     0,
-						Shared_mem_size: shmemSize,
-						Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
-						Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
-					},
+					startKtime:     uint64(startKtime),
+					endKtime:       uint64(endKtime),
+					avgThreadCount: numThreads,
+					numKernels:     10,
 				},
 			},
 		}
