@@ -1,12 +1,12 @@
 Datadog Installer v{{ htmlSafe .Version }}
 {{ range $name, $package := .Packages }}
 {{ boldText $name }}
-  State: {{ if $package.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $package.Stable -}}{{ greenText "OK" }}{{- else -}}{{ redText "no stable version" }}{{- end }}
+  State: {{ if $package.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $package.Stable -}}{{ greenText "OK" }}{{- else -}}config only{{- end }}
   Installed versions:
   {{- if $package.Stable }}
     {{ greenText "●" }} stable: v{{ htmlSafe $package.Stable }}
   {{- else }}
-    {{ redText "●" }} stable: none
+    ● stable: none
   {{- end }}
   {{- if $package.Experiment }}
     {{ yellowText "●" }} experiment: v{{ htmlSafe $package.Experiment }}
@@ -23,9 +23,9 @@ Datadog Installer v{{ htmlSafe .Version }}
   Remote configuration client state:
     StableVersion: {{ $remoteConfig.StableVersion }}
     ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
-    StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
-    ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
-    RemoteConfigVersion: {{ $remoteConfig.RemoteConfigVersion }}
+    StableConfigVersion: {{ if $remoteConfig.StableConfigState }}{{ $remoteConfig.StableConfigState.Version }}{{ else }}{{ "" }}{{ end }}
+    ExperimentConfigVersion: {{ if $remoteConfig.ExperimentConfigState }}{{ $remoteConfig.ExperimentConfigState.Version }}{{ else }}{{ "" }}{{ end }}
+    RemoteConfigVersion: {{ if $remoteConfig.RemoteConfigState }}{{ $remoteConfig.RemoteConfigState.Version }}{{ else }}{{ "" }}{{ end }}
     Task:
       {{- if $remoteConfig.Task }}
         Id: {{ $remoteConfig.Task.Id }}
