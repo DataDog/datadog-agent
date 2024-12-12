@@ -6,11 +6,11 @@
 package setup
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -45,7 +45,7 @@ func unsetEnvForTest(t *testing.T, env string) {
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf()
 	conf.SetConfigType("yaml")
-	err := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	err := conf.ReadConfig(strings.NewReader(yamlConfig))
 	require.NoError(t, err)
 	return conf
 }
@@ -133,15 +133,39 @@ func TestUnexpectedWhitespace(t *testing.T) {
 }
 
 func TestUnknownKeysWarning(t *testing.T) {
-	conf := newTestConf()
-	conf.SetWithoutSource("site", "datadoghq.eu")
-	assert.Len(t, findUnknownKeys(conf), 0)
+	yaml := `
+a: 21
+aa: 21
+b:
+  c:
+    d: "test"
+`
+	conf := confFromYAML(t, yaml)
+
+	res := findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"a", "aa", "b.c.d"}, res)
+
+	conf.SetDefault("a", 0)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "b.c.d"}, res)
+
+	conf.SetWithoutSource("a", 12)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "b.c.d"}, res)
+
+	// testing that nested value are correctly detected
+	conf.SetDefault("b.c", map[string]string{})
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa"}, res)
 
 	conf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-	assert.Len(t, findUnknownKeys(conf), 1)
-
-	conf.SetKnown("unknown_key.*")
-	assert.Len(t, findUnknownKeys(conf), 0)
+	res = findUnknownKeys(conf)
+	slices.Sort(res)
+	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
