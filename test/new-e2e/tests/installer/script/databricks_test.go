@@ -57,6 +57,6 @@ func (s *installScriptDatabricksSuite) TestDatabricksDriverInstallScript() {
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-java/stable", javaPath, "root", "root")
 
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/spark.d/databricks.yaml", 0644, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/conf.d/spark.d/databricks.yaml", 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/inject/tracer.yaml", 0644, "root", "root")
 }
