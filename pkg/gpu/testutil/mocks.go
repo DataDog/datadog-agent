@@ -9,10 +9,12 @@
 package testutil
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -27,9 +29,13 @@ const DefaultGpuCores = 10
 
 // GPUUUIDs is a list of UUIDs for the devices returned by the mock
 var GPUUUIDs = []string{
-	"GPU-12345678-1234-1234-1234-123456789012",
-	"GPU-99999999-1234-1234-1234-123456789013",
-	"GPU-00000000-1234-1234-1234-123456789014",
+	"GPU-00000000-1234-1234-1234-123456789012",
+	"GPU-11111111-1234-1234-1234-123456789013",
+	"GPU-22222222-1234-1234-1234-123456789014",
+	"GPU-33333333-1234-1234-1234-123456789015",
+	"GPU-44444444-1234-1234-1234-123456789016",
+	"GPU-55555555-1234-1234-1234-123456789017",
+	"GPU-66666666-1234-1234-1234-123456789018",
 }
 
 // DefaultGpuUUID is the UUID for the default device returned by the mock
@@ -72,4 +78,42 @@ func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
+// output than using require.Equal on the devices themselves
+func RequireDevicesEqual(t *testing.T, expected, actual nvml.Device, msgAndArgs ...interface{}) {
+	extraFmt := ""
+	if len(msgAndArgs) > 0 {
+		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
+	}
+
+	expectedUUID, ret := expected.GetUUID()
+	require.Equal(t, ret, nvml.SUCCESS, "%s%scannot retrieve UUID for expected device %v%s", extraFmt, expected)
+
+	actualUUID, ret := actual.GetUUID()
+	require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device %v%s", extraFmt, actual)
+
+	require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match", extraFmt)
+}
+
+// RequireDeviceListsEqual checks that the two device lists are equal by comparing their UUIDs, which gives a better
+// output than using require.ElementsMatch on the lists themselves
+func RequireDeviceListsEqual(t *testing.T, expected, actual []nvml.Device, msgAndArgs ...interface{}) {
+	extraFmt := ""
+	if len(msgAndArgs) > 0 {
+		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
+	}
+
+	require.Len(t, actual, len(expected), "%sdevice lists have different lengths", extraFmt)
+
+	for i := range expected {
+		expectedUUID, ret := expected[i].GetUUID()
+		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for expected device index %d", extraFmt, i)
+
+		actualUUID, ret := actual[i].GetUUID()
+		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device index %d", extraFmt, i)
+
+		require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match for element %d", extraFmt, i)
+	}
 }

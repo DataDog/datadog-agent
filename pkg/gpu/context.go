@@ -17,6 +17,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -229,6 +230,10 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 
 	container, err := ctx.workloadmeta.GetContainer(containerID)
 	if err != nil {
+		if !errors.IsNotFound(err) {
+			log.Warnf("Error getting container %s: %s", containerID, err)
+		}
+
 		return devices
 	}
 
