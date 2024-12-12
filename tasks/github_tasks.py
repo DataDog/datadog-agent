@@ -29,7 +29,7 @@ from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packag
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
-from tasks.release import _get_release_json_value, get_version_major
+from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
 
