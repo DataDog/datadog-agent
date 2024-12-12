@@ -9,25 +9,23 @@ package djm
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	databricksInjectorVersion = "0.21.0-1"
-	databricksJavaVersion     = "1.41.1-1"
-	databricksAgentVersion    = "7.57.2-1"
+	databricksInjectorVersion = "0.26.0-1"
+	databricksJavaVersion     = "1.42.2-1"
+	databricksAgentVersion    = "7.58.2-1"
 )
 
 var (
-	envToTags = map[string]string{
-		"DATABRICKS_WORKSPACE": "workspace",
-		"DB_CLUSTER_NAME":      "databricks_cluster_name",
-		"DB_CLUSTER_ID":        "databricks_cluster_id",
-		"DB_NODE_TYPE":         "databricks_node_type",
-	}
-	driverLogs = []common.IntegrationConfigLogs{
+	jobNameRegex     = regexp.MustCompile(`[,\']`)
+	clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]`)
+	driverLogs       = []common.IntegrationConfigLogs{
 		{
 			Type:    "file",
 			Path:    "/databricks/driver/logs/*.log",
@@ -91,11 +89,13 @@ func SetupDatabricks(s *common.Setup) error {
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
-	for env, tag := range envToTags {
-		if val, ok := os.LookupEnv(env); ok {
-			s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tag+":"+val)
-		}
+
+	setupCommonHostTags(s)
+	installMethod := "manual"
+	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") != "true" {
+		installMethod = "managed"
 	}
+	s.Span.SetTag("install_method", installMethod)
 
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
@@ -104,6 +104,61 @@ func SetupDatabricks(s *common.Setup) error {
 		setupDatabricksWorker(s)
 	}
 	return nil
+}
+
+func setupCommonHostTags(s *common.Setup) {
+	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
+	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
+	setIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
+	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
+		return jobNameRegex.ReplaceAllString(v, "_")
+	})
+	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
+		return clusterNameRegex.ReplaceAllString(v, "_")
+	})
+	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
+
+	// dupes for backward compatibility
+	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
+	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
+		return clusterNameRegex.ReplaceAllString(v, "_")
+	})
+
+	jobID, runID, ok := getJobAndRunIDs()
+	if ok {
+		s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "jobid:"+jobID)
+		s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "runid:"+runID)
+	}
+}
+
+func getJobAndRunIDs() (jobID, runID string, ok bool) {
+	clusterName := os.Getenv("DB_CLUSTER_NAME")
+	if !strings.HasPrefix(clusterName, "job-") {
+		return "", "", false
+	}
+	if !strings.Contains(clusterName, "-run-") {
+		return "", "", false
+	}
+	parts := strings.Split(clusterName, "-")
+	if len(parts) != 4 {
+		return "", "", false
+	}
+	if parts[0] != "job" || parts[2] != "run" {
+		return "", "", false
+	}
+	return parts[1], parts[3], true
+}
+
+func setIfExists(s *common.Setup, envKey, tagKey string, normalize func(string) string) {
+	value, ok := os.LookupEnv(envKey)
+	if !ok {
+		return
+	}
+	if normalize != nil {
+		value = normalize(value)
+	}
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
+	s.Span.SetTag(tagKey+"_set", "true")
 }
 
 func setupDatabricksDriver(s *common.Setup) {
@@ -123,7 +178,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DB_DRIVER_IP") != "" || os.Getenv("DB_DRIVER_PORT") != "" {
 		sparkIntegration.Instances = []any{
 			common.IntegrationConfigInstanceSpark{
-				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":" + os.Getenv("DB_DRIVER_PORT"),
+				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
 				SparkClusterMode: "spark_driver_mode",
 				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
 				StreamingMetrics: true,
