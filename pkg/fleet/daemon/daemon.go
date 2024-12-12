@@ -502,7 +502,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			s.Experiment != request.ExpectedState.Experiment ||
 			c.Stable != request.ExpectedState.StableConfig ||
 			c.Experiment != request.ExpectedState.ExperimentConfig) {
-		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
+		log.Infof(
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
+			request.ID, request.ExpectedState, s, c,
+		)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
 		return nil
