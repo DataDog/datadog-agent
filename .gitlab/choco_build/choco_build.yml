@@ -64,12 +64,12 @@ windows_choco_offline_7_x64:
 
 windows_choco_online_7_x64:
   extends: .windows_choco_online_7_x64
-  needs: ["deploy_packages_windows-x64-7"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
     FLAVOR: "datadog-agent"
 
 windows_choco_online_7_x64-fips:
   extends: .windows_choco_online_7_x64
-  needs: ["deploy_packages_windows-x64-7-fips"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
   variables:
     FLAVOR: "datadog-fips-agent"
