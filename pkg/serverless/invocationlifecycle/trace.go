@@ -29,6 +29,7 @@ import (
 
 const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	functionTagsKey    = "_dd.tags.function"
 )
 
 var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.\d+)*|\d+(\.x))$`)
@@ -198,6 +199,9 @@ func (lp *LifecycleProcessor) processTrace(spans []*pb.Span) {
 
 	tracerPayload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{traceChunk},
+		Tags: map[string]string{
+			functionTagsKey: strings.Join(lp.ExtraTags.Tags, ","),
+		},
 	}
 
 	lp.ProcessTrace(&api.Payload{
