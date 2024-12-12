@@ -75,8 +75,7 @@ func TestFlareCreation(t *testing.T) {
 }
 
 func TestRunProviders(t *testing.T) {
-	var firstRan atomic.Bool
-	var secondRan atomic.Bool
+	firstStarted := make(chan struct{}, 1)
 	var secondDone atomic.Bool
 
 	fakeTagger := mockTagger.SetupFakeTagger(t)
@@ -105,7 +104,7 @@ func TestRunProviders(t *testing.T) {
 		fx.Provide(fx.Annotate(
 			func() *types.FlareFiller {
 				return types.NewFiller(func(_ types.FlareBuilder) error {
-					firstRan.Store(true)
+					firstStarted <- struct{}{}
 					return nil
 				})
 			},
@@ -114,7 +113,6 @@ func TestRunProviders(t *testing.T) {
 		fx.Provide(fx.Annotate(
 			func() *types.FlareFiller {
 				return types.NewFiller(func(_ types.FlareBuilder) error {
-					secondRan.Store(true)
 					time.Sleep(10 * time.Second)
 					secondDone.Store(true)
 					return nil
@@ -130,9 +128,13 @@ func TestRunProviders(t *testing.T) {
 	fb, err := helpers.NewFlareBuilder(false, flarebuilder.FlareArgs{})
 	require.NoError(t, err)
 
+	start := time.Now()
 	f.Comp.(*flare).runProviders(fb, cliProviderTimeout)
+	// ensure that providers are actually started
+	<-firstStarted
+	elapsed := time.Since(start)
 
-	require.True(t, firstRan.Load())
-	require.True(t, secondRan.Load())
-	require.False(t, secondDone.Load())
+	// ensure that we're not blocking for the slow provider
+	assert.Less(t, elapsed, 5*time.Second)
+	assert.False(t, secondDone.Load())
 }
