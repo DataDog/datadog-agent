@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -132,6 +133,20 @@ type FakeProcFSEntry struct {
 	Command string
 	Exe     string
 	Maps    string
+	Env     map[string]string
+}
+
+func (f *FakeProcFSEntry) GetEnvironContents() string {
+	if len(f.Env) == 0 {
+		return ""
+	}
+
+	formattedEnvVars := make([]string, 0, len(f.Env))
+	for k, v := range f.Env {
+		formattedEnvVars = append(formattedEnvVars, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return strings.Join(formattedEnvVars, "\x00") + "\x00"
 }
 
 // CreateFakeProcFS creates a fake /proc filesystem with the given entries, useful for testing attachment to processes.
@@ -145,16 +160,13 @@ func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
 		createFile(t, filepath.Join(baseDir, "comm"), entry.Command)
 		createFile(t, filepath.Join(baseDir, "maps"), entry.Maps)
 		createSymlink(t, entry.Exe, filepath.Join(baseDir, "exe"))
+		createFile(t, filepath.Join(baseDir, "environ"), entry.GetEnvironContents())
 	}
 
 	return procRoot
 }
 
 func createFile(t *testing.T, path, data string) {
-	if data == "" {
-		return
-	}
-
 	dir := filepath.Dir(path)
 	require.NoError(t, os.MkdirAll(dir, 0775))
 	require.NoError(t, os.WriteFile(path, []byte(data), 0775))
