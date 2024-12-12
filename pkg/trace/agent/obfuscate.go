@@ -110,7 +110,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 	}
 }
 
-// ObfuscateStatsGroup obfuscates sensitive data to enable APM Trace Metrics calculation
+// ObfuscateStatsGroup obfuscates sensitive data in APM stats payloads
 func ObfuscateStatsGroup(o *obfuscate.Obfuscator, b *pb.ClientGroupedStats) {
 	switch b.Type {
 	case "sql", "cassandra":
