@@ -93,7 +93,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.31.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.21.0 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
-	github.com/DataDog/viper v1.13.5 // indirect
+	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/briandowns/spinner v1.23.0 // indirect
