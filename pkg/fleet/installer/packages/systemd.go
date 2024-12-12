@@ -109,10 +109,10 @@ func removeUnit(ctx context.Context, unit string) (err error) {
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	err = os.Remove(path.Join(systemdPath, unit))
-	if os.IsNotExist(err) {
-		err = nil
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
-	return err
+	return nil
 }
 
 func systemdReload(ctx context.Context) (err error) {
