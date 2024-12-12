@@ -7,6 +7,8 @@ package integrationslogs
 
 import (
 	_ "embed"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -81,9 +83,8 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// 1. Send logs until to the logs from integrations launcher until their
 	// cumulative size is greater than integration_logs_files_max_size (for logs
 	// of size 256kb, this will be four logs given the max size of 1mb)
-	// 2. Check that the logs received from fakeIntake are unique by checking the
-	// UUID and at the same time ensure monotonic_count is equal to 1 (indicating
-	// a 1:1 correlation between a log and metric)
+	// 2. Put a counter in the logs that increases by 1 every time the check is
+	// called, then check that each log's counter is 1 more than the previous log
 
 	tags := []string{"test:rotate"}
 	yamlData, err := generateYaml("a", true, 1024*245, 1, tags, "rotation_source", "rotation_service")
@@ -94,9 +95,8 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 		agentparams.WithFile("/etc/datadog-agent/conf.d/rotation.yaml", string(yamlData), true),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/rotation.py", customIntegration, true))))
 
-	seen := make(map[string]bool)
-
 	// Check each log is received and is unique
+	prevLogCount := -1
 	for i := 0; i < 5; i++ {
 		assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*message.*")
@@ -104,10 +104,19 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 
 			if assert.NotEmpty(c, logs) && len(logs) >= i+1 {
 				log := logs[i]
-				// Take the first 48 characters of the log, this part contains the UUID
-				logID := log.Message[:48]
-				assert.False(v.T(), seen[logID])
-				seen[logID] = true
+				regex := regexp.MustCompile(`counter: (\d+)`)
+				matches := regex.FindStringSubmatch(log.Message)
+				assert.Greater(v.T(), len(matches), 1, "Did not find count in log")
+
+				number := matches[1]
+				count, err := strconv.Atoi(number)
+				assert.Nil(v.T(), err)
+
+				if prevLogCount != -1 {
+					assert.Equal(v.T(), count, prevLogCount+1)
+				}
+
+				prevLogCount = count
 			}
 		}, 2*time.Minute, 5*time.Second)
 	}
