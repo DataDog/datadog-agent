@@ -9,3 +9,5 @@
 enhancements:
   - |
     Metric payloads are compressed using `zstd` compression by default.
+    This can be reverted to the previous compression kind by adding
+    ``serializer_compressor_kind: zlib`` to the configuration.
