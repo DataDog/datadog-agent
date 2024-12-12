@@ -24,23 +24,23 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
+	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.114.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.115.0
 	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.4
 	github.com/vmihailenco/msgpack/v4 v4.3.13
-	go.opentelemetry.io/collector/component v0.114.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.114.0
-	go.opentelemetry.io/collector/pdata v1.20.0
-	go.opentelemetry.io/collector/processor/processortest v0.114.0
-	go.opentelemetry.io/collector/semconv v0.114.0
+	go.opentelemetry.io/collector/component v0.115.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.21.0
+	go.opentelemetry.io/collector/pdata v1.21.0
+	go.opentelemetry.io/collector/processor/processortest v0.115.0
+	go.opentelemetry.io/collector/semconv v0.115.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/metric v1.32.0
 	go.uber.org/atomic v1.11.0
@@ -52,11 +52,12 @@ require (
 	k8s.io/apimachinery v0.31.2
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.114.0
+require go.opentelemetry.io/collector/component/componenttest v0.115.0
 
-require go.opentelemetry.io/collector/processor v0.114.0 // indirect
+require go.opentelemetry.io/collector/processor v0.115.0 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/go-sqllexer v0.0.17 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -76,7 +77,7 @@ require (
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.114.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.115.0 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
@@ -90,14 +91,14 @@ require (
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.114.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.114.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumerprofiles v0.114.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.114.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.114.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.114.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.114.0 // indirect
-	go.opentelemetry.io/collector/processor/processorprofiles v0.114.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.115.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.115.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumerprofiles v0.115.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.115.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.115.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.115.0 // indirect
+	go.opentelemetry.io/collector/pipeline v0.115.0 // indirect
+	go.opentelemetry.io/collector/processor/processorprofiles v0.115.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.32.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.32.0 // indirect
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect
@@ -124,3 +125,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../version

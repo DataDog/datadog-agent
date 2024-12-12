@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
@@ -152,7 +151,7 @@ func (m *EBPFCheck) Run() error {
 			"module:" + progInfo.Module,
 		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
@@ -166,7 +165,7 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
@@ -184,12 +183,12 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}

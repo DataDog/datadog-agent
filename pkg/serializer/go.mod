@@ -63,7 +63,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.137
+	github.com/DataDog/agent-payload/v5 v5.0.138
 	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
@@ -78,7 +78,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.1
-	github.com/DataDog/datadog-agent/pkg/version v0.57.1
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12

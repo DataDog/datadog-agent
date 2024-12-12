@@ -62,6 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -110,3 +111,5 @@ require (
 replace github.com/DataDog/datadog-agent/pkg/config/mock => ../mock
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../structure
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../version
