@@ -217,8 +217,8 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
-
+		output := s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+		fmt.Println("Ansible output should be scrubbed: ", output)
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stderr.log")
