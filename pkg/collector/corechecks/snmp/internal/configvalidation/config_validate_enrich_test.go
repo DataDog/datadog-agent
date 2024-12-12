@@ -6,33 +6,21 @@
 package configvalidation
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_ValidateEnrichMetrics(t *testing.T) {
-	type logCount struct {
-		log   string
-		count int
-	}
-
 	tests := []struct {
 		name            string
 		metrics         []profiledefinition.MetricsConfig
 		expectedErrors  []string
 		expectedMetrics []profiledefinition.MetricsConfig
-		expectedLogs    []logCount
 	}{
 		{
 			name: "either table symbol or scalar symbol must be provided",
@@ -551,7 +539,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "mapping used without tag should raise a warning",
+			name: "mapping used without tag",
 			metrics: []profiledefinition.MetricsConfig{
 				{
 					Symbols: []profiledefinition.SymbolConfig{
@@ -574,23 +562,11 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedErrors: []string{},
-			expectedLogs: []logCount{
-				{
-					"[WARN] validateEnrichMetricTag: ``tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined",
-					1,
-				},
-			},
+			expectedErrors: []string{"``tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
-
 			errors := ValidateEnrichMetrics(tt.metrics)
 			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
@@ -599,29 +575,16 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			if tt.expectedMetrics != nil {
 				assert.Equal(t, tt.expectedMetrics, tt.metrics)
 			}
-
-			w.Flush()
-			logs := b.String()
-
-			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
-			}
 		})
 	}
 }
 
 func Test_ValidateEnrichMetricTags(t *testing.T) {
-	type logCount struct {
-		log   string
-		count int
-	}
-
 	tests := []struct {
 		name            string
 		metrics         []profiledefinition.MetricTagConfig
 		expectedErrors  []string
 		expectedMetrics []profiledefinition.MetricTagConfig
-		expectedLogs    []logCount
 	}{
 		{
 			name: "Move OID to Symbol",
@@ -691,12 +654,6 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
-
 			errors := ValidateEnrichMetricTags(tt.metrics)
 			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
@@ -704,13 +661,6 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 			}
 			if tt.expectedMetrics != nil {
 				assert.Equal(t, tt.expectedMetrics, tt.metrics)
-			}
-
-			w.Flush()
-			logs := b.String()
-
-			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
 			}
 		})
 	}

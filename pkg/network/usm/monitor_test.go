@@ -24,7 +24,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +48,7 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(log.Default(), logLevel)
 	os.Exit(m.Run())
 }
 
