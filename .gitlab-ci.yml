@@ -282,6 +282,9 @@ variables:
 .if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "main"
 
+.if_not_main_branch: &if_not_main_branch
+  if: $CI_COMMIT_BRANCH != "main"
+
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
@@ -627,6 +630,10 @@ workflow:
       compare_to: main
     variables:
       FAST_TESTS: "true"
+
+.only_main:
+  - <<: *if_not_main_branch
+    when: never
 
 .except_main_or_release_branch:
   - <<: *if_main_branch

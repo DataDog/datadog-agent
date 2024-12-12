@@ -114,6 +114,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 	if awsEnv.AgentDeploy() {
 		customValues := fmt.Sprintf(agentCustomValuesFmt, clusterName)
 		helmComponent, err := agent.NewHelmInstallation(awsEnv, agent.HelmInstallationArgs{
+			DualShipping: true,
 			KubeProvider: kindKubeProvider,
 			Namespace:    "datadog",
 			ValuesYAML: pulumi.AssetOrArchiveArray{
