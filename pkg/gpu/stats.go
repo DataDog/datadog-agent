@@ -8,8 +8,11 @@
 package gpu
 
 import (
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
@@ -84,7 +87,19 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
 	}
 
 	if _, ok := g.aggregators[aggKey]; !ok {
-		g.aggregators[aggKey] = newAggregator(g.sysCtx)
+		gpuDevice, err := g.sysCtx.getDeviceByUUID(sKey.gpuUUID)
+		if err != nil {
+			log.Warnf("Error getting device by UUID %s: %s, defaulting to device 0", sKey.gpuUUID, err)
+			gpuDevice = g.sysCtx.gpuDevices[0]
+		}
+
+		maxThreads, ret := gpuDevice.GetNumGpuCores()
+		if ret != nvml.SUCCESS {
+			log.Warnf("Error getting number of GPU cores: %s, defaulting to 1", nvml.ErrorString(ret))
+			maxThreads = 1
+		}
+
+		g.aggregators[aggKey] = newAggregator(uint64(maxThreads))
 	}
 
 	// Update the last check time and the measured interval, as these change between check runs
