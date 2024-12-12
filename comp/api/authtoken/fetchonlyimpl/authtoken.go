@@ -8,9 +8,6 @@
 package fetchonlyimpl
 
 import (
-	"crypto/tls"
-	"fmt"
-
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -29,8 +26,9 @@ func Module() fxutil.Module {
 }
 
 type authToken struct {
-	log         log.Component
-	conf        config.Component
+	log  log.Component
+	conf config.Component
+
 	tokenLoaded bool
 }
 
@@ -50,44 +48,17 @@ func newAuthToken(deps dependencies) authtoken.Component {
 	}
 }
 
-func (at *authToken) setToken() error {
+// Get returns the session token
+func (at *authToken) Get() string {
 	if !at.tokenLoaded {
 		// We try to load the auth_token until we succeed since it might be created at some point by another
 		// process.
 		if err := util.SetAuthToken(at.conf); err != nil {
-			return fmt.Errorf("could not load auth_token: %s", err)
+			at.log.Debugf("could not load auth_token: %s", err)
+			return ""
 		}
 		at.tokenLoaded = true
 	}
-	return nil
-}
-
-// Get returns the session token
-func (at *authToken) Get() string {
-	if err := at.setToken(); err != nil {
-		at.log.Debugf("%s", err.Error())
-		return ""
-	}
 
 	return util.GetAuthToken()
-}
-
-// GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
-func (at *authToken) GetTLSClientConfig() *tls.Config {
-	if err := at.setToken(); err != nil {
-		at.log.Debugf("%s", err.Error())
-		return nil
-	}
-
-	return util.GetTLSClientConfig()
-}
-
-// GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
-func (at *authToken) GetTLSServerConfig() *tls.Config {
-	if err := at.setToken(); err != nil {
-		at.log.Debugf("%s", err.Error())
-		return nil
-	}
-
-	return util.GetTLSServerConfig()
 }
