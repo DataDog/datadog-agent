@@ -11,8 +11,8 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -81,20 +81,19 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	} else if len(msis) == 0 {
 		return nil, fmt.Errorf("no MSIs in package")
 	}
-	msiArgs := []string{
-		"/i",
-		msis[0],
-		"/qn",
-		"MSIFASTINSTALL=7",
+
+	cmd, err := msi.Cmd(
+		msi.Install(),
+		msi.WithMsi(msis[0]),
+		msi.WithDdAgentUserName(env.AgentUserName),
+	)
+	var output []byte
+	if err == nil {
+		output, err = cmd.Run()
 	}
-	if env.AgentUserName != "" {
-		msiArgs = append(msiArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", env.AgentUserName))
-		// don't need to look at the registry here since the installer will read it if the command line
-		// parameter is not provided
-	}
-	err = exec.Command("msiexec", msiArgs...).Run()
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer")
+		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
 	return iexec.NewInstallerExec(env, paths.StableInstallerPath), nil
 }
