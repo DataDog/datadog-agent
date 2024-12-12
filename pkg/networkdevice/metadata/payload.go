@@ -86,11 +86,15 @@ type DeviceOID struct {
 type ScanStatus string
 
 const (
+	// ScanStatusInProgress represents a scan in progress
 	ScanStatusInProgress ScanStatus = "in progress"
-	ScanStatusCompleted  ScanStatus = "completed"
-	ScanStatusError      ScanStatus = "error"
+	// ScanStatusCompleted represents a completed scan
+	ScanStatusCompleted ScanStatus = "completed"
+	// ScanStatusError represents a scan error
+	ScanStatusError ScanStatus = "error"
 )
 
+// ScanStatusMetadata contains scan status metadata
 type ScanStatusMetadata struct {
 	DeviceID   string     `json:"device_id"`
 	ScanStatus ScanStatus `json:"scan_status"`
