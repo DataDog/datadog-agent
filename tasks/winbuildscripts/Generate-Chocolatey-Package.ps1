@@ -119,7 +119,7 @@ try {
         $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/$artifactName-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2]).msi"
     } elseif ($rawAgentVersion -match $develPattern) {
         if ($installMethod -eq "online") {
-            # For devel builds/branches, use the dd-agent-ms-testing bucket URL
+            # For devel builds/branches, use the dd-agent-mstesting bucket URL
             # This allows us to build and test the package in PRs, and locally
             # by using the `-VersionOverride` param.
             if ([string]::IsNullOrEmpty($env:CI_PIPELINE_ID)) {
@@ -129,6 +129,7 @@ try {
                 if ($rawAgentVersion -notmatch $env:CI_PIPELINE_ID) {
                     Write-Error "CI_PIPELINE_ID is not found in the agent version, aborting" -ErrorAction Continue
                     if ([string]::IsNullOrEmpty($env:BUCKET_BRANCH)) {
+                        # inv agent.version requires BUCKET_BRANCH to be set when including pipeline in version
                         Write-Error "BUCKET_BRANCH is not set, if you are running this locally, set `$env:BUCKET_BRANCH='dev' or pass the -VersionOverride parameter" -ErrorAction Continue
                     }
                     exit 1
@@ -147,7 +148,7 @@ try {
         $url = "https://s3.amazonaws.com/ddagent-windows-stable/$artifactName-$($agentVersion).msi"
     } else {
         Write-Host "Unknown agent version '$rawAgentVersion', aborting"
-        exit 3
+        exit 1
     }
 
     Write-Host "Generating Chocolatey $installMethod package $flavor version $agentVersion in $(Get-Location)"
@@ -165,7 +166,7 @@ try {
         }
         catch {
             Write-Host "Error: Could not generate checksum for package $($tempMsi): $($_)"
-            exit 4
+            exit 1
         }
         # Set the $url in the install script
         (Get-Content $installScript).replace('$__url_from_ci__', '"' +  $url  + '"').replace('$__checksum_from_ci__', '"' +  $checksum  + '"') | Set-Content $installScript
