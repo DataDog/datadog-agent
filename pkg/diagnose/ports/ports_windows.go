@@ -21,14 +21,14 @@ type SystemProcessIDInformation struct {
 	ImageName windows.NTUnicodeString
 }
 
-var NtQuerySystemInformation = windows.NtQuerySystemInformation
+var ntQuerySystemInformation = windows.NtQuerySystemInformation
 
 // RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
 // with SystemProcessIDInformation, which does not require elevated privileges.
 func RetrieveProcessName(pid int, _ string) (string, error) {
 	var processInfo SystemProcessIDInformation
 	processInfo.ProcessID = uintptr(pid)
-	ret := NtQuerySystemInformation(SystemProcessIDInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
+	ret := ntQuerySystemInformation(SystemProcessIDInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
 
 	if ret != nil {
 		return "", ret

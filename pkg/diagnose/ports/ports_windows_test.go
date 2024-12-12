@@ -19,7 +19,7 @@ func TestRetrieveProcessName(t *testing.T) {
 
 	// Mock ntQuerySystemInformation to return a known process name "agent.exe"
 	ntQuerySystemInformation = func(
-		systemInformationClass uint32,
+		systemInformationClass int32,
 		systemInformation unsafe.Pointer,
 		systemInformationLength uint32,
 		returnLength *uint32,
