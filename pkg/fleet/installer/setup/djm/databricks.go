@@ -60,7 +60,7 @@ func (ds *databricksSetup) setup() error {
 
 	span, _ := tracer.SpanFromContext(ds.ctx)
 	switch os.Getenv("DB_IS_DRIVER") {
-	case "true":
+	case "TRUE":
 		span.SetTag("spark_node", "driver")
 		return ds.setupDatabricksDriver()
 	default:

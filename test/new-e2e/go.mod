@@ -58,7 +58,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241129143439-1f340fd450e3
+	github.com/DataDog/test-infra-definitions v0.0.0-20241211124138-9c7c5005ca28
 	github.com/aws/aws-sdk-go-v2 v1.32.5
 	github.com/aws/aws-sdk-go-v2/config v1.28.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
@@ -74,8 +74,7 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.8.1 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.18.3
 	github.com/pulumi/pulumi/sdk/v3 v3.140.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
@@ -303,13 +302,13 @@ require (
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
 	github.com/onsi/gomega v1.34.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.73.1 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.73.1 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.73.1 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.73.1 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.73.1 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v3 v3.3.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

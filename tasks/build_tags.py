@@ -43,7 +43,6 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
-    "remotewmonly",  # used when you want to use only the remote workloadmeta store without importing all dependencies of local collectors
     "sds",
     "serverless",
     "systemd",
@@ -162,7 +161,7 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap", "remotewmonly"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}

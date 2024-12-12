@@ -1602,6 +1602,12 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     */
 
     u32 offset = pktbuf_data_offset(pkt);
+    u32 pktlen = pktbuf_data_end(pkt) - offset;
+
+    if (pktlen < sizeof(kafka_header_t)) {
+        return false;
+    }
+
     kafka_transaction_t *kafka_transaction = &kafka->event.transaction;
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
