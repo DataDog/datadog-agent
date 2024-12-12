@@ -252,5 +252,5 @@ func (iCmd *installerCmd) Run() error {
 	}
 
 	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
-	return fmt.Errorf("run failed: %v \n%s", installerError, err.Error())
+	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
