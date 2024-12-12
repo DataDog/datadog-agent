@@ -13,6 +13,10 @@ Param(
     [String]
     $Flavor = "datadog-agent",
 
+    [Parameter(Mandatory=$false)]
+    [String]
+    $VersionOverride,
+
     [bool] $InstallDeps = $true
 )
 
@@ -28,7 +32,11 @@ if ($InstallDeps) {
 
 $repoRoot = "C:\mnt"
 $outputDirectory = "$repoRoot\build-out"
-$rawAgentVersion = (inv agent.version --url-safe --major-version 7)
+if (![string]::IsNullOrEmpty($VersionOverride)) {
+    $rawAgentVersion = $VersionOverride
+} else {
+    $rawAgentVersion = (inv agent.version --url-safe --major-version 7)
+}
 $copyright = "Datadog {0}" -f (Get-Date).Year
 
 $releasePattern = "(\d+\.\d+\.\d+)"
@@ -81,9 +89,22 @@ try {
         $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/$artifactName-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2]).msi"
     } elseif ($rawAgentVersion -match $develPattern) {
         if ($installMethod -eq "online") {
-            # We don't publish online chocolatey packages for dev branches, error out
-            Write-Host "Chocolatey packages are not built for dev branches aborting"
-            exit 2
+            # For devel builds/branches, use the dd-agent-ms-testing bucket URL
+            # This allows us to build and test the package in PRs, and locally
+            # by using the `-VersionOverride` param.
+            if ([string]::IsNullOrEmpty($env:CI_PIPELINE_ID)) {
+                Write-Error "CI_PIPELINE_ID is not set, aborting"
+                exit 1
+            } else {
+                if ($rawAgentVersion -notmatch $env:CI_PIPELINE_ID) {
+                    Write-Error "CI_PIPELINE_ID is not found in the agent version, aborting" -ErrorAction Continue
+                    if ([string]::IsNullOrEmpty($env:BUCKET_BRANCH)) {
+                        Write-Error "BUCKET_BRANCH is not set, if you are running this locally, set `$env:BUCKET_BRANCH='dev' or pass the -VersionOverride parameter" -ErrorAction Continue
+                    }
+                    exit 1
+                }
+                $url = "https://s3.amazonaws.com/dd-agent-mstesting/pipelines/A7/$env:CI_PIPELINE_ID/$flavor-$rawAgentVersion-1-x86_64.msi"
+            }
         }
         $agentVersionMatches = $rawAgentVersion | Select-String -Pattern $develPattern
         $agentVersion = "{0}-devel-{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2].Value

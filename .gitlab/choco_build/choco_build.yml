@@ -46,6 +46,7 @@ windows_choco_offline_7_x64:
     - >
       docker run --rm
       -v "$(Get-Location):c:\mnt"
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
