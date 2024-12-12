@@ -43,7 +43,7 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    # AWS SSH Key configuration  
+    # AWS SSH Key configuration
     E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
     E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
@@ -385,6 +385,20 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
+new-e2e-installer-script:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_installer_oci
+    - qa_installer_script
+  variables:
+    TARGETS: ./tests/installer/script
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
@@ -496,6 +510,15 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
+
+new-e2e-netpath:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: network-performance-monitoring
 
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template

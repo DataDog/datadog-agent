@@ -898,7 +898,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
@@ -1094,6 +1093,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
+	// used to override the path where the IPC cert/key files are stored/retrieved
+	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
