@@ -9,7 +9,6 @@ package networkpathintegration
 import (
 	_ "embed"
 	"fmt"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -34,10 +33,9 @@ type baseNetworkPathIntegrationTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func assertMetrics(fakeIntake *components.FakeIntake, t *testing.T, c *assert.CollectT, metricTags [][]string) {
+func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metricTags [][]string) {
 	fakeClient := fakeIntake.Client()
 
-	t.Log("assert metrics")
 	metrics, err := fakeClient.FilterMetrics("datadog.network_path.path.monitored")
 	require.NoError(c, err)
 	assert.NotEmpty(c, metrics)

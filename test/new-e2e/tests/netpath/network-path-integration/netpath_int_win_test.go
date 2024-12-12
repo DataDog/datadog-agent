@@ -38,7 +38,7 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		assertMetrics(fakeIntake, s.T(), c, [][]string{
+		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
 			// TODO: Test UDP once implemented for windows, uncomment line below
 			//testAgentRunningMetricTagsUDP,

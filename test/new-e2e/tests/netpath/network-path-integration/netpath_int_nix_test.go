@@ -36,7 +36,7 @@ func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		assertMetrics(fakeIntake, s.T(), c, [][]string{
+		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
 			testAgentRunningMetricTagsUDP,
 		})
