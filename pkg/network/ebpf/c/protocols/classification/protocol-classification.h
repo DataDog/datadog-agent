@@ -165,7 +165,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     tls_record_header_t tls_hdr = {0};
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, &tls_hdr)) {
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr)) {
         protocol_stack = get_or_create_protocol_stack(&usm_ctx->tuple);
         if (!protocol_stack) {
             return;
@@ -226,10 +226,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
         goto next_program;
     }
     __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
-    if (!is_tls_handshake_client_hello(skb, &usm_ctx->tls_header, offset)) {
+    __u32 data_end = usm_ctx->skb_info.data_end;
+    if (!is_tls_handshake_client_hello(skb, &usm_ctx->tls_header, offset, data_end)) {
         goto next_program;
     }
-    if (!parse_client_hello(skb, offset, tls_info)) {
+    if (!parse_client_hello(skb, offset, data_end, tls_info)) {
         return;
     }
 
@@ -247,10 +248,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
         goto next_program;
     }
     __u64 offset = usm_ctx->skb_info.data_off + sizeof(tls_record_header_t);
-    if (!is_tls_handshake_server_hello(skb, &usm_ctx->tls_header, offset)) {
+    __u32 data_end = usm_ctx->skb_info.data_end;
+    if (!is_tls_handshake_server_hello(skb, &usm_ctx->tls_header, offset, data_end)) {
         goto next_program;
     }
-    if (!parse_server_hello(skb, offset, tls_info)) {
+    if (!parse_server_hello(skb, offset, data_end, tls_info)) {
         return;
     }
 

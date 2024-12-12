@@ -94,16 +94,14 @@ static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 
 }
 
 // read_tls_record_header reads the TLS record header from the packet
-static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr) {
-    __u32 skb_len = skb->len;
-
+static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
     // Ensure there's enough space for TLS record header
-    if (nh_off + sizeof(tls_record_header_t) > skb_len) {
+    if (header_offset + sizeof(tls_record_header_t) > data_end) {
         return false;
     }
 
     // Read TLS record header
-    if (bpf_skb_load_bytes(skb, nh_off, tls_hdr, sizeof(tls_record_header_t)) < 0) {
+    if (bpf_skb_load_bytes(skb, header_offset, tls_hdr, sizeof(tls_record_header_t)) < 0) {
         return false;
     }
 
@@ -120,13 +118,13 @@ static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 
     }
 
     // Ensure we don't read beyond the packet
-    return nh_off + sizeof(tls_record_header_t) + tls_hdr->length <= skb_len;
+    return header_offset + sizeof(tls_record_header_t) + tls_hdr->length <= data_end;
 }
 
 // is_tls checks if the packet is a TLS packet and reads the TLS record header
-static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr) {
+static __always_inline bool is_tls(struct __sk_buff *skb, __u64 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
     // Read and validate the TLS record header
-    if (!read_tls_record_header(skb, nh_off, tls_hdr)) {
+    if (!read_tls_record_header(skb, header_offset, data_end, tls_hdr)) {
         return false;
     }
 
@@ -135,12 +133,11 @@ static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off, tls_reco
 }
 
 // Parses the TLS handshake header to extract handshake_length and protocol_version
-static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __u64 *offset, __u32 *handshake_length, __u16 *protocol_version) {
+static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __u64 *offset, __u32 data_end, __u32 *handshake_length, __u16 *protocol_version) {
     *offset += SINGLE_BYTE_LENGTH; // Move past handshake type (1 byte)
-    __u32 skb_len = skb->len;
 
     // Read handshake length (3 bytes)
-    if (*offset + TLS_HANDSHAKE_LENGTH > skb_len) {
+    if (*offset + TLS_HANDSHAKE_LENGTH > data_end) {
         return false;
     }
     __u8 handshake_length_bytes[TLS_HANDSHAKE_LENGTH];
@@ -153,12 +150,12 @@ static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __
     *offset += TLS_HANDSHAKE_LENGTH;
 
     // Ensure we don't read beyond the packet
-    if (*offset + *handshake_length > skb_len) {
+    if (*offset + *handshake_length > data_end) {
         return false;
     }
 
     // Read protocol version (2 bytes)
-    if (*offset + PROTOCOL_VERSION_LENGTH > skb_len) {
+    if (*offset + PROTOCOL_VERSION_LENGTH > data_end) {
         return false;
     }
     __u16 version;
@@ -172,13 +169,12 @@ static __always_inline bool parse_tls_handshake_header(struct __sk_buff *skb, __
 }
 
 // skip_random_and_session_id Skips the Random (32 bytes) and Session ID from the TLS hello messages by incrementing the offset pointer
-static __always_inline bool skip_random_and_session_id(struct __sk_buff *skb, __u64 *offset) {
+static __always_inline bool skip_random_and_session_id(struct __sk_buff *skb, __u64 *offset, __u32 data_end) {
     // Skip Random (32 bytes)
     *offset += RANDOM_LENGTH;
-    __u32 skb_len = skb->len;
 
     // Read Session ID Length (1 byte)
-    if (*offset + SESSION_ID_LENGTH > skb_len) {
+    if (*offset + SESSION_ID_LENGTH > data_end) {
         return false;
     }
     __u8 session_id_length;
@@ -191,15 +187,14 @@ static __always_inline bool skip_random_and_session_id(struct __sk_buff *skb, __
     *offset += session_id_length;
 
     // Ensure we don't read beyond the packet
-    return *offset <= skb_len;
+    return *offset <= data_end;
 }
 
 // parse_supported_versions_extension looks for the supported_versions extension in the ClientHello or ServerHello and populates tags
-static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u64 *offset, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
-    __u32 skb_len = skb->len;
+static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u64 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
     if (is_client_hello) {
         // Read supported version list length (1 byte)
-        if (*offset + SINGLE_BYTE_LENGTH > skb_len || *offset + SINGLE_BYTE_LENGTH > extensions_end) {
+        if (*offset + SINGLE_BYTE_LENGTH > data_end || *offset + SINGLE_BYTE_LENGTH > extensions_end) {
             return false;
         }
         __u8 sv_list_length;
@@ -208,7 +203,7 @@ static __always_inline bool parse_supported_versions_extension(struct __sk_buff 
         }
         *offset += SINGLE_BYTE_LENGTH;
 
-        if (*offset + sv_list_length > skb_len || *offset + sv_list_length > extensions_end) {
+        if (*offset + sv_list_length > data_end || *offset + sv_list_length > extensions_end) {
             return false;
         }
 
@@ -221,7 +216,7 @@ static __always_inline bool parse_supported_versions_extension(struct __sk_buff 
                 break;
             }
             // Each supported version is 2 bytes
-            if (*offset + PROTOCOL_VERSION_LENGTH > skb_len) {
+            if (*offset + PROTOCOL_VERSION_LENGTH > data_end) {
                 return false;
             }
 
@@ -237,7 +232,7 @@ static __always_inline bool parse_supported_versions_extension(struct __sk_buff 
     } else {
         // ServerHello
         // The selected_version field is 2 bytes
-        if (*offset + PROTOCOL_VERSION_LENGTH > skb_len) {
+        if (*offset + PROTOCOL_VERSION_LENGTH > data_end) {
             return false;
         }
 
@@ -256,8 +251,7 @@ static __always_inline bool parse_supported_versions_extension(struct __sk_buff 
 }
 
 // parse_tls_extensions parses TLS extensions and looks for the supported_versions extension
-static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u64 *offset, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
-    __u32 skb_len = skb->len;
+static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u64 *offset, __u32 data_end, __u64 extensions_end, tls_info_t *tags, bool is_client_hello) {
     __u16 extension_type;
     __u16 extension_length;
 
@@ -281,12 +275,12 @@ static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u64 *o
         extension_length = bpf_ntohs(extension_length);
         *offset += EXTENSION_LENGTH_FIELD;
 
-        if (*offset + extension_length > skb_len || *offset + extension_length > extensions_end) {
+        if (*offset + extension_length > data_end || *offset + extension_length > extensions_end) {
             return false;
         }
 
         if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
-            if (!parse_supported_versions_extension(skb, offset, extensions_end, tags, is_client_hello)) {
+            if (!parse_supported_versions_extension(skb, offset, data_end, extensions_end, tags, is_client_hello)) {
                 return false;
             }
         } else {
@@ -303,29 +297,28 @@ static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u64 *o
 }
 
 // parse_client_hello parses the ClientHello message and populates tags
-static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offset, tls_info_t *tags) {
+static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offset, __u32 data_end, tls_info_t *tags) {
     __u32 handshake_length;
     __u16 client_version;
-    __u32 skb_len = skb->len;
 
-    if (!parse_tls_handshake_header(skb, &offset, &handshake_length, &client_version)) {
+    if (!parse_tls_handshake_header(skb, &offset, data_end, &handshake_length, &client_version)) {
         return false;
     }
 
     set_tls_offered_version(tags, client_version);
 
-    // If the version is less than TLS 1.2, no extensions to parse
+    // TLS 1.2 is the highest version we will see in the header. If the connection is actually a higher version (1.3),
+    // it must be extracted from the extensions. Lower versions (1.0, 1.1) will not have extensions.
     if (client_version != TLS_VERSION12) {
         return true;
     }
 
-    // Skip Random and Session ID
-    if (!skip_random_and_session_id(skb, &offset)) {
+    if (!skip_random_and_session_id(skb, &offset, data_end)) {
         return false;
     }
 
     // Read Cipher Suites Length (2 bytes)
-    if (offset + CIPHER_SUITES_LENGTH > skb_len) {
+    if (offset + CIPHER_SUITES_LENGTH > data_end) {
         return false;
     }
     __u16 cipher_suites_length;
@@ -339,7 +332,7 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
     offset += cipher_suites_length;
 
     // Read Compression Methods Length (1 byte)
-    if (offset + COMPRESSION_METHODS_LENGTH > skb_len) {
+    if (offset + COMPRESSION_METHODS_LENGTH > data_end) {
         return false;
     }
     __u8 compression_methods_length;
@@ -352,7 +345,7 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
     offset += compression_methods_length;
 
     // Check if extensions are present
-    if (offset + EXTENSION_LENGTH_FIELD > skb_len) {
+    if (offset + EXTENSION_LENGTH_FIELD > data_end) {
         return false;
     }
 
@@ -364,33 +357,35 @@ static __always_inline bool parse_client_hello(struct __sk_buff *skb, __u64 offs
     extensions_length = bpf_ntohs(extensions_length);
     offset += EXTENSION_LENGTH_FIELD;
 
-    if (offset + extensions_length > skb_len) {
+    if (offset + extensions_length > data_end) {
         return false;
     }
 
     __u64 extensions_end = offset + extensions_length;
 
-    return parse_tls_extensions(skb, &offset, extensions_end, tags, true);
+    return parse_tls_extensions(skb, &offset, data_end, extensions_end, tags, true);
 }
 
 // parse_server_hello parses the ServerHello message and populates tags
-static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offset, tls_info_t *tags) {
+static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offset, __u32 data_end, tls_info_t *tags) {
     __u32 handshake_length;
     __u16 server_version;
-    __u32 skb_len = skb->len;
 
-    if (!parse_tls_handshake_header(skb, &offset, &handshake_length, &server_version)) {
+    if (!parse_tls_handshake_header(skb, &offset, data_end, &handshake_length, &server_version)) {
         return false;
     }
 
+    // Set the version here and try to get the "real" version from the extensions if possible
+    // Note: In TLS 1.3, the server_version field is set to 1.2
+    // The actual version is embedded in the supported_versions extension
     tags->chosen_version = server_version;
 
-    if (!skip_random_and_session_id(skb, &offset)) {
+    if (!skip_random_and_session_id(skb, &offset, data_end)) {
         return false;
     }
 
     // Read Cipher Suite (2 bytes)
-    if (offset + CIPHER_SUITES_LENGTH > skb_len) {
+    if (offset + CIPHER_SUITES_LENGTH > data_end) {
         return false;
     }
     __u16 cipher_suite;
@@ -405,11 +400,13 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offs
 
     tags->cipher_suite = cipher_suite;
 
+    // TLS 1.2 is the highest version we will see in the header. If the connection is actually a higher version (1.3),
+    // it must be extracted from the extensions. Lower versions (1.0, 1.1) will not have extensions.
     if (tags->chosen_version != TLS_VERSION12) {
         return true;
     }
 
-    if (offset + EXTENSION_LENGTH_FIELD > skb_len) {
+    if (offset + EXTENSION_LENGTH_FIELD > data_end) {
         return false;
     }
 
@@ -422,17 +419,17 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offs
     offset += EXTENSION_LENGTH_FIELD;
 
     __u64 handshake_end = offset + handshake_length;
-    if (offset + extensions_length > skb_len || offset + extensions_length > handshake_end) {
+    if (offset + extensions_length > data_end || offset + extensions_length > handshake_end) {
         return false;
     }
 
     __u64 extensions_end = offset + extensions_length;
 
-    return parse_tls_extensions(skb, &offset, extensions_end, tags, false);
+    return parse_tls_extensions(skb, &offset, data_end, extensions_end, tags, false);
 }
 
 // is_tls_handshake_type checks if the handshake type is the expected type (client or server hello)
-static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u8 expected_handshake_type) {
+static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u32 data_end, __u8 expected_handshake_type) {
     if (!tls_hdr) {
         return false;
     }
@@ -441,7 +438,7 @@ static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, tls_rec
     }
 
     // The handshake type is a single byte enumerated value
-    if (offset + SINGLE_BYTE_LENGTH > skb->len) {
+    if (offset + SINGLE_BYTE_LENGTH > data_end) {
         return false;
     }
     __u8 handshake_type;
@@ -453,13 +450,13 @@ static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, tls_rec
 }
 
 // is_tls_handshake_client_hello checks if the packet is a TLS ClientHello message
-static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset) {
-    return is_tls_handshake_type(skb, tls_hdr, offset, TLS_HANDSHAKE_CLIENT_HELLO);
+static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u32 data_end) {
+    return is_tls_handshake_type(skb, tls_hdr, offset, data_end, TLS_HANDSHAKE_CLIENT_HELLO);
 }
 
 // is_tls_handshake_server_hello checks if the packet is a TLS ServerHello message
-static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset) {
-    return is_tls_handshake_type(skb, tls_hdr, offset, TLS_HANDSHAKE_SERVER_HELLO);
+static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u32 data_end) {
+    return is_tls_handshake_type(skb, tls_hdr, offset, data_end, TLS_HANDSHAKE_SERVER_HELLO);
 }
 
 #endif // __TLS_H

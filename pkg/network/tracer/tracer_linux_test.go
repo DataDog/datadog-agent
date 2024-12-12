@@ -2599,24 +2599,22 @@ func (s *TracerSuite) TestTLSClassification() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("protocol classification not supported")
 	}
-	port, err := tracertestutil.GetFreePort()
-	require.NoError(t, err)
-	portAsString := strconv.Itoa(int(port))
 
 	tr := setupTracer(t, cfg)
 
 	type tlsTest struct {
 		name            string
-		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, tr *Tracer)
+		postTracerSetup func(t *testing.T) (port uint16, scenario uint16)
+		validation      func(t *testing.T, tr *Tracer, port uint16, scenario uint16)
 	}
+
 	tests := make([]tlsTest, 0)
 	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
-			postTracerSetup: func(t *testing.T) {
-				srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
+			postTracerSetup: func(t *testing.T) (uint16, uint16) {
+				srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
 					defer conn.Close()
 					_, err := io.Copy(conn, conn)
 					if err != nil {
@@ -2627,6 +2625,15 @@ func (s *TracerSuite) TestTLSClassification() {
 				done := make(chan struct{})
 				require.NoError(t, srv.Run(done))
 				t.Cleanup(func() { close(done) })
+
+				// Retrieve the actual port assigned to the server
+				addr := srv.Address()
+				_, portStr, err := net.SplitHostPort(addr)
+				require.NoError(t, err)
+				portInt, err := strconv.Atoi(portStr)
+				require.NoError(t, err)
+				port := uint16(portInt)
+
 				tlsConfig := &tls.Config{
 					MinVersion:             scenario,
 					MaxVersion:             scenario,
@@ -2634,27 +2641,27 @@ func (s *TracerSuite) TestTLSClassification() {
 					SessionTicketsDisabled: true,
 					ClientSessionCache:     nil,
 				}
-				conn, err := net.Dial("tcp", "localhost:"+portAsString)
+				conn, err := net.Dial("tcp", addr)
 				require.NoError(t, err)
 				defer conn.Close()
 
-				// Wrap the TCP connection with TLS
 				tlsConn := tls.Client(conn, tlsConfig)
-
 				require.NoError(t, tlsConn.Handshake())
+
+				return port, scenario
 			},
-			validation: func(t *testing.T, tr *Tracer) {
+			validation: func(t *testing.T, tr *Tracer, port uint16, scenario uint16) {
 				require.Eventuallyf(t, func() bool {
 					return validateTLSTags(t, tr, port, scenario)
-				}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
+				}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", port)
 			},
 		})
 	}
 	tests = append(tests, tlsTest{
 		name: "Invalid-TLS-Handshake",
-		postTracerSetup: func(t *testing.T) {
+		postTracerSetup: func(t *testing.T) (uint16, uint16) {
 			// server that accepts connections but does not perform TLS handshake
-			listener, err := net.Listen("tcp", "localhost:"+portAsString)
+			listener, err := net.Listen("tcp", "localhost:0")
 			require.NoError(t, err)
 			t.Cleanup(func() { listener.Close() })
 
@@ -2668,21 +2675,33 @@ func (s *TracerSuite) TestTLSClassification() {
 						defer c.Close()
 						buf := make([]byte, 1024)
 						_, _ = c.Read(buf)
-						// Do nothing
+						// Do nothing with the data
 					}(conn)
 				}
 			}()
 
+			// Retrieve the actual port from the listener address
+			addr := listener.Addr().String()
+			_, portStr, err := net.SplitHostPort(addr)
+			require.NoError(t, err)
+			portInt, err := strconv.Atoi(portStr)
+			require.NoError(t, err)
+			port := uint16(portInt)
+
 			// Client connects to the server
-			conn, err := net.Dial("tcp", "localhost:"+portAsString)
+			conn, err := net.Dial("tcp", addr)
 			require.NoError(t, err)
 			defer conn.Close()
 
 			// Send invalid TLS handshake data
 			_, err = conn.Write([]byte("invalid TLS data"))
 			require.NoError(t, err)
+
+			// Since this is invalid TLS, scenario can be set to something irrelevant, e.g., TLS.VersionTLS12
+			// or just 0 since the validation doesn't rely on the scenario for this test.
+			return port, tls.VersionTLS12
 		},
-		validation: func(t *testing.T, tr *Tracer) {
+		validation: func(t *testing.T, tr *Tracer, port uint16, scenario uint16) {
 			// Verify that no TLS tags are set for this connection
 			require.Eventually(t, func() bool {
 				payload := getConnections(t, tr)
@@ -2708,9 +2727,9 @@ func (s *TracerSuite) TestTLSClassification() {
 			tr.RemoveClient(clientID)
 			require.NoError(t, tr.RegisterClient(clientID))
 			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
-			tt.postTracerSetup(t)
+			port, scenario := tt.postTracerSetup(t)
 			require.NoError(t, tr.Pause(), "disable probes - after post tracer")
-			tt.validation(t, tr)
+			tt.validation(t, tr, port, scenario)
 		})
 	}
 }
