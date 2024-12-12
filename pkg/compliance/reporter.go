@@ -39,13 +39,13 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compressionFactory compression.Factory) *LogReporter {
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression compression.Component) *LogReporter {
 	// setup the auditor
 	auditor := auditor.NewNullAuditor()
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compressionFactory)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compression)
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(

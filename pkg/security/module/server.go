@@ -559,7 +559,7 @@ func (a *APIServer) getGlobalTags() []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Factory) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	as := &APIServer{

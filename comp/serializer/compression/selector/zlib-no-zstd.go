@@ -23,12 +23,7 @@ import (
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
-func (*compressorFactory) NewCompressor(kind string, level int, option string, valid []string) compression.Component {
-	if !slices.Contains(valid, kind) {
-		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
-		return implnoop.NewComponent().Comp
-	}
-
+func NewCompressorKind(kind string, level int) compression.Component {
 	switch kind {
 	case common.ZlibKind:
 		return implzlib.NewComponent().Comp

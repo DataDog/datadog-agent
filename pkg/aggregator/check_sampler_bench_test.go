@@ -53,7 +53,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, compressionmock.NewMockCompressorFactory()))
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, compressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)

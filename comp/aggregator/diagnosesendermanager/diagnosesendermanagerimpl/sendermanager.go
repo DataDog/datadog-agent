@@ -35,13 +35,12 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log                log.Component
-	Config             config.Component
-	Hostname           hostname.Component
-	CompressionFactory compression.Factory
-	Compressor         compression.Component
-	Tagger             tagger.Component
-	HaAgent            haagent.Component
+	Log        log.Component
+	Config     config.Component
+	Hostname   hostname.Component
+	Compressor compression.Component
+	Tagger     tagger.Component
+	HaAgent    haagent.Component
 }
 
 type diagnoseSenderManager struct {
@@ -75,7 +74,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	haAgent := sender.deps.HaAgent
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
 	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.CompressionFactory))
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.Compressor))
 
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,

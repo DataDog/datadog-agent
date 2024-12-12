@@ -17,12 +17,14 @@ import (
 
 // Requires contains the compression level for gzip compression
 type Requires struct {
-	Level int
+	Level   int
+	NewKind func(string, int) compression.Component
 }
 
 // GzipStrategy is the strategy for when serializer_compression_kind is gzip
 type GzipStrategy struct {
-	level int
+	level   int
+	newKind func(string, int) compression.Component
 }
 
 // NewComponent returns a new GzipStrategy
@@ -38,7 +40,8 @@ func NewComponent(req Requires) compression.Provides {
 
 	return compression.Provides{
 		Comp: &GzipStrategy{
-			level: level,
+			level:   level,
+			newKind: req.NewKind,
 		},
 	}
 }
@@ -123,4 +126,9 @@ func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 
 	writer, _ := gzip.NewWriterLevel(output, level)
 	return writer
+}
+
+// WithKindAndLevel returns a new strategy of the given kind and level
+func (s *GzipStrategy) WithKindAndLevel(kind string, level int) compression.Component {
+	return s.newKind(kind, level)
 }

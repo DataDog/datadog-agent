@@ -29,7 +29,7 @@ func Commands(*command.GlobalParams) []*cobra.Command {
 }
 
 // StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, _ string, _ startstop.Stopper, _ statsd.ClientInterface, _ workloadmeta.Component, _ compression.Factory) (*secagent.RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(log log.Component, config config.Component, _ string, _ startstop.Stopper, _ statsd.ClientInterface, _ workloadmeta.Component, _ compression.Component) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")

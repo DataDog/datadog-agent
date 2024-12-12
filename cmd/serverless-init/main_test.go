@@ -30,7 +30,7 @@ func TestTagsSetup(t *testing.T) {
 	t.Skip()
 
 	fakeTagger := mock.SetupFakeTagger(t)
-	fakeCompression := compressionmock.NewMockCompressorFactory()
+	fakeCompression := compressionmock.NewMockCompressor()
 
 	configmock.New(t)
 

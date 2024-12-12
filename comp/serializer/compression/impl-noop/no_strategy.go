@@ -12,6 +12,11 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
+// Requires contains the required parameters for the noop component
+type Requires struct {
+	NewKind func(string, int) compression.Component
+}
+
 // Provides contains the compression component
 type Provides struct {
 	Comp compression.Component
@@ -19,12 +24,15 @@ type Provides struct {
 
 // NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd
 type NoopStrategy struct {
+	newKind func(string, int) compression.Component
 }
 
 // NewComponent returns a new NoopStrategy for when kind is neither zlib nor zstd
-func NewComponent() Provides {
+func NewComponent(requires Requires) Provides {
 	return Provides{
-		Comp: &NoopStrategy{},
+		Comp: &NoopStrategy{
+			newKind: requires.NewKind,
+		},
 	}
 }
 
@@ -51,4 +59,9 @@ func (s *NoopStrategy) ContentEncoding() string {
 // NewStreamCompressor returns a nil when there is no compression implementation.
 func (s *NoopStrategy) NewStreamCompressor(_ *bytes.Buffer) compression.StreamCompressor {
 	return nil
+}
+
+// WithKindAndLevel returns a new strategy of the given kind and level
+func (s *NoopStrategy) WithKindAndLevel(kind string, level int) compression.Component {
+	return s.newKind(kind, level)
 }

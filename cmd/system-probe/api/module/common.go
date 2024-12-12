@@ -34,5 +34,5 @@ type FactoryDependencies struct {
 	WMeta       workloadmeta.Component
 	Tagger      tagger.Component
 	Telemetry   telemetry.Component
-	Compression compression.Factory
+	Compression compression.Component
 }

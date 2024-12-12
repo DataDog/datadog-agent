@@ -72,10 +72,10 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	))
 
 	agent := &Agent{
-		log:                deps.Log,
-		config:             deps.Config,
-		endpoints:          endpoints,
-		compressionFactory: compressionfx.NewMockCompressorFactory(),
+		log:         deps.Log,
+		config:      deps.Config,
+		endpoints:   endpoints,
+		compression: compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()

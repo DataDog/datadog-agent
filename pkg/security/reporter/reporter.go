@@ -42,11 +42,11 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 }
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake
-func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compressionFactory compression.Factory) (seccommon.RawReporter, error) {
-	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context, compressionFactory)
+func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component) (seccommon.RawReporter, error) {
+	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context, compression)
 }
 
-func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compressionFactory compression.Factory) (seccommon.RawReporter, error) {
+func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component) (seccommon.RawReporter, error) {
 	// setup the auditor
 	auditor := auditor.NewNullAuditor()
 	auditor.Start()
@@ -62,7 +62,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		agentimpl.NewStatusProvider(),
 		hostnameimpl.NewHostnameService(),
 		pkgconfigsetup.Datadog(),
-		compressionFactory,
+		compression,
 	)
 
 	pipelineProvider.Start()

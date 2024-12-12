@@ -100,7 +100,6 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
-		compressionmock.MockModuleFactory(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),

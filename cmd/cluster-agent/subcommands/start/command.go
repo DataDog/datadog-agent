@@ -228,7 +228,7 @@ func start(log log.Component,
 	logReceiver optional.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
-	compressionFactory compression.Factory,
+	compression compression.Component,
 	datadogConfig config.Component,
 ) error {
 	stopCh := make(chan struct{})
@@ -442,7 +442,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compressionFactory, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

@@ -23,6 +23,6 @@ func MockModule() fxutil.Module {
 	)
 }
 
-func newMockComponent(hostname hostname.Component, compressionFactory compression.Factory) eventplatform.Component {
-	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname, compressionFactory))
+func newMockComponent(hostname hostname.Component, compression compression.Component) eventplatform.Component {
+	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname, compression))
 }

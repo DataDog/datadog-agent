@@ -83,7 +83,7 @@ type dependencies struct {
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
-	CompressionFactory compression.Factory
+	Compression        compression.Component
 }
 
 type provides struct {
@@ -121,7 +121,7 @@ type logAgent struct {
 	wmeta                     optional.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
-	compressionFactory        compression.Factory
+	compression               compression.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -153,7 +153,7 @@ func newLogsAgent(deps dependencies) provides {
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
-			compressionFactory: deps.CompressionFactory,
+			compression:        deps.Compression,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

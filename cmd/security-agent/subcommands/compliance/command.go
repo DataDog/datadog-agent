@@ -177,7 +177,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log log.Component, eventArgs *eventCliParams, compressionFactory compression.Factory) error {
+func eventRun(log log.Component, eventArgs *eventCliParams, compression compression.Component) error {
 	hostnameDetected, err := secutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
@@ -188,7 +188,7 @@ func eventRun(log log.Component, eventArgs *eventCliParams, compressionFactory c
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext, compressionFactory)
+	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext, compression)
 	defer reporter.Stop()
 
 	eventData := make(map[string]interface{})

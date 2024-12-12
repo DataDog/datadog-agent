@@ -89,10 +89,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, compressionFactory compression.Factory) {
-
-	log.Debug("ZORK Agent is running")
-	log.Debug("ZORK Repeat, agent is running")
+func runAgent(tagger tagger.Component, compression compression.Component) {
 
 	startTime := time.Now()
 
@@ -132,7 +129,7 @@ func runAgent(tagger tagger.Component, compressionFactory compression.Factory) {
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
-	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compressionFactory)
+	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression)
 
 	// start appsec
 	appsecProxyProcessor := startAppSec(serverlessDaemon)
@@ -305,7 +302,7 @@ func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcess
 	return appsecProxyProcessor
 }
 
-func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component, compressionFactory compression.Factory) {
+func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component, compression compression.Component) {
 	defer wg.Done()
 	if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
@@ -329,7 +326,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compressionFactory)
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compression)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}

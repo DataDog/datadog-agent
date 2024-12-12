@@ -94,7 +94,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
-		compressionfx.MockModuleFactory(),
+		compressionfx.MockModule(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),

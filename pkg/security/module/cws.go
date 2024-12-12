@@ -65,7 +65,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Factory) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component) (*CWSConsumer, error) {
 	crtelemetry, err := telemetry.NewContainersRunningTelemetry(cfg, evm.StatsdClient, wmeta)
 	if err != nil {
 		return nil, err

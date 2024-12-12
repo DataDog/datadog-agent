@@ -134,7 +134,7 @@ func (s *service) Run(svcctx context.Context) error {
 				AgentType: catalog,
 			}
 		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component, compression compression.Factory) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component, compression compression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
 			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))

@@ -58,7 +58,7 @@ func (a *logAgent) SetupPipeline(
 		NewStatusProvider(),
 		a.hostname,
 		a.config,
-		a.compressionFactory)
+		a.compression)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())

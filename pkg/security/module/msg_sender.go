@@ -73,7 +73,7 @@ func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Secur
 }
 
 // NewDirectMsgSender returns a new direct sender
-func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Factory) (*DirectMsgSender, error) {
+func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component) (*DirectMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)

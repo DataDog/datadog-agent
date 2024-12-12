@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compressioncommon "github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -51,7 +51,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compressionFactory compression.Factory,
+	compression compression.Component,
 ) *Pipeline {
 
 	var senderDoneChan chan *sync.WaitGroup
@@ -81,7 +81,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor, compressionFactory)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor, compression)
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, pkgconfigsetup.Datadog().GetInt("logs_config.payload_channel_size"), senderDoneChan, flushWg, pipelineMonitor)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
@@ -168,21 +168,16 @@ func getStrategy(
 	serverless bool,
 	flushWg *sync.WaitGroup,
 	pipelineMonitor metrics.PipelineMonitor,
-	compressionFactory compression.Factory,
+	compressor compression.Component,
 ) sender.Strategy {
-	log.Debugf("ZORK getting strategy")
-
 	if endpoints.UseHTTP || serverless {
 		var encoder compression.Component
-		encoder = compressionFactory.NewNoopCompressor()
+		encoder = compressor.WithKindAndLevel(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
-			log.Debugf("ZORK we iz using compression %v", endpoints.Main.CompressionKind)
-			encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
-		} else {
-			log.Debugf("ZORK we iz NO using compression")
+			encoder = compressor.WithKindAndLevel(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
 
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, compressionFactory.NewNoopCompressor())
+	return sender.NewStreamStrategy(inputChan, outputChan, compressor.WithKindAndLevel(compressioncommon.NoneKind, 0))
 }

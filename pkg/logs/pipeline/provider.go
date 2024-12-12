@@ -54,10 +54,10 @@ type provider struct {
 
 	serverless bool
 
-	status             statusinterface.Status
-	hostname           hostnameinterface.Component
-	cfg                pkgconfigmodel.Reader
-	compressionFactory compression.Factory
+	status      statusinterface.Status
+	hostname    hostnameinterface.Component
+	cfg         pkgconfigmodel.Reader
+	compression compression.Component
 }
 
 // NewProvider returns a new Provider
@@ -70,9 +70,9 @@ func NewProvider(numberOfPipelines int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compressionFactory compression.Factory,
+	compression compression.Component,
 ) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg, compressionFactory)
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg, compression)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
@@ -85,10 +85,10 @@ func NewServerlessProvider(numberOfPipelines int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compressionFactory compression.Factory,
+	compression compression.Component,
 ) Provider {
 
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg, compressionFactory)
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg, compression)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -106,7 +106,7 @@ func newProvider(numberOfPipelines int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compressionFactory compression.Factory,
+	compression compression.Component,
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
@@ -121,7 +121,7 @@ func newProvider(numberOfPipelines int,
 		status:                    status,
 		hostname:                  hostname,
 		cfg:                       cfg,
-		compressionFactory:        compressionFactory,
+		compression:               compression,
 	}
 }
 
@@ -131,7 +131,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg, p.compressionFactory)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg, p.compression)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

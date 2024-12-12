@@ -23,7 +23,7 @@ import (
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent(tagger tagger.Component, compressionFactory compression.Factory) agent.ServerlessLogsAgent {
+func NewServerlessLogsAgent(tagger tagger.Component, compression compression.Component) agent.ServerlessLogsAgent {
 
 	log.Debugf("ZORK Setting up agent")
 
@@ -32,12 +32,12 @@ func NewServerlessLogsAgent(tagger tagger.Component, compressionFactory compress
 		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
 
-		sources:            sources.NewLogSources(),
-		services:           service.NewServices(),
-		tracker:            tailers.NewTailerTracker(),
-		flarecontroller:    flareController.NewFlareController(),
-		tagger:             tagger,
-		compressionFactory: compressionFactory,
+		sources:         sources.NewLogSources(),
+		services:        service.NewServices(),
+		tracker:         tailers.NewTailerTracker(),
+		flarecontroller: flareController.NewFlareController(),
+		tagger:          tagger,
+		compression:     compression,
 	}
 	return logsAgent
 }

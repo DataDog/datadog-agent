@@ -32,9 +32,9 @@ const (
 	intakeTrackType = "compliance"
 )
 
-func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, compressionFactory compression.Factory, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, compression compression.Component, isLeader func() bool) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader, compressionFactory); err != nil {
+	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader, compression); err != nil {
 		return err
 	}
 
@@ -73,7 +73,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compressionFactory compression.Factory) error {
+func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression compression.Component) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -88,7 +88,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx, compressionFactory)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx, compression)
 	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
 	if err != nil {
 		return err

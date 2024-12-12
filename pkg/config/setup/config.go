@@ -78,7 +78,10 @@ const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
+	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
+	DefaultGzipCompressionLevel = 6
+
+	// DefaultCompressorKind is the default compressor for metrics. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
@@ -2407,7 +2410,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "additional_endpoints")
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", "gzip")
-	config.BindEnvAndSetDefault(prefix+"compression_level", 6) // Default level for the gzip/deflate algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel) // Default level for the gzip/deflate algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)

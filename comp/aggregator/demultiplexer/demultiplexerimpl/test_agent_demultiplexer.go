@@ -176,7 +176,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // initTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, compressor compression.Component, compressionFactory compression.Factory, flushInterval time.Duration) *TestAgentDemultiplexer {
+func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, compressor compression.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
@@ -185,7 +185,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	sharedForwarderOptions := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, sharedForwarderOptions)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compressionFactory))
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compressor))
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), compressor, noopimpl.NewComponent(), "hostname")
 	return NewTestAgentDemultiplexer(demux)
 }

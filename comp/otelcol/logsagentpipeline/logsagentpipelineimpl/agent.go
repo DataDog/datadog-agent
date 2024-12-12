@@ -42,19 +42,19 @@ const (
 type Dependencies struct {
 	fx.In
 
-	Lc                 fx.Lifecycle
-	Log                log.Component
-	Config             configComponent.Component
-	Hostname           hostnameinterface.Component
-	CompressionFactory compression.Factory
+	Lc          fx.Lifecycle
+	Log         log.Component
+	Config      configComponent.Component
+	Hostname    hostnameinterface.Component
+	Compression compression.Component
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log                log.Component
-	config             pkgconfigmodel.Reader
-	hostname           hostnameinterface.Component
-	compressionFactory compression.Factory
+	log         log.Component
+	config      pkgconfigmodel.Reader
+	hostname    hostnameinterface.Component
+	compression compression.Component
 
 	endpoints        *config.Endpoints
 	auditor          auditor.Auditor
@@ -80,10 +80,10 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		}
 
 		logsAgent := &Agent{
-			log:                deps.Log,
-			config:             deps.Config,
-			hostname:           deps.Hostname,
-			compressionFactory: deps.CompressionFactory,
+			log:         deps.Log,
+			config:      deps.Config,
+			hostname:    deps.Hostname,
+			compression: deps.Compression,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
@@ -214,7 +214,7 @@ func (a *Agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compressionFactory)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx

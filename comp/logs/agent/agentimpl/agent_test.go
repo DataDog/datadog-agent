@@ -135,12 +135,12 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		sources:            sources,
-		services:           services,
-		tracker:            tailers.NewTailerTracker(),
-		endpoints:          endpoints,
-		tagger:             fakeTagger,
-		compressionFactory: compressionfx.NewMockCompressorFactory(),
+		sources:     sources,
+		services:    services,
+		tracker:     tailers.NewTailerTracker(),
+		endpoints:   endpoints,
+		tagger:      fakeTagger,
+		compression: compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()
@@ -407,7 +407,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		compressionfx.MockModuleFactory(),
+		compressionfx.MockModule(),
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),

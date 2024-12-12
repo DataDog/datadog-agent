@@ -23,31 +23,11 @@ func MockModule() fxutil.Module {
 	)
 }
 
-// MockModuleFactory defines the fx options for the mock component factory.
-func MockModuleFactory() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			NewMockCompressorFactory,
-		),
-	)
-}
-
-type mockFactory struct{}
-
-func (*mockFactory) NewNoopCompressor() compression.Component {
-	return compressionnoop.NewComponent().Comp
-}
-
-func (*mockFactory) NewCompressor(_ string, _ int, _ string, _ []string) compression.Component {
-	return compressionnoop.NewComponent().Comp
-}
-
-// NewMockCompressorFactory returns a factory that always return a Noop Compressor
-func NewMockCompressorFactory() compression.Factory {
-	return &mockFactory{}
-}
-
 // NewMockCompressor returns a new Mock
 func NewMockCompressor() compression.Component {
-	return compressionnoop.NewComponent().Comp
+	return compressionnoop.NewComponent(compressionnoop.Requires{
+		NewKind: func(_kind string, _level int) compression.Component {
+			return NewMockCompressor()
+		},
+	}).Comp
 }

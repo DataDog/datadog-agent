@@ -32,7 +32,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		pipelines:            []*Pipeline{},
 		endpoints:            config.NewEndpoints(config.Endpoint{}, nil, true, false),
 		currentPipelineIndex: atomic.NewUint32(0),
-		compressionFactory:   compressionfx.NewMockCompressorFactory(),
+		compression:          compressionfx.NewMockCompressor(),
 	}
 }
 

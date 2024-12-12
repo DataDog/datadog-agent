@@ -36,7 +36,7 @@ func StartCompliance(log log.Component,
 	stopper startstop.Stopper,
 	statsdClient ddgostatsd.ClientInterface,
 	wmeta workloadmeta.Component,
-	compressionFactory compression.Factory,
+	compression compression.Component,
 ) (*compliance.Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
@@ -77,7 +77,7 @@ func StartCompliance(log log.Component,
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
 	}
 
-	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compressionFactory)
+	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
 	agent := compliance.NewAgent(telemetrySender, wmeta, compliance.AgentOptions{
