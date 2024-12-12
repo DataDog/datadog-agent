@@ -220,7 +220,7 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 
 	// Try to get the GPU device if we can, but do not fail if we can't as we want to report
 	// the data even if we can't get the GPU UUID
-	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid))
+	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerID)
 	if err != nil {
 		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
 	} else {
