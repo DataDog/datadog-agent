@@ -32,6 +32,8 @@ type Source string
 
 // Declare every known Source
 const (
+	// SourceSchema are settings define in the schema for the configuration but without any default.
+	SourceSchema Source = "schema"
 	// SourceDefault are the values from defaults.
 	SourceDefault Source = "default"
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
@@ -74,6 +76,7 @@ var sources = []Source{
 // sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
 // configuration tree (a higher priority overwrites a lower one).
 var sourcesPriority = map[Source]int{
+	SourceSchema:             -1,
 	SourceDefault:            0,
 	SourceUnknown:            1,
 	SourceFile:               2,

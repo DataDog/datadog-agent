@@ -44,6 +44,28 @@ func TestGet(t *testing.T) {
 	assert.Equal(t, 9876, cfg.Get("a"))
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
+
+	// test implicit conversion
+	cfg.Set("a", "1111", model.SourceAgentRuntime)
+	assert.Equal(t, 1111, cfg.Get("a"))
+}
+
+func TestGetInnerNode(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a.b.c", 1234)
+	cfg.SetDefault("a.e", 1234)
+	cfg.BuildSchema()
+
+	assert.Equal(t, 1234, cfg.Get("a.b.c"))
+	assert.Equal(t, 1234, cfg.Get("a.e"))
+	assert.Equal(t, map[string]interface{}{"c": 1234}, cfg.Get("a.b"))
+	assert.Equal(t, map[string]interface{}{"b": map[string]interface{}{"c": 1234}, "e": 1234}, cfg.Get("a"))
+
+	cfg.Set("a.b.c", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, 9876, cfg.Get("a.b.c"))
+	assert.Equal(t, 1234, cfg.Get("a.e"))
+	assert.Equal(t, map[string]interface{}{"c": 9876}, cfg.Get("a.b"))
+	assert.Equal(t, map[string]interface{}{"b": map[string]interface{}{"c": 9876}, "e": 1234}, cfg.Get("a"))
 }
 
 func TestGetCastToDefault(t *testing.T) {
