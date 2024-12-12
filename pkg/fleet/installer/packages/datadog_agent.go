@@ -55,6 +55,11 @@ var (
 )
 
 var (
+	rootOwnedConfigPaths = []string{
+		"security-agent.yaml",
+		"system-probe.yaml",
+		"inject/tracer.yaml",
+	}
 	// matches omnibus/package-scripts/agent-deb/postinst
 	rootOwnedAgentPaths = []string{
 		"embedded/bin/system-probe",
@@ -110,6 +115,9 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 
 	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
+		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
+	}
+	if err = chownRecursive("/etc/datadog-agent", ddAgentUID, ddAgentGID, rootOwnedConfigPaths); err != nil {
 		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
 	}
 	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
