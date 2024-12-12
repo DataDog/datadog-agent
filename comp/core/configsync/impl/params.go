@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package configsyncimpl implements synchronizing the configuration using the core agent config API
-package configsyncimpl
+package impl
 
 import "time"
 

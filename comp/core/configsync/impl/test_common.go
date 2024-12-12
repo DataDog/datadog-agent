@@ -5,7 +5,7 @@
 
 //go:build test
 
-package configsyncimpl
+package impl
 
 import (
 	"context"
