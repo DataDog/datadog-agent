@@ -429,11 +429,8 @@ static __always_inline bool parse_server_hello(struct __sk_buff *skb, __u64 offs
 }
 
 // is_tls_handshake_type checks if the handshake type is the expected type (client or server hello)
-static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u32 data_end, __u8 expected_handshake_type) {
-    if (!tls_hdr) {
-        return false;
-    }
-    if (tls_hdr->content_type != TLS_HANDSHAKE) {
+static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, __u8 content_type, __u64 offset, __u32 data_end, __u8 expected_handshake_type) {
+    if (content_type != TLS_HANDSHAKE) {
         return false;
     }
 
@@ -450,13 +447,13 @@ static __always_inline bool is_tls_handshake_type(struct __sk_buff *skb, tls_rec
 }
 
 // is_tls_handshake_client_hello checks if the packet is a TLS ClientHello message
-static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u32 data_end) {
-    return is_tls_handshake_type(skb, tls_hdr, offset, data_end, TLS_HANDSHAKE_CLIENT_HELLO);
+static __always_inline bool is_tls_handshake_client_hello(struct __sk_buff *skb, __u8 content_type, __u64 offset, __u32 data_end) {
+    return is_tls_handshake_type(skb, content_type, offset, data_end, TLS_HANDSHAKE_CLIENT_HELLO);
 }
 
 // is_tls_handshake_server_hello checks if the packet is a TLS ServerHello message
-static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, tls_record_header_t *tls_hdr, __u64 offset, __u32 data_end) {
-    return is_tls_handshake_type(skb, tls_hdr, offset, data_end, TLS_HANDSHAKE_SERVER_HELLO);
+static __always_inline bool is_tls_handshake_server_hello(struct __sk_buff *skb, __u8 content_type, __u64 offset, __u32 data_end) {
+    return is_tls_handshake_type(skb, content_type, offset, data_end, TLS_HANDSHAKE_SERVER_HELLO);
 }
 
 #endif // __TLS_H

@@ -23,7 +23,7 @@ typedef struct {
     // bit mask with layers that should be skiped
     u16 routing_skip_layers;
     classification_prog_t routing_current_program;
-    tls_record_header_t tls_header;
+    __u8 tls_content_type;
 } usm_context_t;
 
 // Kernels before 4.7 do not know about per-cpu array maps.
