@@ -27,6 +27,7 @@ type BoolEvaluator struct {
 	Value       bool
 	Weight      int
 	OpOverrides *OpOverrides
+	Offset      int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -62,6 +63,7 @@ type IntEvaluator struct {
 	Value       int
 	Weight      int
 	OpOverrides *OpOverrides
+	Offset      int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic           bool
@@ -101,6 +103,7 @@ type StringEvaluator struct {
 	OpOverrides   *OpOverrides
 	ValueType     FieldValueType
 	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
+	Offset        int           // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -139,15 +142,11 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 
 // ToStringMatcher returns a StringMatcher of the evaluator
 func (s *StringEvaluator) ToStringMatcher(opts StringCmpOpts) (StringMatcher, error) {
-	if s.IsStatic() {
-		matcher, err := NewStringMatcher(s.ValueType, s.Value, opts)
-		if err != nil {
-			return nil, err
-		}
-		return matcher, nil
+	if !s.IsStatic() {
+		return nil, nil
 	}
 
-	return nil, nil
+	return NewStringMatcher(s.ValueType, s.Value, opts)
 }
 
 // StringArrayEvaluator returns an array of strings
@@ -158,6 +157,7 @@ type StringArrayEvaluator struct {
 	Weight        int
 	OpOverrides   *OpOverrides
 	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
+	Offset        int           // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -196,6 +196,7 @@ type StringValuesEvaluator struct {
 	EvalFnc func(ctx *Context) *StringValues
 	Values  StringValues
 	Weight  int
+	Offset  int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -265,6 +266,7 @@ type IntArrayEvaluator struct {
 	Values      []int
 	Weight      int
 	OpOverrides *OpOverrides
+	Offset      int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -305,6 +307,7 @@ type BoolArrayEvaluator struct {
 	Values      []bool
 	Weight      int
 	OpOverrides *OpOverrides
+	Offset      int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -346,6 +349,7 @@ type CIDREvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 	ValueType   FieldValueType
+	Offset      int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -377,6 +381,7 @@ type CIDRValuesEvaluator struct {
 	Value     CIDRValues
 	Weight    int
 	ValueType FieldValueType
+	Offset    int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -413,6 +418,7 @@ type CIDRArrayEvaluator struct {
 	Weight      int
 	OpOverrides *OpOverrides
 	ValueType   FieldValueType
+	Offset      int // position in the expression
 
 	// used during compilation of partial
 	isDeterministic bool

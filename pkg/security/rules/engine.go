@@ -466,7 +466,7 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
@@ -511,6 +511,8 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 			}
 		}
 	}
+
+	ev.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
 

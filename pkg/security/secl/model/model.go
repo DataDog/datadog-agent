@@ -110,6 +110,11 @@ type SpanContext struct {
 	TraceID utils.TraceID `field:"-"`
 }
 
+// RuleContext defines a rule context
+type RuleContext struct {
+	MatchingSubExprs eval.MatchingSubExprs
+}
+
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
 	ID            string         `field:"-"`
@@ -118,13 +123,14 @@ type BaseEvent struct {
 	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only|gen_getters,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
+	RuleContext   RuleContext    `field:"-"`
 	ActionReports []ActionReport `field:"-"`
 	Os            string         `field:"event.os"`                                                      // SECLDoc[event.os] Definition:`Operating system of the event`
 	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
-	// context shared with all events
+	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
 	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`

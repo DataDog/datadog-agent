@@ -8,7 +8,6 @@ package eval
 
 import (
 	"net"
-	"slices"
 	"strings"
 )
 
@@ -36,7 +35,6 @@ func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 
 // Or operator
 func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error) {
-
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -62,7 +60,17 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return ea(ctx) || eb(ctx)
+			va, vb := ea(ctx), eb(ctx)
+			res := va || vb
+			if res {
+				if a.Field != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{})
+				}
+				if b.Field != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
+				}
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -74,9 +82,6 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
-
-		ctx := NewContext(nil)
-		_ = ctx
 
 		return &BoolEvaluator{
 			Value:           ea || eb,
@@ -105,12 +110,16 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return ea(ctx) || eb
+			va, vb := ea(ctx), eb
+			res := va || vb
+			if res && a.Field != "" {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:         evalFnc,
-			Field:           a.Field,
 			Weight:          a.Weight,
 			isDeterministic: isDc,
 		}, nil
@@ -136,12 +145,16 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return ea || eb(ctx)
+		va, vb := ea, eb(ctx)
+		res := va || vb
+		if res && b.Field != "" {
+			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:         evalFnc,
-		Field:           b.Field,
 		Weight:          b.Weight,
 		isDeterministic: isDc,
 	}, nil
@@ -149,7 +162,6 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 
 // And operator
 func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error) {
-
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -175,7 +187,17 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return ea(ctx) && eb(ctx)
+			res := ea(ctx) && eb(ctx)
+			if res {
+				if a.Field != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: ea(ctx), Offset: a.Offset}, MatchingValue{})
+				}
+				if b.Field != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb(ctx), Offset: b.Offset})
+
+				}
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -187,9 +209,6 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
-
-		ctx := NewContext(nil)
-		_ = ctx
 
 		return &BoolEvaluator{
 			Value:           ea && eb,
@@ -218,12 +237,15 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return ea(ctx) && eb
+			res := ea(ctx) && eb
+			if res && a.Field != "" {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: ea(ctx), Offset: a.Offset}, MatchingValue{})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:         evalFnc,
-			Field:           a.Field,
 			Weight:          a.Weight,
 			isDeterministic: isDc,
 		}, nil
@@ -249,12 +271,15 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return ea && eb(ctx)
+		res := ea && eb(ctx)
+		if res && b.Field != "" {
+			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb(ctx), Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:         evalFnc,
-		Field:           b.Field,
 		Weight:          b.Weight,
 		isDeterministic: isDc,
 	}, nil
@@ -338,7 +363,12 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return op(ea(ctx), eb(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res := op(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -361,7 +391,12 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 		ea, eb := a.EvalFnc, b.Value
 
 		evalFnc := func(ctx *Context) bool {
-			return op(ea(ctx), eb)
+			va, vb := ea(ctx), eb
+			res := op(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vb, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -374,7 +409,12 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return op(ea, eb(ctx))
+		va, vb := ea, eb(ctx)
+		res := op(ea, vb)
+		if res {
+			ctx.AddMatchingSubExpr(MatchingValue{Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -492,7 +532,12 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return op(ea(ctx), eb(ctx), cmp)
+			va, vb := ea(ctx), eb(ctx)
+			res := op(va, vb, cmp)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -516,7 +561,12 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return op(ea(ctx), eb, cmp)
+			va, vb := ea(ctx), eb
+			res := op(va, vb, cmp)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vb, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -529,7 +579,12 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return op(ea, eb(ctx), cmp)
+		va, vb := ea, eb(ctx)
+		res := op(va, vb, cmp)
+		if res {
+			ctx.AddMatchingSubExpr(MatchingValue{Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -559,8 +614,12 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *S
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			values := eb(ctx)
-			return values.Matches(ea(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := vb.Matches(va)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -572,9 +631,10 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *S
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
+		res, _ := eb.Matches(ea)
 
 		return &BoolEvaluator{
-			Value:           eb.Matches(ea),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb.fieldValues),
 			isDeterministic: isDc,
 		}, nil
@@ -584,7 +644,12 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *S
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return eb.Matches(ea(ctx))
+			va, vb := ea(ctx), eb
+			res, vm := vb.Matches(va)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -597,8 +662,9 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *S
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		values := eb(ctx)
-		return values.Matches(ea)
+		va, vb := ea, eb(ctx)
+		res, _ := vb.Matches(va)
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -624,15 +690,25 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 		return nil, err
 	}
 
-	arrayOp := func(a []string, b *StringValues) bool {
-		return slices.ContainsFunc(a, b.Matches)
+	arrayOp := func(a []string, b *StringValues) (bool, string) {
+		for _, as := range a {
+			if ok, vm := b.Matches(as); ok {
+				return true, vm
+			}
+		}
+		return false, ""
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -644,9 +720,10 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Values, b.Values
+		res, _ := arrayOp(ea, &eb)
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, &eb),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb.fieldValues),
 			isDeterministic: isDc,
 		}, nil
@@ -656,7 +733,12 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), &eb)
+			va, vb := ea(ctx), &eb
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -669,7 +751,8 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 	ea, eb := a.Values, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		res, _ := arrayOp(ea, eb(ctx))
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -691,20 +774,27 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (
 		}
 	}
 
-	arrayOp := func(a []int, b []int) bool {
+	arrayOp := func(a []int, b []int) (bool, int) {
 		for _, va := range a {
-			if slices.Contains(b, va) {
-				return true
+			for _, vb := range b {
+				if va == vb {
+					return true, vb
+				}
 			}
 		}
-		return false
+		return false, 0
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -716,9 +806,10 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Values, b.Values
+		res, _ := arrayOp(ea, eb)
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, eb),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -728,7 +819,12 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			va, vb := ea(ctx), eb
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -741,7 +837,12 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (
 	ea, eb := a.Values, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		va, vb := ea, eb(ctx)
+		res, vm := arrayOp(va, vb)
+		if res {
+			ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vm, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -769,14 +870,24 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 		}
 	}
 
-	arrayOp := func(a bool, b []bool) bool {
-		return slices.Contains(b, a)
+	arrayOp := func(a bool, b []bool) (bool, bool) {
+		for _, v := range b {
+			if v == a {
+				return true, v
+			}
+		}
+		return false, false
 	}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -788,9 +899,10 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
+		res, _ := arrayOp(ea, eb)
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, eb),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -800,7 +912,12 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb)
+			va, vb := ea(ctx), eb
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -813,7 +930,12 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		va, vb := ea, eb(ctx)
+		res, vm := arrayOp(va, vb)
+		if res {
+			ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vm, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -843,8 +965,12 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, state *State) (*BoolEvaluato
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			a, b := ea(ctx), eb(ctx)
-			return IPNetsMatch(&a, &b)
+			va, vb := ea(ctx), eb(ctx)
+			res := IPNetsMatch(&va, &vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -868,8 +994,12 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, state *State) (*BoolEvaluato
 		ea, eb := a.EvalFnc, b.Value
 
 		evalFnc := func(ctx *Context) bool {
-			a := ea(ctx)
-			return IPNetsMatch(&a, &eb)
+			va, vb := ea(ctx), eb
+			res := IPNetsMatch(&va, &vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vb, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -882,8 +1012,12 @@ func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, state *State) (*BoolEvaluato
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		b := eb(ctx)
-		return IPNetsMatch(&ea, &b)
+		va, vb := ea, eb(ctx)
+		res := IPNetsMatch(&va, &vb)
+		if res {
+			ctx.AddMatchingSubExpr(MatchingValue{Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -909,8 +1043,13 @@ func CIDRValuesContains(a *CIDREvaluator, b *CIDRValuesEvaluator, state *State) 
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			a := ea(ctx)
-			return eb(ctx).Contains(&a)
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := vb.Contains(&va)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -922,9 +1061,10 @@ func CIDRValuesContains(a *CIDREvaluator, b *CIDRValuesEvaluator, state *State) 
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
+		res, _ := eb.Contains(&ea)
 
 		return &BoolEvaluator{
-			Value:           eb.Contains(&ea),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb.ipnets),
 			isDeterministic: isDc,
 		}, nil
@@ -934,8 +1074,12 @@ func CIDRValuesContains(a *CIDREvaluator, b *CIDRValuesEvaluator, state *State) 
 		ea, eb := a.EvalFnc, b.Value
 
 		evalFnc := func(ctx *Context) bool {
-			ipnet := ea(ctx)
-			return eb.Contains(&ipnet)
+			va, vb := ea(ctx), eb
+			res, vm := vb.Contains(&va)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -948,7 +1092,8 @@ func CIDRValuesContains(a *CIDREvaluator, b *CIDRValuesEvaluator, state *State) 
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return eb(ctx).Contains(&ea)
+		res, _ := eb(ctx).Contains(&ea)
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -958,7 +1103,7 @@ func CIDRValuesContains(a *CIDREvaluator, b *CIDRValuesEvaluator, state *State) 
 	}, nil
 }
 
-func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *State, arrayOp func(a *CIDRValues, b []net.IPNet) bool) (*BoolEvaluator, error) {
+func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *State, arrayOp func(a []net.IPNet, b *CIDRValues) (bool, interface{})) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)
 
 	if a.Field != "" {
@@ -973,7 +1118,12 @@ func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(eb(ctx), ea(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -985,9 +1135,10 @@ func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
+		res, _ := arrayOp(ea, &eb)
 
 		return &BoolEvaluator{
-			Value:           arrayOp(&eb, ea),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb.fieldValues),
 			isDeterministic: isDc,
 		}, nil
@@ -997,7 +1148,12 @@ func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 		ea, eb := a.EvalFnc, b.Value
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(&eb, ea(ctx))
+			va, vb := ea(ctx), eb
+			res, vm := arrayOp(va, &vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -1010,7 +1166,8 @@ func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(eb(ctx), ea)
+		res, _ := arrayOp(ea, eb(ctx))
+		return res
 	}
 
 	return &BoolEvaluator{
@@ -1022,7 +1179,7 @@ func cidrArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 
 // CIDRArrayMatches weak comparison, at least one element of a should be in b.
 func CIDRArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *State) (*BoolEvaluator, error) {
-	op := func(values *CIDRValues, ipnets []net.IPNet) bool {
+	op := func(ipnets []net.IPNet, values *CIDRValues) (bool, interface{}) {
 		return values.Match(ipnets)
 	}
 	return cidrArrayMatches(a, b, state, op)
@@ -1097,7 +1254,7 @@ func CIDRArrayMatchesCIDREvaluator(a *CIDRArrayEvaluator, b *CIDREvaluator, stat
 
 // CIDRArrayMatchesAll ensures that all values from a and b match.
 func CIDRArrayMatchesAll(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *State) (*BoolEvaluator, error) {
-	op := func(values *CIDRValues, ipnets []net.IPNet) bool {
+	op := func(ipnets []net.IPNet, values *CIDRValues) (bool, interface{}) {
 		return values.MatchAll(ipnets)
 	}
 	return cidrArrayMatches(a, b, state, op)
@@ -1115,21 +1272,25 @@ func CIDRArrayContains(a *CIDREvaluator, b *CIDRArrayEvaluator, state *State) (*
 		}
 	}
 
-	arrayOp := func(a *net.IPNet, b []net.IPNet) bool {
+	arrayOp := func(a *net.IPNet, b []net.IPNet) (bool, net.IPNet) {
 		for _, n := range b {
 			if IPNetsMatch(a, &n) {
-				return true
+				return true, n
 			}
 		}
-		return false
+		return false, net.IPNet{}
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			a := ea(ctx)
-			return arrayOp(&a, eb(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(&va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -1141,9 +1302,10 @@ func CIDRArrayContains(a *CIDREvaluator, b *CIDRArrayEvaluator, state *State) (*
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
+		res, _ := arrayOp(&ea, eb)
 
 		return &BoolEvaluator{
-			Value:           arrayOp(&ea, eb),
+			Value:           res,
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -1153,8 +1315,12 @@ func CIDRArrayContains(a *CIDREvaluator, b *CIDRArrayEvaluator, state *State) (*
 		ea, eb := a.EvalFnc, b.Value
 
 		evalFnc := func(ctx *Context) bool {
-			ipnet := ea(ctx)
-			return arrayOp(&ipnet, eb)
+			va, vb := ea(ctx), eb
+			res, vm := arrayOp(&va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &BoolEvaluator{
@@ -1167,7 +1333,8 @@ func CIDRArrayContains(a *CIDREvaluator, b *CIDRArrayEvaluator, state *State) (*
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(&ea, eb(ctx))
+		res, _ := arrayOp(&ea, eb(ctx))
+		return res
 	}
 
 	return &BoolEvaluator{
