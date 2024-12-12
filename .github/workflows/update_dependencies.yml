@@ -6,6 +6,9 @@ on:
     # Run at 6AM UTC so that it's ready at the beginning of the day CET.
     - cron: "0 6 10 * *"
 
+  # allow triggering the workflow manually
+  workflow_dispatch:
+
 permissions: {}
 
 jobs:
