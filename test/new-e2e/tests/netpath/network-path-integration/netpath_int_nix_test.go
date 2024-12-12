@@ -37,8 +37,8 @@ func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMe
 	fakeIntake := s.Env().FakeIntake
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, s.T(), c, [][]string{
-			{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"},
-			{"destination_hostname:8.8.8.8", "protocol:UDP"},
+			testAgentRunningMetricTagsTCP,
+			testAgentRunningMetricTagsUDP,
 		})
 	}, 5*time.Minute, 3*time.Second)
 }

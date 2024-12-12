@@ -27,6 +27,9 @@ var sysProbeConfig []byte
 //go:embed fixtures/network_path.yaml
 var networkPathIntegration []byte
 
+var testAgentRunningMetricTagsTCP = []string{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"}
+var testAgentRunningMetricTagsUDP = []string{"destination_hostname:8.8.8.8", "protocol:UDP"}
+
 type baseNetworkPathIntegrationTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
