@@ -17,9 +17,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GenerateBPFParamsCode generates the source code associated with the probe and data
@@ -29,19 +28,18 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	out := bytes.NewBuffer(parameterBytes)
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
-		params := applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
-		applyFieldCountLimit(params)
-		for i := range params {
-			flattenedParams := flattenParameters([]ditypes.Parameter{params[i]})
-
-			err := generateHeadersText(flattenedParams, out)
-			if err != nil {
-				return err
-			}
-
-			err = generateParametersText(flattenedParams, out)
-			if err != nil {
-				return err
+		params := procInfo.TypeMap.Functions[probe.FuncName] //applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
+		if params != nil {
+			for i := range params {
+				flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
+				err := generateHeadersText(flattenedParams, out)
+				if err != nil {
+					return err
+				}
+				err = generateParametersTextViaLocationExpressions(flattenedParams, out)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	} else {
@@ -55,12 +53,9 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error) {
 	switch param.Kind {
 	case uint(reflect.String):
-		if param.Location.InReg {
-			return template.New("string_reg_header_template").Parse(stringRegisterHeaderTemplateText)
-		}
-		return template.New("string_stack_header_template").Parse(stringStackHeaderTemplateText)
+		return template.New("string_header_template").Parse(stringHeaderTemplateText)
 	case uint(reflect.Slice):
-		if param.Location.InReg {
+		if param.Location != nil && param.Location.InReg {
 			return template.New("slice_reg_header_template").Parse(sliceRegisterHeaderTemplateText)
 		}
 		return template.New("slice_stack_header_template").Parse(sliceStackHeaderTemplateText)
@@ -69,7 +64,7 @@ func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error)
 	}
 }
 
-func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
+func generateHeadersText(params []*ditypes.Parameter, out io.Writer) error {
 	for i := range params {
 		err := generateHeaderText(params[i], out)
 		if err != nil {
@@ -79,13 +74,13 @@ func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
 	return nil
 }
 
-func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
+func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
-		return generateSliceHeader(&param, out)
+		return generateSliceHeader(param, out)
 	} else if reflect.Kind(param.Kind) == reflect.String {
-		return generateStringHeader(&param, out)
+		return generateStringHeader(param, out)
 	} else { //nolint:revive // TODO
-		tmplt, err := resolveHeaderTemplate(&param)
+		tmplt, err := resolveHeaderTemplate(param)
 		if err != nil {
 			return err
 		}
@@ -100,97 +95,110 @@ func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
 	return nil
 }
 
-func generateParametersText(params []ditypes.Parameter, out io.Writer) error {
+func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, out io.Writer) error {
 	for i := range params {
-		err := generateParameterText(&params[i], out)
-		if err != nil {
-			return err
+		collectedExpressions := collectLocationExpressions(params[i])
+		for _, locationExpression := range collectedExpressions {
+			template, err := resolveLocationExpressionTemplate(locationExpression)
+			if err != nil {
+				return err
+			}
+			err = template.Execute(out, locationExpression)
+			if err != nil {
+				return fmt.Errorf("could not execute template for generating location expression: %w", err)
+			}
 		}
 	}
 	return nil
 }
 
-func generateParameterText(param *ditypes.Parameter, out io.Writer) error {
+// collectLocationExpressions goes through the parameter tree (param.ParameterPieces) via
+// depth first traversal, collecting the LocationExpression's from each parameter and appending them
+// to a collective slice.
+func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpression {
+	collectedExpressions := []ditypes.LocationExpression{}
+	queue := []*ditypes.Parameter{param}
+	var top *ditypes.Parameter
 
-	if param.Kind == uint(reflect.Array) ||
-		param.Kind == uint(reflect.Struct) ||
-		param.Kind == uint(reflect.Pointer) {
-		// - Arrays/structs don't have actual values, we just want to generate
-		// a header for them for the sake of event parsing.
-		// - Pointers do have actual values, but they're captured when the
-		// underlying value is also captured.
-		return nil
-	}
+	for {
+		if len(queue) == 0 {
+			break
+		}
+		top = queue[0]
+		queue = queue[1:]
 
-	template, err := resolveParameterTemplate(param)
-	if err != nil {
-		return err
+		if top == nil {
+			continue
+		}
+		for i := range top.ParameterPieces {
+			queue = append(queue, top.ParameterPieces[i])
+		}
+		if len(top.LocationExpressions) > 0 {
+			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)
+		}
 	}
-	param.Type = cleanupTypeName(param.Type)
-	err = template.Execute(out, param)
-	if err != nil {
-		return fmt.Errorf("could not execute template for generating read of parameter: %w", err)
-	}
-
-	return nil
+	return collectedExpressions
 }
 
-func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
-	notSupported := param.NotCaptureReason == ditypes.Unsupported
-	cutForFieldLimit := param.NotCaptureReason == ditypes.FieldLimitReached
-
-	if notSupported {
-		return template.New("unsupported_type_template").Parse(unsupportedTypeTemplateText)
-	} else if cutForFieldLimit {
-		return template.New("cut_field_limit_template").Parse(cutForFieldLimitTemplateText)
+func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpression) (*template.Template, error) {
+	if locationExpression.Opcode == ditypes.OpReadUserRegister {
+		return template.New("read_register_location_expression").Parse(readRegisterTemplateText)
 	}
-
-	if param.Location.InReg {
-		return resolveRegisterParameterTemplate(param)
+	if locationExpression.Opcode == ditypes.OpReadUserStack {
+		return template.New("read_stack_location_expression").Parse(readStackTemplateText)
 	}
-	return resolveStackParameterTemplate(param)
-}
-
-func resolveRegisterParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
-	needsDereference := param.Location.NeedsDereference
-	stringType := param.Kind == uint(reflect.String)
-	sliceType := param.Kind == uint(reflect.Slice)
-
-	if needsDereference {
-		// Register Pointer
-		return template.New("pointer_register_template").Parse(pointerRegisterTemplateText)
-	} else if stringType {
-		// Register String
-		return template.New("string_register_template").Parse(stringRegisterTemplateText)
-	} else if sliceType {
-		// Register Slice
-		return template.New("slice_register_template").Parse(sliceRegisterTemplateText)
-	} else if !needsDereference {
-		// Register Normal Value
-		return template.New("register_template").Parse(normalValueRegisterTemplateText)
+	if locationExpression.Opcode == ditypes.OpReadUserRegisterToOutput {
+		return template.New("read_register_to_output_location_expression").Parse(readRegisterValueToOutputTemplateText)
 	}
-	return nil, errors.New("no template created: invalid or unsupported type")
-}
-
-func resolveStackParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
-	needsDereference := param.Location.NeedsDereference
-	stringType := param.Kind == uint(reflect.String)
-	sliceType := param.Kind == uint(reflect.Slice)
-
-	if needsDereference {
-		// Stack Pointer
-		return template.New("pointer_stack_template").Parse(pointerStackTemplateText)
-	} else if stringType {
-		// Stack String
-		return template.New("string_stack_template").Parse(stringStackTemplateText)
-	} else if sliceType {
-		// Stack Slice
-		return template.New("slice_stack_template").Parse(sliceStackTemplateText)
-	} else if !needsDereference {
-		// Stack Normal Value
-		return template.New("stack_template").Parse(normalValueStackTemplateText)
+	if locationExpression.Opcode == ditypes.OpReadUserStackToOutput {
+		return template.New("read_stack_to_output_location_expression").Parse(readStackValueToOutputTemplateText)
 	}
-	return nil, errors.New("no template created: invalid or unsupported type")
+	if locationExpression.Opcode == ditypes.OpDereference {
+		return template.New("dereference_location_expression").Parse(dereferenceTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpDereferenceToOutput {
+		return template.New("dereference_to_output_location_expression").Parse(dereferenceToOutputTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpDereferenceLarge {
+		return template.New("dereference_large_location_expression").Parse(dereferenceLargeTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpDereferenceLargeToOutput {
+		return template.New("dereference_large_to_output_location_expression").Parse(dereferenceLargeToOutputTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpDereferenceDynamic {
+		return template.New("dereference_dynamic_location_expression").Parse(dereferenceDynamicTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpDereferenceDynamicToOutput {
+		return template.New("dereference_dynamic_to_output_location_expression").Parse(dereferenceDynamicToOutputTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpReadStringToOutput {
+		return template.New("read_string_to_output").Parse(readStringToOutputTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpApplyOffset {
+		return template.New("apply_offset_location_expression").Parse(applyOffsetTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpPop {
+		return template.New("pop_location_expression").Parse(popTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpCopy {
+		return template.New("copy_location_expression").Parse(copyTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpLabel {
+		return template.New("label").Parse(labelTemplateText)
+	}
+	if locationExpression.Opcode == ditypes.OpSetGlobalLimit {
+		return template.New("set_limit_entry").Parse(setLimitEntryText)
+	}
+	if locationExpression.Opcode == ditypes.OpJumpIfGreaterThanLimit {
+		return template.New("jump_if_greater_than_limit").Parse(jumpIfGreaterThanLimitText)
+	}
+	if locationExpression.Opcode == ditypes.OpPrintStatement {
+		return template.New("print_statement").Parse(printStatementText)
+	}
+	if locationExpression.Opcode == ditypes.OpComment {
+		return template.New("comment").Parse(commentText)
+	}
+	return nil, errors.New("invalid location expression opcode")
 }
 
 func cleanupTypeName(s string) string {
@@ -201,28 +209,34 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if slice == nil {
 		return errors.New("nil slice parameter when generating header code")
 	}
-	if len(slice.ParameterPieces) != 2 {
-		return errors.New("invalid slice parameter when generating header code")
+	if len(slice.ParameterPieces) != 3 {
+		return fmt.Errorf("invalid slice parameter when generating header code: %d fields", len(slice.ParameterPieces))
+	}
+
+	// Slices are defined with an "array" pointer as piece 0, which is a pointer to the actual
+	// type, which is defined as piece 0 under that.
+	if len(slice.ParameterPieces) != 3 &&
+		len(slice.ParameterPieces[0].ParameterPieces) != 1 {
+		return errors.New("malformed slice type")
 	}
 
 	typeHeaderBytes := []byte{}
 	typeHeaderBuf := bytes.NewBuffer(typeHeaderBytes)
-	err := generateHeaderText(slice.ParameterPieces[0], typeHeaderBuf)
+	lenHeaderBytes := []byte{}
+	lenHeaderBuf := bytes.NewBuffer(lenHeaderBytes)
+	lenHeaderBuf.Write([]byte("// Capture length of slice:"))
+	err := generateHeaderText(slice.ParameterPieces[0].ParameterPieces[0], typeHeaderBuf)
 	if err != nil {
 		return err
 	}
-
-	lengthHeaderBytes := []byte{}
-	lengthHeaderBuf := bytes.NewBuffer(lengthHeaderBytes)
-	err = generateSliceLengthHeader(slice.ParameterPieces[1], lengthHeaderBuf)
+	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{slice.ParameterPieces[1]}, lenHeaderBuf)
 	if err != nil {
 		return err
 	}
-
+	slice.ParameterPieces[1].LocationExpressions = []ditypes.LocationExpression{}
 	w := sliceHeaderWrapper{
 		Parameter:           slice,
-		SliceTypeHeaderText: typeHeaderBuf.String(),
-		SliceLengthText:     lengthHeaderBuf.String(),
+		SliceTypeHeaderText: lenHeaderBuf.String() + typeHeaderBuf.String(),
 	}
 
 	sliceTemplate, err := resolveHeaderTemplate(slice)
@@ -245,70 +259,25 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if len(stringParam.ParameterPieces) != 2 {
 		return fmt.Errorf("invalid string parameter when generating header code (pieces len %d)", len(stringParam.ParameterPieces))
 	}
-
-	x := []byte{}
-	buf := bytes.NewBuffer(x)
-	err := generateStringLengthHeader(stringParam.ParameterPieces[1], buf)
+	stringHeaderTemplate, err := resolveHeaderTemplate(stringParam)
 	if err != nil {
 		return err
 	}
-
-	stringHeaderWrapper := stringHeaderWrapper{
-		Parameter:        stringParam,
-		StringLengthText: buf.String(),
-	}
-
-	stringTemplate, err := resolveHeaderTemplate(stringParam)
-	if err != nil {
-		return err
-	}
-
-	err = stringTemplate.Execute(out, stringHeaderWrapper)
+	err = stringHeaderTemplate.Execute(out, stringParam)
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating string header: %w", err)
+	}
+	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{stringParam.ParameterPieces[1]}, out)
+	if err != nil {
+		return err
+	}
+	if stringParam.ParameterPieces[1] != nil {
+		stringParam.ParameterPieces[1].LocationExpressions = []ditypes.LocationExpression{}
 	}
 	return nil
 }
 
-func generateStringLengthHeader(stringLengthParamPiece ditypes.Parameter, buf *bytes.Buffer) error {
-	var (
-		tmplte *template.Template
-		err    error
-	)
-	if stringLengthParamPiece.Location.InReg {
-		tmplte, err = template.New("string_register_length_header").Parse(stringLengthRegisterTemplateText)
-	} else {
-		tmplte, err = template.New("string_stack_length_header").Parse(stringLengthStackTemplateText)
-	}
-	if err != nil {
-		return err
-	}
-	return tmplte.Execute(buf, stringLengthParamPiece)
-}
-
-func generateSliceLengthHeader(sliceLengthParamPiece ditypes.Parameter, buf *bytes.Buffer) error {
-	var (
-		tmplte *template.Template
-		err    error
-	)
-	if sliceLengthParamPiece.Location.InReg {
-		tmplte, err = template.New("slice_register_length_header").Parse(sliceLengthRegisterTemplateText)
-	} else {
-		tmplte, err = template.New("slice_stack_length_header").Parse(sliceLengthStackTemplateText)
-	}
-	if err != nil {
-		return err
-	}
-	return tmplte.Execute(buf, sliceLengthParamPiece)
-}
-
 type sliceHeaderWrapper struct {
 	Parameter           *ditypes.Parameter
-	SliceLengthText     string
 	SliceTypeHeaderText string
-}
-
-type stringHeaderWrapper struct {
-	Parameter        *ditypes.Parameter
-	StringLengthText string
 }

@@ -1,9 +1,8 @@
-#ifndef DI_TYPES_H
-#define DI_TYPES_H
+#ifndef DI_BASE_EVENT_H
+#define DI_BASE_EVENT_H
 
 #include "ktypes.h"
 
-// NOTE: Be careful when adding fields, alignment should always be to 8 bytes
 struct base_event {
     char probe_id[304];
     __u32 pid;

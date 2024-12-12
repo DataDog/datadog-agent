@@ -127,7 +127,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
 	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
-
+	log.Infof("Installing config probe for service: %s.", svcConfigProbe.ServiceName)
 	err = AnalyzeBinary(procInfo)
 	if err != nil {
 		return fmt.Errorf("could not analyze binary for config probe: %w", err)
@@ -172,13 +172,17 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			continue
 		}
 
-		configEventParams, err := eventparser.ParseParams(record.RawSample)
+		rateLimiters := ratelimiter.NewMultiProbeRateLimiter(0.0)
+		rateLimiters.SetRate(ditypes.ConfigBPFProbeID, 0)
+
+		configEvent, err := eventparser.ParseEvent(cm.diProcs, record.RawSample, rateLimiters)
 		if err != nil {
 			log.Errorf("error parsing configuration for PID %d: %v", procInfo.PID, err)
 			continue
 		}
+		configEventParams := configEvent.Argdata
 		if len(configEventParams) != 3 {
-			log.Errorf("error parsing configuration for PID %d: not enough arguments", procInfo.PID)
+			log.Errorf("error parsing configuration for PID: %d: not enough arguments", procInfo.PID)
 			continue
 		}
 
@@ -238,7 +242,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Tracef("Applying config update: %v", probe)
+	fmt.Printf("Applying config update: %v\n", probe)
 	err := AnalyzeBinary(procInfo)
 	if err != nil {
 		log.Errorf("couldn't inspect binary: %v\n", err)
@@ -289,10 +293,10 @@ func newConfigProbe() *ditypes.Probe {
 		FuncName: "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration",
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
 			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize:  100000,
-				StringMaxSize:     30000,
+				ArgumentsMaxSize:  50000,
+				StringMaxSize:     10000,
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
-				MaxReferenceDepth: 8,
+				MaxReferenceDepth: 10,
 				CaptureParameters: true,
 			},
 		},

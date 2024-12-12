@@ -15,49 +15,66 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
-
-	"github.com/kr/pretty"
+	"github.com/stretchr/testify/require"
 )
 
-func TestBinaryInspection(t *testing.T) {
+func TestAnalyzeBinary(t *testing.T) {
 
-	testFunctions := []string{
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string",
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct",
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct",
-		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_slice",
+	testCases := []struct {
+		FuncName           string
+		ExpectedParameters []*ditypes.Parameter
+	}{
+		{
+			FuncName: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int",
+			ExpectedParameters: []*ditypes.Parameter{
+				{
+					Name:                "x",
+					ID:                  "",
+					Type:                "int",
+					TotalSize:           8,
+					Kind:                0x2,
+					Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					NotCaptureReason:    0x0,
+					ParameterPieces:     nil,
+				},
+			},
+		},
 	}
 
-	curDir, err := pwd()
-	if err != nil {
-		t.Error(err)
-	}
+	for i := range testCases {
+		t.Run(testCases[i].FuncName, func(t *testing.T) {
 
-	binPath, err := testutil.BuildGoBinaryWrapper(curDir, "../testutil/sample/sample_service")
-	if err != nil {
-		t.Error(err)
-	}
-
-	f, err := safeelf.Open(binPath)
-	if err != nil {
-		t.Error(err)
-	}
-
-	result, err := bininspect.InspectWithDWARF(f, testFunctions, nil)
-	if err != nil {
-		t.Error(">", err)
-	}
-
-	for _, funcMetadata := range result.Functions {
-		for paramName, paramMeta := range funcMetadata.Parameters {
-			for _, piece := range paramMeta.Pieces {
-				pretty.Log(paramName, piece)
+			curDir, err := pwd()
+			if err != nil {
+				t.Error(err)
 			}
-		}
+
+			binPath, err := testutil.BuildGoBinaryWrapper(curDir, "../testutil/sample/sample_service")
+			if err != nil {
+				t.Error(err)
+			}
+
+			procInfo := ditypes.ProcessInfo{
+				BinaryPath: binPath,
+				ProbesByID: ditypes.ProbesByID{
+					testCases[i].FuncName: &ditypes.Probe{
+						ServiceName: "sample",
+						FuncName:    testCases[i].FuncName,
+					},
+				},
+			}
+			err = AnalyzeBinary(&procInfo)
+			if err != nil {
+				t.Error(err)
+			}
+			require.Equal(t, testCases[i].ExpectedParameters, procInfo.TypeMap.Functions[testCases[i].FuncName])
+		})
 	}
+
 }
 
 // pwd returns the current directory of the caller.
