@@ -25,3 +25,17 @@ qa_installer_oci:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: registry.ddbuild.io/ci/remote-updates/datadog-installer:pipeline-${CI_PIPELINE_ID}
     IMG_DESTINATIONS: installer-package:pipeline-${CI_PIPELINE_ID}
+
+qa_installer_script:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: deploy_packages
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - installer-install-scripts
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "install-*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/${CI_COMMIT_SHA}/scripts/"
