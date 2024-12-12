@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package gpu contains e2e tests for the GPU monitoring module
 package gpu
 
 import (
@@ -14,18 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -38,36 +34,13 @@ type gpuSuite struct {
 	containerNameCounter int
 }
 
-const defaultGpuCheckConfig = `
-init_config:
-  min_collection_interval: 5
-
-instances:
-  - {}
-`
-
-const defaultSysprobeConfig = `
-gpu_monitoring:
-  enabled: true
-`
-
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
-const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
-	provisioner := awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(
-			ec2.WithInstanceType("g4dn.xlarge"),
-			ec2.WithAMI(gpuEnabledAMI, os.Ubuntu2204, os.AMD64Arch),
-		),
-		awshost.WithAgentOptions(
-			agentparams.WithIntegration("gpu.d", defaultGpuCheckConfig),
-			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
-		),
-		awshost.WithDocker(),
-	)
+	provParams := getDefaultProvisionerParams()
+	provisioner := gpuInstanceProvisioner(provParams)
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioner)}
 	if *devMode {
