@@ -520,6 +520,50 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return true
 }
 
+func hasNoneDefaultsLeaf(node InnerNode) bool {
+	// We're on an InnerNode, we need to check if any child leaf are not defaults
+	for _, name := range node.ChildrenKeys() {
+		child, _ := node.GetChild(name)
+		if leaf, ok := child.(LeafNode); ok {
+			if leaf.Source().IsGreaterThan(model.SourceDefault) {
+				return true
+			}
+		}
+		if hasNoneDefaultsLeaf(child.(InnerNode)) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsConfigured checks if a key is set in the config but not from the defaults
+func (c *ntmConfig) IsConfigured(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return false
+	}
+
+	pathParts := splitKey(key)
+	var curr Node = c.root
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return false
+		}
+		curr = next
+	}
+	// if key is a leaf, we just check the source
+	if leaf, ok := curr.(LeafNode); ok {
+		return leaf.Source().IsGreaterThan(model.SourceDefault)
+	}
+
+	// if the key was an InnerNode we need to check all the inner leaf node to check if one was set by the user
+	return hasNoneDefaultsLeaf(curr.(InnerNode))
+}
+
 // AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
