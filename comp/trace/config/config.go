@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -24,6 +25,7 @@ import (
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -38,9 +40,10 @@ const (
 // These include the core config configuration and component config params.
 type Dependencies struct {
 	fx.In
-	Params Params
-	Config coreconfig.Component
-	Tagger tagger.Component
+	Params     Params
+	Config     coreconfig.Component
+	ConfigSync optional.Option[configsync.Component]
+	Tagger     tagger.Component
 }
 
 // cfg implements the Component.
@@ -62,6 +65,11 @@ type cfg struct {
 // NewConfig is the default constructor for the component, it returns
 // a component instance and an error.
 func NewConfig(deps Dependencies) (Component, error) {
+	if _, ok := deps.ConfigSync.Get(); ok {
+		fmt.Println("confsync ready in trace agent comp")
+	} else {
+		fmt.Println("confsync not ready in trace agent comp")
+	}
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {

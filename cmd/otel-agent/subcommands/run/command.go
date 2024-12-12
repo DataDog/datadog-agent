@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -119,7 +118,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	}
 
 	return fxutil.Run(
-		ForwarderBundle(),
+		defaultforwarder.Module(defaultforwarder.NewParams()),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
@@ -202,15 +201,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-
-		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
-		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(deps traceconfig.Dependencies, _ optional.Option[configsync.Component]) (traceconfig.Component, error) {
-			// TODO: this would be much better if we could leverage traceconfig.Module
-			//       Must add a new parameter to traconfig.Module to handle this.
-			return traceconfig.NewConfig(deps)
-		}),
-		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
+		traceconfig.Module(),
 
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:  "",
@@ -219,17 +210,4 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		traceagentfx.Module(),
 	)
-}
-
-// ForwarderBundle returns the fx.Option for the forwarder bundle.
-// TODO: cleanup the forwarder instantiation with fx.
-// This is a bit of a hack because we need to enforce optional.Option[configsync.Component]
-// is passed to newForwarder to enforce the correct instantiation order. Currently, the
-// new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
-// this is the current workaround to leverage it.
-func ForwarderBundle() fx.Option {
-	return defaultforwarder.ModulWithOptionTMP(
-		fx.Provide(func(_ optional.Option[configsync.Component]) defaultforwarder.Params {
-			return defaultforwarder.NewParams()
-		}))
 }
