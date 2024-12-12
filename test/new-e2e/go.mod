@@ -288,7 +288,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/aws/session-manager-plugin v0.0.0-20241010233726-61cf1288c7c6
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
-	github.com/hairyhenderson/go-codeowners v0.5.0
+	github.com/hairyhenderson/go-codeowners v0.6.1
 )
 
 require (
