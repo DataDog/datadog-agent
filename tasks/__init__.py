@@ -87,13 +87,13 @@ from tasks.go import (
     tidy,
     tidy_all,
 )
+from tasks.gointegrationtest import integration_tests
 from tasks.gotest import (
     check_otel_build,
     check_otel_module_versions,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
-    integration_tests,
     lint_go,
     send_unit_tests_stats,
     test,
