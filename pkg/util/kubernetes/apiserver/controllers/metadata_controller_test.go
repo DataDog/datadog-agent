@@ -913,9 +913,7 @@ func (m *metadataController) countNonNilKeys() int {
 func (m *metaBundleStore) listKeys() []string {
 	keys := []string{}
 	for k := range m.cache.Items() {
-		if strings.HasPrefix(k, "agent/KubernetesMetadataMapping/") {
-			k = strings.TrimPrefix(k, "agent/KubernetesMetadataMapping/")
-		}
+		k = strings.TrimPrefix(k, "agent/KubernetesMetadataMapping/")
 		keys = append(keys, k)
 	}
 	return keys
