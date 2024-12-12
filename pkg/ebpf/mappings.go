@@ -90,22 +90,22 @@ func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
 }
 
 // AddNameMappingsForMap adds the full name mappings for the provided ebpf map
-func AddNameMappingsForMap(m *ebpf.Map, module string) {
+func AddNameMappingsForMap(m *ebpf.Map, name, module string) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	registerMap(m, func(mapid uint32, name string) {
+	registerMap(m, func(mapid uint32) {
 		mapNameMapping[mapid] = name
 		mapModuleMapping[mapid] = module
 	})
 }
 
 // AddNameMappingsForProgram adds the full name mappings for the provided ebpf program
-func AddNameMappingsForProgram(p *ebpf.Program, module string) {
+func AddNameMappingsForProgram(p *ebpf.Program, name, module string) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	registerProgram(p, func(progid uint32, name string) {
+	registerProgram(p, func(progid uint32) {
 		progNameMapping[progid] = name
 		progModuleMapping[progid] = module
 
@@ -195,31 +195,35 @@ func RemoveNameMappingsCollection(coll *ebpf.Collection) {
 	})
 }
 
-func registerMap(m *ebpf.Map, mapFn func(mapid uint32, name string)) {
+func registerMap(m *ebpf.Map, mapFn func(mapid uint32)) {
 	if info, err := m.Info(); err == nil {
 		if mapid, ok := info.ID(); ok {
-			mapFn(uint32(mapid), info.Name)
+			mapFn(uint32(mapid))
 		}
 	}
 }
 
 func iterateMaps(maps map[string]*ebpf.Map, mapFn func(mapid uint32, name string)) {
-	for _, m := range maps {
-		registerMap(m, mapFn)
+	for name, m := range maps {
+		registerMap(m, func(progid uint32) {
+			mapFn(progid, name)
+		})
 	}
 }
 
-func registerProgram(p *ebpf.Program, mapFn func(progid uint32, name string)) {
+func registerProgram(p *ebpf.Program, mapFn func(progid uint32)) {
 	if info, err := p.Info(); err == nil {
 		if progid, ok := info.ID(); ok {
-			mapFn(uint32(progid), info.Name)
+			mapFn(uint32(progid))
 		}
 	}
 }
 
 func iterateProgs(progs map[string]*ebpf.Program, mapFn func(progid uint32, name string)) {
-	for _, p := range progs {
-		registerProgram(p, mapFn)
+	for name, p := range progs {
+		registerProgram(p, func(progid uint32) {
+			mapFn(progid, name)
+		})
 	}
 }
 
