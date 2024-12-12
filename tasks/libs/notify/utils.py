@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 from urllib.parse import quote
@@ -43,3 +44,28 @@ def get_ci_visibility_job_url(
         extra_args = ''.join([f'&{key}={value}' for key, value in extra_args.items()])
 
     return CI_VISIBILITY_JOB_URL.format(name=name, extra_flags=extra_flags, extra_args=extra_args)
+
+
+def should_notify():
+    from tasks.libs.ciproviders.gitlab_api import get_pipeline
+
+    CONDUCTOR_ID = 8278
+    # agent = get_gitlab_repo()
+    # pipeline = agent.pipelines.get(os.environ['CI_PIPELINE_ID'])
+    pipeline = get_pipeline(PROJECT_NAME, os.environ['CI_PIPELINE_ID'])
+    if (
+        os.environ['CI_PIPELINE_SOURCE'] != 'pipeline'
+        or os.environ['CI_PIPELINE_SOURCE'] == 'pipeline'
+        and pipeline.user['id'] == CONDUCTOR_ID
+    ):
+        return True
+    return False
+
+
+def notification_type():
+    if os.environ['DEPLOY_AGENT'] == 'true':
+        return 'deploy'
+    elif os.environ['CI_PIPELINE_SOURCE'] != 'push':
+        return 'trigger'
+    else:
+        return 'merge'
