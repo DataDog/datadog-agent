@@ -191,6 +191,7 @@ struct syscall_cache_t {
         struct {
             u32 pid;
             u32 type;
+            u32 need_target_resolution;
         } signal;
 
         struct {
