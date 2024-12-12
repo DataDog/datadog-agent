@@ -61,6 +61,9 @@ type Protocol interface {
 	// implementation.
 	GetStats() *ProtocolStats
 
+	// ReleaseStats releases stats related objects.
+	ReleaseStats()
+
 	// IsBuildModeSupported return true is the given build mode is supported by this protocol.
 	IsBuildModeSupported(buildmode.Type) bool
 }

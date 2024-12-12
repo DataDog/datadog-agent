@@ -104,6 +104,13 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 	return stats
 }
 
+// ReleaseStats releases stats objects.
+func (h *StatKeeper) ReleaseStats() {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+	h.stats = make(map[Key]*RequestStats)
+}
+
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
