@@ -1197,7 +1197,7 @@ api_key:
   #         remove_query_string: false
   ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional
   ##        If enabled, path segments in URLs containing digits are replaced by "?"
-  #         remove_path_with_digits: false
+  #         remove_paths_with_digits: false
   #
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
