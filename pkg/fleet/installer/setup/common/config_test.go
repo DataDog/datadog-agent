@@ -52,6 +52,7 @@ env: "old_env"
 	config := Config{}
 	config.DatadogYAML.APIKey = "1234567890" // Required field
 	config.DatadogYAML.Hostname = "new_hostname"
+	config.DatadogYAML.LogsEnabled = true
 
 	err = writeConfigs(config, tempDir)
 	assert.NoError(t, err)
@@ -64,9 +65,10 @@ env: "old_env"
 	err = yaml.Unmarshal(datadogYAML, &datadog)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{
-		"api_key":  "1234567890",
-		"hostname": "new_hostname",
-		"env":      "old_env",
+		"api_key":      "1234567890",
+		"hostname":     "new_hostname",
+		"env":          "old_env",
+		"logs_enabled": true,
 	}, datadog)
 }
 

@@ -41,10 +41,6 @@ func writeConfigs(config Config, configDir string) error {
 }
 
 func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	if err != nil {
-		return fmt.Errorf("could not create config directory: %w", err)
-	}
 	serializedNewConfig, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("could not serialize config: %w", err)
@@ -56,6 +52,10 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	}
 	if len(newConfig) == 0 {
 		return nil
+	}
+	err = os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return fmt.Errorf("could not create config directory: %w", err)
 	}
 	var existingConfig map[string]interface{}
 	if merge {
@@ -105,6 +105,7 @@ type DatadogConfig struct {
 	Site                 string                     `yaml:"site,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
+	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
