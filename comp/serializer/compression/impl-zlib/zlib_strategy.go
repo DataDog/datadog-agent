@@ -14,6 +14,11 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
+// Requires contains the required parameters for the zlib component
+type Requires struct {
+	NewKind func(string, int) compression.Component
+}
+
 // Provides contains the compression component
 type Provides struct {
 	Comp compression.Component
@@ -21,12 +26,15 @@ type Provides struct {
 
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
 type ZlibStrategy struct {
+	newKind func(string, int) compression.Component
 }
 
 // NewComponent returns a new ZlibStrategy
-func NewComponent() Provides {
+func NewComponent(requires Requires) Provides {
 	return Provides{
-		Comp: &ZlibStrategy{},
+		Comp: &ZlibStrategy{
+			newKind: requires.NewKind,
+		},
 	}
 }
 
@@ -77,4 +85,9 @@ func (s *ZlibStrategy) ContentEncoding() string {
 // NewStreamCompressor returns a new zlib writer
 func (s *ZlibStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	return zlib.NewWriter(output)
+}
+
+// WithKindAndLevel returns a new strategy of the given kind and level
+func (s *ZlibStrategy) WithKindAndLevel(kind string, level int) compression.Component {
+	return s.newKind(kind, level)
 }

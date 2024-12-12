@@ -14,10 +14,20 @@ import (
 	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 )
 
+// NewCompressor returns a new Compressor based on serializer_compressor_kind
+// This function is called only when there is no zlib or zstd tag
+func NewCompressorKind(_kind string, _level int) compression.Component {
+	return implnoop.NewComponent(implnoop.Requires{
+		NewKind: NewCompressorKind,
+	}).Comp
+}
+
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called only when there is no zlib or zstd tag
 func NewCompressorReq(_ Requires) Provides {
-	return Provides{Comp: implnoop.NewComponent().Comp}
+	return Provides{Comp: implnoop.NewComponent(implnoop.Requires{
+		NewKind: NewCompressorKind,
+	}).Comp}
 }
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind

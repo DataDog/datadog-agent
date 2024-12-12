@@ -9,6 +9,8 @@ package compression
 import (
 	"bytes"
 	"io"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 // team: agent-metrics-logs
@@ -19,8 +21,12 @@ const ZlibEncoding = "deflate"
 // ZstdEncoding is the content-encoding value for Zstd
 const ZstdEncoding = "zstd"
 
+// GzipEncoding is the content-encoding value for Gzip
+const GzipEncoding = "gzip"
+
 // Component is the component type.
 type Component interface {
+	WithKindAndLevel(kind string, level int) Component
 	Compress(src []byte) ([]byte, error)
 	Decompress(src []byte) ([]byte, error)
 	CompressBound(sourceLen int) int
@@ -32,4 +38,14 @@ type Component interface {
 type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error
+}
+
+// Requires contains the config for Compression
+type Requires struct {
+	Cfg config.Component
+}
+
+// Provides contains the compression component
+type Provides struct {
+	Comp Component
 }
