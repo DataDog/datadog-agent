@@ -1126,7 +1126,7 @@ func checkNetworkCompatibility(tb testing.TB) {
 	})
 }
 
-func (tm *testModule) StopActivityDump(name, containerID, cgroupID string) error {
+func (tm *testModule) StopActivityDump(name string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1137,9 +1137,7 @@ func (tm *testModule) StopActivityDump(name, containerID, cgroupID string) error
 		return errors.New("no manager")
 	}
 	params := &api.ActivityDumpStopParams{
-		Name:        name,
-		ContainerID: containerID,
-		CGroupID:    cgroupID,
+		Name: name,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1544,7 +1542,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, string(dump.ContainerID), string(dump.CGroupID))
+		_ = tm.StopActivityDump(dump.Name)
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {
