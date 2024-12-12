@@ -161,7 +161,7 @@ def trigger_buildenv(
     new_version=None,
 ):
     if new_version is None:
-        new_version = current_version(ctx, 7)
+        new_version = current_version(ctx, "7")
 
     conclusion = _trigger_buildenv_workflow(new_version, datadog_agent_ref)
     if conclusion != "success":
