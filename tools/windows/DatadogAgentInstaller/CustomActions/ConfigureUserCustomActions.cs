@@ -375,7 +375,7 @@ namespace Datadog.CustomActions
         private void GrantAgentAccessPermissions()
         {
             // add ddagentuser FullControl to select places
-            foreach (var filePath in PathsWithAgentAccess())
+            foreach (var filePath in Chain(PathsWithAgentAccess()))
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -446,6 +446,46 @@ namespace Datadog.CustomActions
             }
         }
 
+        private void AddDataDogUserToDataFolder(){
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+            // ddagentuser Read and execute permissions, enable child inheritance of this ACE
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            
+            // datadog write on this folder
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.Write,
+                InheritanceFlags.ContainerInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+        }
+
         private void ConfigureFilePermissions()
         {
             try
@@ -471,6 +511,7 @@ namespace Datadog.CustomActions
 
                 if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
+                    AddDataDogUserToDataFolder();
                     GrantAgentAccessPermissions();
                 }
             }
@@ -577,19 +618,48 @@ namespace Datadog.CustomActions
             return new ConfigureUserCustomActions(new SessionWrapper(session), "ConfigureUser").ConfigureUserRollback();
         }
 
-        private List<string> PathsWithAgentAccess()
+        private List<IEnumerable<string>> PathsWithAgentAccess()
         {
-            return new List<string>
-            {
-                // agent needs to be able to write logs/
-                // agent GUI needs to be able to edit config
-                // agent needs to be able to write to run/
-                // agent needs to be able to create auth_token
-                _session.Property("APPLICATIONDATADIRECTORY"),
-                // allow agent to write __pycache__
-                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
-                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
+            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
+            var fsEnum = new List<IEnumerable<string>>();
+
+            // directories to process recursively
+            var dirs = new List<string> {
+                Path.Combine(configRoot, "conf.d"),
+                Path.Combine(configRoot, "checks.d"),
+                Path.Combine(configRoot, "run"),
+                Path.Combine(configRoot, "logs"),
             };
+            // Add the directories themselves
+            fsEnum.Add(dirs);
+            // add their subdirs/files (recursively)
+            foreach (var dir in dirs)
+            {
+                // add dirs only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
+                if (_fileSystemServices.Exists(dir))
+                {
+                    fsEnum.Add(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
+                }
+            }
+            // add specific files
+            fsEnum.Add(new List<string>
+                {
+                    Path.Combine(configRoot, "datadog.yaml"),
+                    Path.Combine(configRoot, "system-probe.yaml"),
+                    Path.Combine(configRoot, "auth_token"),
+                    Path.Combine(configRoot, "install_info"),
+                }
+             );
+
+            fsEnum.Add(new List<string>
+                {
+                    // allow agent to write __pycache__
+                    Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
+                    Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
+                }
+            );
+
+            return fsEnum;
         }
 
         /// <summary>
@@ -668,7 +738,7 @@ namespace Datadog.CustomActions
                 if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in PathsWithAgentAccess())
+                    foreach (var filePath in Chain(PathsWithAgentAccess()))
                     {
                         try
                         {
