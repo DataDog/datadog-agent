@@ -25,11 +25,11 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.11
+          python-version: 3.12
           cache: 'pip'
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
       - name: Set label on external contributor PRs
         run: |
           inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
