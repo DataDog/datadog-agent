@@ -19,7 +19,7 @@ import (
 var agentNames = map[string]struct{}{
 	"datadog-agent": {}, "agent": {}, "trace-agent": {},
 	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {}, "agent.exe": {},
+	"dogstatsd": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
@@ -66,7 +66,8 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			continue
 		}
 
-		if processName, ok := isAgentProcess(port.Pid, port.Process); ok {
+		processName, ok := isAgentProcess(port.Pid, port.Process)
+		if ok {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisSuccess,
@@ -87,7 +88,7 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		diagnoses = append(diagnoses, diagnosis.Diagnosis{
 			Name:      key,
 			Result:    diagnosis.DiagnosisFail,
-			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, port.Process, port.Pid, port.Proto),
+			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, port.Pid, port.Proto),
 		})
 	}
 
@@ -102,4 +103,12 @@ func isAgentProcess(pid int, processName string) (string, bool) {
 	}
 	_, ok := agentNames[processName]
 	return processName, ok
+}
+
+// FormatProcessName removes any trailing
+func FormatProcessName(rawName string) string {
+	rawName = strings.ToLower(rawName)
+	rawName = strings.TrimRight(rawName, "\x00")
+	rawName = strings.TrimSuffix(rawName, ".exe")
+	return rawName
 }

@@ -6,7 +6,6 @@
 package ports
 
 import (
-	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -22,21 +21,27 @@ type SystemProcessIDInformation struct {
 	ImageName windows.NTUnicodeString
 }
 
+var NtQuerySystemInformation = windows.NtQuerySystemInformation
+
 // RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
 // with SystemProcessIDInformation, which does not require elevated privileges.
 func RetrieveProcessName(pid int, _ string) (string, error) {
 	var processInfo SystemProcessIDInformation
 	processInfo.ProcessID = uintptr(pid)
-	ret := windows.NtQuerySystemInformation(SystemProcessIDInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
+	ret := NtQuerySystemInformation(SystemProcessIDInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
 
 	if ret != nil {
 		return "", ret
 	}
 
-	// Convert UTF-16 string and handle trailing nulls
-	processName := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(processInfo.ImageName.Buffer)))
-	processName = strings.TrimRight(processName, "\x00")
-	processName = strings.ToLower(processName)
-	processName = strings.TrimSuffix(processName, ".exe")
-	return processName, nil
+	// Step 1: Get a pointer to the buffer (which is a pointer to a wide string)
+	bufferPtr := processInfo.ImageName.Buffer
+	// Step 2: Convert this pointer to an unsafe.Pointer
+	unsafePtr := unsafe.Pointer(bufferPtr)
+	// Step 3: Convert that unsafe.Pointer to a *uint16
+	utf16Ptr := (*uint16)(unsafePtr)
+	// Step 4: Call windows.UTF16PtrToString on the *uint16 pointer to get a Go string
+	rawName := windows.UTF16PtrToString(utf16Ptr)
+
+	return FormatProcessName(rawName), nil
 }
