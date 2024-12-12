@@ -15,8 +15,10 @@ downloader_path="${tmp_dir}/download-installer"
 install() {
   if [ "$UID" == "0" ]; then
     sudo_cmd=''
+    sudo_cmd_with_envs=''
   else
     sudo_cmd='sudo'
+    sudo_cmd_with_envs='sudo -E'
   fi
 
   $sudo_cmd mkdir -p "${tmp_dir}"
@@ -30,7 +32,7 @@ install() {
   esac
   $sudo_cmd chmod +x "${downloader_path}"
   echo "Starting the Datadog installer..."
-  $sudo_cmd "${downloader_path}" "$@"
+  $sudo_cmd_with_envs "${downloader_path}" "$@"
   $sudo_cmd rm -f "${downloader_path}"
 }
 

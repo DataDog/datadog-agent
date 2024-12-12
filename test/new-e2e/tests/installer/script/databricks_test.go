@@ -19,7 +19,7 @@ type installScriptDatabricksSuite struct {
 
 func testDatabricksScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptDatabricksSuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer", os, arch, awshost.WithoutFakeIntake()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
 	}
 	s.url = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install-databricks.sh", s.commitHash)
 
@@ -34,7 +34,7 @@ func (s *installScriptDatabricksSuite) TestDatabricksWorkerInstallScript() {
 }
 
 func (s *installScriptDatabricksSuite) TestDatabricksDriverInstallScript() {
-	s.RunInstallScript(s.url, "DB_IS_DRIVER=true")
+	s.RunInstallScript(s.url, "DB_IS_DRIVER=TRUE")
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-agent/7.57.2-1", 0755, "dd-agent", "dd-agent")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent/7.57.2-1", "root", "root")

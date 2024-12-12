@@ -98,7 +98,7 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 
 	switch os.Getenv("DB_IS_DRIVER") {
-	case "true":
+	case "TRUE":
 		setupDatabricksDriver(s)
 	default:
 		setupDatabricksWorker(s)
