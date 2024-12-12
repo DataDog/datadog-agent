@@ -136,7 +136,8 @@ type FakeProcFSEntry struct {
 	Env     map[string]string
 }
 
-func (f *FakeProcFSEntry) GetEnvironContents() string {
+// getEnvironContents returns the formatted contents of the /proc/<pid>/environ file for the entry.
+func (f *FakeProcFSEntry) getEnvironContents() string {
 	if len(f.Env) == 0 {
 		return ""
 	}
@@ -160,7 +161,7 @@ func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
 		createFile(t, filepath.Join(baseDir, "comm"), entry.Command)
 		createFile(t, filepath.Join(baseDir, "maps"), entry.Maps)
 		createSymlink(t, entry.Exe, filepath.Join(baseDir, "exe"))
-		createFile(t, filepath.Join(baseDir, "environ"), entry.GetEnvironContents())
+		createFile(t, filepath.Join(baseDir, "environ"), entry.getEnvironContents())
 	}
 
 	return procRoot
