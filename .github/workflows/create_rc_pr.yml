@@ -9,7 +9,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  AGENT6_MATRIX: ${{ ['6.53.x'] }}
+  AGENT6_MATRIX: '["6.53.x"]'
   # IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
   IS_AGENT6_RELEASE: 'true'
 permissions: {}
