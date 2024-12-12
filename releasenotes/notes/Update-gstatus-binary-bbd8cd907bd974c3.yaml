@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Upgrade `gstatus` binary to version 1.0.9 to work with newer version of Glusterfs.
+    Upgrade `gstatus` binary to version 1.0.9 to work with newer version of GlusterFS.
