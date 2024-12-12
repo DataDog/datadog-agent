@@ -4,5 +4,5 @@ instances:
 
 logs:
   - type: integration
-    source: ten_logs_source
-    service: ten_logs_service
+    source: rotation_source
+    service: rotation_service
