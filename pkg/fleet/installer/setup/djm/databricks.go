@@ -126,8 +126,8 @@ func setupCommonHostTags(s *common.Setup) {
 
 	jobID, runID, ok := getJobAndRunIDs()
 	if ok {
-		s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "jobid:"+jobID)
-		s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "runid:"+runID)
+		setHostTag(s, "jobid", jobID)
+		setHostTag(s, "runid", runID)
 	}
 }
 
@@ -157,8 +157,12 @@ func setIfExists(s *common.Setup, envKey, tagKey string, normalize func(string) 
 	if normalize != nil {
 		value = normalize(value)
 	}
+	setHostTag(s, tagKey, value)
+}
+
+func setHostTag(s *common.Setup, tagKey, value string) {
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
-	s.Span.SetTag(tagKey+"_set", "true")
+	s.Span.SetTag("host_tag_set."+tagKey, "true")
 }
 
 func setupDatabricksDriver(s *common.Setup) {
