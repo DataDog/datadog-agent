@@ -14,19 +14,14 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/perf"
-	"github.com/cilium/ebpf/ringbuf"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cilium/ebpf/features"
 )
 
 const (
@@ -273,20 +268,4 @@ func batchFromEventData(data []byte) (*Batch, error) {
 func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	offset := elementIdx * int(b.Event_size)
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
-}
-
-// RecordSample records a sample using the consumer Handler.
-func RecordSample[V any](c *config.Config, consumer *Consumer[V], sampleData []byte) {
-	// Ring buffers require kernel version 5.8.0 or higher, therefore, the Handler is chosen based on the kernel version.
-	if c.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil {
-		handler := consumer.handler.(*ddebpf.RingBufferHandler)
-		handler.RecordHandler(&ringbuf.Record{
-			RawSample: sampleData,
-		}, nil, nil)
-	} else {
-		handler := consumer.handler.(*ddebpf.PerfHandler)
-		handler.RecordHandler(&perf.Record{
-			RawSample: sampleData,
-		}, nil, nil)
-	}
 }

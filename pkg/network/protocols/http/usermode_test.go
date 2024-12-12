@@ -10,66 +10,17 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
-	"math"
 	"os"
 	"runtime/pprof"
 	"testing"
 	"time"
 	"unsafe"
 
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/stretchr/testify/require"
 )
-
-func newTestEBPFProgram(c *config.Config) (*manager.Manager, error) {
-	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
-	if err != nil {
-		return nil, err
-	}
-	defer bc.Close()
-
-	m := &manager.Manager{
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-	}
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
-				},
-			},
-		},
-		ConstantEditors: []manager.ConstantEditor{
-			{
-				Name:  "test_monitoring_enabled",
-				Value: uint64(1),
-			},
-		},
-	}
-
-	events.Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
-}
 
 // structToBytes serializes the provided events into a byte array.
 func structToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) [4096]int8 {
@@ -132,7 +83,7 @@ func BenchmarkFlow(b *testing.B) {
 	const TotalEventsCount = 1400
 	c := config.New()
 
-	program, err := newTestEBPFProgram(c)
+	program, err := events.NewEBPFProgram(c)
 	require.NoError(b, err)
 
 	httpEvents := createHTTPEvents()
