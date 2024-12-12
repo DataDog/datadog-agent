@@ -19,6 +19,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/kr/pretty"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -142,8 +144,8 @@ probeLoop:
 			if !ok {
 				t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
 					eventsTally[i].testName,
-					eventsTally[i].unexpectedResults,
-					eventsTally[i].expectation)
+					pretty.Sprint(eventsTally[i].unexpectedResults),
+					pretty.Sprint(eventsTally[i].expectation))
 				continue probeLoop
 			}
 		}
