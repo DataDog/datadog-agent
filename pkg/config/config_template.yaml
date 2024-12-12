@@ -1024,13 +1024,13 @@ api_key:
   ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
   ## The max size in MB that an integration logs file is allowed to use
   #
-  # integrations_logs_files_max_size
+  # integrations_logs_files_max_size: 10
 
   ## @param integrations_logs_total_usage - integer - optional - default: 100
   ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 100
   ## The total combined usage all integrations logs files can use
   #
-  # integrations_logs_total_usage
+  # integrations_logs_total_usage: 100
 
 {{ end -}}
 {{- if .TraceAgent }}
