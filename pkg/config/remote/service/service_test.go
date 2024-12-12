@@ -116,6 +116,11 @@ func (m *mockUptane) TargetFile(path string) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *mockUptane) TargetFiles(files []string) (map[string][]byte, error) {
+	args := m.Called(files)
+	return args.Get(0).(map[string][]byte), args.Error(1)
+}
+
 func (m *mockUptane) TargetsMeta() ([]byte, error) {
 	args := m.Called()
 	return args.Get(0).([]byte), args.Error(1)
@@ -486,8 +491,8 @@ func TestService(t *testing.T) {
 	}, nil)
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
-	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return(fileAPM1, nil)
-	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return(fileAPM2, nil)
+
+	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": fileAPM1, "datadog/2/APM_SAMPLING/id/2": fileAPM2}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -513,7 +518,7 @@ func TestService(t *testing.T) {
 	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{canonicalRoot3, canonicalRoot4}, configResponse.Roots)
-	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
+	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles, nil)
 	assert.Equal(t, canonicalTargets, configResponse.Targets)
 	assert.ElementsMatch(t,
 		configResponse.ClientConfigs,
@@ -597,8 +602,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
-	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return([]byte(``), nil)
-	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return([]byte(``), nil)
+	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -887,8 +891,7 @@ func TestConfigExpiration(t *testing.T) {
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
-	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return([]byte(``), nil)
-	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return([]byte(``), nil)
+	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -1190,7 +1193,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 		},
 		nil,
 	)
-	uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+	uptaneClient.On("TargetFiles", []string{"datadog/2/TESTING1/id/1"}).Return(map[string][]byte{"datadog/2/TESTING1/id/1": []byte(`testing_1`)}, nil)
 
 	client := setupCDNClient(t, uptaneClient)
 	defer client.Close()
@@ -1236,7 +1239,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 				},
 				nil,
 			)
-			uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+			uptaneClient.On("TargetFiles", []string{"datadog/2/TESTING1/id/1"}).Return(map[string][]byte{"datadog/2/TESTING1/id/1": []byte(`testing_1`)}, nil)
 
 			updateErr := fmt.Errorf("uh oh")
 			if tt.updateSucceeds {
@@ -1259,5 +1262,26 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			require.Len(t, u.TUFRoots, 1)
 			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
 		})
+	}
+}
+
+func listsEqual(mustMatch []string) func(candidate []string) bool {
+	return func(candidate []string) bool {
+		if len(candidate) != len(mustMatch) {
+			return false
+		}
+
+		candidateSet := make(map[string]struct{})
+		for _, item := range candidate {
+			candidateSet[item] = struct{}{}
+		}
+
+		for _, item := range mustMatch {
+			if _, ok := candidateSet[item]; !ok {
+				return false
+			}
+		}
+
+		return true
 	}
 }
