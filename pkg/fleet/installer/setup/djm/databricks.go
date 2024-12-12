@@ -3,188 +3,149 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 // Package djm contains data-jobs-monitoring installation logic
 package djm
 
 import (
-	"context"
+	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
 	databricksInjectorVersion = "0.21.0-1"
 	databricksJavaVersion     = "1.41.1-1"
 	databricksAgentVersion    = "7.57.2-1"
-	logsService               = "databricks"
 )
 
-type databricksSetup struct {
-	ctx context.Context
-	*common.HostInstaller
-	setupIssues []string
-}
+var (
+	envToTags = map[string]string{
+		"DATABRICKS_WORKSPACE": "workspace",
+		"DB_CLUSTER_NAME":      "databricks_cluster_name",
+		"DB_CLUSTER_ID":        "databricks_cluster_id",
+		"DB_NODE_TYPE":         "databricks_node_type",
+	}
+	driverLogs = []common.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    "/databricks/driver/logs/*.log",
+			Source:  "driver_logs",
+			Service: "databricks",
+		},
+		{
+			Type:    "file",
+			Path:    "/databricks/driver/logs/stderr",
+			Source:  "driver_stderr",
+			Service: "databricks",
+		},
+		{
+			Type:    "file",
+			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+		},
+	}
+	workerLogs = []common.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    "/databricks/spark/work/*/*/*.log",
+			Source:  "worker_logs",
+			Service: "databricks",
+		},
+		{
+			Type:    "file",
+			Path:    "/databricks/spark/work/*/*/stderr",
+			Source:  "worker_stderr",
+			Service: "databricks",
+		},
+		{
+			Type:    "file",
+			Path:    "/databricks/spark/work/*/*/stdout",
+			Source:  "worker_stdout",
+			Service: "databricks",
+		},
+	}
+	tracerEnvConfig = []common.InjectTracerConfigEnvVar{
+		{
+			Key:   "DD_DATA_JOBS_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "DD_INTEGRATIONS_ENABLED",
+			Value: "false",
+		},
+	}
+)
 
 // SetupDatabricks sets up the Databricks environment
-func SetupDatabricks(ctx context.Context, env *env.Env) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup.databricks")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func SetupDatabricks(s *common.Setup) error {
+	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 
-	i, err := common.NewHostInstaller(env)
+	hostname, err := os.Hostname()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get hostname: %w", err)
 	}
-	ds := &databricksSetup{
-		ctx:           ctx,
-		HostInstaller: i,
+	s.Config.DatadogYAML.Hostname = hostname
+	s.Config.DatadogYAML.DJM.Enabled = true
+	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
+	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
+	for env, tag := range envToTags {
+		if val, ok := os.LookupEnv(env); ok {
+			s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tag+":"+val)
+		}
 	}
-	return ds.setup()
-}
 
-func (ds *databricksSetup) setup() error {
-	// agent binary to install
-	ds.SetAgentVersion(databricksAgentVersion)
-
-	// avoid port conflict
-	ds.AddAgentConfig("process_config.expvar_port", -1)
-	ds.AddAgentConfig("expected_tags_duration", "10m")
-	ds.AddAgentConfig("djm_config.enabled", true)
-
-	ds.extractHostTagsFromEnv()
-
-	span, _ := tracer.SpanFromContext(ds.ctx)
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
-		span.SetTag("spark_node", "driver")
-		return ds.setupDatabricksDriver()
+		setupDatabricksDriver(s)
 	default:
-		span.SetTag("spark_node", "worker")
-		return ds.setupDatabricksExecutor()
+		setupDatabricksWorker(s)
 	}
+	return nil
 }
 
-type varExtraction struct {
-	envVar string
-	tagKey string
-}
+func setupDatabricksDriver(s *common.Setup) {
+	s.Span.SetTag("spark_node", "driver")
 
-var varExtractions = []varExtraction{
-	{"DATABRICKS_WORKSPACE", "workspace"},
-	{"DB_CLUSTER_NAME", "databricks_cluster_name"},
-	{"DB_CLUSTER_ID", "databricks_cluster_id"},
-	{"DB_NODE_TYPE", "databricks_node_type"},
-}
+	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaVersion)
 
-func (ds *databricksSetup) extractHostTagsFromEnv() {
-	for _, ve := range varExtractions {
-		if val, ok := os.LookupEnv(ve.envVar); ok {
-			ds.AddHostTag(ve.tagKey, val)
-			continue
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:driver")
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfig
+
+	var sparkIntegration common.IntegrationConfig
+	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
+		s.Config.DatadogYAML.LogsEnabled = true
+		sparkIntegration.Logs = driverLogs
+	}
+	if os.Getenv("DB_DRIVER_IP") != "" || os.Getenv("DB_DRIVER_PORT") != "" {
+		sparkIntegration.Instances = []any{
+			common.IntegrationConfigInstanceSpark{
+				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":" + os.Getenv("DB_DRIVER_PORT"),
+				SparkClusterMode: "spark_driver_mode",
+				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
+				StreamingMetrics: true,
+			},
 		}
-		ds.setupIssues = append(ds.setupIssues, ve.envVar+"_not_set")
+	} else {
+		log.Warn("DB_DRIVER_IP or DB_DRIVER_PORT not set")
 	}
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
 
-func (ds *databricksSetup) setupDatabricksDriver() error {
-	ds.AddHostTag("node_type", "driver")
+func setupDatabricksWorker(s *common.Setup) {
+	s.Span.SetTag("spark_node", "worker")
 
-	ds.driverLogCollection()
+	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 
-	ds.setupAgentSparkCheck()
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:worker")
 
-	ds.AddTracerEnv("DD_DATA_JOBS_ENABLED", "true")
-	ds.AddTracerEnv("DD_INTEGRATIONS_ENABLED", "false")
-
-	// APM binaries to install
-	ds.SetInjectorVersion(databricksInjectorVersion)
-	ds.SetJavaTracerVersion(databricksJavaVersion)
-
-	return ds.ConfigureAndInstall(ds.ctx)
-}
-
-func (ds *databricksSetup) setupDatabricksExecutor() error {
-	ds.AddHostTag("node_type", "worker")
-	ds.workerLogCollection()
-	return ds.ConfigureAndInstall(ds.ctx)
-}
-
-func (ds *databricksSetup) setupAgentSparkCheck() {
-	driverIP := os.Getenv("DB_DRIVER_IP")
-	if driverIP == "" {
-		log.Warn("DB_DRIVER_IP not set")
-		return
+	var sparkIntegration common.IntegrationConfig
+	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
+		s.Config.DatadogYAML.LogsEnabled = true
+		sparkIntegration.Logs = workerLogs
 	}
-	driverPort := os.Getenv("DB_DRIVER_PORT")
-	if driverPort == "" {
-		log.Warn("DB_DRIVER_PORT not set")
-		return
-	}
-	clusterName := os.Getenv("DB_CLUSTER_NAME")
-
-	ds.AddSparkInstance(common.SparkInstance{
-		SparkURL:         "http://" + driverIP + ":" + driverPort,
-		SparkClusterMode: "spark_driver_mode",
-		ClusterName:      clusterName,
-		StreamingMetrics: true,
-	})
-}
-
-func (ds *databricksSetup) driverLogCollection() {
-	if os.Getenv("DRIVER_LOGS_ENABLED") != "true" {
-		return
-	}
-	span, _ := tracer.SpanFromContext(ds.ctx)
-	span.SetTag("driver_logs", "enabled")
-	log.Info("Enabling logs collection on the driver")
-	ds.AddLogConfig(common.LogConfig{
-		Type:    "file",
-		Path:    "/databricks/driver/logs/*.log",
-		Source:  "driver_logs",
-		Service: logsService,
-	})
-	ds.AddLogConfig(common.LogConfig{
-		Type:    "file",
-		Path:    "/databricks/driver/logs/stderr",
-		Source:  "driver_stderr",
-		Service: logsService,
-	})
-	ds.AddLogConfig(common.LogConfig{
-		Type:    "file",
-		Path:    "/databricks/driver/logs/stdout",
-		Source:  "driver_stdout",
-		Service: logsService,
-	})
-}
-
-func (ds *databricksSetup) workerLogCollection() {
-	if os.Getenv("WORKER_LOGS_ENABLED") != "true" {
-		return
-	}
-	span, _ := tracer.SpanFromContext(ds.ctx)
-	span.SetTag("worker_logs", "enabled")
-	log.Info("Enabling logs collection on the executor")
-	ds.AddLogConfig(common.LogConfig{
-		Type:    "file",
-		Path:    "/databricks/spark/work/*/*/*.log",
-		Source:  "worker_logs",
-		Service: logsService,
-	})
-	ds.AddLogConfig(common.LogConfig{
-		Type:    "file",
-		Path:    "/databricks/spark/work/*/*/stderr",
-		Source:  "worker_stderr",
-		Service: logsService,
-	})
-	ds.AddLogConfig(common.LogConfig{
-		Type:    "file",
-		Path:    "/databricks/spark/work/*/*/stdout",
-		Source:  "worker_stdout",
-		Service: logsService,
-	})
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
