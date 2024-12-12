@@ -580,6 +580,7 @@ workflow:
     when: always
 
 .on_deploy_stable_or_beta_repo_branch:
+  - !reference [.except_mergequeue]
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
