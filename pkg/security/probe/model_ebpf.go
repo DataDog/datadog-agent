@@ -10,8 +10,8 @@ package probe
 
 import (
 	"fmt"
-	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -20,7 +20,7 @@ import (
 // NewEBPFModel returns a new model with some extra field validation
 func NewEBPFModel(probe *EBPFProbe) *model.Model {
 	return &model.Model{
-		ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
+		ExtraValidateFieldFnc: func(field eval.Field, value eval.FieldValue) error {
 			switch field {
 			case "bpf.map.name":
 				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
@@ -30,6 +30,13 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 			case "bpf.prog.name":
 				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 					return fmt.Errorf("%s is not available on this kernel version", field)
+				}
+			case "packet.filter":
+				if probe.isRawPacketNotSupported() {
+					return fmt.Errorf("%s is not available on this kernel version", field)
+				}
+				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts); err != nil {
+					return err
 				}
 			}
 
@@ -41,24 +48,5 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 func newEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
 	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
-	return event
-}
-
-// newEBPFEventFromPCE returns a new event from a process cache entry
-func newEBPFEventFromPCE(entry *model.ProcessCacheEntry, fh *EBPFFieldHandlers) *model.Event {
-	eventType := model.ExecEventType
-	if !entry.IsExec {
-		eventType = model.ForkEventType
-	}
-
-	event := newEBPFEvent(fh)
-	event.Type = uint32(eventType)
-	event.TimestampRaw = uint64(time.Now().UnixNano())
-	event.ProcessCacheEntry = entry
-	event.ProcessContext = &entry.ProcessContext
-	event.Exec.Process = &entry.Process
-	event.ProcessContext.Process.ContainerID = entry.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
-
 	return event
 }

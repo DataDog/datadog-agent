@@ -27,6 +27,9 @@ updates:
       - dependency-name: github.com/ugorji/go
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -52,6 +55,9 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -183,3 +189,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
+  - package-ecosystem: maven
+    directory: Dockerfiles/agent/bouncycastle-fips
+    labels:
+      - dependencies
+      - team/agent-metrics-logs
+      - changelog/no-changelog
+    schedule:
+      interval: weekly

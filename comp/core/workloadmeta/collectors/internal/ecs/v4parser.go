@@ -77,7 +77,8 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 
 	if metaURI == "" {
 		err := fmt.Sprintf("failed to get client for metadata v4 API from task %s and the following containers: %v", task.Arn, task.Containers)
-		log.Error(err)
+		// log this as debug since it's expected that some recent created or deleted tasks won't have containers yet
+		log.Debug(err)
 		return v1TaskToV4Task(task), errors.New(err)
 	}
 

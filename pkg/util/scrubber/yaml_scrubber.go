@@ -85,6 +85,11 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 			if replacer.YAMLKeyRegex == nil {
 				continue
 			}
+
+			if c.shouldApply != nil && !c.shouldApply(replacer) {
+				continue
+			}
+
 			if replacer.YAMLKeyRegex.Match([]byte(key)) {
 				if replacer.ProcessValue != nil {
 					return true, replacer.ProcessValue(value)

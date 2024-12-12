@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -22,7 +23,9 @@ const (
 
 // apmConfig represents the injector configuration from the CDN.
 type apmConfig struct {
-	version        string
+	version   string
+	policyIDs []string
+
 	injectorConfig []byte
 }
 
@@ -32,49 +35,36 @@ type apmConfigLayer struct {
 	InjectorConfig map[string]interface{} `json:"apm_ssi_config"`
 }
 
-// Version returns the version (hash) of the agent configuration.
-func (i *apmConfig) Version() string {
-	return i.version
+// State returns the APM configs state
+func (i *apmConfig) State() *pbgo.PoliciesState {
+	return &pbgo.PoliciesState{
+		MatchedPolicies: i.policyIDs,
+		Version:         i.version,
+	}
 }
 
-func newAPMConfig(hostTags []string, configOrder *orderConfig, rawLayers ...[]byte) (*apmConfig, error) {
-	if configOrder == nil {
-		return nil, fmt.Errorf("order config is nil")
+func newAPMConfig(hostTags []string, orderedLayers ...[]byte) (*apmConfig, error) {
+	// Compile ordered layers into a single config
+	// TODO: maybe we don't want that and we should reject if there are more than one config?
+	policyIDs := []string{}
+	compiledLayer := &apmConfigLayer{
+		InjectorConfig: map[string]interface{}{},
 	}
-
-	// Unmarshal layers
-	layers := map[string]*apmConfigLayer{}
-	for _, rawLayer := range rawLayers {
+	for _, rawLayer := range orderedLayers {
 		layer := &apmConfigLayer{}
 		if err := json.Unmarshal(rawLayer, layer); err != nil {
 			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
 
+		// Only add layers that match the injector
 		if layer.InjectorConfig != nil {
-			// Only add layers that have at least one config that matches
-			layers[layer.ID] = layer
-		}
-	}
-
-	// Compile ordered layers into a single config
-	// TODO: maybe we don't want that and we should reject if there are more than one config?
-	compiledLayer := &apmConfigLayer{
-		InjectorConfig: map[string]interface{}{},
-	}
-	for i := len(configOrder.Order) - 1; i >= 0; i-- {
-		layerID := configOrder.Order[i]
-		layer, ok := layers[layerID]
-		if !ok {
-			continue
-		}
-
-		if layer.InjectorConfig != nil {
-			agentConfig, err := merge(compiledLayer.InjectorConfig, layer.InjectorConfig)
+			injectorConfig, err := merge(compiledLayer.InjectorConfig, layer.InjectorConfig)
 			if err != nil {
 				return nil, err
 			}
-			compiledLayer.InjectorConfig = agentConfig.(map[string]interface{})
+			compiledLayer.InjectorConfig = injectorConfig.(map[string]interface{})
+			policyIDs = append(policyIDs, layer.ID)
 		}
 	}
 
@@ -95,7 +85,9 @@ func newAPMConfig(hostTags []string, configOrder *orderConfig, rawLayers ...[]by
 	}
 
 	return &apmConfig{
-		version:        fmt.Sprintf("%x", hash.Sum(nil)),
+		version:   fmt.Sprintf("%x", hash.Sum(nil)),
+		policyIDs: policyIDs,
+
 		injectorConfig: injectorConfig,
 	}, nil
 }
@@ -105,8 +97,8 @@ func (i *apmConfig) Write(dir string) error {
 	if i.injectorConfig != nil {
 		err := os.WriteFile(filepath.Join(dir, injectorConfigFilename), []byte(i.injectorConfig), 0644) // Must be world readable
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", injectorConfigFilename, err)
 		}
 	}
-	return nil
+	return writePolicyMetadata(i, dir)
 }

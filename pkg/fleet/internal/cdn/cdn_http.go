@@ -9,24 +9,23 @@ package cdn
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
-	"go.uber.org/multierr"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type cdnHTTP struct {
+type fetcherHTTP struct {
 	client              *remoteconfig.HTTPClient
 	currentRootsVersion uint64
 	hostTagsGetter      hostTagsGetter
+	env                 *env.Env
 }
 
-func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
+func newHTTPFetcher(env *env.Env, configDBPath string) (fetcher, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
 		env.Site,
@@ -36,58 +35,21 @@ func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &cdnHTTP{
+	return &fetcherHTTP{
 		client:              client,
 		currentRootsVersion: 1,
 		hostTagsGetter:      newHostTagsGetter(env),
+		env:                 env,
 	}, nil
 }
 
-// Get gets the configuration from the CDN.
-func (c *cdnHTTP) Get(ctx context.Context, pkg string) (cfg Config, err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
-	span.SetTag("cdn_type", "cdn")
-	defer func() {
-		spanErr := err
-		if spanErr == ErrProductNotSupported {
-			spanErr = nil
-		}
-		span.Finish(tracer.WithError(spanErr))
-	}()
-
-	switch pkg {
-	case "datadog-agent":
-		orderConfig, layers, err := c.get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cfg, err = newAgentConfig(orderConfig, layers...)
-		if err != nil {
-			return nil, err
-		}
-	case "datadog-apm-inject":
-		orderConfig, layers, err := c.get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderConfig, layers...)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, ErrProductNotSupported
-	}
-
-	return cfg, nil
-}
-
 // Close cleans up the CDN's resources
-func (c *cdnHTTP) Close() error {
+func (c *fetcherHTTP) close() error {
 	return c.client.Close()
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnHTTP) get(ctx context.Context) (*orderConfig, [][]byte, error) {
+func (c *fetcherHTTP) get(ctx context.Context) ([][]byte, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
 		ctx,
 		[]string{"AGENT_CONFIG"},
@@ -99,11 +61,11 @@ func (c *cdnHTTP) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 		[]*pbgo.TargetFileMeta{},
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if agentConfigUpdate == nil {
-		return &orderConfig{}, nil, nil
+		return nil, nil
 	}
 
 	// Update CDN root versions
@@ -123,41 +85,18 @@ func (c *cdnHTTP) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 		}
 	}
 
-	// Retrieve RC results
-	var configOrder *orderConfig
-	var layers [][]byte
-	var layersErr error
-	paths := agentConfigUpdate.ClientConfigs
-	targetFiles := agentConfigUpdate.TargetFiles
-	for _, path := range paths {
-		matched := datadogConfigIDRegexp.FindStringSubmatch(path)
-		if len(matched) != 2 {
-			layersErr = multierr.Append(layersErr, fmt.Errorf("invalid config path: %s", path))
+	files := map[string][]byte{}
+	for path, content := range agentConfigUpdate.TargetFiles {
+		pathMatches := datadogConfigIDRegexp.FindStringSubmatch(path)
+		if len(pathMatches) != 2 {
+			log.Warnf("invalid config path: %s", path)
 			continue
 		}
-		configName := matched[1]
+		files[pathMatches[1]] = content
+	}
 
-		file, ok := targetFiles[path]
-		if !ok {
-			layersErr = multierr.Append(layersErr, fmt.Errorf("missing expected target file in update response: %s", path))
-			continue
-		}
-		if configName != configOrderID {
-			layers = append(layers, file)
-		} else {
-			configOrder = &orderConfig{}
-			err = json.Unmarshal(file, configOrder)
-			if err != nil {
-				// Return first - we can't continue without the order
-				return nil, nil, err
-			}
-		}
-	}
-	if layersErr != nil {
-		return nil, nil, layersErr
-	}
-	if configOrder == nil {
-		return nil, nil, fmt.Errorf("no configuration_order found")
-	}
-	return configOrder, layers, nil
+	return getOrderedScopedLayers(
+		files,
+		getScopeExprVars(c.env, c.hostTagsGetter),
+	)
 }

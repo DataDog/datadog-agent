@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -57,7 +56,7 @@ import (
 )
 
 var (
-	logger seelog.LoggerInterface
+	logger log.LoggerInterface
 )
 
 const (
@@ -592,7 +591,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
-		os.Chdir(commonCfgDir)
+		if err := os.Chdir(commonCfgDir); err != nil {
+			return nil, err
+		}
 	}
 
 	var proFile *os.File
@@ -728,17 +729,18 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
-	if opts.staticOpts.tagsResolver != nil {
-		emopts.ProbeOpts.TagsResolver = opts.staticOpts.tagsResolver
+
+	if opts.staticOpts.tagger != nil {
+		emopts.ProbeOpts.Tagger = opts.staticOpts.tagger
 	} else {
-		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
+		emopts.ProbeOpts.Tagger = NewFakeTaggerDifferentImageNames()
 	}
 
 	if opts.staticOpts.discardRuntime {
 		emopts.ProbeOpts.DontDiscardRuntime = false
 	}
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
 		return nil, err
 	}
@@ -996,7 +998,7 @@ func (tm *testModule) Close() {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	logLevel, found := log.LogLevelFromString(logLevelStr)
 	if !found {
 		return fmt.Errorf("invalid log level '%s'", logLevel)
 	}
@@ -1011,20 +1013,20 @@ func initLogger() error {
 	return nil
 }
 
-func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
 		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.LogLevelFromString(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
@@ -1113,6 +1115,13 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	if skipCheck(kv) {
 		tb.Skipf("kernel version not supported: %s", why)
 	}
+}
+
+func checkNetworkCompatibility(tb testing.TB) {
+	checkKernelCompatibility(tb, "network feature", func(kv *kernel.Version) bool {
+		// OpenSUSE distributions are missing the dummy kernel module
+		return sprobe.IsNetworkNotSupported(kv) || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+	})
 }
 
 func (tm *testModule) StopActivityDump(name, containerID string) error {

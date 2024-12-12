@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-// Package to provide types for eBPF resource names
+// Package names provide types for eBPF resource names
 package names
 
 import (
@@ -21,11 +21,11 @@ type MapName struct {
 	n string
 }
 
-func (m *MapName) Name() string {
+func (m *MapName) Name() string { //nolint:revive // TODO
 	return m.n
 }
 
-func NewMapNameFromManagerMap(m *manager.Map) MapName {
+func NewMapNameFromManagerMap(m *manager.Map) MapName { //nolint:revive // TODO
 	return MapName{n: m.Name}
 }
 
@@ -36,23 +36,23 @@ type ProgramName struct {
 	n string
 }
 
-func (p *ProgramName) Name() string {
+func (p *ProgramName) Name() string { //nolint:revive // TODO
 	return p.n
 }
 
-func NewProgramNameFromProgramSpec(spec *ebpf.ProgramSpec) ProgramName {
+func NewProgramNameFromProgramSpec(spec *ebpf.ProgramSpec) ProgramName { //nolint:revive // TODO
 	return ProgramName{n: spec.Name}
 }
 
-type ModuleName struct {
+type ModuleName struct { //nolint:revive // TODO
 	n string
 }
 
-func (mn *ModuleName) Name() string {
+func (mn *ModuleName) Name() string { //nolint:revive // TODO
 	return mn.n
 }
 
-func NewModuleName(mn string) ModuleName {
+func NewModuleName(mn string) ModuleName { //nolint:revive // TODO
 	return ModuleName{n: mn}
 }
 

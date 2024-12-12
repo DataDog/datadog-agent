@@ -439,7 +439,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c,
+			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
 					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
@@ -466,10 +466,15 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
 		}
 
+		istio, err := newIstioMonitor(c, m)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing istio monitor: %w", err)
+		}
+
 		return &sslProgram{
 			cfg:           c,
 			watcher:       watcher,
-			istioMonitor:  newIstioMonitor(c, m),
+			istioMonitor:  istio,
 			nodeJSMonitor: nodejs,
 		}, nil
 	}

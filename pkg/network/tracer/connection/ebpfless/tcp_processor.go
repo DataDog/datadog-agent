@@ -10,6 +10,7 @@ package ebpfless
 import (
 	"fmt"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -20,7 +21,7 @@ import (
 )
 
 type connectionState struct {
-	tcpState ConnStatus
+	tcpState connStatus
 
 	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent exists)
 	hasSentPacket bool
@@ -37,9 +38,9 @@ type connectionState struct {
 	lastRemoteAck uint32
 
 	// localSynState is the status of the outgoing SYN handshake
-	localSynState SynState
+	localSynState synState
 	// remoteSynState is the status of the incoming SYN handshake
-	remoteSynState SynState
+	remoteSynState synState
 
 	// hasLocalFin is whether the outgoing side has FIN'd
 	hasLocalFin bool
@@ -49,19 +50,65 @@ type connectionState struct {
 	localFinSeq uint32
 	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
 	remoteFinSeq uint32
+
+	rttTracker rttTracker
 }
 
+// TCPProcessor encapsulates TCP state tracking for the ebpfless tracer
 type TCPProcessor struct {
 	conns map[network.ConnectionTuple]connectionState
 }
 
+// NewTCPProcessor constructs an empty TCPProcessor
 func NewTCPProcessor() *TCPProcessor {
 	return &TCPProcessor{
 		conns: map[network.ConnectionTuple]connectionState{},
 	}
 }
 
-func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
+// updateConnStatsForOpen sets the duration to a "timestamp" representing the open time
+func updateConnStatsForOpen(conn *network.ConnectionStats) {
+	conn.IsClosed = false
+	conn.Duration = time.Duration(time.Now().UnixNano())
+}
+
+// updateConnStatsForClose writes the actual duration once the connection closed
+func updateConnStatsForClose(conn *network.ConnectionStats) {
+	conn.IsClosed = true
+	nowNs := time.Now().UnixNano()
+	conn.Duration = time.Duration(nowNs - int64(conn.Duration))
+}
+
+// calcNextSeq returns the seq "after" this segment, aka, what the ACK will be once this segment is received
+func calcNextSeq(tcp *layers.TCP, payloadLen uint16) uint32 {
+	nextSeq := tcp.Seq + uint32(payloadLen)
+	if tcp.SYN || tcp.FIN {
+		nextSeq++
+	}
+	return nextSeq
+}
+
+func checkInvalidTCP(tcp *layers.TCP) bool {
+	noFlagsCombo := !tcp.SYN && !tcp.FIN && !tcp.ACK && !tcp.RST
+	if noFlagsCombo {
+		// no flags at all (I think this can happen for expanding the TCP window sometimes?)
+		statsTelemetry.missingTCPFlags.Inc()
+		return true
+	} else if tcp.SYN && tcp.FIN {
+		statsTelemetry.tcpSynAndFin.Inc()
+		return true
+	} else if tcp.RST && tcp.SYN {
+		statsTelemetry.tcpRstAndSyn.Inc()
+		return true
+	} else if tcp.RST && tcp.FIN {
+		statsTelemetry.tcpRstAndFin.Inc()
+		return true
+	}
+
+	return false
+}
+
+func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, _payloadLen uint16) {
 	if tcp.RST {
 		return
 	}
@@ -71,38 +118,48 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 	} else {
 		st.remoteSynState.update(tcp.SYN, tcp.ACK)
 	}
-	// if any SynState has progressed, move to attempted
-	if st.tcpState == ConnStatClosed && (st.localSynState != SynStateNone || st.remoteSynState != SynStateNone) {
-		st.tcpState = ConnStatAttempted
+	// if any synState has progressed, move to attempted
+	if st.tcpState == connStatClosed && (st.localSynState != synStateNone || st.remoteSynState != synStateNone) {
+		st.tcpState = connStatAttempted
+
+		updateConnStatsForOpen(conn)
 	}
 	// if both synStates are ack'd, move to established
-	if st.tcpState == ConnStatAttempted && st.localSynState == SynStateAcked && st.remoteSynState == SynStateAcked {
-		st.tcpState = ConnStatEstablished
+	if st.tcpState == connStatAttempted && st.localSynState == synStateAcked && st.remoteSynState == synStateAcked {
+		st.tcpState = connStatEstablished
 		conn.Monotonic.TCPEstablished++
 	}
 }
 
-// updateTcpStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
+// updateTCPStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
 // https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
-func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
-	payloadSeq := tcp.Seq + uint32(payloadLen)
+func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
+	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	if pktType == unix.PACKET_OUTGOING {
 		conn.Monotonic.SentPackets++
-		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, payloadSeq) {
+		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
+		packetCanRetransmit := nextSeq != tcp.Seq
+		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, nextSeq) {
 			st.hasSentPacket = true
 			conn.Monotonic.SentBytes += uint64(payloadLen)
-			st.maxSeqSent = payloadSeq
+			st.maxSeqSent = nextSeq
+
+			st.rttTracker.processOutgoing(timestampNs, nextSeq)
+		} else if packetCanRetransmit {
+			conn.Monotonic.Retransmits++
+
+			st.rttTracker.clearTrip()
 		}
 
 		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)
 		if tcp.ACK && ackOutdated {
-			// wait until data comes in via SynStateAcked
-			if st.hasLocalAck && st.remoteSynState == SynStateAcked {
+			// wait until data comes in via synStateAcked
+			if st.hasLocalAck && st.remoteSynState == synStateAcked {
 				ackDiff := tcp.Ack - st.lastLocalAck
-				// if this is ack'ing a fin packet, there is an extra sequence number to cancel out
-				isFinAck := st.hasRemoteFin && tcp.Ack == st.remoteFinSeq+1
+				isFinAck := st.hasRemoteFin && tcp.Ack == st.remoteFinSeq
 				if isFinAck {
+					// if this is ack'ing a fin packet, there is an extra sequence number to cancel out
 					ackDiff--
 				}
 				conn.Monotonic.RecvBytes += uint64(ackDiff)
@@ -118,54 +175,64 @@ func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connect
 		if tcp.ACK && ackOutdated {
 			st.hasRemoteAck = true
 			st.lastRemoteAck = tcp.Ack
+
+			hasNewRoundTrip := st.rttTracker.processIncoming(timestampNs, tcp.Ack)
+			if hasNewRoundTrip {
+				conn.RTT = nanosToMicros(st.rttTracker.rttSmoothNs)
+				conn.RTTVar = nanosToMicros(st.rttTracker.rttVarNs)
+			}
 		}
 	}
 }
 
 func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
-	payloadSeq := tcp.Seq + uint32(payloadLen)
+	nextSeq := calcNextSeq(tcp, payloadLen)
 	// update FIN sequence numbers
 	if tcp.FIN {
 		if pktType == unix.PACKET_OUTGOING {
 			st.hasLocalFin = true
-			st.localFinSeq = payloadSeq
+			st.localFinSeq = nextSeq
 		} else {
 			st.hasRemoteFin = true
-			st.remoteFinSeq = payloadSeq
+			st.remoteFinSeq = nextSeq
 		}
 	}
 
 	// if both fins have been sent and ack'd, then mark the connection closed
-	localFinIsAcked := st.hasLocalFin && isSeqBefore(st.localFinSeq, st.lastRemoteAck)
-	remoteFinIsAcked := st.hasRemoteFin && isSeqBefore(st.remoteFinSeq, st.lastLocalAck)
-	if st.tcpState == ConnStatEstablished && localFinIsAcked && remoteFinIsAcked {
+	localFinIsAcked := st.hasLocalFin && isSeqBeforeEq(st.localFinSeq, st.lastRemoteAck)
+	remoteFinIsAcked := st.hasRemoteFin && isSeqBeforeEq(st.remoteFinSeq, st.lastLocalAck)
+	if st.tcpState == connStatEstablished && localFinIsAcked && remoteFinIsAcked {
 		*st = connectionState{
-			tcpState: ConnStatClosed,
+			tcpState: connStatClosed,
 		}
 		conn.Monotonic.TCPClosed++
+		updateConnStatsForClose(conn)
 	}
 }
 
-func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
-	if !tcp.RST || st.tcpState == ConnStatClosed {
+func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connectionState, _pktType uint8, tcp *layers.TCP, _payloadLen uint16) {
+	if !tcp.RST || st.tcpState == connStatClosed {
 		return
 	}
 
 	reason := syscall.ECONNRESET
-	if st.tcpState == ConnStatAttempted {
+	if st.tcpState == connStatAttempted {
 		reason = syscall.ECONNREFUSED
 	}
-
-	*st = connectionState{
-		tcpState: ConnStatClosed,
-	}
 	conn.TCPFailures[uint16(reason)]++
-	conn.Monotonic.TCPClosed++
+
+	if st.tcpState == connStatEstablished {
+		conn.Monotonic.TCPClosed++
+	}
+	*st = connectionState{
+		tcpState: connStatClosed,
+	}
+	updateConnStatsForClose(conn)
 }
 
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
-func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
+func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
 	if pktType != unix.PACKET_OUTGOING && pktType != unix.PACKET_HOST {
 		return fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
@@ -179,22 +246,14 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 	})
 
 	// skip invalid packets we don't recognize:
-	noFlagsCombo := !tcp.SYN && !tcp.FIN && !tcp.ACK && !tcp.RST
-	if noFlagsCombo {
-		// no flags at all (I think this can happen for expanding the TCP window sometimes?)
-		statsTelemetry.missingTCPFlags.Inc()
-		return nil
-	}
-	synFinCombo := tcp.SYN && tcp.FIN
-	if synFinCombo {
-		statsTelemetry.tcpSynAndFin.Inc()
+	if checkInvalidTCP(tcp) {
 		return nil
 	}
 
 	st := t.conns[conn.ConnectionTuple]
 
 	t.updateSynFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateTcpStats(conn, &st, pktType, tcp, payloadLen)
+	t.updateTCPStats(conn, &st, pktType, tcp, payloadLen, timestampNs)
 	t.updateFinFlag(conn, &st, pktType, tcp, payloadLen)
 	t.updateRstFlag(conn, &st, pktType, tcp, payloadLen)
 

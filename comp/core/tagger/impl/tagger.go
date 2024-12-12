@@ -25,8 +25,8 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -100,7 +100,6 @@ type TaggerWrapper struct {
 	defaultTagger tagger.Component
 
 	wmeta         workloadmeta.Component
-	cfg           config.Component
 	datadogConfig datadogConfig
 
 	checksCardinality          types.TagCardinality
@@ -143,7 +142,7 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadm
 	var err error
 	telemetryStore := telemetry.NewStore(telemetryComp)
 	if params.UseFakeTagger {
-		defaultTagger = newFakeTagger(cfg, telemetryStore)
+		defaultTagger = taggermock.New().Comp
 	} else {
 		defaultTagger, err = newLocalTagger(cfg, wmeta, telemetryStore)
 	}
@@ -207,7 +206,7 @@ func (t *TaggerWrapper) Stop() error {
 
 // ReplayTagger returns the replay tagger instance
 func (t *TaggerWrapper) ReplayTagger() tagger.ReplayTagger {
-	return newReplayTagger(t.cfg, t.telemetryStore)
+	return newReplayTagger(t.telemetryStore)
 }
 
 // GetTaggerTelemetryStore returns tagger telemetry store
@@ -257,7 +256,7 @@ func (t *TaggerWrapper) Tag(entityID types.EntityID, cardinality types.TagCardin
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *TaggerWrapper) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}
@@ -331,14 +330,14 @@ func (t *TaggerWrapper) AgentTags(cardinality types.TagCardinality) ([]string, e
 func (t *TaggerWrapper) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityID(), cardinality)
+		tags, err := t.captureTagger.Tag(types.GetGlobalEntityID(), cardinality)
 		if err == nil && len(tags) > 0 {
 			t.mux.RUnlock()
 			return tags, nil
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityID(), cardinality)
+	return t.defaultTagger.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
@@ -346,7 +345,7 @@ func (t *TaggerWrapper) GlobalTags(cardinality types.TagCardinality) ([]string, 
 func (t *TaggerWrapper) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		err := t.captureTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID(), cardinality, tb)
+		err := t.captureTagger.AccumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb)
 
 		if err == nil {
 			t.mux.RUnlock()
@@ -354,7 +353,7 @@ func (t *TaggerWrapper) globalTagBuilder(cardinality types.TagCardinality, tb ta
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID(), cardinality, tb)
+	return t.defaultTagger.AccumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb)
 }
 
 // List the content of the defaulTagger
@@ -459,6 +458,15 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			}
 		}
 	default:
+		// Disable origin detection if cardinality is none
+		// TODO: The `none` cardinality should be directly supported by the Tagger.
+		if originInfo.Cardinality == "none" {
+			originInfo.ContainerIDFromSocket = packets.NoOrigin
+			originInfo.PodUID = ""
+			originInfo.ContainerID = ""
+			return
+		}
+
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]

@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path"
 
@@ -94,6 +96,10 @@ func (s *service) Run(svcctx context.Context) error {
 
 			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
 			if err != nil {
+				if errors.Is(err, start.ErrAllComponentsDisabled) {
+					// If all components are disabled, we should exit cleanly
+					return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+				}
 				return err
 			}
 
@@ -115,17 +121,8 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-
-			catalog := workloadmeta.NodeAgent
-
-			if config.GetBool("security_agent.remote_workloadmeta") {
-				catalog = workloadmeta.Remote
-			}
-
-			return workloadmeta.Params{
-				AgentType: catalog,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
 		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()

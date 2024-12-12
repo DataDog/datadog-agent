@@ -597,6 +597,12 @@ Package datadogclient provides a client to query the datadog API
 
 Package etw provides an ETW tracing interface
 
+### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
+
+*Datadog Team*: ndm-core
+
+Package haagent handles states for HA Agent feature.
+
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
 *Datadog Team*: container-platform

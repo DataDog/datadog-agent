@@ -436,7 +436,7 @@ func TestMountResolver(t *testing.T) {
 		pid uint32 = 1
 	)
 
-	cr, _ := cgroup.NewResolver(nil)
+	cr, _ := cgroup.NewResolver()
 
 	// Create mount resolver
 	mr, _ := NewResolver(nil, cr, ResolverOpts{})

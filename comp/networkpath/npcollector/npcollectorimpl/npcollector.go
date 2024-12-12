@@ -127,26 +127,49 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	}
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
+// makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
+func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+	protocol := convertProtocol(conn.GetType())
+
+	rDNSEntry := dns[conn.Raddr.GetIp()]
+	var reverseDNSHostname string
+	if rDNSEntry != nil && len(rDNSEntry.Names) > 0 {
+		reverseDNSHostname = rDNSEntry.Names[0]
+	}
+
+	var remotePort uint16
+	// UDP traces should not be done to the active port
+	if protocol != payload.ProtocolUDP {
+		remotePort = uint16(conn.Raddr.GetPort())
+	}
+
+	sourceContainer := conn.Laddr.GetContainerId()
+
+	return common.Pathtest{
+		Hostname:          conn.Raddr.GetIp(),
+		Port:              remotePort,
+		Protocol:          protocol,
+		SourceContainerID: sourceContainer,
+		Metadata: common.PathtestMetadata{
+			ReverseDNSHostname: reverseDNSHostname,
+		},
+	}
+}
+
+func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	startTime := s.TimeNowFn()
 	for _, conn := range conns {
-		remoteAddr := conn.Raddr
-		protocol := convertProtocol(conn.GetType())
-		var remotePort uint16
-		// UDP traces should not be done to the active
-		// port
-		if protocol != payload.ProtocolUDP {
-			remotePort = uint16(conn.Raddr.GetPort())
-		}
 		if !shouldScheduleNetworkPathForConn(conn) {
-			s.logger.Tracef("Skipped connection: addr=%s, port=%d, protocol=%s", remoteAddr, remotePort, protocol)
+			protocol := convertProtocol(conn.GetType())
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		sourceContainer := conn.Laddr.GetContainerId()
-		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
+		pathtest := makePathtest(conn, dns)
+
+		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
@@ -158,20 +181,14 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol payload.Protocol, sourceContainerID string) error {
+func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
-	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
+	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", pathtest.Hostname, pathtest.Port)
 
-	ptest := &common.Pathtest{
-		Hostname:          hostname,
-		Port:              port,
-		Protocol:          protocol,
-		SourceContainerID: sourceContainerID,
-	}
 	select {
-	case s.pathtestInputChan <- ptest:
+	case s.pathtestInputChan <- pathtest:
 		return nil
 	default:
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
@@ -246,7 +263,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Origin = payload.PathOriginNetworkTraffic
 
 	// Perform reverse DNS lookup on destination and hop IPs
-	s.enrichPathWithRDNS(&path)
+	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
 
 	s.sendTelemetry(path, startTime, ptest)
 
@@ -326,14 +343,19 @@ func (s *npCollectorImpl) flush() {
 	}
 }
 
-func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
+// enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.
+func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDestHostname string) {
 	if !s.collectorConfigs.reverseDNSEnabled {
 		return
 	}
 
 	// collect unique IP addresses from destination and hops
 	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
-	ipSet[path.Destination.IPAddress] = struct{}{}
+
+	// only look up the destination hostname if we need to
+	if knownDestHostname == "" {
+		ipSet[path.Destination.IPAddress] = struct{}{}
+	}
 	for _, hop := range path.Hops {
 		if !hop.Reachable {
 			continue
@@ -356,13 +378,17 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
 	}
 
 	// assign resolved hostnames to destination and hops
-	hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
-	// if hostname is blank, use what's given by traceroute
-	// TODO: would it be better to move the logic up from the traceroute command?
-	// benefit to the current approach is having consistent behavior for all paths
-	// both static and dynamic
-	if hostname != "" {
-		path.Destination.ReverseDNSHostname = hostname
+	if knownDestHostname != "" {
+		path.Destination.ReverseDNSHostname = knownDestHostname
+	} else {
+		hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
+		// if hostname is blank, use what's given by traceroute
+		// TODO: would it be better to move the logic up from the traceroute command?
+		// benefit to the current approach is having consistent behavior for all paths
+		// both static and dynamic
+		if hostname != "" {
+			path.Destination.ReverseDNSHostname = hostname
+		}
 	}
 
 	for i, hop := range path.Hops {

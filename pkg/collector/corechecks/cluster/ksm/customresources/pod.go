@@ -42,6 +42,13 @@ func NewExtendedPodFactory(client *apiserver.APIClient) customresource.RegistryF
 	}
 }
 
+// NewExtendedPodFactoryForKubelet returns a new Pod metric family generator
+// factory meant to be used when pods are collected from the Kubelet.
+func NewExtendedPodFactoryForKubelet() customresource.RegistryFactory {
+	// No need to set an API server client, because we're collecting from the Kubelet.
+	return &extendedPodFactory{}
+}
+
 type extendedPodFactory struct {
 	client clientset.Interface
 }

@@ -12,12 +12,10 @@ import (
 	"fmt"
 	"runtime"
 
-	// 3p
-	log "github.com/cihub/seelog"
-
-	// project
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessInfo contains information about a single process

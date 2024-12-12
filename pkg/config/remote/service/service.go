@@ -200,6 +200,8 @@ type CoreAgentService struct {
 	previousOrgStatus *pbgo.OrgStatusResponse
 
 	agentVersion string
+
+	disableConfigPollLoop bool
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -256,6 +258,7 @@ type options struct {
 	refreshIntervalOverrideAllowed bool
 	maxBackoff                     time.Duration
 	clientTTL                      time.Duration
+	disableConfigPollLoop          bool
 }
 
 var defaultOptions = options{
@@ -271,6 +274,7 @@ var defaultOptions = options{
 	refreshIntervalOverrideAllowed: true,
 	maxBackoff:                     minimalMaxBackoffTime,
 	clientTTL:                      defaultClientsTTL,
+	disableConfigPollLoop:          false,
 }
 
 // Option is a service option
@@ -380,6 +384,13 @@ func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
 	}
 }
 
+// WithAgentPollLoopDisabled disables the config poll loop
+func WithAgentPollLoopDisabled() func(s *options) {
+	return func(s *options) {
+		s.disableConfigPollLoop = true
+	}
+}
+
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
 	options := defaultOptions
@@ -478,10 +489,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		telemetryReporter: telemetryReporter,
-		agentVersion:      agentVersion,
-		stopOrgPoller:     make(chan struct{}),
-		stopConfigPoller:  make(chan struct{}),
+		telemetryReporter:     telemetryReporter,
+		agentVersion:          agentVersion,
+		stopOrgPoller:         make(chan struct{}),
+		stopConfigPoller:      make(chan struct{}),
+		disableConfigPollLoop: options.disableConfigPollLoop,
 	}, nil
 }
 
@@ -511,45 +523,71 @@ func (s *CoreAgentService) Start() {
 		defer func() {
 			close(s.stopOrgPoller)
 		}()
-
-		err := s.refresh()
-		if err != nil {
-			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
-				log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-			} else {
-				log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
-			}
+		if s.disableConfigPollLoop {
+			startWithoutAgentPollLoop(s)
+		} else {
+			startWithAgentPollLoop(s)
 		}
 
-		for {
-			var err error
-			refreshInterval := s.calculateRefreshInterval()
-			select {
-			case <-s.clock.After(refreshInterval):
-				err = s.refresh()
-			// New clients detected, request refresh
-			case response := <-s.cacheBypassClients.requests:
-				if !s.cacheBypassClients.Limit() {
-					err = s.refresh()
-				} else {
-					s.telemetryReporter.IncRateLimit()
-				}
-				close(response)
-			case <-s.stopConfigPoller:
-				log.Infof("[%s] Stopping Remote Config configuration poller", s.rcType)
-				return
-			}
-
-			if err != nil {
-				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
-					exportedLastUpdateErr.Set(err.Error())
-					log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-				} else {
-					log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
-				}
-			}
-		}
 	}()
+}
+
+func startWithAgentPollLoop(s *CoreAgentService) {
+	err := s.refresh()
+	if err != nil {
+		logRefreshError(s, err)
+	}
+
+	for {
+		var err error
+		refreshInterval := s.calculateRefreshInterval()
+		select {
+		case <-s.clock.After(refreshInterval):
+			err = s.refresh()
+		// New clients detected, request refresh
+		case response := <-s.cacheBypassClients.requests:
+			if !s.cacheBypassClients.Limit() {
+				err = s.refresh()
+			} else {
+				s.telemetryReporter.IncRateLimit()
+			}
+			close(response)
+		case <-s.stopConfigPoller:
+			log.Infof("[%s] Stopping Remote Config configuration poller", s.rcType)
+			return
+		}
+
+		if err != nil {
+			logRefreshError(s, err)
+		}
+	}
+}
+
+func startWithoutAgentPollLoop(s *CoreAgentService) {
+	for {
+		var err error
+		response := <-s.cacheBypassClients.requests
+		if !s.cacheBypassClients.Limit() {
+			err = s.refresh()
+		} else {
+			err = errors.New("cache bypass limit exceeded")
+			s.lastUpdateErr = err
+			s.telemetryReporter.IncRateLimit()
+		}
+		close(response)
+		if err != nil {
+			logRefreshError(s, err)
+		}
+	}
+}
+
+func logRefreshError(s *CoreAgentService, err error) {
+	if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
+		exportedLastUpdateErr.Set(err.Error())
+		log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+	} else {
+		log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
+	}
 }
 
 // Stop stops the refresh loop and closes the on-disk DB cache
@@ -773,6 +811,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		}
 
 		s.Lock()
+	}
+	if s.disableConfigPollLoop && s.lastUpdateErr != nil {
+		return nil, s.lastUpdateErr
 	}
 
 	s.clients.seen(request.Client)

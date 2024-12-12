@@ -32,7 +32,7 @@ func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy 
 		autodiscoveryimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		fx.Provide(taggermock.NewMock),
+		taggermock.Module(),
 	)
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}

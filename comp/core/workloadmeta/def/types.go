@@ -60,9 +60,13 @@ const (
 
 	// SourceRuntime represents entities detected by the container runtime
 	// running on the node, collecting lower level information about
-	// containers. `docker`, `containerd`, `podman` and `ecs_fargate` use
-	// this source.
+	// containers. `docker`, `containerd`, 'crio', `podman` and `ecs_fargate`
+	// use this source.
 	SourceRuntime Source = "runtime"
+
+	// SourceTrivy represents entities detected by Trivy during the SBOM scan.
+	// `crio` uses this source.
+	SourceTrivy Source = "trivy"
 
 	// SourceNodeOrchestrator represents entities detected by the node
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
@@ -449,6 +453,19 @@ func (cr ContainerResources) String(bool) string {
 	return sb.String()
 }
 
+// ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
+type ContainerAllocatedResource struct {
+	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
+	Name string
+
+	// ID is the unique ID of the resource, the format depends on the provider
+	ID string
+}
+
+func (c ContainerAllocatedResource) String() string {
+	return fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+}
+
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
@@ -532,10 +549,15 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
+
+	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// PodResources API to query that data.
+	AllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath string
+	CgroupPath   string
+	RestartCount int
 }
 
 // GetID implements Entity#GetID.
@@ -583,6 +605,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
+	for _, r := range c.AllocatedResources {
+		_, _ = fmt.Fprintln(&sb, r.String())
+	}
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
@@ -1107,13 +1134,17 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
-		switch i.SBOM.Status {
-		case Success:
-			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		case Failed:
-			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
-		default:
+		if i.SBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+			switch i.SBOM.Status {
+			case Success:
+				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+			case Failed:
+				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+			default:
+			}
+		} else {
+			fmt.Fprintln(&sb, "SBOM is nil")
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")

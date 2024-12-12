@@ -38,6 +38,17 @@ func AddProgramNameMapping(progid uint32, name string, module string) {
 	progModuleMapping[progid] = module
 }
 
+// RemoveProgramID manually removes a program name mapping
+func RemoveProgramID(progID uint32, expectedModule string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	if progModuleMapping[progID] == expectedModule {
+		delete(progNameMapping, progID)
+		delete(progModuleMapping, progID)
+	}
+}
+
 // AddNameMappings adds the full name mappings for ebpf maps in the manager
 func AddNameMappings(mgr *manager.Manager, module string) {
 	maps, err := mgr.GetMaps()
