@@ -466,24 +466,13 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		path             string
 		expectedSecurity func(t *testing.T) windows.ObjectSecurity
 	}{
+		//ConfigRoot is only owned by SYSTEM and Administrators
 		{
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
 				expected, err := getBaseConfigRootSecurity()
 				require.NoError(tt, err)
-				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
-					return expected
-				}
-				expected.Access = append(expected.Access,
-					windows.NewExplicitAccessRuleWithFlags(
-						ddAgentUserIdentity,
-						windows.FileFullControl,
-						windows.AccessControlTypeAllow,
-						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
-						windows.PropagationFlagsNone,
-					),
-				)
 				return expected
 			},
 		},
