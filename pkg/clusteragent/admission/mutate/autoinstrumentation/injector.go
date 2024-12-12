@@ -18,6 +18,7 @@ import (
 const (
 	injectPackageDir   = "opt/datadog-packages/datadog-apm-inject"
 	libraryPackagesDir = "opt/datadog/apm/library"
+	csidriver          = "datadog.poc.csi.driver"
 )
 
 func asAbs(path string) string {
@@ -28,28 +29,59 @@ func injectorFilePath(name string) string {
 	return injectPackageDir + "/stable/inject/" + name
 }
 
-var sourceVolume = volume{
-	Volume: corev1.Volume{
-		Name: volumeName,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
+func getSourceVolume(withCSI bool) volume {
+	var sourceVolume volume
+
+	if withCSI {
+		sourceVolume = volume{
+			Volume: corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					CSI: &corev1.CSIVolumeSource{
+						Driver: csidriver,
+						VolumeAttributes: map[string]string{
+							"type": "apm",
+						},
+					},
+				},
+			},
+		}
+	} else {
+		sourceVolume = volume{
+			Volume: corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		}
+	}
+
+	return sourceVolume
+}
+
+var v1VolumeMount = volumeMount{
+	VolumeMount: corev1.VolumeMount{
+		MountPath: mountPath,
+		Name:      volumeName,
 	},
 }
 
-var v1VolumeMount = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: mountPath,
-})
+var v2VolumeMountInjector = volumeMount{
+	VolumeMount: corev1.VolumeMount{
+		MountPath: asAbs(injectPackageDir),
+		SubPath:   injectPackageDir,
+		Name:      volumeName,
+	},
+}
 
-var v2VolumeMountInjector = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: asAbs(injectPackageDir),
-	SubPath:   injectPackageDir,
-})
-
-var v2VolumeMountLibrary = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: asAbs(libraryPackagesDir),
-	SubPath:   libraryPackagesDir,
-})
+var v2VolumeMountLibrary = volumeMount{
+	VolumeMount: corev1.VolumeMount{
+		MountPath: asAbs(libraryPackagesDir),
+		SubPath:   libraryPackagesDir,
+		Name:      volumeName,
+	},
+}
 
 var etcVolume = volume{
 	Volume: corev1.Volume{
@@ -113,12 +145,12 @@ func (i *injector) initContainer() initContainer {
 	}
 }
 
-func (i *injector) requirements() libRequirement {
+func (i *injector) requirements(withCSI bool) libRequirement {
 	return libRequirement{
 		libRequirementOptions: i.opts,
 		initContainers:        []initContainer{i.initContainer()},
 		volumes: []volume{
-			sourceVolume,
+			getSourceVolume(withCSI),
 			etcVolume,
 		},
 		volumeMounts: []volumeMount{
@@ -190,7 +222,7 @@ func newInjector(startTime time.Time, registry, imageTag string, opts ...injecto
 	return i
 }
 
-func (i *injector) podMutator(v version) podMutator {
+func (i *injector) podMutator(v version, withCSI bool) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		if i.injected {
 			return nil
@@ -200,7 +232,7 @@ func (i *injector) podMutator(v version) podMutator {
 			return nil
 		}
 
-		if err := i.requirements().injectPod(pod, ""); err != nil {
+		if err := i.requirements(withCSI).injectPod(pod, ""); err != nil {
 			return err
 		}
 
