@@ -21,11 +21,13 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	"github.com/stretchr/testify/assert"
+
+	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
@@ -84,7 +86,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert.True(metricAgent.IsReady())
 
 	// setup otlp agent
-	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), taggernoop.NewComponent())
 	otlpAgent.Start()
 	defer otlpAgent.Stop()
 	assert.NotNil(otlpAgent.pipeline)

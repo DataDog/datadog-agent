@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -95,7 +94,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 
 	if len(mergedConfig.LogLevel) > 0 {
 		// Get the current log level
-		var newFallback seelog.LogLevel
+		var newFallback pkglog.LogLevel
 		newFallback, err = pkglog.GetLogLevel()
 		if err == nil {
 			h.configState.FallbackLogLevel = newFallback.String()
@@ -113,7 +112,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			}
 		}
 	} else {
-		var currentLogLevel seelog.LogLevel
+		var currentLogLevel pkglog.LogLevel
 		currentLogLevel, err = pkglog.GetLogLevel()
 		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)

@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -90,7 +90,7 @@ func (s *Server) Start() error {
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(4, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(4, log.ErrorLvl)
 
 	srv := &http.Server{
 		Handler:      r,
