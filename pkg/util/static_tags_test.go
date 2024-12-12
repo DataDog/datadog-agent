@@ -26,7 +26,7 @@ func TestStaticTags(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
-		staticTags := GetStaticTags(context.Background())
+		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"some":             {"tag"},
 			"another":          {"tag"},
@@ -39,7 +39,7 @@ func TestStaticTags(t *testing.T) {
 		mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		defer mockConfig.SetWithoutSource("extra_tags", []string{})
-		staticTags := GetStaticTags(context.Background())
+		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"some":             {"tag"},
 			"extra":            {"tag"},
@@ -50,7 +50,7 @@ func TestStaticTags(t *testing.T) {
 	t.Run("cluster name already set", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"kube_cluster_name:foo"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
-		staticTags := GetStaticTags(context.Background())
+		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"eks_fargate_node":  {"eksnode"},
 			"kube_cluster_name": {"foo"},
@@ -68,7 +68,7 @@ func TestStaticTagsSlice(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background())
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"some:tag",
@@ -82,7 +82,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		defer mockConfig.SetWithoutSource("extra_tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background())
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"missingcolon",
