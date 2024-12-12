@@ -5,6 +5,8 @@
 include:
   - .gitlab/functional_test/serverless.yml
   - .gitlab/functional_test/regression_detector.yml
+  - .gitlab/functional_test/regression_detector_otel_oss.yml
+  - .gitlab/functional_test/regression_detector_otel.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/security_agent.yml
