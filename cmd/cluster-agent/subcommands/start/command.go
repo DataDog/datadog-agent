@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -60,11 +61,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -137,7 +138,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
-				compressionimpl.Module(),
+				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -203,6 +204,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
+				haagentfx.Module(),
 			)
 		},
 	}
@@ -387,7 +389,7 @@ func start(log log.Component,
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac)
+		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
 		if err == nil {
 			api.ModifyAPIRouter(func(r *mux.Router) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
@@ -477,6 +479,7 @@ func start(log log.Component,
 			Client:              apiCl.Cl,
 			StopCh:              stopCh,
 			ValidatingStopCh:    validatingStopCh,
+			Demultiplexer:       demultiplexer,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
@@ -549,8 +552,8 @@ func start(log log.Component,
 	return nil
 }
 
-func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*clusterchecks.Handler, error) {
-	handler, err := clusterchecks.NewHandler(ac)
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecks.Handler, error) {
+	handler, err := clusterchecks.NewHandler(ac, tagger)
 	if err != nil {
 		return nil, err
 	}

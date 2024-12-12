@@ -65,12 +65,12 @@ type Host struct {
 // reconnect retry logic
 func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")
 	if err != nil {
 		return nil, err
 	}
-
-	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPasswordSuffix), "")
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 	host := &Host{
 		context:              context,
 		username:             hostOutput.Username,
-		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, 22),
+		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
@@ -141,6 +141,30 @@ func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 		return "", fmt.Errorf("%v: %w", stdout, err)
 	}
 	return stdout, err
+}
+
+// Start a command and returns session, and an error if any.
+func (h *Host) Start(command string, options ...ExecuteOption) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	params, err := optional.MakeParams(options...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	command = h.buildCommand(command, params.EnvVariables)
+	return h.startAndReconnectOnError(command)
+}
+
+func (h *Host) startAndReconnectOnError(command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
+	session, stdin, stdout, err := start(h.client, command)
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.Reconnect()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		session, stdin, stdout, err = start(h.client, command)
+	}
+	return session, stdin, stdout, err
 }
 
 // MustExecute executes a command and requires no error.

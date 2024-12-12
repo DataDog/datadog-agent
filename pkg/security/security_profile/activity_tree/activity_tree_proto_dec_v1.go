@@ -331,6 +331,7 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 			MatchedRules: make([]*model.MatchedRule, 0, len(bindNode.MatchedRules)),
 			Port:         uint16(bindNode.Port),
 			IP:           bindNode.Ip,
+			Protocol:     uint16(bindNode.Protocol),
 			ImageTags:    bindNode.ImageTags,
 		}
 
