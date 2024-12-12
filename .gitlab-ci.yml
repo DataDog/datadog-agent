@@ -581,7 +581,8 @@ workflow:
 
 .on_deploy_stable_or_beta_repo_branch:
   - <<: *if_not_stable_or_beta_repo_branch
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_deploy
 
 .on_deploy_stable_or_beta_repo_branch_manual:
