@@ -1344,6 +1344,43 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
         },
+        "RansomwareScore": {
+            "properties": {
+                "time_to_trigger": {
+                    "type": "integer"
+                },
+                "new_file": {
+                    "type": "integer"
+                },
+                "unlink": {
+                    "type": "integer"
+                },
+                "rename": {
+                    "type": "integer"
+                },
+                "urandom": {
+                    "type": "integer"
+                },
+                "kill": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "time_to_trigger",
+                "new_file",
+                "unlink",
+                "rename",
+                "urandom",
+                "kill",
+                "score"
+            ],
+            "description": "RansomwareScoreSerializer defines a ransomware socre serializer"
+        },
         "RawPacket": {
             "properties": {
                 "device": {
@@ -1780,6 +1817,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "packet": {
             "$ref": "#/$defs/RawPacket"
+        },
+        "ransomware_score": {
+            "$ref": "#/$defs/RansomwareScore"
         }
     },
     "additionalProperties": false,
@@ -1823,6 +1863,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
+| `ransomware_score` | $ref | Please see [RansomwareScore](#ransomwarescore) |
 
 ## `AWSIMDSEvent`
 
@@ -3767,6 +3808,52 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `cap_effective` | Effective Capability set |
 | `cap_permitted` | Permitted Capability set |
 | `destination` | Credentials after the operation |
+
+
+## `RansomwareScore`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "time_to_trigger": {
+            "type": "integer"
+        },
+        "new_file": {
+            "type": "integer"
+        },
+        "unlink": {
+            "type": "integer"
+        },
+        "rename": {
+            "type": "integer"
+        },
+        "urandom": {
+            "type": "integer"
+        },
+        "kill": {
+            "type": "integer"
+        },
+        "score": {
+            "type": "integer"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "time_to_trigger",
+        "new_file",
+        "unlink",
+        "rename",
+        "urandom",
+        "kill",
+        "score"
+    ],
+    "description": "RansomwareScoreSerializer defines a ransomware socre serializer"
+}
+
+{{< /code-block >}}
+
 
 
 ## `RawPacket`
