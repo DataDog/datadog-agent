@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -19,13 +17,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGet(t *testing.T) {
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth_token")
+	ipcPath := filepath.Join(dir, "ipc_cert")
 	overrides := map[string]any{
 		"auth_token_file_path": authPath,
+		"ipc_cert_file_path":   ipcPath,
 	}
 
 	comp, err := newAuthToken(
