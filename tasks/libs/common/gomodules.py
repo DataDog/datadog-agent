@@ -252,8 +252,13 @@ class GoModule:
         >>> [mod.tag("7.27.0") for mod in mods]
         [["7.27.0"], ["pkg/util/log/v0.27.0"]]
         """
+        from invoke import Context
+
+        from tasks.libs.common.git import is_agent6
+
+        major = "6" if is_agent6(Context()) else "7"
         if self.path == ".":
-            return ["7" + agent_version[1:]]
+            return [major + agent_version[1:]]
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
