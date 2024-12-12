@@ -174,5 +174,57 @@ namespace Datadog.CustomActions
         {
             return PrepareDecompressPythonDistributions(new SessionWrapper(session));
         }
+        
+        private static ActionResult RunPythonScript(ISession session, string script){
+            var projectLocation = session.Property("PROJECTLOCATION");
+            var dataDirectory = session.Property("APPLICATIONDATADIRECTORY");
+            var pythonPath = Path.Combine(projectLocation, "embedded3", "python.exe");
+            var postInstScript = Path.Combine(projectLocation, "python-scripts", script);
+            if (!File.Exists(pythonPath))
+            {
+                session.Log($"Python executable not found at {pythonPath}");
+                return ActionResult.Failure;
+            }
+            if (!File.Exists(postInstScript))
+            {
+                session.Log($"install script not found at {postInstScript}");
+                return ActionResult.Failure;
+            }
+            session.Log($"Running python {pythonPath} with args {postInstScript}");
+            session.Log($"\"{postInstScript}\" \"{projectLocation}\" \"{dataDirectory}\"");
+            var psi = new ProcessStartInfo
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                FileName = pythonPath,
+                Arguments = $"\"{postInstScript}\" \"{projectLocation}\\\" \"{dataDirectory}\\\""
+            };
+            var proc = new Process();
+            proc.StartInfo = psi;
+            proc.OutputDataReceived += (_, args) => session.Log(args.Data);
+            proc.ErrorDataReceived += (_, args) => session.Log(args.Data);
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+            proc.WaitForExit();
+            if (proc.ExitCode != 0)
+            {
+                session.Log($"install script exited with code: {proc.ExitCode}");
+                return ActionResult.Failure;
+            }
+            return ActionResult.Success;
+        }
+        
+        public static ActionResult RunPostInstPythonScript(Session session)
+        {
+            return RunPythonScript(new SessionWrapper(session), "postinst.py");
+        }
+        
+        public static ActionResult RunPreRemovePythonScript(Session session)
+        {
+            return RunPythonScript(new SessionWrapper(session), "prerm.py");
+        }
     }
 }

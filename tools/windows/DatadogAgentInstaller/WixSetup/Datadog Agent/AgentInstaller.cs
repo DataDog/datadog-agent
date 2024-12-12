@@ -360,7 +360,10 @@ namespace WixSetup.Datadog_Agent
                 new DirFiles($@"{InstallerSource}\LICENSE"),
                 new DirFiles($@"{InstallerSource}\*.json"),
                 new DirFiles($@"{InstallerSource}\*.txt"),
-                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                new Dir("python-scripts",
+                    new Files($@"{InstallerSource}\python-scripts\*")
+                )
             );
 
             // Recursively delete/backup all files/folders in these paths, they will be restored

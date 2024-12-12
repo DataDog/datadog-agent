@@ -32,6 +32,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
 
+        public ManagedAction RunPostInstPythonScript { get; }
+        
+        public ManagedAction RunPreRemovePythonScript { get; }
+
         public ManagedAction DecompressPythonDistributions { get; }
 
         public ManagedAction CleanupOnRollback { get; }
@@ -256,6 +260,22 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.immediate
             };
+            
+            RunPostInstPythonScript = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPostInstPythonScript)),
+                    CustomActions.RunPostInstPythonScript,
+                    Return.ignore,
+                    When.After,
+                    new Step(DecompressPythonDistributions.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            
 
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
@@ -264,6 +284,21 @@ namespace WixSetup.Datadog_Agent
                     Return.check,
                     When.Before,
                     Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            
+            RunPreRemovePythonScript = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemovePythonScript)),
+                    CustomActions.RunPreRemovePythonScript,
+                    Return.ignore,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
                     Conditions.Uninstalling
                 )
             {
