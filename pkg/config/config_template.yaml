@@ -1404,29 +1404,34 @@ api_key:
     #
     # port: 5012
 
-  ## @param instrumentation_enabled - boolean - default: false
-  ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
-  ## Enables Single Step Instrumentation in the cluster (in beta)
+  ## @param instrumentation - custom object - optional
+  ## Specifies settings for Single Step Instrumentation.
   #
-  # instrumentation_enabled: false
+  # instrumentation:
 
-  ## @param instrumentation_enabled_namespaces - list of strings - optional
-  ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
-  ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
-  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
-  #
-  # instrumentation_enabled_namespaces:
-  # - ns1
-  # - apps
+    ## @param enabled - boolean - default: false
+    ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
+    ## Enables Single Step Instrumentation in the cluster (in beta)
+    #
+    # enabled: false
 
-  ## @param instrumentation_disabled_namespaces - list of strings - optional
-  ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
-  ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
-  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
-  #
-  # instrumentation_disabled_namespaces:
-  # - ns2
-  # - system-ns
+    ## @param enabled_namespaces - list of strings - optional
+    ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
+    ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
+    ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
+    #
+    # enabled_namespaces:
+    # - ns1
+    # - apps
+
+    ## @param disabled_namespaces - list of strings - optional
+    ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
+    ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
+    ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
+    #
+    # disabled_namespaces:
+    # - ns2
+    # - system-ns
 
   ## @param trace_buffer - integer - optional - default: 0
   ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
@@ -3614,7 +3619,7 @@ api_key:
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
-# prometheus:
+# prometheus_scrape:
 
   ## @param enabled - boolean - optional - default: false
   ## Enables the prometheus config provider
