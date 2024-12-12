@@ -28,7 +28,9 @@ import (
 )
 
 const (
-	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
+	spanPointerLinkKind    = "span-pointer"
+	spanPointerUpDirection = "u"
 )
 
 var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.\d+)*|\d+(\.x))$`)
@@ -159,6 +161,29 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		if endDetails.IsTimeout {
 			executionSpan.Meta["error.type"] = "Impending Timeout"
 			executionSpan.Meta["error.msg"] = "Datadog detected an Impending Timeout"
+		}
+	}
+
+	if len(lp.requestHandler.spanPointers) > 0 {
+		var spanLinks []map[string]interface{}
+		for _, sp := range lp.requestHandler.spanPointers {
+			spanLink := map[string]interface{}{
+				"attributes": map[string]string{
+					"link.kind": spanPointerLinkKind,
+					"ptr.dir":   spanPointerUpDirection,
+					"ptr.hash":  sp.Hash,
+					"ptr.kind":  sp.Kind,
+				},
+				"span_id":  "0",
+				"trace_id": "0",
+			}
+			spanLinks = append(spanLinks, spanLink)
+		}
+		spanLinksJSON, err := json.Marshal(spanLinks)
+		if err != nil {
+			log.Debugf("Failed to marshal span links: %v\n", err)
+		} else {
+			executionSpan.Meta["_dd.span_links"] = string(spanLinksJSON)
 		}
 	}
 

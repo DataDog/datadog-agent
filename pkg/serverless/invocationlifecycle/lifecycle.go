@@ -42,7 +42,7 @@ type LifecycleProcessor struct {
 }
 
 // RequestHandler is the struct that stores information about the trace,
-// inferred span, and tags about the current invocation
+// inferred span, tags about the current invocation, and span pointers
 // inferred spans may contain a secondary inferred span in certain cases like SNS from SQS
 type RequestHandler struct {
 	executionInfo  *ExecutionStartInfo
@@ -50,6 +50,14 @@ type RequestHandler struct {
 	inferredSpans  [2]*inferredspan.InferredSpan
 	triggerTags    map[string]string
 	triggerMetrics map[string]float64
+	spanPointers   []SpanPointer
+}
+
+// SpanPointer is a struct that stores a hash and span kind to uniquely
+// identify a S3 or DynamoDB operation.
+type SpanPointer struct {
+	Hash string
+	Kind string
 }
 
 // SetMetaTag sets a meta span tag. A meta tag is a tag whose value type is string.
