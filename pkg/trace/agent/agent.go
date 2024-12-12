@@ -324,8 +324,6 @@ func (a *Agent) Process(p *api.Payload) {
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
 
-	a.discardSpans(p)
-
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
 		if len(chunk.Spans) == 0 {
@@ -382,6 +380,8 @@ func (a *Agent) Process(p *api.Payload) {
 			}
 		}
 		a.Replacer.Replace(chunk.Spans)
+
+		a.discardSpans(p)
 
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
