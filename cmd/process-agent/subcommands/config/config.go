@@ -181,6 +181,11 @@ func getConfigValue(deps dependencies, args []string) error {
 }
 
 func getClient(cfg model.Reader) (settings.Client, error) {
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
