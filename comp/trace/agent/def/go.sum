@@ -1,5 +1,5 @@
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0 h1:hgbTFS6SkqbzOiWSfP58dZ/Jpjlmv6dpD4+V4LDHm2Q=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0 h1:yfk2cF8Bx98fSFpGrehEHh1FRqewfxcCTAbUDt5r3F8=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0/go.mod h1:9qzpnBSxSOnKzbF/uHket3SSlQihQHix/ZRC2nZUUYQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
