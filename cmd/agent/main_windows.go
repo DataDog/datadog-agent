@@ -11,7 +11,6 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
@@ -20,7 +19,6 @@ import (
 )
 
 func main() {
-	common.EnableLoggingToFile()
 	// if command line arguments are supplied, even in a non interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.

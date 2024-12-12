@@ -29,18 +29,6 @@ func init() {
 	}
 }
 
-// EnableLoggingToFile -- set up logging to file
-func EnableLoggingToFile() {
-	seeConfig := `
-<seelog>
-	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
-	</outputs>
-</seelog>`
-	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
-	log.ReplaceLogger(logger)
-}
-
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
 // datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
 func CheckAndUpgradeConfig() error {
