@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import tempfile
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -161,7 +162,7 @@ def check_base_branch(branch, release_version):
     return branch == get_default_branch() or branch == release_version.branch()
 
 
-def try_git_command(ctx, git_command):
+def try_git_command(ctx, git_command, github_action=False):
     """
     Try a git command that should be retried (after user confirmation) if it fails.
     Primarily useful for commands which can fail if commit signing fails: we don't want the
@@ -179,7 +180,11 @@ def try_git_command(ctx, git_command):
                     "orange",
                 )
             )
-            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            do_retry = (
+                False
+                if github_action
+                else yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            )
             continue
 
         return True
@@ -270,3 +275,20 @@ def get_last_release_tag(ctx, repo, pattern):
             last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
+
+
+def get_git_config(key):
+    result = subprocess.run(['git', 'config', '--get', key], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def set_git_config(key, value):
+    subprocess.run(['git', 'config', key, value])
+
+
+def revert_git_config(original_config):
+    for key, value in original_config.items():
+        if value is None:
+            subprocess.run(['git', 'config', '--unset', key])
+        else:
+            subprocess.run(['git', 'config', key, value])

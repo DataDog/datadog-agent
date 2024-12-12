@@ -34,6 +34,7 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
+    set_git_config,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
@@ -427,11 +428,16 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
-
     major_version = get_version_major(release_branch)
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
+        github_action = os.environ.get("GITHUB_ACTIONS")
+
+        if github_action:
+            set_git_config('user.name', 'github-actions[bot]')
+            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
@@ -463,7 +469,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
-        if not yes_no_question(
+        if not github_action and not yes_no_question(
             f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
             color="bold",
             default=False,
@@ -492,7 +498,9 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
         ok = try_git_command(
-            ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+            ctx,
+            f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
+            github_action=github_action
         )
         if not ok:
             raise Exit(

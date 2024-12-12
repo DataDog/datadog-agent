@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.git import check_uncommitted_changes, get_git_config, revert_git_config, set_git_config
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -500,23 +500,6 @@ def update(ctx):
     updater = CollectorVersionUpdater()
     updater.update()
     print("Update complete.")
-
-
-def get_git_config(key):
-    result = subprocess.run(['git', 'config', '--get', key], capture_output=True, text=True)
-    return result.stdout.strip() if result.returncode == 0 else None
-
-
-def set_git_config(key, value):
-    subprocess.run(['git', 'config', key, value])
-
-
-def revert_git_config(original_config):
-    for key, value in original_config.items():
-        if value is None:
-            subprocess.run(['git', 'config', '--unset', key])
-        else:
-            subprocess.run(['git', 'config', key, value])
 
 
 @task()
