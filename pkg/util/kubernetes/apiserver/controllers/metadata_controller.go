@@ -284,9 +284,8 @@ func (m *metadataController) enqueue(obj interface{}) {
 func (m *metadataController) sync(key string) error {
 	if m.useEndpointSlices {
 		return m.syncEndpointSlices(key)
-	} else {
-		return m.syncEndpoints(key)
 	}
+	return m.syncEndpoints(key)
 }
 
 func (m *metadataController) syncEndpoints(key string) error {
