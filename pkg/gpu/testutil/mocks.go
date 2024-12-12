@@ -23,6 +23,7 @@ var GPUUUIDs = []string{
 	"GPU-00000000-1234-1234-1234-123456789014",
 }
 
+// GPUCores is a list of number of cores for the devices returned by the mock, should be the same length as GPUUUIDs
 var GPUCores = []int{DefaultGpuCores, 20, 30}
 
 // DefaultGpuUUID is the UUID for the default device returned by the mock
