@@ -9,33 +9,31 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  AGENT6_RELEASE_BRANCH: '6.53.x'
+  AGENT6_MATRIX: ${{ ['6.53.x'] }}
   IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
 permissions: {}
 
 jobs:
     find_release_branches:
+        if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
         runs-on: ubuntu-latest
         outputs:
           branches: ${{ steps.branches.outputs.value }}
           warning: ${{ steps.warning.outputs.value }}
         steps:
             - name: Checkout repository
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 sparse-checkout: 'tasks'
                 persist-credentials: false
 
             - name: Install python
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
               with:
                 python-version: 3.11
                 cache: "pip"
 
             - name: Install Python dependencies
-              if: ${{ env.IS_AGENT6_RELEASE == 'false' }}
               run: |
                 python -m pip install --upgrade pip
                 pip install -r requirements.txt
@@ -45,11 +43,7 @@ jobs:
             - name: Determine the release active branches
               id: branches
               run: |
-                if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  echo "value=[\"$AGENT6_RELEASE_BRANCH\"]" >> $GITHUB_OUTPUT
-                else
-                  echo "value=$(inv release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
-                fi
+                echo "value=$(inv release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
 
             - name: Set the warning option
               id: warning
@@ -65,7 +59,7 @@ jobs:
         pull-requests: write
       strategy:
         matrix:
-          value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
+          value: ${{ env.IS_AGENT6_RELEASE == 'true' && fromJSON(env.AGENT6_MATRIX) || fromJSON(needs.find_release_branches.outputs.branches) }}
         fail-fast: false
       steps:
             - name: Checkout the main branch
@@ -96,9 +90,9 @@ jobs:
                 WARNING: ${{ needs.find_release_branches.outputs.warning }}
               run: |
                 if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
-                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING" | tail -n 1)" >> $GITHUB_OUTPUT
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
                 else
-                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" | tail -n 1)" >> $GITHUB_OUTPUT
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
                 fi
 
             - name: Create RC PR
@@ -107,7 +101,7 @@ jobs:
                 MATRIX: ${{ matrix.value }}
               run: |
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --github-action --patch-version
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --patch-version
                 else
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --github-action
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi

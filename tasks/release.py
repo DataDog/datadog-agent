@@ -392,7 +392,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None, github_action=False):
+def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None):
     """Updates the release entries in release.json to prepare the next RC build.
 
     If the previous version of the Agent (determined as the latest tag on the
@@ -432,6 +432,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
+        github_action = os.environ.get("GITHUB_ACTIONS")
 
         if github_action:
             set_git_config('user.name', 'github-actions[bot]')
@@ -499,7 +500,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ok = try_git_command(
             ctx,
             f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
-            github_action,
+            github_action=github_action
         )
         if not ok:
             raise Exit(
