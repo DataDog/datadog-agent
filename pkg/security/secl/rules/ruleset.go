@@ -37,7 +37,7 @@ type Rule struct {
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *Rule, event eval.Event) bool
+	RuleMatch(ctx *eval.Context, rule *Rule, event eval.Event) bool
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -58,7 +58,7 @@ type RuleSet struct {
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
-	fields []string
+	fields []eval.Field
 	logger log.Logger
 	pool   *eval.ContextPool
 
@@ -424,7 +424,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if action.Def.Set != nil {
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
-					evaluator, err := rs.model.GetEvaluator(field, "")
+					evaluator, err := rs.model.GetEvaluator(field, "", 0)
 					if err != nil {
 						return "", err
 					}
@@ -464,12 +464,12 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
-func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
+func (rs *RuleSet) NotifyRuleMatch(ctx *eval.Context, rule *Rule, event eval.Event) {
 	rs.listenersLock.RLock()
 	defer rs.listenersLock.RUnlock()
 
 	for _, listener := range rs.listeners {
-		if !listener.RuleMatch(rule, event) {
+		if !listener.RuleMatch(ctx, rule, event) {
 			break
 		}
 	}
@@ -710,7 +710,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
 				}
 
-				rs.NotifyRuleMatch(rule, event)
+				rs.NotifyRuleMatch(ctx, rule, event)
 				result = true
 			}
 		})

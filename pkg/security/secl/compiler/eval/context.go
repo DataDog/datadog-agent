@@ -7,7 +7,11 @@
 package eval
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,6 +20,26 @@ import (
 type RegisterCacheEntry struct {
 	Pos   int
 	Value interface{}
+}
+
+// MatchingSubExpr defines a boolean expression that matched
+type MatchingSubExpr struct {
+	Offset int
+	ValueA MatchingValue
+	ValueB MatchingValue
+}
+
+// MatchingValue defines a matched value
+type MatchingValue struct {
+	Offset int
+	Field  Field
+	Value  interface{}
+}
+
+// MatchingValuePos defines a position and a length in the rule expression
+type MatchingValuePos struct {
+	Offset int
+	Length int
 }
 
 // Context describes the context used during a rule evaluation
@@ -39,6 +63,7 @@ type Context struct {
 	// internal
 	now            time.Time
 	resolvedFields []string
+	matchingSubExprs []MatchingSubExpr
 }
 
 // Now return and cache the `now` timestamp
@@ -67,11 +92,164 @@ func (c *Context) Reset() {
 	clear(c.RegisterCache)
 	clear(c.IteratorCountCache)
 	c.resolvedFields = nil
+	clear(c.matchingSubExprs)
 }
 
 // GetResolvedFields returns the resolved fields, always empty outside of functional tests
-func (c *Context) GetResolvedFields() []string {
+func (c *Context) GetResolvedFields() []Field {
 	return c.resolvedFields
+}
+
+// AddMatchingSubExpr add a expression that matched a rule
+func (c *Context) AddMatchingSubExpr(valueA, valueB MatchingValue) {
+	if valueA.Field == "" && valueB.Field == "" {
+		return
+	}
+
+	subExprOffset := valueA.Offset
+	if valueB.Offset > 0 && valueB.Offset < subExprOffset {
+		subExprOffset = valueB.Offset
+	}
+
+	c.matchingSubExprs = append(c.matchingSubExprs, MatchingSubExpr{
+		Offset: subExprOffset,
+		ValueA: valueA,
+		ValueB: valueB,
+	})
+}
+
+// MatchingSubExprs list of sub expression
+type MatchingSubExprs []MatchingSubExpr
+
+// GetMatchingSubExpr add an expression that matched a rule
+func (c *Context) GetMatchingSubExprs() MatchingSubExprs {
+	return c.matchingSubExprs
+}
+
+func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingValuePos {
+	var pos MatchingValuePos
+
+	// take the more accurate offset to start with
+	if m.Offset > offset {
+		offset = m.Offset
+	}
+
+	if offset >= len(expr) {
+		return pos
+	}
+
+	if m.Field != "" {
+		if idx := strings.Index(expr[offset:], m.Field); idx >= 0 {
+			pos.Offset = idx + offset
+			pos.Length = len(m.Field)
+		}
+	} else {
+		var str string
+
+		switch value := m.Value.(type) {
+		case string:
+			str = value
+		case int:
+			str = strconv.Itoa(value)
+		case bool:
+			str = "false"
+			if value {
+				str = "true"
+			}
+		case net.IPNet, *net.IPNet:
+			var ip, cidr string
+			if v, ok := value.(net.IPNet); ok {
+				ip, cidr = v.IP.String(), v.String()
+			} else if v, ok := value.(*net.IPNet); ok {
+				ip, cidr = v.IP.String(), v.String()
+			}
+
+			if idx := strings.Index(expr[offset:], ip); idx >= 0 {
+				pos.Offset = idx + offset
+				if strings.Index(expr[offset+idx:], "/") > 0 {
+					pos.Length = len(cidr)
+				} else {
+					pos.Length = len(ip)
+				}
+			}
+			return pos
+		case []*net.IPNet:
+			var startOffset, length int
+			for _, n := range value {
+				ip, cidr := n.IP.String(), n.String()
+
+				if idx := strings.Index(expr[offset:], ip); idx >= 0 {
+					if startOffset == 0 {
+						startOffset = idx + offset
+					}
+					if strings.Index(expr[offset+idx:], "/") > 0 {
+						length = len(cidr)
+					} else {
+						length = len(ip)
+					}
+					offset += idx + length
+				}
+			}
+			return MatchingValuePos{
+				Offset: startOffset,
+				Length: offset - startOffset,
+			}
+		case fmt.Stringer:
+			str = value.String()
+		default:
+			return pos
+		}
+		if idx := strings.Index(expr[offset:], str); idx >= 0 {
+			pos.Offset = idx + offset
+			pos.Length = len(str)
+		}
+	}
+
+	return pos
+}
+
+// GetPosWithinRule returns the rule position of the matched sub expression within the rule
+func (m *MatchingSubExpr) GetPosWithinRuleExpr(expr string) (MatchingValuePos, MatchingValuePos) {
+	return m.ValueA.getPosWithinRuleExpr(expr, m.Offset), m.ValueB.getPosWithinRuleExpr(expr, m.Offset)
+}
+
+// DecorateRuleExpr decorate the rule
+func (m *MatchingSubExpr) DecorateRuleExpr(expr string, before, after string) (string, error) {
+	a, b := m.ValueA.getPosWithinRuleExpr(expr, m.Offset), m.ValueB.getPosWithinRuleExpr(expr, m.Offset)
+
+	if a.Offset+a.Length > len(expr) || b.Offset+b.Length > len(expr) {
+		return expr, errors.New("expression overflow")
+	}
+
+	if b.Offset < a.Offset {
+		tmp := b
+		b = a
+		a = tmp
+	}
+
+	if a.Length == 0 {
+		return expr[:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after + expr[b.Offset+b.Length:], nil
+	}
+
+	if b.Length == 0 {
+		return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after + expr[a.Offset+a.Length:], nil
+	}
+
+	return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after +
+		expr[a.Offset+a.Length:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after +
+		expr[b.Offset+b.Length:], nil
+}
+
+// DecorateRuleExpr decorate the rule
+func (m *MatchingSubExprs) DecorateRuleExpr(expr string, before, after string) (string, error) {
+	var err error
+	for _, mse := range *m {
+		expr, err = mse.DecorateRuleExpr(expr, before, after)
+		if err != nil {
+			return expr, err
+		}
+	}
+	return expr, nil
 }
 
 // NewContext return a new Context
