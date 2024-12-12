@@ -158,8 +158,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RPxTQdhDDwxblTNWhJUKeyTPsuyaOnxQ=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
-github.com/DataDog/nikos v1.12.7 h1:L04tM4ZUD9uqMgLwypQvYq9kq55WV7I09gfooH0G+gY=
-github.com/DataDog/nikos v1.12.7/go.mod h1:wqQP+l+pb23yzUhWh+ejcxqlFHLh/pNAEAEU/YKHURU=
+github.com/DataDog/nikos v1.12.8 h1:naQa3ve9Rv0lFIWC2H41zpqnhbBFLlYUIXu9jK7l84o=
+github.com/DataDog/nikos v1.12.8/go.mod h1:BGSRgJ6w1ji26//oGecmYiOFMWFmMARIOu0Fr7CKvB8=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.21.0 h1:U+p1i7+upWb4qOIOOvjS/92iMUGlSzEC1tRxVo0Lg8Y=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.21.0/go.mod h1:dOjp1lg4jwYyIbpnqW+DoOV8qD+70C+lgpINFvUqasQ=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.21.0 h1:VS4NTqwczwezMVvI6A7xYR3ugPmMUJ4FcdFrsdnZI2I=
