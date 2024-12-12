@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package gpu contains e2e tests for the GPU monitoring module
 package gpu
 
 import (
