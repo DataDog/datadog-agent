@@ -96,9 +96,9 @@ jobs:
                 WARNING: ${{ needs.find_release_branches.outputs.warning }}
               run: |
                 if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
-                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING" | tail -n 1)" >> $GITHUB_OUTPUT
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
                 else
-                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" | tail -n 1)" >> $GITHUB_OUTPUT
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
                 fi
 
             - name: Create RC PR
@@ -107,7 +107,7 @@ jobs:
                 MATRIX: ${{ matrix.value }}
               run: |
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --github-action --patch-version
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --patch-version
                 else
-                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }} --github-action
+                  inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi
