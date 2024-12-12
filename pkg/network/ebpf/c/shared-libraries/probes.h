@@ -23,10 +23,9 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-            if (path.len) {
-                path.buf[i] = 0;
-            } else if (path.buf[i] == 0) {
+            if (path.buf[i] == 0) {
                 path.len = i;
+                break;
             }
         }
     } else {

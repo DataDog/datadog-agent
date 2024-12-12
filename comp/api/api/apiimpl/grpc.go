@@ -10,30 +10,30 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
-	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type grpcServer struct {
@@ -51,6 +51,7 @@ type serverSecure struct {
 	capture             dsdReplay.Component
 	pidMap              pidmap.Component
 	remoteAgentRegistry remoteagentregistry.Component
+	autodiscovery       autodiscovery.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -200,6 +201,10 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 	return &pb.RegisterRemoteAgentResponse{
 		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
 	}, nil
+}
+
+func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
+	return autodiscoverystream.Config(s.autodiscovery, out)
 }
 
 func init() {
