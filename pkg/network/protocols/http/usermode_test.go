@@ -11,7 +11,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math"
-	"runtime"
+	"os"
+	"runtime/pprof"
 	"testing"
 	"time"
 	"unsafe"
@@ -98,10 +99,13 @@ func createHTTPEvents() []EbpfEvent {
 	httpReq1 := "GET /etc/os-release HTTP/1.1\nHost: localhost:8001\nUser-Agent: curl/7.81.0\nAccept: */*"
 	httpReq2 := "POST /submit HTTP/1.1\nHost: localhost:8002\nUser-Agent: curl/7.81.0\nContent-Type: application/json\n\n{\"key\":\"value\"}"
 
+	// To perform the benchmark with incomplete data, we can remove the request_started field from the EbpfTx struct.
 	return []EbpfEvent{
 		{
 			Tuple: ConnTuple{},
 			Http: EbpfTx{
+				Request_started:      1,
+				Response_last_seen:   2,
 				Request_method:       1,
 				Response_status_code: 200,
 				Request_fragment:     requestFragment([]byte(httpReq1)),
@@ -110,6 +114,8 @@ func createHTTPEvents() []EbpfEvent {
 		{
 			Tuple: ConnTuple{},
 			Http: EbpfTx{
+				Request_started:      1,
+				Response_last_seen:   2,
 				Request_method:       2,
 				Response_status_code: 200,
 				Request_fragment:     requestFragment([]byte(httpReq2)),
@@ -122,6 +128,7 @@ func createHTTPEvents() []EbpfEvent {
 func BenchmarkFlow(b *testing.B) {
 	// Serialized data can't exceed 4096 bytes that why we can insert 14 events in a batch.
 	const numOfEventsInBatch = 14
+	// The capacity of the data chanel is 100 batches, so we can process 1400 events in total.
 	const TotalEventsCount = 1400
 	c := config.New()
 
@@ -157,18 +164,25 @@ func BenchmarkFlow(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	runtime.GC()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		consumer.Start()
+
+		f, err := os.Create("/tmp/consumer_mem.prof")
+		if err != nil {
+			b.Logf("failed to create memory profile: %v", err)
+		} else {
+			pprof.Lookup("goroutine").WriteTo(f, 0)
+			f.Close()
+		}
+
 		require.Eventually(b, func() bool {
 			// Ensure all events were processed by hits 2XX counter for each iteration
 			return TotalEventsCount == int(httpTelemetry.hits2XX.counterPlain.Get())
 		}, 5*time.Second, 1000*time.Millisecond)
 	}
 	b.Cleanup(func() {
-		b.Logf("usm events summary:  %s", consumer.GetMetricGroup().Summary())
 		program.Stop(manager.CleanAll)
 	})
 }
