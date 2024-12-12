@@ -26,7 +26,7 @@ func TestEmptyConfig(t *testing.T) {
 	datadogConfigPath := filepath.Join(tempDir, datadogConfFile)
 	info, err := os.Stat(datadogConfigPath)
 	assert.NoError(t, err)
-	assert.Equal(t, os.FileMode(0640), info.Mode().Perm())
+	assert.Equal(t, os.FileMode(0640), info.Mode())
 	datadogYAML, err := os.ReadFile(datadogConfigPath)
 	assert.NoError(t, err)
 	var datadog map[string]interface{}
