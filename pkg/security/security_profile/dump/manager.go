@@ -149,13 +149,13 @@ func (adm *ActivityDumpManager) cleanup() {
 
 	// cleanup cgroup_wait_list map
 	iterator := adm.cgroupWaitList.Iterate()
-	containerIDB := make([]byte, model.ContainerIDLen)
+	cgroupFile := make([]byte, model.PathKeySize)
 	var timestamp uint64
 
-	for iterator.Next(&containerIDB, &timestamp) {
+	for iterator.Next(&cgroupFile, &timestamp) {
 		if time.Now().After(adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
-			if err := adm.cgroupWaitList.Delete(&containerIDB); err != nil {
-				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%s): %v", string(containerIDB), err)
+			if err := adm.cgroupWaitList.Delete(&cgroupFile); err != nil {
+				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%v): %v", cgroupFile, err)
 			}
 		}
 	}
