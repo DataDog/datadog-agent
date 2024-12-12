@@ -196,8 +196,11 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
 
+    log_debug("http_process initial: type=%d method=%d", packet_type, method);
+
     http = http_fetch_state(tuple, http, packet_type);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
+        log_debug("http_process: reject");
         return;
     }
 
@@ -263,6 +266,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     normalize_tuple(&event.tuple);
 
     read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
+    log_debug("socket filter fragment: [%s]", event.http.request_fragment);
     http_process(&event, &skb_info, NO_TAGS);
     return 0;
 }
@@ -280,6 +284,28 @@ int uprobe__http_process(struct pt_regs *ctx) {
     bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
     read_into_user_buffer_http(event.http.request_fragment, args->buffer_ptr);
     http_process(&event, NULL, args->tags);
+    http_batch_flush(ctx);
+
+    return 0;
+}
+
+SEC("kprobe/http_process")
+int kprobe__http_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    log_debug("kprobe__http_process");
+
+    kprobe_dispatcher_arguments_t *args = bpf_map_lookup_elem(&kprobe_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_event_t event;
+    bpf_memset(&event, 0, sizeof(http_event_t));
+    bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
+    read_into_user_buffer_http(event.http.request_fragment, args->buffer_ptr);
+    log_debug("kprobe fragment: [%s]", event.http.request_fragment);
+    http_process(&event, NULL, 0);
     http_batch_flush(ctx);
 
     return 0;
