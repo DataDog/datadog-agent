@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -229,6 +230,7 @@ func TestSerialization(t *testing.T) {
 						},
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
 				},
 				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
@@ -241,6 +243,7 @@ func TestSerialization(t *testing.T) {
 					Direction:     network.LOCAL,
 					StaticTags:    tagOpenSSL | tagTLS,
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
+					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
 					DNSStats: map[dns.Hostname]map[dns.QueryType]dns.Stats{
 						dns.ToHostname("foo.com"): {
 							dns.TypeA: {
