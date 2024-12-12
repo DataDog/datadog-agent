@@ -1,3 +1,33 @@
+<#
+.SYNOPSIS
+Generates a Chocolatey package for the Datadog Agent.
+
+.PARAMETER installMethod
+Specifies the installation method. Valid values are "offline" and "online". This parameter is mandatory.
+
+.PARAMETER msiDirectory
+Specifies the directory containing the MSI file that will be used to calculate the checksum. This parameter is mandatory when the installMethod is "online".
+
+.PARAMETER Flavor
+Specifies the flavor of the Datadog Agent. The default value is "datadog-agent".
+
+.PARAMETER VersionOverride
+Overrides the Agent version when building packages locally for testing.
+
+.PARAMETER InstallDeps
+Indicates whether to install dependencies. The default value is $true.
+
+.EXAMPLE
+.\Generate-Chocolatey-Package.ps1 -installMethod online -Flavor datadog-agent -VersionOverride "7.62.0" -msiDirectory C:\mnt\omnibus\pkg\ 
+
+Generates a chocolatey package for 7.62.0, requires the MSI file to be present in MSIDirectory.
+
+.EXAMPLE
+$env:CI_PIPELINE_ID="50910739"; .\Generate-Chocolatey-Package.ps1 -installMethod online -Flavor datadog-agent -VersionOverride "7.62.0-devel.git.276.e59b1b3.pipeline.50910739" -msiDirectory C:\mnt\omnibus\pkg
+
+Generates a chocolatey package for PR/devel build 7.62.0-devel.git.276.e59b1b3.pipeline.50910739, requires the MSI file to be present in MSIDirectory.
+The generated chocolatey package requires the MSI be uploaded to the dd-agent-mstesting bucket.
+#>
 Param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("offline", "online")]
