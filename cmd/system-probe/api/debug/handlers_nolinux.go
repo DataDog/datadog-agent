@@ -15,6 +15,6 @@ import (
 
 // HandleSelinuxSestatus is not supported
 func HandleSelinuxSestatus(w http.ResponseWriter, _ *http.Request) {
-	io.WriteString(w, "HandleSelinuxSestatus is not supported on this platform")
 	w.WriteHeader(500)
+	io.WriteString(w, "HandleSelinuxSestatus is not supported on this platform")
 }
