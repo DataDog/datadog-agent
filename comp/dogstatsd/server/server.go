@@ -236,7 +236,7 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 
 	// if the server is running in a context where static tags are required, add those
 	// to extraTags.
-	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
+	if staticTags := util.GetStaticTagsSlice(context.TODO(), cfg); staticTags != nil {
 		extraTags = append(extraTags, staticTags...)
 	}
 	util.SortUniqInPlace(extraTags)
