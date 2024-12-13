@@ -84,20 +84,17 @@ GITLAB_FILES_TO_UPDATE = [
 BACKPORT_LABEL_COLOR = "5319e7"
 
 
-def deduce_and_ask_version(ctx, branch, as_str=True, trust=False) -> str | Version:
+def deduce_version(ctx, branch, as_str=True, trust=False) -> str | Version:
     release_version = get_next_version_from_branch(ctx, branch, as_str=as_str)
 
     if trust:
         return release_version
 
-    if not os.isatty(sys.stdin.fileno()) or yes_no_question(
-        f'Version {release_version} deduced from branch {branch}. Is this the version you want to use?',
-        color="orange",
-        default=False,
-    ):
-        return release_version
+    print(
+        f'{color_message("Info", Color.BLUE)}: Version {release_version} deduced from branch {branch}', file=sys.stderr
+    )
 
-    raise Exit(color_message("Aborting.", "red"), code=1)
+    return release_version
 
 
 def get_version_major(branch: str) -> int:
@@ -170,7 +167,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
@@ -235,7 +232,7 @@ def tag_modules(
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     tags = []
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
@@ -274,7 +271,7 @@ def tag_version(
 
     assert release_branch or version
 
-    agent_version = version or deduce_and_ask_version(ctx, release_branch, trust=trust)
+    agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
     # Always tag the main module
     force_option = __get_force_option(force)
@@ -315,10 +312,6 @@ def finish(ctx, release_branch, upstream="origin"):
         # To support this, we'd have to support a --patch-version param in
         # release.finish
         new_version = next_final_version(ctx, major_version, False)
-        if not yes_no_question(
-            f'Do you want to finish the release with version {new_version}?', color="bold", default=False
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
 
         # Step 2: Update internal module dependencies
@@ -463,12 +456,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
-        if not yes_no_question(
-            f'Do you want to create release candidate with:\n- new version: {new_version}\n- new highest version: {new_highest_version}\n- new final version: {new_final_version}?',
-            color="bold",
-            default=False,
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
 
         update_release_json(new_version, new_final_version)
 
@@ -1257,7 +1244,7 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_and_ask_version(ctx, release_branch)
+    version = deduce_version(ctx, release_branch)
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
