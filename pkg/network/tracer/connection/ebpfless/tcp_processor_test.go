@@ -173,12 +173,13 @@ func newTCPTestFixture(t *testing.T) *tcpTestFixture {
 	}
 }
 
-func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
+func (fixture *tcpTestFixture) runPkt(pkt testCapture) ProcessResult {
 	if fixture.conn == nil {
 		fixture.conn = makeTCPStates(pkt)
 	}
-	err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
+	result, err := fixture.tcp.Process(fixture.conn, pkt.timestampNs, pkt.pktType, pkt.ipv4, pkt.ipv6, pkt.tcp)
 	require.NoError(fixture.t, err)
+	return result
 }
 
 func (fixture *tcpTestFixture) runPkts(packets []testCapture) {
@@ -197,7 +198,7 @@ func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected [
 
 		fixture.runPkt(pkt)
 		connTuple := fixture.conn.ConnectionTuple
-		actual := fixture.tcp.conns[connTuple].tcpState
+		actual := fixture.tcp.getConn(connTuple).tcpState
 		actualStrs = append(actualStrs, labelForState(actual))
 	}
 	require.Equal(fixture.t, expectedStrs, actualStrs)
@@ -614,9 +615,8 @@ func TestConnReset(t *testing.T) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
-func TestConnectTwice(t *testing.T) {
-	// same as TestImmediateFin but everything happens twice
-
+func TestProcessResult(t *testing.T) {
+	// same as TestImmediateFin but checks ProcessResult
 	pb := newPacketBuilder(lowerSeq, higherSeq)
 	basicHandshake := []testCapture{
 		pb.incoming(0, 0, 0, SYN),
@@ -628,40 +628,20 @@ func TestConnectTwice(t *testing.T) {
 		pb.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []connStatus{
-		connStatAttempted,
-		connStatAttempted,
-		connStatEstablished,
-		// active close begins here
-		connStatEstablished,
-		connStatEstablished,
-		connStatClosed,
+	processResults := []ProcessResult{
+		ProcessResultNone,
+		ProcessResultNone,
+		ProcessResultStoreConn,
+		ProcessResultStoreConn,
+		ProcessResultStoreConn,
+		ProcessResultCloseConn,
 	}
 
 	f := newTCPTestFixture(t)
-	f.runAgainstState(basicHandshake, expectedClientStates)
 
-	state := f.tcp.conns[f.conn.ConnectionTuple]
-	// make sure the TCP state was erased after the connection was closed
-	require.Equal(t, connectionState{
-		tcpState: connStatClosed,
-	}, state)
-
-	// second connection here
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	require.Empty(t, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    3 * 2,
-		RecvPackets:    3 * 2,
-		Retransmits:    0,
-		TCPEstablished: 1 * 2,
-		TCPClosed:      1 * 2,
+	for i, pkt := range basicHandshake {
+		require.Equal(t, processResults[i], f.runPkt(pkt), "packet #%d has the wrong ProcessResult", i)
 	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
 func TestSimultaneousClose(t *testing.T) {

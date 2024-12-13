@@ -61,13 +61,17 @@ func (st *connectionState) hasMissedHandshake() bool {
 
 // TCPProcessor encapsulates TCP state tracking for the ebpfless tracer
 type TCPProcessor struct {
-	conns map[network.ConnectionTuple]connectionState
+	// pendingConns contains connections with tcpState == connStatAttempted
+	pendingConns map[network.ConnectionTuple]*connectionState
+	// establishedConns contains connections with tcpState == connStatEstablished
+	establishedConns map[network.ConnectionTuple]*connectionState
 }
 
 // NewTCPProcessor constructs an empty TCPProcessor
 func NewTCPProcessor() *TCPProcessor {
 	return &TCPProcessor{
-		conns: map[network.ConnectionTuple]connectionState{},
+		pendingConns:     map[network.ConnectionTuple]*connectionState{},
+		establishedConns: map[network.ConnectionTuple]*connectionState{},
 	}
 }
 
@@ -241,13 +245,13 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
-func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
+func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (ProcessResult, error) {
 	if pktType != unix.PACKET_OUTGOING && pktType != unix.PACKET_HOST {
-		return fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
+		return ProcessResultNone, fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
 	payloadLen, err := TCPPayloadLen(conn.Family, ip4, ip6, tcp)
 	if err != nil {
-		return err
+		return ProcessResultNone, err
 	}
 
 	log.TraceFunc(func() string {
@@ -256,31 +260,61 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 
 	// skip invalid packets we don't recognize:
 	if checkInvalidTCP(tcp) {
-		return nil
+		return ProcessResultNone, nil
 	}
 
-	st := t.conns[conn.ConnectionTuple]
+	st := t.getConn(conn.ConnectionTuple)
+	origState := st.tcpState
 
-	t.updateSynFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateTCPStats(conn, &st, pktType, tcp, payloadLen, timestampNs)
-	t.updateFinFlag(conn, &st, pktType, tcp, payloadLen)
-	t.updateRstFlag(conn, &st, pktType, tcp, payloadLen)
+	t.updateSynFlag(conn, st, pktType, tcp, payloadLen)
+	t.updateTCPStats(conn, st, pktType, tcp, payloadLen, timestampNs)
+	t.updateFinFlag(conn, st, pktType, tcp, payloadLen)
+	t.updateRstFlag(conn, st, pktType, tcp, payloadLen)
 
-	t.conns[conn.ConnectionTuple] = st
-	return nil
+	stateChanged := st.tcpState != origState
+	if stateChanged {
+		t.moveConn(conn.ConnectionTuple, st)
+	}
+
+	// if the connection is still established, we should update the connection map
+	if st.tcpState == connStatEstablished {
+		return ProcessResultStoreConn, nil
+	}
+	// if the connection just closed, store it in the tracer's closeCallback
+	if st.tcpState == connStatClosed && stateChanged {
+		return ProcessResultCloseConn, nil
+	}
+	return ProcessResultNone, nil
 }
 
-// HasConnEverEstablished is used to avoid a connection appearing before the three-way handshake is complete.
-// This is done to mirror the behavior of ebpf tracing accept() and connect(), which both return
-// after the handshake is completed.
-func (t *TCPProcessor) HasConnEverEstablished(conn *network.ConnectionStats) bool {
-	st := t.conns[conn.ConnectionTuple]
+func (t *TCPProcessor) getConn(tuple network.ConnectionTuple) *connectionState {
+	if st, ok := t.establishedConns[tuple]; ok {
+		return st
+	}
+	if st, ok := t.pendingConns[tuple]; ok {
+		return st
+	}
+	// otherwise, create a fresh state object that will be stored by moveConn later
+	return &connectionState{}
+}
 
-	// conn.Monotonic.TCPEstablished can be 0 even though isEstablished is true,
-	// because pre-existing connections don't increment TCPEstablished.
-	// That's why we use tcpState instead of conn
-	isEstablished := st.tcpState == connStatEstablished
-	// if the connection has closed in any way, report that too
-	hasEverClosed := conn.Monotonic.TCPClosed > 0 || len(conn.TCPFailures) > 0
-	return isEstablished || hasEverClosed
+// RemoveConn clears a ConnectionTuple from its internal state.
+func (t *TCPProcessor) RemoveConn(tuple network.ConnectionTuple) {
+	delete(t.pendingConns, tuple)
+	delete(t.establishedConns, tuple)
+}
+func (t *TCPProcessor) moveConn(tuple network.ConnectionTuple, st *connectionState) {
+	t.RemoveConn(tuple)
+
+	switch st.tcpState {
+	// For this case, simply let closed connections disappear. Process() will return
+	// ProcessResultCloseConn letting the ebpfless tracer know the connection has closed.
+	case connStatClosed:
+	// TODO limit map sizes here with a config value
+	case connStatAttempted:
+		t.pendingConns[tuple] = st
+	// TODO limit map sizes here with a config value
+	case connStatEstablished:
+		t.establishedConns[tuple] = st
+	}
 }

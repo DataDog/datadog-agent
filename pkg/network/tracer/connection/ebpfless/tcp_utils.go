@@ -21,6 +21,21 @@ import (
 
 const ebpflessModuleName = "ebpfless_network_tracer"
 
+// ProcessResult represents what the ebpfless tracer should do with ConnectionStats after processing a packet
+type ProcessResult uint8
+
+const (
+	// ProcessResultNone - the updated ConnectionStats should NOT be stored in the connection map.
+	// Usually, this is because the connection is not established yet.
+	ProcessResultNone ProcessResult = iota
+	// ProcessResultStoreConn - the updated ConnectionStats should be stored in the connection map.
+	// This happens when the connection is established.
+	ProcessResultStoreConn
+	// ProcessResultCloseConn - this connection is done and its ConnectionStats should be passed
+	// to the ebpfless tracer's closed connection handler.
+	ProcessResultCloseConn
+)
+
 var statsTelemetry = struct {
 	missedTCPConnections telemetry.Counter
 	missingTCPFlags      telemetry.Counter
