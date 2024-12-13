@@ -446,7 +446,8 @@ namespace Datadog.CustomActions
             }
         }
 
-        private void AddDatadogUserToDataFolder(){
+        private void AddDatadogUserToDataFolder()
+        {
             var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
 
             FileSystemSecurity fileSystemSecurity;
@@ -466,7 +467,7 @@ namespace Datadog.CustomActions
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                 PropagationFlags.None,
                 AccessControlType.Allow));
-            
+
             // datadog write on this folder
             fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
                 _ddAgentUserSID,
@@ -633,7 +634,7 @@ namespace Datadog.CustomActions
                 Path.Combine(configRoot, "install_info"),
                 Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
                 Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
-            };;
+            }; ;
         }
 
         /// <summary>
