@@ -181,7 +181,7 @@ type taggable interface {
 
 // SetTags sets the tags to the trace agent config and span processor
 func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
-	t.ta.SetGlobalTagsUnsafe(tags)
+	//t.ta.SetGlobalTagsUnsafe(tags)
 	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
 		tagger.SetTags(tags)
 	}
