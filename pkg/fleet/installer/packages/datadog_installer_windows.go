@@ -11,8 +11,8 @@ package packages
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -21,12 +21,12 @@ const (
 
 // SetupInstaller installs and starts the installer
 func SetupInstaller(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "setup_installer")
+	span, _ := telemetry.StartSpanFromContext(ctx, "setup_installer")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s", err)
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
 	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
 	if err == nil {
@@ -39,12 +39,12 @@ func SetupInstaller(ctx context.Context) (err error) {
 
 // RemoveInstaller removes the installer
 func RemoveInstaller(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_installer")
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_installer")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to remove installer: %s", err)
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
 	err = removeProduct("Datadog Installer")
 	return err
@@ -52,12 +52,12 @@ func RemoveInstaller(ctx context.Context) (err error) {
 
 // StartInstallerExperiment starts the installer experiment
 func StartInstallerExperiment(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "start_installer_experiment")
+	span, _ := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to start installer experiment: %s", err)
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
 	cmd, err := msiexec("experiment", datadogInstaller, "/i", nil)
 	if err == nil {
@@ -69,12 +69,12 @@ func StartInstallerExperiment(ctx context.Context) (err error) {
 
 // StopInstallerExperiment stops the installer experiment
 func StopInstallerExperiment(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "stop_installer_experiment")
+	span, _ := telemetry.StartSpanFromContext(ctx, "stop_installer_experiment")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to stop installer experiment: %s", err)
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
 	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
 	if err == nil {
