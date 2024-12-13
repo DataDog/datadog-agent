@@ -312,6 +312,10 @@ def finish(ctx, release_branch, upstream="origin"):
         # To support this, we'd have to support a --patch-version param in
         # release.finish
         new_version = next_final_version(ctx, major_version, False)
+        if not yes_no_question(
+            f'Do you want to finish the release with version {new_version}?', color="bold", default=False
+        ):
+            raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
 
         # Step 2: Update internal module dependencies
