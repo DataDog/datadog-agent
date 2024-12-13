@@ -120,13 +120,6 @@ def trigger_macos(
             test_washer=test_washer,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
-    elif workflow_type == "lint":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            workflow_name="lint.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            version_cache_file_content=version_cache,
-        )
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
