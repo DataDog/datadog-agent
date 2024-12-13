@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -516,9 +515,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			if cgroupContext, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err != nil {
-				seclog.Debugf("Failed to resolve cgroup: %s", err)
-			} else {
+			if cgroupContext, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err == nil {
 				*e = *cgroupContext
 			}
 		}
