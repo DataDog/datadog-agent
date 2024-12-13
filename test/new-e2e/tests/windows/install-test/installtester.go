@@ -486,7 +486,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					),
 					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
-						windows.FileWrite,
+						windows.FileWrite|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer,
 						windows.PropagationFlagsNone,
@@ -547,7 +547,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					),
 					windows.NewInheritedAccessRuleWithFlags(
 						ddAgentUserIdentity,
-						windows.FileWrite,
+						windows.FileWrite|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer,
 						windows.PropagationFlagsNone,
