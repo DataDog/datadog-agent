@@ -200,7 +200,7 @@ func (lp *LifecycleProcessor) processTrace(spans []*pb.Span) {
 	tracerPayload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{traceChunk},
 		Tags: map[string]string{
-			functionTagsKey: strings.Join(lp.ExtraTags.Tags, ","),
+			functionTagsKey: lp.ExtraTags.FlatTags(),
 		},
 	}
 
