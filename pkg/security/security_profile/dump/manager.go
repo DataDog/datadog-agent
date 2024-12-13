@@ -540,6 +540,11 @@ func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams)
 
 // DumpActivity handles an activity dump request
 func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	if params.GetContainerID() == "" && params.GetCGroupID() == "" {
+		errMsg := fmt.Errorf("you must specify one selector between containerID and cgroupID")
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
+	}
+
 	adm.Lock()
 	defer adm.Unlock()
 
