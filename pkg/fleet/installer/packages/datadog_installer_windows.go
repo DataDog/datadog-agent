@@ -19,7 +19,10 @@ const (
 	datadogInstaller = "datadog-installer"
 )
 
-
+// PrepareInstaller prepares the installer
+func PrepareInstaller(ctx context.Context) error {
+	return nil
+}
 
 // SetupInstaller installs and starts the installer
 func SetupInstaller(ctx context.Context) (err error) {

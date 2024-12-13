@@ -114,6 +114,7 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.Equal(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
 	assert.Eventually(s.T(), func() bool {
 		versionRunning, err := s.Env().RemoteHost.Execute("datadog-installer status")
+		s.T().Logf("checking version: %s, err: %v", versionRunning, err)
 		return err == nil && strings.Contains(versionRunning, "7.58.0-installer-0.5.1")
 	}, 30*time.Second, 1*time.Second)
 
@@ -125,6 +126,7 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.NotEqual(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
 	assert.Eventually(s.T(), func() bool {
 		versionRunning, err := s.Env().RemoteHost.Execute("datadog-installer status")
+		s.T().Logf("checking version: %s, err: %v", versionRunning, err)
 		return err == nil && !strings.Contains(versionRunning, "7.58.0-installer-0.5.1")
 	}, 30*time.Second, 1*time.Second)
 }
