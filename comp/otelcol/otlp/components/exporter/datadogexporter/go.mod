@@ -115,8 +115,8 @@ require (
 	go.opentelemetry.io/collector/exporter/exportertest v0.115.0
 	go.opentelemetry.io/collector/featuregate v1.21.0
 	go.opentelemetry.io/collector/pdata v1.21.0
-	go.opentelemetry.io/otel/metric v1.32.0
-	go.opentelemetry.io/otel/trace v1.32.0
+	go.opentelemetry.io/otel/metric v1.33.0
+	go.opentelemetry.io/otel/trace v1.33.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/protobuf v1.35.2
 )
@@ -290,6 +290,7 @@ require (
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/client v1.21.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.115.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.21.0 // indirect
@@ -311,7 +312,7 @@ require (
 	go.opentelemetry.io/collector/receiver/receiverprofiles v0.115.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.115.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
-	go.opentelemetry.io/otel v1.32.0 // indirect
+	go.opentelemetry.io/otel v1.33.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.32.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.32.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

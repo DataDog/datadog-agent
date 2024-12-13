@@ -2358,6 +2358,8 @@ core,go.opencensus.io/trace,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/trace/internal,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/trace/propagation,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/trace/tracestate,Apache-2.0,"Copyright 2018, OpenCensus Authors"
+core,go.opentelemetry.io/auto/sdk,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/auto/sdk/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/client,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component/componentstatus,Apache-2.0,Copyright The OpenTelemetry Authors
