@@ -38,6 +38,7 @@ func (suite *kindSuite) SetupSuite() {
 		"ddagent:fakeintake":              auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy":           auto.ConfigValue{Value: "true"},
 		"dddogstatsd:deploy":              auto.ConfigValue{Value: "true"},
+		"ddagent:dualshipping":            auto.ConfigValue{Value: "true"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(

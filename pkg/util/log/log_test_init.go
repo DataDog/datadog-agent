@@ -9,8 +9,6 @@ package log
 
 import (
 	"os"
-
-	"github.com/cihub/seelog"
 )
 
 func init() {
@@ -18,5 +16,5 @@ func init() {
 	if level == "" {
 		level = "debug"
 	}
-	SetupLogger(seelog.Default, level)
+	SetupLogger(Default(), level)
 }
