@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
-	goremote "github.com/pulumi/pulumi-command/sdk/go/command/remote"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -134,7 +133,7 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 		}
 
 		// Install Docker (only after GPU devices are validated and the ECR credentials helper is installed)
-		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd, validateGPUDevicesCmd))
+		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 		if err != nil {
 			return err
 		}
@@ -146,7 +145,8 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 		}
 
 		// Validate that Docker can run CUDA samples
-		err = validateDockerCuda(awsEnv, host, dockerPullCmds...)
+		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
+		err = validateDockerCuda(awsEnv, host, dockerCudaDeps...)
 		if err != nil {
 			return err
 		}
@@ -176,31 +176,30 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
-func validateGPUDevices(e aws.Environment, vm *remote.Host) (*goremote.Command, error) {
-	pciValidate, err := vm.OS.Runner().Command(
-		e.CommonNamer().ResourceName("pci-validate"),
-		&command.Args{
-			Create: pulumi.Sprintf("%s && lspci -d %s:: | grep NVIDIA", validationCommandMarker, nvidiaPCIVendorID),
-			Sudo:   false,
-		},
-	)
-	if err != nil {
-		return nil, err
+func validateGPUDevices(e aws.Environment, vm *remote.Host) ([]pulumi.Resource, error) {
+	commands := map[string]string{
+		"pci":    "lspci -d 10de:: | grep NVIDIA",
+		"driver": "lsmod | grep nvidia",
+		"nvidia": "nvidia-smi -L | grep GPU",
 	}
 
-	nvidiaValidate, err := vm.OS.Runner().Command(
-		e.CommonNamer().ResourceName("nvidia-validate"),
-		&command.Args{
-			Create: pulumi.Sprintf("%s && %s", validationCommandMarker, nvidiaSMIValidationCmd),
-			Sudo:   false,
-		},
-		utils.PulumiDependsOn(pciValidate),
-	)
-	if err != nil {
-		return nil, err
+	var cmds []pulumi.Resource
+
+	for name, cmd := range commands {
+		c, err := vm.OS.Runner().Command(
+			e.CommonNamer().ResourceName("gpu-validate", name),
+			&command.Args{
+				Create: pulumi.Sprintf("%s && %s", validationCommandMarker, cmd),
+				Sudo:   false,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		cmds = append(cmds, c)
 	}
 
-	return nvidiaValidate, nil
+	return cmds, nil
 }
 
 func downloadDockerImages(e aws.Environment, vm *remote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
