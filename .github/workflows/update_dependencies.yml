@@ -8,6 +8,7 @@ on:
 
   # allow triggering the workflow manually
   workflow_dispatch:
+  push: # TODO remove
 
 permissions: {}
 
