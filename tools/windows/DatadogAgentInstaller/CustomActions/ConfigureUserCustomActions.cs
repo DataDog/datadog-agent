@@ -375,7 +375,7 @@ namespace Datadog.CustomActions
         private void GrantAgentAccessPermissions()
         {
             // add ddagentuser FullControl to select places
-            foreach (var filePath in Chain(PathsWithAgentAccess()))
+            foreach (var filePath in PathsWithAgentAccess())
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -446,7 +446,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private void AddDataDogUserToDataFolder(){
+        private void AddDatadogUserToDataFolder(){
             var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
 
             FileSystemSecurity fileSystemSecurity;
@@ -511,7 +511,7 @@ namespace Datadog.CustomActions
 
                 if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
-                    AddDataDogUserToDataFolder();
+                    AddDatadogUserToDataFolder();
                     GrantAgentAccessPermissions();
                 }
             }
@@ -618,48 +618,22 @@ namespace Datadog.CustomActions
             return new ConfigureUserCustomActions(new SessionWrapper(session), "ConfigureUser").ConfigureUserRollback();
         }
 
-        private List<IEnumerable<string>> PathsWithAgentAccess()
+        private List<string> PathsWithAgentAccess()
         {
             var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-            var fsEnum = new List<IEnumerable<string>>();
 
-            // directories to process recursively
-            var dirs = new List<string> {
+            return new List<string> {
                 Path.Combine(configRoot, "conf.d"),
                 Path.Combine(configRoot, "checks.d"),
                 Path.Combine(configRoot, "run"),
                 Path.Combine(configRoot, "logs"),
-            };
-            // Add the directories themselves
-            fsEnum.Add(dirs);
-            // add their subdirs/files (recursively)
-            foreach (var dir in dirs)
-            {
-                // add dirs only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
-                if (_fileSystemServices.Exists(dir))
-                {
-                    fsEnum.Add(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
-                }
-            }
-            // add specific files
-            fsEnum.Add(new List<string>
-                {
-                    Path.Combine(configRoot, "datadog.yaml"),
-                    Path.Combine(configRoot, "system-probe.yaml"),
-                    Path.Combine(configRoot, "auth_token"),
-                    Path.Combine(configRoot, "install_info"),
-                }
-             );
-
-            fsEnum.Add(new List<string>
-                {
-                    // allow agent to write __pycache__
-                    Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
-                    Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
-                }
-            );
-
-            return fsEnum;
+                Path.Combine(configRoot, "datadog.yaml"),
+                Path.Combine(configRoot, "system-probe.yaml"),
+                Path.Combine(configRoot, "auth_token"),
+                Path.Combine(configRoot, "install_info"),
+                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
+                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
+            };;
         }
 
         /// <summary>
@@ -738,7 +712,7 @@ namespace Datadog.CustomActions
                 if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in Chain(PathsWithAgentAccess()))
+                    foreach (var filePath in PathsWithAgentAccess())
                     {
                         try
                         {
