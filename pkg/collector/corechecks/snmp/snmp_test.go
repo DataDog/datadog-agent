@@ -2359,7 +2359,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
