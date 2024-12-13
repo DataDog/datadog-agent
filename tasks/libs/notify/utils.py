@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 from urllib.parse import quote
@@ -43,3 +44,30 @@ def get_ci_visibility_job_url(
         extra_args = ''.join([f'&{key}={value}' for key, value in extra_args.items()])
 
     return CI_VISIBILITY_JOB_URL.format(name=name, extra_flags=extra_flags, extra_args=extra_args)
+
+
+def should_notify():
+    """
+    Check if the pipeline should notify the channel: only for non-downstream pipelines, unless conductor triggered it
+    """
+    from tasks.libs.ciproviders.gitlab_api import get_pipeline
+
+    CONDUCTOR_ID = 8278
+    pipeline = get_pipeline(PROJECT_NAME, os.environ['CI_PIPELINE_ID'])
+    return (
+        os.environ['CI_PIPELINE_SOURCE'] != 'pipeline'
+        or os.environ['CI_PIPELINE_SOURCE'] == 'pipeline'
+        and pipeline.user['id'] == CONDUCTOR_ID
+    )
+
+
+def notification_type():
+    """
+    Return the type of notification to send (related to the type of pipeline, amongst 'deploy', 'trigger' and 'merge')
+    """
+    if os.environ['DEPLOY_AGENT'] == 'true':
+        return 'deploy'
+    elif os.environ['CI_PIPELINE_SOURCE'] != 'push':
+        return 'trigger'
+    else:
+        return 'merge'
