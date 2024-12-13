@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"expvar"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -157,4 +158,18 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 		}
 	}
 	d.lastRetryError = err
+}
+
+// TODO try with us-5 to make sure it fails
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
+	destinationsCtx := client.NewDestinationsContext()
+	connManager := NewConnectionManager(endpoint, nil)
+	destinationsCtx.Start()
+	defer destinationsCtx.Stop()
+
+	_, err = connManager.NewConnection(destinationsCtx.Context())
+
+	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port), err
 }

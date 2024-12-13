@@ -124,7 +124,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		go cm.handleServerClose(conn)
-		cm.status.RemoveGlobalWarning(statusConnectionError)
+		// cm.status.RemoveGlobalWarning(statusConnectionError)
 		return conn, nil
 	}
 }

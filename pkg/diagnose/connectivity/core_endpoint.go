@@ -25,12 +25,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
+func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
+	if useTCP {
+		// if NOT USING US1 OR EU1 {
+		// 	return error
+		// }
+		return logsConfig.BuildEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", false, "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
+	}
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
@@ -56,8 +63,10 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog())
 
 	// Create diagnosis for logs
-	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
-		endpoints, err := getLogsHTTPEndpoints()
+	datadogConfig := pkgconfigsetup.Datadog()
+	if datadogConfig.GetBool("logs_enabled") {
+		useTCP := datadogConfig.GetBool("logs_config.force_use_tcp") && !datadogConfig.GetBool("logs_config.force_use_http")
+		endpoints, err := getLogsEndpoints(useTCP)
 
 		if err != nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
@@ -68,7 +77,12 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				RawError:    err.Error(),
 			})
 		} else {
-			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+			var url string
+			if useTCP {
+				url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main)
+			} else {
+				url, err = logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+			}
 
 			name := fmt.Sprintf("Connectivity to %s", url)
 			diag := createDiagnosis(name, url, "", err)
