@@ -473,6 +473,9 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
 				expected, err := getBaseConfigRootSecurity()
 				require.NoError(tt, err)
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
 				expected.Access = append(expected.Access,
 					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
