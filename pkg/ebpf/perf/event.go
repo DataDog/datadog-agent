@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -50,6 +51,8 @@ type EventHandler struct {
 	readLoop func()
 	perfChan chan *perf.Record
 	ringChan chan *ringbuf.Record
+
+	chLenTelemetry *atomic.Uint64
 }
 
 type mapMode uint8
@@ -181,6 +184,9 @@ func NewEventHandler(mapName string, handler func([]byte), mode EventHandlerMode
 	mode(e)
 	for _, opt := range opts {
 		opt(e)
+	}
+	if e.opts.telemetryEnabled {
+		e.chLenTelemetry = &atomic.Uint64{}
 	}
 	return e, nil
 }
@@ -323,13 +329,15 @@ func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) 
 	mgrOpts.MapSpecEditors[mapName] = specEditor
 }
 
+func (e *EventHandler) perfLoop() {
+	for record := range e.perfChan {
+		e.perfLoopHandler(record)
+	}
+}
+
 func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
 	e.perfChan = make(chan *perf.Record, e.opts.channelSize)
-	e.readLoop = func() {
-		for record := range e.perfChan {
-			e.perfLoopHandler(record)
-		}
-	}
+	e.readLoop = e.perfLoop
 
 	// remove any existing perf buffers from manager
 	mgr.PerfMaps = slices.DeleteFunc(mgr.PerfMaps, func(perfMap *manager.PerfMap) bool {
@@ -349,11 +357,17 @@ func (e *EventHandler) initPerfBuffer(mgr *manager.Manager) {
 	}
 	mgr.PerfMaps = append(mgr.PerfMaps, pm)
 	ebpfTelemetry.ReportPerfMapTelemetry(pm)
+	ebpfTelemetry.ReportPerfMapChannelLenTelemetry(pm, func() int {
+		return int(e.chLenTelemetry.Swap(0))
+	})
 	e.f = pm
 }
 
 func (e *EventHandler) perfRecordHandler(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
 	e.perfChan <- record
+	if e.opts.telemetryEnabled {
+		updateMaxTelemetry(e.chLenTelemetry, uint64(len(e.perfChan)))
+	}
 }
 
 func (e *EventHandler) perfLoopHandler(record *perf.Record) {
@@ -364,11 +378,7 @@ func (e *EventHandler) perfLoopHandler(record *perf.Record) {
 
 func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
 	e.ringChan = make(chan *ringbuf.Record, e.opts.channelSize)
-	e.readLoop = func() {
-		for record := range e.ringChan {
-			e.ringLoopHandler(record)
-		}
-	}
+	e.readLoop = e.ringLoop
 
 	// remove any existing matching ring buffers from manager
 	mgr.RingBuffers = slices.DeleteFunc(mgr.RingBuffers, func(ringBuf *manager.RingBuffer) bool {
@@ -384,11 +394,23 @@ func (e *EventHandler) initRingBuffer(mgr *manager.Manager) {
 	}
 	mgr.RingBuffers = append(mgr.RingBuffers, rb)
 	ebpfTelemetry.ReportRingBufferTelemetry(rb)
+	ebpfTelemetry.ReportRingBufferChannelLenTelemetry(rb, func() int {
+		return int(e.chLenTelemetry.Swap(0))
+	})
 	e.f = rb
+}
+
+func (e *EventHandler) ringLoop() {
+	for record := range e.ringChan {
+		e.ringLoopHandler(record)
+	}
 }
 
 func (e *EventHandler) ringRecordHandler(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
 	e.ringChan <- record
+	if e.opts.telemetryEnabled {
+		updateMaxTelemetry(e.chLenTelemetry, uint64(len(e.ringChan)))
+	}
 }
 
 func (e *EventHandler) ringLoopHandler(record *ringbuf.Record) {
@@ -413,4 +435,16 @@ func UpgradePerfBuffer(mgr *manager.Manager, mgrOpts *manager.Options, mapName s
 	mgr.PerfMaps = slices.DeleteFunc(mgr.PerfMaps, func(perfMap *manager.PerfMap) bool {
 		return perfMap.Name == mapName
 	})
+}
+
+func updateMaxTelemetry(a *atomic.Uint64, val uint64) {
+	for {
+		oldVal := a.Load()
+		if val <= oldVal {
+			return
+		}
+		if a.CompareAndSwap(oldVal, val) {
+			return
+		}
+	}
 }
