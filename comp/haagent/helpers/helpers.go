@@ -8,11 +8,14 @@ package haagenthelpers
 
 import "github.com/DataDog/datadog-agent/comp/core/config"
 
-// TODO: TESTME
 func GetGroup(agentConfig config.Component) string {
 	return agentConfig.GetString("ha_agent.group")
 }
 
 func IsEnabled(agentConfig config.Component) bool {
 	return agentConfig.GetBool("ha_agent.enabled")
+}
+
+func GetHaAgentTags(agentConfig config.Component) []string {
+	return []string{"agent_group:" + GetGroup(agentConfig)}
 }

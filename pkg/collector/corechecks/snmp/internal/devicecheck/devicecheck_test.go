@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -967,4 +968,38 @@ profiles:
 	// Assert Ping Loss and RTT metrics are not send
 	sender.AssertNotCalled(t, "Gauge", pingAvgRttMetric, mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertNotCalled(t, "Gauge", pingPacketLoss, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeviceCheck_buildExternalTags(t *testing.T) {
+	// GIVEN
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+`)
+	// language=yaml
+	rawInitConfig := []byte(``)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	cfg := agentconfig.NewMock(t)
+	cfg.Set("ha_agent.enabled", true, pkgconfigmodel.SourceUnknown)
+	cfg.Set("ha_agent.group", "my-group", pkgconfigmodel.SourceUnknown)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, cfg)
+	assert.Nil(t, err)
+
+	// WHEN
+	externalTags := deviceCk.buildExternalTags()
+
+	// THEN
+	assert.Equal(t, []string{"agent_group:my-group"}, externalTags)
 }

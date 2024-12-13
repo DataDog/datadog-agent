@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -248,13 +247,17 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
-	if haagenthelpers.IsEnabled(d.agentConfig) {
-		// TODO: TESTME
-		agentTags = append(agentTags, haagenthelpers.GetGroup(d.agentConfig))
-	}
+	agentTags := d.buildExternalTags()
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
+}
+
+func (d *DeviceCheck) buildExternalTags() []string {
+	agentTags := configUtils.GetConfiguredTags(d.agentConfig, false)
+	if haagenthelpers.IsEnabled(d.agentConfig) {
+		agentTags = append(agentTags, haagenthelpers.GetHaAgentTags(d.agentConfig)...)
+	}
+	return agentTags
 }
 
 func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
