@@ -8,7 +8,6 @@ on:
 
   # allow triggering the workflow manually
   workflow_dispatch:
-  push: # TODO remove
 
 permissions: {}
 
@@ -48,7 +47,6 @@ jobs:
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
           inv -e tidy tidy
-          echo "" > README.md #TODO: remove once ready
       - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: autocommit
         with:
@@ -81,5 +79,4 @@ jobs:
           --base "$GITHUB_REF" \
           --title "$PR_TITLE" \
           --body-file "$TMP_PR_BODY_PATH" \
-          --label "$PR_LABELS" \
-          --draft #TODO: remove once ready
+          --label "$PR_LABELS"
