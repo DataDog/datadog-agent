@@ -33,8 +33,8 @@ type linuxImpl struct {
 	ignoreCfg map[string]bool
 
 	ignoreProcs       map[int]bool
-	aliveServices     map[int]*serviceInfo
-	potentialServices map[int]*serviceInfo
+	aliveServices     map[int]*model.Service
+	potentialServices map[int]*model.Service
 
 	sysProbeClient *http.Client
 }
@@ -45,8 +45,8 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 		time:                 realTime{},
 		ignoreCfg:            ignoreCfg,
 		ignoreProcs:          make(map[int]bool),
-		aliveServices:        make(map[int]*serviceInfo),
-		potentialServices:    make(map[int]*serviceInfo),
+		aliveServices:        make(map[int]*model.Service),
+		potentialServices:    make(map[int]*model.Service),
 		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
@@ -93,7 +93,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	events := serviceEvents{}
 	now := li.time.Now()
 
-	li.handlePotentialServices(&events, now, serviceMap)
+	li.handlePotentialServices(&events, serviceMap)
 
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
@@ -104,15 +104,14 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if _, ok := li.aliveServices[pid]; !ok {
 			log.Debugf("[pid: %d] found new process with open ports", pid)
 
-			svc := li.getServiceInfo(service)
-			if li.ignoreCfg[svc.service.Name] {
-				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.service.Name)
+			if li.ignoreCfg[service.Name] {
+				log.Debugf("[pid: %d] process ignored from config: %s", pid, service.Name)
 				li.ignoreProcs[pid] = true
 				continue
 			}
 
-			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.service.Name)
-			li.potentialServices[pid] = &svc
+			log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
+			li.potentialServices[pid] = &service
 		}
 	}
 
@@ -121,15 +120,15 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if service, ok := serviceMap[pid]; !ok {
 			delete(li.aliveServices, pid)
 			events.stop = append(events.stop, *svc)
-		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
-			svc.LastHeartbeat = now
-			svc.service.RSS = service.RSS
-			svc.service.CPUCores = service.CPUCores
-			svc.service.ContainerID = service.ContainerID
-			svc.service.GeneratedName = service.GeneratedName
-			svc.service.ContainerServiceName = service.ContainerServiceName
-			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
-			svc.service.Name = service.Name
+		} else if serviceHeartbeatTime := time.Unix(svc.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+			svc.LastHeartbeat = now.Unix()
+			svc.RSS = service.RSS
+			svc.CPUCores = service.CPUCores
+			svc.ContainerID = service.ContainerID
+			svc.GeneratedName = service.GeneratedName
+			svc.ContainerServiceName = service.ContainerServiceName
+			svc.ContainerServiceNameSource = service.ContainerServiceNameSource
+			svc.Name = service.Name
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -152,7 +151,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 // handlePotentialServices checks cached potential services we have seen in the
 // previous call of the check. If they are still alive, start events are sent
 // for these services.
-func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Time, serviceMap map[int]*model.Service) {
+func (li *linuxImpl) handlePotentialServices(events *serviceEvents, serviceMap map[int]*model.Service) {
 	if len(li.potentialServices) == 0 {
 		return
 	}
@@ -160,32 +159,20 @@ func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Tim
 	// potentialServices contains processes that we scanned in the previous
 	// iteration and had open ports. We check if they are still alive in this
 	// iteration, and if so, we send a start-service telemetry event.
-	for pid, svc := range li.potentialServices {
+	for pid, potential := range li.potentialServices {
 		if service, ok := serviceMap[pid]; ok {
-			svc.LastHeartbeat = now
-			svc.service.RSS = service.RSS
-			svc.service.CPUCores = service.CPUCores
-			svc.service.ContainerID = service.ContainerID
-			svc.service.GeneratedName = service.GeneratedName
-			svc.service.ContainerServiceName = service.ContainerServiceName
-			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
-			svc.service.Name = service.Name
+			potential.LastHeartbeat = service.LastHeartbeat
+			potential.RSS = service.RSS
+			potential.CPUCores = service.CPUCores
+			potential.ContainerID = service.ContainerID
+			potential.GeneratedName = service.GeneratedName
+			potential.ContainerServiceName = service.ContainerServiceName
+			potential.ContainerServiceNameSource = service.ContainerServiceNameSource
+			potential.Name = service.Name
 
-			li.aliveServices[pid] = svc
-			events.start = append(events.start, *svc)
+			li.aliveServices[pid] = potential
+			events.start = append(events.start, *potential)
 		}
 	}
 	clear(li.potentialServices)
-}
-
-func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
-	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
-	// have to see how far this can go but not for the initial release
-
-	// for now, docker-proxy is going on the ignore list
-
-	return serviceInfo{
-		service:       service,
-		LastHeartbeat: li.time.Now(),
-	}
 }

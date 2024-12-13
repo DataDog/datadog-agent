@@ -617,6 +617,19 @@ func Test_linuxImpl(t *testing.T) {
 		},
 	}
 
+	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.ServicesResponse) *model.ServicesResponse {
+		respWithTime := &model.ServicesResponse{
+			Services: make([]model.Service, 0, len(resp.Services)),
+		}
+
+		for _, service := range resp.Services {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.Services = append(respWithTime.Services, service)
+		}
+
+		return respWithTime
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -646,7 +659,7 @@ func Test_linuxImpl(t *testing.T) {
 
 				// set mocks
 				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
-					return cr.servicesResp, nil
+					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
 				check.os.(*linuxImpl).time = mTimer
 				check.sender.hostname = mHostname
