@@ -9,7 +9,7 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
@@ -49,7 +49,18 @@ def init_env(ctx, branch: str | None = None):
             f"git -C '{WORKTREE_DIRECTORY}' rev-parse --abbrev-ref HEAD", hide=True
         ).stdout.strip()
         if worktree_branch != branch:
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{branch}'", hide=True)
+            for retry in range(2):
+                try:
+                    ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{branch}'", hide=True)
+                except UnexpectedExit as e:
+                    if retry == 1:
+                        raise e
+                    else:
+                        print(
+                            f'{color_message("Warning", Color.ORANGE)}: Git branch not found in the local worktree folder, fetching repository',
+                            file=sys.stderr,
+                        )
+                        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
