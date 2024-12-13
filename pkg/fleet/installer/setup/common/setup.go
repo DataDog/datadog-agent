@@ -101,16 +101,20 @@ func (s *Setup) Run() (err error) {
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
+	s.Out.WriteString("Installing datadog-installer...\n")
 	err = s.installer.Install(s.Ctx, installerOCILayoutURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
+	s.Out.WriteString("Successfully installed datadog-installer!\n")
 	for _, p := range packages {
+		s.Out.WriteString(fmt.Sprintf("Installing %s...\n", p.name))
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installer.Install(s.Ctx, url, nil)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
+		s.Out.WriteString(fmt.Sprintf("Successfully installed %s!\n", p.name))
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully installed %s in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
