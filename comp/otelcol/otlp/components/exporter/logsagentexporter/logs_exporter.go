@@ -73,7 +73,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		if ddLog.Service != nil {
 			service = *ddLog.Service
 		}
-		status := ddLog.AdditionalProperties["status"]
+		status := ddLog.AdditionalProperties["status"].(string)
 		if status == "" {
 			status = message.StatusInfo
 		}
@@ -81,7 +81,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		origin.SetTags(tags)
 		origin.SetService(service)
 		if src, ok := ddLog.AdditionalProperties["datadog.log.source"]; ok {
-			origin.SetSource(src)
+			origin.SetSource(src.(string))
 		} else {
 			origin.SetSource(e.logSource.Name)
 		}
