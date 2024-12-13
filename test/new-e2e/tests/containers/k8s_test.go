@@ -19,7 +19,6 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -1011,8 +1010,6 @@ func (suite *k8sSuite) TestAdmissionControllerWithLibraryAnnotation() {
 }
 
 func (suite *k8sSuite) TestAdmissionControllerWithAutoDetectedLanguage() {
-	// CONTINT-4009
-	flake.Mark(suite.T())
 	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-auto-detected-language", "python", true)
 }
 

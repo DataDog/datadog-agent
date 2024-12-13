@@ -58,7 +58,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 			return cmd.Process.Signal(os.Interrupt)
 		}
 	}
-	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
+	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
