@@ -7,7 +7,6 @@
 package devicecheck
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,10 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	helpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -74,12 +75,13 @@ type DeviceCheck struct {
 	diagnoses               *diagnoses.Diagnoses
 	interfaceBandwidthState report.InterfaceBandwidthState
 	cacheKey                string
+	agentConfig             config.Component
 }
 
 const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory, agentConfig config.Component) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
 	var devicePinger pinger.Pinger
@@ -103,6 +105,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
+		agentConfig:             agentConfig,
 	}
 
 	d.readTagsFromCache()
@@ -253,9 +256,13 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	hosttags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
-	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, hosttags.System)
-	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, hosttags.System)
+	agentTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
+	if helpers.IsEnabled(d.agentConfig) {
+		// TODO: TESTME
+		agentTags = append(agentTags, helpers.GetGroup(d.agentConfig))
+	}
+	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
+	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
 
 func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
