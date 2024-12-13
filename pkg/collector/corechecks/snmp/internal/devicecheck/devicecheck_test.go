@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -991,8 +990,8 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	cfg := agentconfig.NewMock(t)
-	cfg.Set("ha_agent.enabled", true, pkgconfigmodel.SourceUnknown)
-	cfg.Set("ha_agent.group", "my-group", pkgconfigmodel.SourceUnknown)
+	cfg.SetWithoutSource("ha_agent.enabled", true)
+	cfg.SetWithoutSource("ha_agent.group", "my-group")
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, cfg)
 	assert.Nil(t, err)

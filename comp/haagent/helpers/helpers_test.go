@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,18 +16,18 @@ func TestIsEnabled(t *testing.T) {
 	cfg := config.NewMock(t)
 	assert.False(t, IsEnabled(cfg))
 
-	cfg.Set("ha_agent.enabled", true, pkgconfigmodel.SourceUnknown)
+	cfg.SetWithoutSource("ha_agent.enabled", true)
 	assert.True(t, IsEnabled(cfg))
 }
 
 func TestGetGroup(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.Set("ha_agent.group", "my-group", pkgconfigmodel.SourceUnknown)
+	cfg.SetWithoutSource("ha_agent.group", "my-group")
 	assert.Equal(t, "my-group", GetGroup(cfg))
 }
 
 func TestGetHaAgentTags(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.Set("ha_agent.group", "my-group", pkgconfigmodel.SourceUnknown)
+	cfg.SetWithoutSource("ha_agent.group", "my-group")
 	assert.Equal(t, []string{"agent_group:my-group"}, GetHaAgentTags(cfg))
 }

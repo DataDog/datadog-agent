@@ -6,16 +6,18 @@
 // Package haagenthelpers provides helpers for haagent component
 package haagenthelpers
 
-import "github.com/DataDog/datadog-agent/comp/core/config"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
-func IsEnabled(agentConfig config.Component) bool {
+func IsEnabled(agentConfig model.Reader) bool {
 	return agentConfig.GetBool("ha_agent.enabled")
 }
 
-func GetGroup(agentConfig config.Component) string {
+func GetGroup(agentConfig model.Reader) string {
 	return agentConfig.GetString("ha_agent.group")
 }
 
-func GetHaAgentTags(agentConfig config.Component) []string {
+func GetHaAgentTags(agentConfig model.Reader) []string {
 	return []string{"agent_group:" + GetGroup(agentConfig)}
 }
