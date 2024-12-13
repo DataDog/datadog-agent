@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -107,6 +108,9 @@ func SetupDatabricks(s *common.Setup) error {
 }
 
 func setupCommonHostTags(s *common.Setup) {
+	setHostTag(s, "data_workload_monitoring_trial", "true")
+	setHostTag(s, "init_script_version", version.AgentVersion)
+
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
 	setIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)

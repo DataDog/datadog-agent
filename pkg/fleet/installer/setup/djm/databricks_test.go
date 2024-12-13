@@ -8,6 +8,7 @@ package djm
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestSetupCommonHostTags(t *testing.T) {
@@ -43,6 +45,8 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"databricks_cluster_id:cluster123",
 				"cluster_id:cluster123",
 				"cluster_name:example___job_name",
+				"data_workload_monitoring_trial:true",
+				fmt.Sprintf("init_script_version:%s", version.AgentVersion),
 			},
 		},
 		{
@@ -55,12 +59,17 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:job-123-run-456",
 				"jobid:123",
 				"runid:456",
+				"data_workload_monitoring_trial:true",
+				fmt.Sprintf("init_script_version:%s", version.AgentVersion),
 			},
 		},
 		{
-			name:     "Missing env vars results in no tags",
-			env:      map[string]string{},
-			wantTags: []string{},
+			name: "default tags when missing env vars",
+			env:  map[string]string{},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				fmt.Sprintf("init_script_version:%s", version.AgentVersion),
+			},
 		},
 	}
 
