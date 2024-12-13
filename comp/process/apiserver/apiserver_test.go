@@ -51,7 +51,7 @@ func TestLifecycle(t *testing.T) {
 	))
 
 	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:6162/config")
+		res, err := http.Get("http://localhost:43424/config")
 		if err != nil {
 			return false
 		}
