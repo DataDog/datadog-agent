@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +28,7 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(Config, *telemetry.Store) (ServiceListener, error) {
+func NewEnvironmentListener(ServiceListernerDeps) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
@@ -107,6 +106,11 @@ func (s *EnvironmentService) GetPorts(context.Context) ([]ContainerPort, error) 
 // GetTags retrieves a container's tags
 func (s *EnvironmentService) GetTags() ([]string, error) {
 	return nil, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in EnvironmentService
+func (s *EnvironmentService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
 }
 
 // GetPid inspect the container and return its pid

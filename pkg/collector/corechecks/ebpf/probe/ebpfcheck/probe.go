@@ -130,6 +130,18 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		}
 	}
 
+	// `security_bpf_map_alloc` was renamed to `security_bpf_map_create`
+	// in this commit: https://github.com/torvalds/linux/commit/a2431c7eabcf9bd5a1e7a1f7ecded40fdda4a8c5
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kernel version: %s", err)
+	}
+	if kv >= kernel.VersionCode(6, 9, 0) {
+		delete(collSpec.Programs, "k_map_alloc")
+	} else {
+		delete(collSpec.Programs, "k_map_create")
+	}
+
 	p := Probe{nrcpus: nrcpus}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
@@ -305,9 +317,11 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 		stats.Programs = append(stats.Programs, ps)
 	}
 
-	log.Tracef("found %d programs", len(stats.Programs))
-	for _, ps := range stats.Programs {
-		log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("found %d programs", len(stats.Programs))
+		for _, ps := range stats.Programs {
+			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+		}
 	}
 
 	return nil

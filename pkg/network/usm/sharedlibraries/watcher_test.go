@@ -21,18 +21,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +40,7 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	t.Cleanup(pm.Stop)
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
-		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+		monitor.InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	}
 }
 
@@ -51,11 +49,16 @@ type SharedLibrarySuite struct {
 }
 
 func TestSharedLibrary(t *testing.T) {
-	if !usmconfig.TLSSupported(config.New()) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		t.Run("netlink", func(t *testing.T) {
 			launchProcessMonitor(t, false)
 			suite.Run(t, new(SharedLibrarySuite))
@@ -75,7 +78,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(config.New(),
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -98,6 +101,53 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 
 	require.Eventually(t, func() bool {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
+	}, time.Second*10, 100*time.Millisecond)
+}
+
+func (s *SharedLibrarySuite) TestLongPath() {
+	t := s.T()
+
+	const (
+		fileName             = "foo-libssl.so"
+		nullTerminatorLength = len("\x00")
+	)
+	padLength := LibPathMaxSize - len(fileName) - len(t.TempDir()) - len("_") - len(string(filepath.Separator)) - nullTerminatorLength
+	fooPath1, fooPathID1 := createTempTestFile(t, strings.Repeat("a", padLength)+"_"+fileName)
+	// fooPath2 is longer than the limit we have, thus it will be ignored.
+	fooPath2, fooPathID2 := createTempTestFile(t, strings.Repeat("a", padLength+1)+"_"+fileName)
+
+	registerRecorder := new(utils.CallbackRecorder)
+	unregisterRecorder := new(utils.CallbackRecorder)
+
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+		Rule{
+			Re:           regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB:   registerRecorder.Callback(),
+			UnregisterCB: unregisterRecorder.Callback(),
+		},
+	)
+	require.NoError(t, err)
+	watcher.Start()
+	t.Cleanup(watcher.Stop)
+
+	// create files
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+
+	command2, err := fileopener.OpenFromAnotherProcess(t, fooPath2)
+	require.NoError(t, err)
+
+	require.Eventuallyf(t, func() bool {
+		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
+			registerRecorder.CallsForPathID(fooPathID2) == 0
+	}, time.Second*10, 100*time.Millisecond, "")
+
+	require.NoError(t, command1.Process.Kill())
+	require.NoError(t, command2.Process.Kill())
+
+	require.Eventually(t, func() bool {
+		return unregisterRecorder.CallsForPathID(fooPathID1) == 1 &&
+			unregisterRecorder.CallsForPathID(fooPathID2) == 0
 	}, time.Second*10, 100*time.Millisecond)
 }
 
@@ -132,7 +182,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 		return nil
 	}
 
-	watcher, err := NewWatcher(config.New(),
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
 		Rule{
 			Re:           regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB:   callback,
@@ -180,7 +230,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(config.New(),
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -221,7 +271,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	registerCB := registerRecorder.Callback()
 	unregisterCB := unregisterRecorder.Callback()
 
-	watcher, err := NewWatcher(config.New(),
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -287,7 +337,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerCB := registerRecorder.Callback()
 	unregisterCB := unregisterRecorder.Callback()
 
-	watcher, err := NewWatcher(config.New(),
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -357,7 +407,7 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 }
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {
-	w, _ := NewWatcher(config.New(),
+	w, _ := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
 		Rule{
 			Re: regexp.MustCompile(`libssl.so`),
 		},

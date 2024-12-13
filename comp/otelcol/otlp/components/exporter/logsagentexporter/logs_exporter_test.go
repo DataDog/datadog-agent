@@ -270,7 +270,7 @@ func TestLogsExporter(t *testing.T) {
 				LogSourceName: tt.args.logSourceName,
 			}
 			ctx := context.Background()
-			exp, err := f.CreateLogsExporter(ctx, params, cfg)
+			exp, err := f.CreateLogs(ctx, params, cfg)
 
 			require.NoError(t, err)
 			require.NoError(t, exp.ConsumeLogs(ctx, tt.args.ld))

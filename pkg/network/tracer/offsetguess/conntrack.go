@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package offsetguess
+package offsetguess //nolint:revive // TODO
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
-func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
+func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) { //nolint:revive // TODO
 	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
 	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)
 	return &conntrackOffsetGuesser{

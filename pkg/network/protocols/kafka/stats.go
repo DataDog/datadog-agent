@@ -7,7 +7,7 @@ package kafka
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/sketches-go/ddsketch"
 )
@@ -29,18 +29,8 @@ const (
 type Key struct {
 	RequestAPIKey  uint16
 	RequestVersion uint16
-	TopicName      string
+	TopicName      *intern.StringValue
 	types.ConnectionKey
-}
-
-// NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string, requestAPIKey, requestAPIVersion uint16) Key {
-	return Key{
-		ConnectionKey:  types.NewConnectionKey(saddr, daddr, sport, dport),
-		TopicName:      topicName,
-		RequestAPIKey:  requestAPIKey,
-		RequestVersion: requestAPIVersion,
-	}
 }
 
 // RequestStats stores Kafka request statistics per Kafka error code

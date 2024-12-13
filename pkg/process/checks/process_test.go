@@ -13,14 +13,14 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -86,13 +86,12 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
-	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter)
+	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 }
 
 func TestProcessCheckFirstRun(t *testing.T) {

@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(log.Default(), logLevel)
 	os.Exit(m.Run())
 }
 
@@ -78,7 +77,7 @@ func TestMapCleaner(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			cleaner, err := NewMapCleaner[int64, int64](m, 10)
+			cleaner, err := NewMapCleaner[int64, int64](m, 10, "test", "")
 			require.NoError(t, err)
 			for i := 0; i < numMapEntries; i++ {
 				*key = int64(i)
@@ -127,7 +126,7 @@ func benchmarkBatchCleaner(b *testing.B, numMapEntries, batchSize uint32) {
 	})
 	require.NoError(b, err)
 
-	cleaner, err := NewMapCleaner[int64, int64](m, batchSize)
+	cleaner, err := NewMapCleaner[int64, int64](m, batchSize, "test", "")
 	require.NoError(b, err)
 
 	b.ReportAllocs()

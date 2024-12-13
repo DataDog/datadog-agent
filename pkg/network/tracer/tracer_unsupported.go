@@ -64,13 +64,21 @@ func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
 	return ebpf.ErrNotImplemented
 }
 
+// DebugConntrackTable is not implemented on this OS for Tracer
+type DebugConntrackTable struct{}
+
+// WriteTo is not implemented on this OS for Tracer
+func (table *DebugConntrackTable) WriteTo(_ io.Writer, _ int) error {
+	return ebpf.ErrNotImplemented
+}
+
 // DebugCachedConntrack is not implemented on this OS for Tracer
-func (t *Tracer) DebugCachedConntrack(context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(_ context.Context) (*DebugConntrackTable, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
-func (t *Tracer) DebugHostConntrack(context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(_ context.Context) (*DebugConntrackTable, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

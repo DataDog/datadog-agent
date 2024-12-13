@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build cgo && linux
+//go:build linux
 
 // Package ebpf contains all the ebpf-based checks.
 package ebpf
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
-	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -22,7 +23,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -38,8 +38,8 @@ type EBPFCheckConfig struct {
 
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
-	config       *EBPFCheckConfig
-	sysProbeUtil *processnet.RemoteSysProbeUtil
+	config         *EBPFCheckConfig
+	sysProbeClient *http.Client
 	core.CheckBase
 }
 
@@ -68,26 +68,13 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-	if err := processnet.CheckPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")); err != nil {
-		return fmt.Errorf("sysprobe socket: %s", err)
-	}
-
+	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
 // Run executes the check
 func (m *EBPFCheck) Run() error {
-	if m.sysProbeUtil == nil {
-		var err error
-		m.sysProbeUtil, err = processnet.GetRemoteSystemProbeUtil(
-			pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
-		)
-		if err != nil {
-			return fmt.Errorf("sysprobe connection: %s", err)
-		}
-	}
-
-	data, err := m.sysProbeUtil.GetCheck(sysconfig.EBPFModule)
+	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
@@ -95,11 +82,6 @@ func (m *EBPFCheck) Run() error {
 	sender, err := m.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %s", err)
-	}
-
-	stats, ok := data.(ebpfcheck.EBPFStats)
-	if !ok {
-		return log.Errorf("ebpf check raw data has incorrect type: %T", stats)
 	}
 
 	totalMapMaxSize, totalMapRSS := uint64(0), uint64(0)
@@ -169,7 +151,7 @@ func (m *EBPFCheck) Run() error {
 			"module:" + progInfo.Module,
 		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
@@ -183,7 +165,7 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
@@ -201,12 +183,12 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}

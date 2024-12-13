@@ -33,7 +33,12 @@ func (s *baseInstallerSuite) freshInstall() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		// the service cannot start because of the missing API key
-		WithStatus("Stopped")
+		WithStatus("Stopped").
+		// no named pipe when service is not running
+		HasNoNamedPipe(installerwindows.NamedPipe)
+	// no status when service is not running (no daemon/named pipe)
+	_, err := s.Installer().Status()
+	s.Require().Error(err)
 }
 
 func (s *baseInstallerSuite) startServiceWithConfigFile() {

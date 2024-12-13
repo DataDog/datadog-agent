@@ -16,6 +16,7 @@ import (
 	osexec "os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,8 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
@@ -41,7 +43,7 @@ const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 1 * time.Minute
+	refreshStateInterval = 30 * time.Second
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -60,7 +62,7 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
-	GetRemoteConfigState() []*pbgo.PackageState
+	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
@@ -71,7 +73,7 @@ type daemonImpl struct {
 	env           *env.Env
 	installer     installer.Installer
 	rc            *remoteConfig
-	cdn           cdn.CDN
+	cdn           *cdn.CDN
 	catalog       catalog
 	requests      chan remoteAPIRequest
 	requestsWG    sync.WaitGroup
@@ -83,7 +85,7 @@ func newInstaller(env *env.Env, installerBin string) installer.Installer {
 }
 
 // NewDaemon returns a new daemon.
-func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
+func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
 	installerBin, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
@@ -96,7 +98,22 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	env := env.FromConfig(config)
+	env := &env.Env{
+		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
+		Site:                 config.GetString("site"),
+		RemoteUpdates:        config.GetBool("remote_updates"),
+		RemotePolicies:       config.GetBool("remote_policies"),
+		Mirror:               config.GetString("installer.mirror"),
+		RegistryOverride:     config.GetString("installer.registry.url"),
+		RegistryAuthOverride: config.GetString("installer.registry.auth"),
+		RegistryUsername:     config.GetString("installer.registry.username"),
+		RegistryPassword:     config.GetString("installer.registry.password"),
+		Tags:                 utils.GetConfiguredTags(config, false),
+		Hostname:             hostname,
+		HTTPProxy:            config.GetString("proxy.http"),
+		HTTPSProxy:           config.GetString("proxy.https"),
+		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+	}
 	installer := newInstaller(env, installerBin)
 	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_daemon"))
 	if err != nil {
@@ -105,7 +122,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	return newDaemon(rc, installer, env, cdn), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn cdn.CDN) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,
@@ -129,7 +146,7 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 }
 
 // GetRemoteConfigState returns the remote config state.
-func (d *daemonImpl) GetRemoteConfigState() []*pbgo.PackageState {
+func (d *daemonImpl) GetRemoteConfigState() *pbgo.ClientUpdater {
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -458,7 +475,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			s.Experiment != request.ExpectedState.Experiment ||
 			c.Stable != request.ExpectedState.StableConfig ||
 			c.Experiment != request.ExpectedState.ExperimentConfig) {
-		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
+		log.Infof(
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
+			request.ID, request.ExpectedState, s, c,
+		)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
 		return nil
@@ -474,7 +494,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		}
 		experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
 		if !ok {
-			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+			return installerErrors.Wrap(
+				installerErrors.ErrPackageNotFound,
+				fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS),
+			)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
 		if request.Package == "datadog-installer" {
@@ -515,10 +538,11 @@ var requestStateKey requestKey
 
 // requestState represents the state of a task.
 type requestState struct {
-	Package string
-	ID      string
-	State   pbgo.TaskState
-	Err     *installerErrors.InstallerError
+	Package   string
+	ID        string
+	State     pbgo.TaskState
+	Err       error
+	ErrorCode installerErrors.InstallerErrorCode
 }
 
 func newRequestContext(request remoteAPIRequest) (ddtrace.Span, context.Context) {
@@ -552,19 +576,20 @@ func setRequestDone(ctx context.Context, err error) {
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
-		state.Err = installerErrors.From(err)
+		state.Err = err
+		state.ErrorCode = installerErrors.GetCode(err)
 	}
 }
 
-func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (string, error) {
+func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (*pbgo.PoliciesState, error) {
 	if !d.env.RemotePolicies {
-		return "", nil
+		return nil, nil
 	}
 	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", fmt.Errorf("could not get cdn config: %w", err)
+		return nil, err
 	}
-	return config.Version(), nil
+	return config.State(), nil
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
@@ -583,6 +608,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
+	availableSpace, err := d.installer.AvailableDiskSpace()
+	if err != nil {
+		log.Errorf("could not get available size: %v", err)
+	}
 
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
@@ -593,16 +622,13 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		cs, hasConfig := configState[pkg]
 		if hasConfig {
-			p.StableConfigVersion = cs.Stable
-			p.ExperimentConfigVersion = cs.Experiment
+			p.StableConfigState = cs.StablePoliciesState
+			p.ExperimentConfigState = cs.ExperimentPoliciesState
 		}
 
-		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
-		if err != nil {
-			log.Errorf("could not get agent remote config version: %v", err)
-		}
-		if err == nil {
-			p.RemoteConfigVersion = configVersion
+		configState, err := d.resolveRemoteConfigVersion(ctx, pkg)
+		if err == nil && configState != nil {
+			p.RemoteConfigState = configState
 		} else if err != cdn.ErrProductNotSupported {
 			log.Warnf("could not get remote config version: %v", err)
 		}
@@ -612,7 +638,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			var taskErr *pbgo.TaskError
 			if requestState.Err != nil {
 				taskErr = &pbgo.TaskError{
-					Code:    uint64(requestState.Err.Code()),
+					Code:    uint64(requestState.ErrorCode),
 					Message: requestState.Err.Error(),
 				}
 			}
@@ -624,5 +650,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	d.rc.SetState(packages)
+	d.rc.SetState(&pbgo.ClientUpdater{
+		Packages:           packages,
+		AvailableDiskSpace: availableSpace,
+	})
 }

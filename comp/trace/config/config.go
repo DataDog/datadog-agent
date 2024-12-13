@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -39,6 +40,7 @@ type Dependencies struct {
 	fx.In
 	Params Params
 	Config coreconfig.Component
+	Tagger tagger.Component
 }
 
 // cfg implements the Component.
@@ -129,6 +131,9 @@ func (c *cfg) SetHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
 			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
+			return
+		}
+		if apiutil.Validate(w, req) != nil {
 			return
 		}
 		for key, values := range req.URL.Query() {

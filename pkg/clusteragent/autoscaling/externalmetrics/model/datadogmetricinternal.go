@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -317,7 +317,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		return
 	}
 	if resolvedQuery != "" {
-		log.Infof("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
+		log.Debugf("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
 		d.resolvedQuery = &resolvedQuery
 		return
 	}

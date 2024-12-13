@@ -9,6 +9,7 @@ on:
       - 'pkg/serverless/**'
       - 'test/integration/serverless/**'
       - '.github/workflows/serverless-integration.yml'
+      - 'go.mod'
   schedule:
     - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
@@ -28,9 +29,10 @@ jobs:
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           path: go/src/github.com/DataDog/datadog-agent
+          persist-credentials: false
 
       - name: Set up Node 20
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with:
           node-version: 20
 
@@ -42,6 +44,7 @@ jobs:
         with:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
+          persist-credentials: false
 
       - name: Set up QEMU
         id: qemu
@@ -65,8 +68,9 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+          GOWORK: off
         with:
-          timeout_minutes: 60
+          timeout_minutes: 120
           max_attempts: 2
           command: |
             RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}"
@@ -76,7 +80,7 @@ jobs:
 
       - name: Archive raw logs
         if: always()
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
           name: rawlogs-${{ matrix.suite }}-${{ matrix.architecture }}
           path: ${{ steps.rawlogs.outputs.dir }}

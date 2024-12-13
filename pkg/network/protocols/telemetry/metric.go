@@ -26,16 +26,19 @@ func NewCounter(name string, tagsAndOptions ...string) *Counter {
 	return globalRegistry.FindOrCreate(c).(*Counter)
 }
 
+// Set value atomically
+func (c *Counter) Set(v int64) {
+	c.value.Store(v)
+}
+
 // Add value atomically
 func (c *Counter) Add(v int64) {
-	if v < 0 {
-		// Counters are always monotonic so we don't allow negative numbers. We
+	if v > 0 {
+		// Counters are always monotonic so we don't allow non-positive numbers. We
 		// could enforce this by using an unsigned type, but that would make the
 		// API a little bit more cumbersome to use.
-		return
+		c.value.Add(v)
 	}
-
-	c.value.Add(v)
 }
 
 func (c *Counter) base() *metricBase {
@@ -118,6 +121,15 @@ func NewTLSAwareCounter(metricGroup *MetricGroup, metricName string, tags ...str
 		counterPlain: metricGroup.NewCounter(metricName, append(tags, "encrypted:false")...),
 		counterTLS:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true")...),
 	}
+}
+
+// Set Sets the given value to the counter based on the encryption.
+func (c *TLSAwareCounter) Set(v int64, isTLS bool) {
+	if isTLS {
+		c.counterTLS.Set(v)
+		return
+	}
+	c.counterPlain.Set(v)
 }
 
 // Add adds the given delta to the counter based on the encryption.

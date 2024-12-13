@@ -139,8 +139,14 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFileFinodeOffset(f.kernelVersion)
 	case OffsetNameFileFpath:
 		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameDentryDSb:
+		value = getDentryDsbOffset(f.kernelVersion)
 	case OffsetNameMountMntID:
 		value = getMountIDOffset(f.kernelVersion)
+	case OffsetNameRenameStructOldDentry:
+		value = getRenameStructOldDentryOffset(f.kernelVersion)
+	case OffsetNameRenameStructNewDentry:
+		value = getRenameStructNewDentryOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -1009,6 +1015,10 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	}
 }
 
+func getDentryDsbOffset(_ *kernel.Version) uint64 {
+	return 104
+}
+
 func getMountIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsSuseKernel() || kv.Code >= kernel.Kernel5_12:
@@ -1022,4 +1032,12 @@ func getMountIDOffset(kv *kernel.Version) uint64 {
 
 func getNetDeviceNameOffset(_ *kernel.Version) uint64 {
 	return 0
+}
+
+func getRenameStructOldDentryOffset(_ *kernel.Version) uint64 {
+	return 16
+}
+
+func getRenameStructNewDentryOffset(_ *kernel.Version) uint64 {
+	return 40
 }

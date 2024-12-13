@@ -92,7 +92,6 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
-	entry.IsThread = true
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	p.Lock()
@@ -105,7 +104,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 
 // NewEntry returns a new entry
 func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
 
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
@@ -147,7 +146,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string) *model.ProcessCacheEntry {
 	if key.Pid == 0 {
 		return nil
 	}
@@ -164,7 +163,7 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file 
 
 // AddProcFSEntry add a procfs entry
 func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string) *model.ProcessCacheEntry {
 	if key.Pid == 0 {
 		return nil
 	}
@@ -177,9 +176,9 @@ func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, fil
 	parentKey := CacheResolverKey{NSID: key.NSID, Pid: ppid}
 	if parent := p.entryCache[parentKey]; parent != nil {
 		if parent.Equals(entry) {
-			entry.SetParentOfForkChild(parent)
+			entry.SetForkParent(parent)
 		} else {
-			entry.SetAncestor(parent)
+			entry.SetExecParent(parent)
 		}
 	}
 	p.insertEntry(key, entry, p.entryCache[key])

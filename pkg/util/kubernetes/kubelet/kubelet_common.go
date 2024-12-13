@@ -60,27 +60,27 @@ func ParseMetricFromRaw(raw []byte, metric string) (string, error) {
 
 // KubeContainerIDToTaggerEntityID builds an entity ID from a container ID coming from
 // the pod status (i.e. including the <runtime>:// prefix).
-func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {
+func KubeContainerIDToTaggerEntityID(ctrID string) (types.EntityID, error) {
 	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
 	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
-		return types.NewEntityID(types.ContainerID, ctrID[sep+len(containers.EntitySeparator):]).String(), nil
+		return types.NewEntityID(types.ContainerID, ctrID[sep+len(containers.EntitySeparator):]), nil
 	}
-	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
+	return types.EntityID{}, fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }
 
 // KubePodUIDToTaggerEntityID builds an entity ID from a pod UID coming from
 // the pod status (i.e. including the <runtime>:// prefix).
-func KubePodUIDToTaggerEntityID(podUID string) (string, error) {
+func KubePodUIDToTaggerEntityID(podUID string) (types.EntityID, error) {
 	sep := strings.LastIndex(podUID, containers.EntitySeparator)
 	if sep != -1 && len(podUID) > sep+len(containers.EntitySeparator) {
-		return types.NewEntityID(types.KubernetesPodUID, podUID[sep+len(containers.EntitySeparator):]).String(), nil
+		return types.NewEntityID(types.KubernetesPodUID, podUID[sep+len(containers.EntitySeparator):]), nil
 	}
-	return "", fmt.Errorf("can't extract an entity ID from pod UID %s", podUID)
+	return types.EntityID{}, fmt.Errorf("can't extract an entity ID from pod UID %s", podUID)
 }
 
 // KubeIDToTaggerEntityID builds a tagger entity ID from an entity ID belonging to
 // a container or pod.
-func KubeIDToTaggerEntityID(entityName string) (string, error) {
+func KubeIDToTaggerEntityID(entityName string) (types.EntityID, error) {
 	prefix, _ := containers.SplitEntityName(entityName)
 
 	if prefix == KubePodEntityName {

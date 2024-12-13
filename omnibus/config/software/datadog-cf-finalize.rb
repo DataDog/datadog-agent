@@ -34,9 +34,6 @@ build do
 
             copy "#{install_dir}/bin/agent/agent.exe", "#{cf_bin_root_bin}"
             copy "#{install_dir}/bin/agent/libdatadog-agent-three.dll", "#{cf_bin_root_bin}"
-            if with_python_runtime? "2"
-                copy "#{install_dir}/bin/agent/libdatadog-agent-two.dll", "#{cf_bin_root_bin}"
-            end
 
             copy "#{install_dir}/bin/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{install_dir}/bin/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"

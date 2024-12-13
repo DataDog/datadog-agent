@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -35,6 +35,11 @@ type testPackageManager struct {
 func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
 	args := m.Called(ctx, pkg)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *testPackageManager) AvailableDiskSpace() (uint64, error) {
+	args := m.Called()
+	return args.Get(0).(uint64), args.Error(1)
 }
 
 func (m *testPackageManager) State(pkg string) (repository.State, error) {
@@ -146,10 +151,10 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 	c.listeners[product] = append(c.listeners[product], fn)
 }
 
-func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
 }
 
-func (c *testRemoteConfigClient) GetInstallerState() []*pbgo.PackageState {
+func (c *testRemoteConfigClient) GetInstallerState() *pbgo.ClientUpdater {
 	return nil
 }
 
@@ -203,6 +208,7 @@ type testInstaller struct {
 
 func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
 	pm.On("States").Return(map[string]repository.State{}, nil)
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)

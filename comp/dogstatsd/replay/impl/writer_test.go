@@ -20,6 +20,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -38,7 +39,9 @@ func writerTest(t *testing.T, z bool) {
 
 	cfg := config.NewMock(t)
 
-	writer := NewTrafficCaptureWriter(1)
+	taggerComponent := mock.SetupFakeTagger(t)
+
+	writer := NewTrafficCaptureWriter(1, taggerComponent)
 
 	// initialize telemeytry store
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())

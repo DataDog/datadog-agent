@@ -47,7 +47,7 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 
 	api.RegisterEventMonitoringModuleServer(evm.GRPCServer, p)
 
-	if err := evm.AddEventConsumer(p); err != nil {
+	if err := evm.AddEventConsumerHandler(p); err != nil {
 		return nil, err
 	}
 

@@ -76,10 +76,8 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 		site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 	}
 
-	v, _ := version.Agent()
-
 	tags := cfg.GetStringSlice("internal_profiling.extra_tags")
-	tags = append(tags, fmt.Sprintf("version:%v", v))
+	tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
 
 	return profiling.Settings{
 		ProfilingURL:         site,

@@ -263,14 +263,14 @@ func (t *Tracer) pidExited(pid int) int {
 	return len(t.PIDs)
 }
 
-func (ctx *CWSPtracerCtx) trace() error {
+func (ctx *CWSPtracerCtx) trace() (int, error) {
 	var waitStatus syscall.WaitStatus
 
 	ctx.pidLock.RLock()
 	for _, pid := range ctx.PIDs {
 		if err := syscall.PtraceSyscall(pid, 0); err != nil {
 			ctx.pidLock.RUnlock()
-			return err
+			return 0, err
 		}
 	}
 	ctx.pidLock.RUnlock()
@@ -360,17 +360,17 @@ func (ctx *CWSPtracerCtx) trace() error {
 		}
 	}
 
-	return nil
+	return waitStatus.ExitStatus(), nil
 }
 
-func (ctx *CWSPtracerCtx) traceWithSeccomp() error {
+func (ctx *CWSPtracerCtx) traceWithSeccomp() (int, error) {
 	var waitStatus syscall.WaitStatus
 
 	ctx.pidLock.RLock()
 	for _, pid := range ctx.PIDs {
 		if err := syscall.PtraceCont(pid, 0); err != nil {
 			ctx.pidLock.RUnlock()
-			return err
+			return 0, err
 		}
 	}
 	ctx.pidLock.RUnlock()
@@ -461,11 +461,11 @@ func (ctx *CWSPtracerCtx) traceWithSeccomp() error {
 		}
 	}
 
-	return nil
+	return waitStatus.ExitStatus(), nil
 }
 
 // Trace traces a process
-func (ctx *CWSPtracerCtx) Trace() error {
+func (ctx *CWSPtracerCtx) Trace() (int, error) {
 	if ctx.opts.SeccompDisabled {
 		return ctx.trace()
 	}

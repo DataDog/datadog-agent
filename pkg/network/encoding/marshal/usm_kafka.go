@@ -65,7 +65,7 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 				header.SetRequest_type(uint32(key.RequestAPIKey))
 				header.SetRequest_version(uint32(key.RequestVersion))
 			})
-			builder.SetTopic(key.TopicName)
+			builder.SetTopic(key.TopicName.Get())
 			for statusCode, requestStat := range stats.ErrorCodeToStat {
 				if requestStat.Count == 0 {
 					continue

@@ -8,14 +8,15 @@ package checks
 import (
 	"fmt"
 	"math"
+	"net/http"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -49,24 +50,24 @@ type ContainerCheck struct {
 
 	maxBatchSize int
 	wmeta        workloadmeta.Component
+
+	sysprobeClient *http.Client
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
-	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	c.containerProvider = sharedContainerProvider
 	c.hostInfo = info
 
-	var tu *net.RemoteSysProbeUtil
-	var err error
 	if syscfg.NetworkTracerModuleEnabled {
-		// Calling the remote tracer will cause it to initialize and check connectivity
-		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
-		if err != nil {
-			log.Warnf("could not initiate connection with system probe: %s", err)
-		}
+		c.sysprobeClient = client.Get(syscfg.SystemProbeAddress)
 	}
 
-	networkID, err := retryGetNetworkID(tu)
+	networkID, err := retryGetNetworkID(c.sysprobeClient)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}

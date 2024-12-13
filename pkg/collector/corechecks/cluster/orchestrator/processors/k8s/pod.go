@@ -13,12 +13,15 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	podtagprovider "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s/pod_tag_provider"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -31,6 +34,17 @@ import (
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
 type PodHandlers struct {
 	common.BaseHandlers
+	tagProvider podtagprovider.PodTagProvider
+}
+
+// NewPodHandlers creates and returns a new PodHanlders object
+func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *PodHandlers {
+	podHandlers := new(PodHandlers)
+
+	// initialise tag provider
+	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store, tagger)
+
+	return podHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -58,7 +72,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 	}
 
 	// insert tagger tags
-	taggerTags, err := tagger.Tag(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, string(r.UID)).String(), taggertypes.HighCardinality)
+	taggerTags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
@@ -148,6 +162,23 @@ func (h *PodHandlers) ResourceUID(ctx processors.ProcessorContext, resource inte
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
+}
+
+// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
+	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+		return nil
+	}
+	return tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

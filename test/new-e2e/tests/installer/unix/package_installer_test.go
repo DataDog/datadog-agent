@@ -25,9 +25,9 @@ func (s *packageInstallerSuite) TestInstall() {
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
 
-	bootstraperVersion := s.host.BootstraperVersion()
+	bootstrapperVersion := s.host.BootstrapperVersion()
 	installerVersion := s.host.InstallerVersion()
-	assert.Equal(s.T(), bootstraperVersion, installerVersion)
+	assert.Equal(s.T(), bootstrapperVersion, installerVersion)
 
 	state := s.host.State()
 	state.AssertGroupExists("dd-agent")
@@ -40,7 +40,7 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/opt/datadog-packages/run/locks", 0777, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
-	state.AssertDirExists("/opt/datadog-installer/tmp", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/tmp", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
 

@@ -16,11 +16,9 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	slog "github.com/cihub/seelog"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
@@ -30,7 +28,9 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -71,7 +71,7 @@ type serverDebugImpl struct {
 	clock           clock.Clock
 	tagsAccumulator *tagset.HashingTagsAccumulator
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
-	dogstatsdDebugLogger slog.LoggerInterface
+	dogstatsdDebugLogger pkglog.LoggerInterface
 }
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
@@ -279,14 +279,14 @@ func (d *serverDebugImpl) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) slog.LoggerInterface {
+func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) pkglog.LoggerInterface {
 
-	var dogstatsdLogger slog.LoggerInterface
+	var dogstatsdLogger pkglog.LoggerInterface
 
 	// Configuring the log file path
 	logFile := cfg.GetString("dogstatsd_log_file")
 	if logFile == "" {
-		logFile = commonpath.DefaultDogstatsDLogFile
+		logFile = defaultpaths.DogstatsDLogFile
 	}
 
 	// Set up dogstatsdLogger

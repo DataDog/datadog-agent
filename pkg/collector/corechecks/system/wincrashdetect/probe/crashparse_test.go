@@ -51,12 +51,11 @@ func TestCrashParser(t *testing.T) {
 		FileName: "testdata/crashsample1.txt",
 	}
 	// first read in the sample data
-
-	readfn = testCrashReader
+	OverrideCrashDumpReader(testCrashReader)
 
 	parseCrashDump(wcs)
 
-	assert.True(t, wcs.Success)
+	assert.Equal(t, WinCrashStatusCodeSuccess, wcs.StatusCode)
 	assert.Empty(t, wcs.ErrString)
 	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
 	before, _, _ := strings.Cut(wcs.Offender, "+")
@@ -72,11 +71,11 @@ func TestCrashParserWithLineSplits(t *testing.T) {
 	}
 	// first read in the sample data
 
-	readfn = testCrashReaderWithLineSplits
+	OverrideCrashDumpReader(testCrashReaderWithLineSplits)
 
 	parseCrashDump(wcs)
 
-	assert.True(t, wcs.Success)
+	assert.Equal(t, WinCrashStatusCodeSuccess, wcs.StatusCode)
 	assert.Empty(t, wcs.ErrString)
 	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
 	before, _, _ := strings.Cut(wcs.Offender, "+")

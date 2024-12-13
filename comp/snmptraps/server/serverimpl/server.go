@@ -96,7 +96,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	// careful never to double-instantiate anything. Do not use this solution
 	// elsewhere if possible.
 	app := fx.New(
-		logging.FxLoggingOption(),
+		logging.DefaultFxLoggingOption(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,

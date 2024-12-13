@@ -127,7 +127,7 @@ class MacOS:
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
 
-    packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt"]
+    packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget"]
 
     @staticmethod
     def assert_user_in_docker_group(_):

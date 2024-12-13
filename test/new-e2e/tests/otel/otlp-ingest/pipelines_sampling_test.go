@@ -46,9 +46,9 @@ agents:
           value: '50'
 `
 	t.Parallel()
-	e2e.Run(t, &otlpIngestSamplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestSamplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
 }
 
 func (s *otlpIngestSamplingTestSuite) TestSampling() {
-	utils.TestSampling(s)
+	utils.TestSampling(s, false)
 }

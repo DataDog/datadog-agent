@@ -8,12 +8,16 @@
 package servicediscovery
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,37 +28,56 @@ func init() {
 }
 
 type linuxImpl struct {
-	getSysProbeClient func() (systemProbeClient, error)
-	time              timer
+	getDiscoveryServices func(client *http.Client) (*model.ServicesResponse, error)
+	time                 timer
 
 	ignoreCfg map[string]bool
 
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
 	potentialServices map[int]*serviceInfo
+
+	sysProbeClient *http.Client
 }
 
 func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	return &linuxImpl{
-		getSysProbeClient: getSysProbeClient,
-		time:              realTime{},
-		ignoreCfg:         ignoreCfg,
-		ignoreProcs:       make(map[int]bool),
-		aliveServices:     make(map[int]*serviceInfo),
-		potentialServices: make(map[int]*serviceInfo),
+		getDiscoveryServices: getDiscoveryServices,
+		time:                 realTime{},
+		ignoreCfg:            ignoreCfg,
+		ignoreProcs:          make(map[int]bool),
+		aliveServices:        make(map[int]*serviceInfo),
+		potentialServices:    make(map[int]*serviceInfo),
+		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
 
-func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
-	sysProbe, err := li.getSysProbeClient()
+func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) {
+	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/services")
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errWithCode{
-			err:  err,
-			code: errorCodeSystemProbeConn,
-		}
+		return nil, err
 	}
 
-	response, err := sysProbe.GetDiscoveryServices()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got non-success status code: url: %s, status_code: %d", req.URL, resp.StatusCode)
+	}
+
+	res := &model.ServicesResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
+	response, err := li.getDiscoveryServices(li.sysProbeClient)
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,
@@ -69,21 +92,9 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}
 
 	events := serviceEvents{}
-
 	now := li.time.Now()
 
-	// potentialServices contains processes that we scanned in the previous iteration and had open ports.
-	// we check if they are still alive in this iteration, and if so, we send a start-service telemetry event.
-	for pid, svc := range li.potentialServices {
-		if service, ok := serviceMap[pid]; ok {
-			svc.LastHeartbeat = now
-			svc.service.RSS = service.RSS
-			svc.service.CPUCores = service.CPUCores
-			li.aliveServices[pid] = svc
-			events.start = append(events.start, *svc)
-		}
-	}
-	clear(li.potentialServices)
+	li.handlePotentialServices(&events, now, serviceMap)
 
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
@@ -100,6 +111,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 				li.ignoreProcs[pid] = true
 				continue
 			}
+
 			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
 			li.potentialServices[pid] = &svc
 		}
@@ -114,6 +126,12 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
 			svc.service.CPUCores = service.CPUCores
+			svc.service.ContainerID = service.ContainerID
+			svc.service.GeneratedName = service.GeneratedName
+			svc.service.ContainerServiceName = service.ContainerServiceName
+			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
+			svc.service.Name = service.Name
+			svc.meta.Name = service.Name
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -131,6 +149,36 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		runningServices: li.aliveServices,
 		events:          events,
 	}, nil
+}
+
+// handlePotentialServices checks cached potential services we have seen in the
+// previous call of the check. If they are still alive, start events are sent
+// for these services.
+func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Time, serviceMap map[int]*model.Service) {
+	if len(li.potentialServices) == 0 {
+		return
+	}
+
+	// potentialServices contains processes that we scanned in the previous
+	// iteration and had open ports. We check if they are still alive in this
+	// iteration, and if so, we send a start-service telemetry event.
+	for pid, svc := range li.potentialServices {
+		if service, ok := serviceMap[pid]; ok {
+			svc.LastHeartbeat = now
+			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
+			svc.service.ContainerID = service.ContainerID
+			svc.service.GeneratedName = service.GeneratedName
+			svc.service.ContainerServiceName = service.ContainerServiceName
+			svc.service.ContainerServiceNameSource = service.ContainerServiceNameSource
+			svc.service.Name = service.Name
+			svc.meta.Name = service.Name
+
+			li.aliveServices[pid] = svc
+			events.start = append(events.start, *svc)
+		}
+	}
+	clear(li.potentialServices)
 }
 
 func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
@@ -153,14 +201,4 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
-}
-
-type systemProbeClient interface {
-	GetDiscoveryServices() (*model.ServicesResponse, error)
-}
-
-func getSysProbeClient() (systemProbeClient, error) {
-	return processnet.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
-	)
 }

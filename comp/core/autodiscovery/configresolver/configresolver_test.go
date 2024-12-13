@@ -62,6 +62,11 @@ func (s *dummyService) GetTags() ([]string, error) {
 	return []string{"foo:bar"}, nil
 }
 
+// GetTagsWithCardinality returns the tags for this service
+func (s *dummyService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetPid return a dummy pid
 func (s *dummyService) GetPid(context.Context) (int, error) {
 	return s.Pid, nil

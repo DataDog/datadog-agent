@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/windows"
@@ -27,18 +28,24 @@ func (so *saveOutput) Write(p []byte) (n int, err error) {
 	return os.Stdout.Write(p)
 }
 
-var startTime windows.Filetime
+var startTime uint64
 var startTimeOnce sync.Once
 
 func testGetProcessStartTimeAsNs(_ uint64) (uint64, error) {
 
 	startTimeOnce.Do(func() {
-		windows.GetSystemTimeAsFileTime(&startTime)
-		// move the start a bit earlier to make sure it's always
-		// before current
-		startTime.LowDateTime -= 1000000
+		var t windows.Filetime
+		windows.GetSystemTimeAsFileTime(&t)
+		// move the start a bit earlier to make sure it's always before current.
+		// 16ms is Windows time resolution, so use a few of those.
+		offset := (3 * 16 * time.Millisecond).Nanoseconds()
+		ns := t.Nanoseconds()
+		if ns < offset {
+			panic("time is too early")
+		}
+		startTime = uint64(ns - offset)
 	})
-	return uint64(startTime.Nanoseconds()), nil
+	return startTime, nil
 
 }
 func TestServices(t *testing.T) {

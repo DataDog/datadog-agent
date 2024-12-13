@@ -43,7 +43,7 @@ func TestFindNameFromNearestPackageJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &nodeDetector{ctx: DetectionContext{
 				fs:         NewSubDirFS(full),
-				contextMap: make(DetectorContextMap),
+				ContextMap: make(DetectorContextMap),
 			}}
 			value, ok := instance.findNameFromNearestPackageJSON(tt.path)
 			assert.Equal(t, len(tt.expected) > 0, ok)

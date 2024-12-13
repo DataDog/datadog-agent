@@ -44,11 +44,24 @@ func TestTraceAgentConfig(t *testing.T) {
 }
 
 func TestTraceAgent(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testTraceAgent(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testTraceAgent(true, t)
+	})
+}
+
+func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := traceconfig.New()
 	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 	require.NoError(t, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	cfg.BucketInterval = 50 * time.Millisecond
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
 	_, metricClient, timingReporter := setupMetricClient()

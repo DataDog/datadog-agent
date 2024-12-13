@@ -89,7 +89,9 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 }
 
 func (t *kernelTelemetry) Log() {
-	log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
+	}
 }
 
 // Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other

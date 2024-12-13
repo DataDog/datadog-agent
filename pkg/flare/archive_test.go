@@ -22,7 +22,6 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -44,7 +43,7 @@ func TestGoRoutines(t *testing.T) {
 }
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	common.SetupConfigForTest("./test/datadog-agent.yaml")
+	configmock.NewFromFile(t, "./test/datadog-agent.yaml")
 	// create system-probe.yaml file because it's in .gitignore
 	_, err := os.Create("./test/system-probe.yaml")
 	require.NoError(t, err, "couldn't create system-probe.yaml")
@@ -58,7 +57,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 }
 
 func TestIncludeConfigFiles(t *testing.T) {
-	common.SetupConfigForTest("./test")
+	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
@@ -69,7 +68,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 }
 
 func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	common.SetupConfigForTest("./test")
+	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})

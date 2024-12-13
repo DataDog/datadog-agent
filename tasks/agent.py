@@ -12,9 +12,9 @@ import sys
 import tempfile
 
 from invoke import task
-from invoke.exceptions import Exit, ParseError
+from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import (
@@ -25,7 +25,6 @@ from tasks.libs.common.utils import (
     get_goenv,
     get_version,
     gitlab_section,
-    has_both_python,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
@@ -37,12 +36,6 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
-
-BUNDLED_AGENTS = {
-    # system-probe requires a working compilation environment for eBPF so we do not
-    # enable it by default but we enable it in the released artifacts.
-    AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
-}
 
 if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
@@ -136,13 +129,11 @@ def build(
     install_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes='3',
     exclude_rtloader=False,
     include_sds=False,
-    go_mod="mod",
+    go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
     bundle=None,
@@ -162,14 +153,13 @@ def build(
     if flavor.is_ot():
         # for agent build purposes the UA agent is just like base
         flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            rtloader_make(
-                ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
-            )
+            rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -177,27 +167,28 @@ def build(
         install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     bundled_agents = ["agent"]
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
-        build_rc(
-            ctx,
-            "cmd/agent/windows_resources/agent.rc",
-            vars=vars,
-            out="cmd/agent/rsrc.syso",
-        )
+        # Do not call build_rc when cross-compiling on Linux as the intend is more
+        # to streamline the development process that producing a working executable / installer
+        if sys.platform == 'win32':
+            vars = versioninfo_vars(ctx, major_version=major_version)
+            build_rc(
+                ctx,
+                "cmd/agent/windows_resources/agent.rc",
+                vars=vars,
+                out="cmd/agent/rsrc.syso",
+            )
     else:
-        bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
+        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -217,6 +208,7 @@ def build(
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
             build_tags = get_build_tags(include_tags, exclude_tags)
+            build_tags = add_fips_tags(build_tags, fips_mode)
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
@@ -266,7 +258,6 @@ def build(
             ctx,
             env=env,
             flavor=flavor,
-            python_runtimes=python_runtimes,
             skip_assets=skip_assets,
             build_tags=build_tags,
             development=development,
@@ -290,7 +281,7 @@ def create_launcher(ctx, agent, src, dst):
     ctx.run(cmd.format(**args))
 
 
-def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, development, windows_sysprobe):
+def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
     # Remove cross-compiling bits to render config
     env.update({"GOOS": "", "GOARCH": ""})
 
@@ -298,8 +289,6 @@ def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, de
     build_type = "agent-py3"
     if flavor.is_iot():
         build_type = "iot-agent"
-    elif has_both_python(python_runtimes):
-        build_type = "agent-py2py3"
 
     generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 
@@ -366,7 +355,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./comp/core/gui/guiimpl/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
@@ -422,15 +411,10 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, tag=None, push=False):
+def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=None, push=False):
     """
     Build the docker image
     """
-    BOTH_VERSIONS = ["both", "2+3"]
-    VALID_VERSIONS = ["2", "3"] + BOTH_VERSIONS
-    if python_version not in VALID_VERSIONS:
-        raise ParseError("provided python_version is invalid")
-
     build_context = "Dockerfiles/agent"
     base_dir = base_dir or os.environ["OMNIBUS_BASE_DIR"]
     pkg_dir = os.path.join(base_dir, 'pkg')
@@ -449,8 +433,6 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         tag = AGENT_TAG
 
     common_build_opts = f"-t {tag} -f {dockerfile_path}"
-    if python_version not in BOTH_VERSIONS:
-        common_build_opts = f"{common_build_opts} --build-arg PYTHON_VERSION={python_version}"
 
     # Build with the testing target
     if not skip_tests:
@@ -513,7 +495,7 @@ def hacky_dev_image_build(
     if process_agent:
         from tasks.process_agent import build as process_agent_build
 
-        process_agent_build(ctx, bundle=False)
+        process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build
@@ -592,7 +574,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -604,7 +586,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeou
         return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
+def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
@@ -642,7 +624,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
@@ -953,3 +935,12 @@ def generate_config(ctx, build_type, output_file, env=None):
     }
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
+
+
+@task()
+def build_remote_agent(ctx, env=None):
+    """
+    Builds the remote-agent example client.
+    """
+    cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
+    return ctx.run(cmd, env=env or {})

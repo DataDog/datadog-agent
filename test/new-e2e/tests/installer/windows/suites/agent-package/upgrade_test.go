@@ -46,7 +46,7 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 
 	// Act
 	_, err = s.Installer().InstallExperiment(installerwindows.AgentPackage,
-		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
 	)
@@ -69,7 +69,7 @@ func (s *testAgentUpgradeSuite) TestExperimentFailure() {
 
 	// Act
 	_, err := s.Installer().InstallExperiment(installerwindows.AgentPackage,
-		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion("unknown-version"),
 		installer.WithAuthentication(""),
 	)
@@ -88,7 +88,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
 
 	// Act
 	_, err := s.Installer().InstallExperiment(installerwindows.AgentPackage,
-		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
 	)
@@ -121,7 +121,7 @@ func (s *testAgentUpgradeSuite) installStableAgent() {
 
 	// Act
 	output, err := s.Installer().InstallPackage(installerwindows.AgentPackage,
-		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
 	)

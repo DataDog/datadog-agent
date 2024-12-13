@@ -9,7 +9,6 @@ otlp_config:
     delta_ttl: 2400
     tag_cardinality: orchestrator
     resource_attributes_as_tags: true
-    instrumentation_library_metadata_as_tags: true
     instrumentation_scope_metadata_as_tags: true
     tags: "tag1:value1,tag2:value2"
     histograms:

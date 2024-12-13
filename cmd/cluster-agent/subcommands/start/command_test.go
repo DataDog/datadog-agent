@@ -3,12 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && kubeapiserver
+//go:build !darwin && !windows && kubeapiserver
 
 package start
 
 import (
+	"os"
+	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -16,8 +20,21 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"start"},
 		start,
 		func() {})
+}
+
+func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
+	// Because run uses fx.Invoke, demultiplexer, and workloadmeta component are built
+	// which lead to build:
+	//   - config.Component which requires a valid datadog.yaml
+	config := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	require.NoError(t, err)
+
+	return &command.GlobalParams{
+		ConfFilePath: config,
+	}
 }

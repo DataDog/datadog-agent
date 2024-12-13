@@ -165,7 +165,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -238,7 +238,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			t.Fatal(err)
 		}
 		return nil
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, _ eval.EventType) bool {
 		e := event.(*model.Event)
 		if e == nil || e.GetEventType() != model.FileOpenEventType {
 			return false
@@ -299,7 +299,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -341,7 +341,7 @@ func TestFilterOpenGrandParentDiscarder(t *testing.T) {
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
-func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO string) {
+func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventType model.EventType, field eval.Field, path string, auidOK, auidKO string) {
 	var cmdWrapper *dockerCmdWrapper
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -352,16 +352,20 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	// reset stats
 	test.statsdClient.Flush()
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForProbeEvent(test, func() error {
 		args := []string{
-			"-login-uid-open-test",
-			"-login-uid-open-path", "/tmp/test-auid",
-			"-login-uid-open-uid", auidOK,
+			"-login-uid-test",
+			"-login-uid-event-type", eventType.String(),
+			"-login-uid-path", "/tmp/test-auid",
+			"-login-uid-value", auidOK,
 		}
 
 		cmd := cmdWrapper.Command(goSyscallTester, args, []string{})
 		return cmd.Run()
-	}, "/tmp/test-auid"); err != nil {
+	}, eventType, eventKeyValueFilter{
+		key:   field,
+		value: path,
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -372,7 +376,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:" + eventType.String()); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
@@ -380,16 +384,20 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForProbeEvent(test, func() error {
 		args := []string{
-			"-login-uid-open-test",
-			"-login-uid-open-path", "/tmp/test-auid",
-			"-login-uid-open-uid", auidKO,
+			"-login-uid-test",
+			"-login-uid-event-type", eventType.String(),
+			"-login-uid-path", "/tmp/test-auid",
+			"-login-uid-value", auidKO,
 		}
 
 		cmd := cmdWrapper.Command(goSyscallTester, args, []string{})
 		return cmd.Run()
-	}, "/tmp/test-auid"); err == nil {
+	}, eventType, eventKeyValueFilter{
+		key:   field,
+		value: path,
+	}); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
 }
@@ -432,15 +440,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	}
 
 	t.Run("equal-fixed-value", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "1005", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1005", "6000")
 	})
 
 	t.Run("equal-zero", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "0", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "0", "6000")
 	})
 
 	t.Run("equal-unset", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "-1", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "-1", "6000")
 	})
 }
 
@@ -473,7 +481,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "450", "605")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "450", "605")
 }
 
 func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
@@ -505,7 +513,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "1500", "605")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1500", "605")
 }
 
 func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
@@ -537,7 +545,41 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "6000", "-1")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "6000", "-1")
+}
+
+func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_equal_1",
+			Expression: `unlink.file.path =~ "/tmp/test-auid" && process.auid == 1009`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("equal-fixed-value", func(t *testing.T) {
+		runAUIDTest(t, test, goSyscallTester, model.FileUnlinkEventType, "unlink.file.path", "/tmp/test-auid", "1009", "6000")
+	})
 }
 
 func TestFilterDiscarderMask(t *testing.T) {
@@ -575,7 +617,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 
@@ -614,7 +656,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 	}))
@@ -656,7 +698,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -742,7 +784,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -914,9 +956,9 @@ func TestFilterDiscarderRetention(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, _ eval.EventType) bool {
 		e := event.(*model.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+		if e == nil || e.GetEventType() != model.FileOpenEventType {
 			return false
 		}
 
@@ -1009,7 +1051,7 @@ func TestFilterBpfCmd(t *testing.T) {
 			return err
 		}
 		return nil
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_bpf_map_create")
 	})
 
@@ -1028,10 +1070,7 @@ func TestFilterBpfCmd(t *testing.T) {
 			return false
 		}
 		cmd := model.BPFCmd(uint64(cmdInt))
-		if assert.Equal(t, model.BpfMapCreateCmd, cmd, "should not get a bpf event with cmd other than BPF_MAP_CREATE") {
-			return false
-		}
-		return true
+		return !assert.Equal(t, model.BpfMapCreateCmd, cmd, "should not get a bpf event with cmd other than BPF_MAP_CREATE")
 	}, 1*time.Second, model.BPFEventType)
 	if err != nil {
 		if otherErr, ok := err.(ErrTimeout); !ok {
@@ -1080,7 +1119,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 	// unlink aren't discarded kernel side (inode invalidation) but should be discarded before the rule evaluation
 	err = test.GetSignal(t, func() error {
 		return os.Remove(testFile)
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(_ *model.Event, _ *rules.Rule) {
 		t.Errorf("shouldn't get an event")
 	})
 

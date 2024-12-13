@@ -49,8 +49,8 @@ func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, m
 		k8sClient: mockClient,
 		store:     mockStore,
 		logger:    mockLogger,
-		queue: workqueue.NewRateLimitingQueue(
-			workqueue.NewItemExponentialFailureRateLimiter(
+		queue: workqueue.NewTypedRateLimitingQueue[langUtil.NamespacedOwnerReference](
+			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				1*time.Second,
 				4*time.Second,
 			),

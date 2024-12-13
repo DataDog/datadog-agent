@@ -27,8 +27,6 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 		return types.NewEntityID(types.Process, entityID.ID)
 	case workloadmeta.KindKubernetesDeployment:
 		return types.NewEntityID(types.KubernetesDeployment, entityID.ID)
-	case workloadmeta.KindHost:
-		return types.NewEntityID(types.Host, entityID.ID)
 	case workloadmeta.KindKubernetesMetadata:
 		return types.NewEntityID(types.KubernetesMetadata, entityID.ID)
 	default:
@@ -36,11 +34,4 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
 		return types.NewEntityID(types.EntityIDPrefix(entityID.Kind), entityID.ID)
 	}
-}
-
-var globalEntityID = types.NewEntityID("internal", "global-entity-id")
-
-// GetGlobalEntityID returns the entity ID that holds global tags
-func GetGlobalEntityID() types.EntityID {
-	return globalEntityID
 }

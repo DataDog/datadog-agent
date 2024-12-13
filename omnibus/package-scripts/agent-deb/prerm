@@ -131,7 +131,10 @@ remove_sysprobe_secagent_files()
     if [ -d "$INSTALL_DIR/run" ]; then
         rmdir "$INSTALL_DIR/run" 2>/dev/null || true
     fi
+}
 
+remove_sysprobe_core_files()
+{
     # Remove any unpacked BTF files
     find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
     # And remove empty directories
@@ -164,18 +167,17 @@ remove_persist_integration_files()
     fi
 }
 
-remove_apm_remote_config()
+remove_fips_module()
 {
-    if [ -f "$INSTALL_DIR/run/inject_config.yaml" ]; then
-        echo "Removing APM remote configuration file"
-        rm "$INSTALL_DIR/run/inject_config.yaml" || true
-    fi
+    # We explicitly remove the ssl directory because files within this folder are generated via a script
+    # outside of package installation (deb package only removes files initially present in the package).
+    rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
 }
 
 case "$1" in #this can't be merged with the later case block because running 'remove_custom_integrations' would defeat the persisting integrations feature
     upgrade)
         # We're upgrading.
-        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
+        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
             ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
         fi
     ;;
@@ -186,6 +188,7 @@ stop_agent
 deregister_agent
 remove_custom_integrations
 remove_py_compiled_files
+remove_sysprobe_core_files
 
 case "$1" in
     remove)
@@ -193,6 +196,7 @@ case "$1" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+        remove_fips_module
         remove_persist_integration_files
     ;;
     upgrade)

@@ -46,7 +46,7 @@ type Scanner struct {
 	running   bool
 	disk      filesystem.Disk
 	// scanQueue is the workqueue used to process scan requests
-	scanQueue workqueue.RateLimitingInterface
+	scanQueue workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
 	// cacheMutex is used to protect the cache from concurrent access
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
@@ -59,12 +59,12 @@ type Scanner struct {
 // collectors.
 func NewScanner(cfg config.Component, collectors map[string]collectors.Collector, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
-		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
-			workqueue.NewItemExponentialFailureRateLimiter(
+		scanQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.NewTypedItemExponentialFailureRateLimiter[sbom.ScanRequest](
 				cfg.GetDuration("sbom.scan_queue.base_backoff"),
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
-			workqueue.RateLimitingQueueConfig{
+			workqueue.TypedRateLimitingQueueConfig[sbom.ScanRequest]{
 				Name:            telemetry.Subsystem,
 				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
@@ -186,7 +186,7 @@ func (s *Scanner) startCacheCleaner(ctx context.Context) {
 				log.Debug("cleaning SBOM cache")
 				for _, collector := range s.collectors {
 					if err := collector.CleanCache(); err != nil {
-						_ = log.Warnf("could not clean SBOM cache: %v", err)
+						log.Warnf("could not clean SBOM cache: %v", err)
 					}
 				}
 				s.cacheMutex.Unlock()
@@ -229,17 +229,10 @@ func (s *Scanner) GetCollector(collector string) collectors.Collector {
 	return s.collectors[collector]
 }
 
-func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
-	request, ok := r.(sbom.ScanRequest)
-	if !ok {
-		_ = log.Errorf("invalid scan request type '%T'", r)
-		s.scanQueue.Forget(r)
-		return
-	}
-
+func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanRequest) {
 	collector := s.GetCollector(request.Collector())
 	if collector == nil {
-		_ = log.Errorf("invalid collector '%s'", request.Collector())
+		log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
 		return
 	}
@@ -261,7 +254,7 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.ContainerImageMetadata {
 	store, ok := s.wmeta.Get()
 	if !ok {
-		_ = log.Errorf("workloadmeta store is not initialized")
+		log.Errorf("workloadmeta store is not initialized")
 		s.scanQueue.AddRateLimited(request)
 		return nil
 	}

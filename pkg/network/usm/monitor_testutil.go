@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && test
 
 package usm
 
@@ -75,7 +75,7 @@ func (p *protocolMock) Stop(mgr *manager.Manager) {
 func (p *protocolMock) DumpMaps(io.Writer, string, *ebpf.Map) {}
 func (p *protocolMock) GetStats() *protocols.ProtocolStats    { return nil }
 
-// IsBuildModeSupported returns always true, as java tls module is supported by all modes.
+// IsBuildModeSupported returns always true, as the mock is supported by all modes.
 func (*protocolMock) IsBuildModeSupported(buildmode.Type) bool { return true }
 
 // patchProtocolMock updates the map of known protocols to replace the mock

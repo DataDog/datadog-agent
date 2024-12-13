@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && test
 
 package uprobes
 
@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,7 +57,7 @@ type MockFileRegistry struct {
 }
 
 // Register is a mock implementation of the FileRegistry.Register method.
-func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error {
+func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error { //nolint:revive // TODO
 	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
 	return args.Error(0)
 }
@@ -78,20 +79,48 @@ func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	return args.Get(0).(map[uint32]struct{})
 }
 
+// Log is a mock implementation of the FileRegistry.Log method.
+func (m *MockFileRegistry) Log() {
+	m.Called()
+}
+
 // MockBinaryInspector is a mock implementation of the BinaryInspector interface.
 type MockBinaryInspector struct {
 	mock.Mock
 }
 
 // Inspect is a mock implementation of the BinaryInspector.Inspect method.
-func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
 	args := m.Called(fpath, requests)
-	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Bool(1), args.Error(2)
+	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Error(1)
 }
 
 // Cleanup is a mock implementation of the BinaryInspector.Cleanup method.
 func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 	_ = m.Called(fpath)
+}
+
+type mockProcessMonitor struct {
+	mock.Mock
+}
+
+func (m *mockProcessMonitor) SubscribeExec(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+func (m *mockProcessMonitor) SubscribeExit(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+// Create a new mockProcessMonitor that accepts any callback and returns a no-op function
+func newMockProcessMonitor() *mockProcessMonitor {
+	pm := &mockProcessMonitor{}
+	pm.On("SubscribeExec", mock.Anything).Return(func() {})
+	pm.On("SubscribeExit", mock.Anything).Return(func() {})
+
+	return pm
 }
 
 // === Test utils
@@ -181,18 +210,24 @@ func checkIfEventually(condition func() bool, checkInterval time.Duration, check
 	}
 }
 
-// waitAndRetryIfFail is basically a way to do require.Eventually with multiple retries.
-// In each retry, it will run the setupFunc, then wait until the condition defined by testFunc is met or the timeout is reached, and then run the retryCleanup function.
-// If the condition is met, it will return, otherwise it will retry the same thing again.
-// If the condition is not met after maxRetries, it will fail the test.
-func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, retryCleanup func(), maxRetries int, checkInterval time.Duration, maxSingleCheckTime time.Duration, msgAndArgs ...interface{}) {
+// waitAndRetryIfFail is basically a way to do require.Eventually with multiple
+// retries. In each retry, it will run the setupFunc, then wait until the
+// condition defined by testFunc is met or the timeout is reached, and then run
+// the retryCleanup function. The retryCleanup function is useful to clean up
+// any state that was set up in the setupFunc. It will receive a boolean
+// indicating if the test was successful or not, in case the cleanup needs to be
+// different depending on the test result (e.g., if the test didn't fail we
+// might want to keep some state). If the condition is met, it will return,
+// otherwise it will retry the same thing again. If the condition is not met
+// after maxRetries, it will fail the test.
+func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, retryCleanup func(testSuccess bool), maxRetries int, checkInterval time.Duration, maxSingleCheckTime time.Duration, msgAndArgs ...interface{}) {
 	for i := 0; i < maxRetries; i++ {
 		if setupFunc != nil {
 			setupFunc()
 		}
 		result := checkIfEventually(testFunc, checkInterval, maxSingleCheckTime)
 		if retryCleanup != nil {
-			retryCleanup()
+			retryCleanup(result)
 		}
 
 		if result {
@@ -201,4 +236,59 @@ func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, re
 	}
 
 	require.Fail(t, "condition not met after %d retries", maxRetries, msgAndArgs)
+}
+
+// processMonitorProxy is a wrapper around a ProcessMonitor that stores the
+// callbacks subscribed to it, and triggers them which allows manually
+// triggering the callbacks for testing purposes.
+type processMonitorProxy struct {
+	target        ProcessMonitor
+	mutex         sync.Mutex // performance is not a worry for this, so use a single mutex for simplicity
+	execCallbacks map[*func(uint32)]struct{}
+	exitCallbacks map[*func(uint32)]struct{}
+}
+
+// ensure it implements the ProcessMonitor interface
+var _ ProcessMonitor = &processMonitorProxy{}
+
+func newProcessMonitorProxy(target ProcessMonitor) *processMonitorProxy {
+	return &processMonitorProxy{
+		target:        target,
+		execCallbacks: make(map[*func(uint32)]struct{}),
+		exitCallbacks: make(map[*func(uint32)]struct{}),
+	}
+}
+
+func (o *processMonitorProxy) SubscribeExec(cb func(uint32)) func() {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	o.execCallbacks[&cb] = struct{}{}
+
+	return o.target.SubscribeExec(cb)
+}
+
+func (o *processMonitorProxy) SubscribeExit(cb func(uint32)) func() {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	o.exitCallbacks[&cb] = struct{}{}
+
+	return o.target.SubscribeExit(cb)
+}
+
+func (o *processMonitorProxy) triggerExit(pid uint32) {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+
+	for cb := range o.exitCallbacks {
+		(*cb)(pid)
+	}
+}
+
+// Reset resets the state of the processMonitorProxy, removing all callbacks.
+func (o *processMonitorProxy) Reset() {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+
+	o.execCallbacks = make(map[*func(uint32)]struct{})
+	o.exitCallbacks = make(map[*func(uint32)]struct{})
 }

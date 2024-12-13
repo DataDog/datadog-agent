@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package uploader
 
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -87,11 +88,13 @@ func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditype
 }
 
 func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
+	notCapturedReason := "Failed to instrument, type is unsupported or too complex. Please report this issue."
+
 	args := make(map[string]*ditypes.CapturedValue)
 	for _, def := range defs {
 		args[def.Name] = &ditypes.CapturedValue{
 			Type:              def.Type,
-			NotCapturedReason: "Failed to instrument, type is unsupported or too complex",
+			NotCapturedReason: notCapturedReason,
 		}
 	}
 	return ditypes.Captures{
@@ -104,29 +107,52 @@ func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
 func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
-		var argName string
+		var (
+			argName    string
+			captureDef *ditypes.Parameter
+			defPieces  []ditypes.Parameter
+		)
 		if idx < len(defs) {
 			argName = defs[idx].Name
-		} else {
+			captureDef = &defs[idx]
+		}
+		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
-
+		if reflect.Kind(capture.Kind) == reflect.Slice {
+			args[argName] = convertSlice(captureDef, capture)
+			continue
+		}
 		if capture == nil {
 			continue
 		}
-
 		cv := &ditypes.CapturedValue{Type: capture.Type}
 		if capture.ValueStr != "" || capture.Type == "string" {
 			// we make a copy of the string so the pointer isn't overwritten in the loop
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
-		if capture.Fields != nil && idx < len(defs) {
-			cv.Fields = convertArgs(defs[idx].ParameterPieces, capture.Fields)
+		if idx < len(defs) {
+			defPieces = defs[idx].ParameterPieces
+		}
+		if capture.Fields != nil {
+			cv.Fields = convertArgs(defPieces, capture.Fields)
 		}
 		args[argName] = cv
 	}
 	return args
+}
+
+func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.CapturedValue {
+	if def == nil || len(def.ParameterPieces) != 2 {
+		// The definition should have two fields, for type, and for length
+		return nil
+	}
+	sliceValue := &ditypes.CapturedValue{
+		Fields: map[string]*ditypes.CapturedValue{},
+	}
+	sliceValue.Fields = convertArgs(def.ParameterPieces, capture.Fields)
+	return sliceValue
 }
 
 func parseFuncName(funcName string) (string, string) {

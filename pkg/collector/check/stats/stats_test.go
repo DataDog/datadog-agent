@@ -77,28 +77,8 @@ func TestNewStats(t *testing.T) {
 	assert.Equal(t, stats.Interval, 15*time.Second)
 }
 
-func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
+func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.checks", "*")
-
-	NewStats(newMockCheck())
-
-	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	// Assert that no telemetry is recorded
-	assert.NotContains(t, tlmData, "checkString")
-	assert.NotContains(t, tlmData, "state=\"fail\"")
-	assert.NotContains(t, tlmData, "state=\"ok\"")
-}
-
-func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
 	mockConfig.SetWithoutSource("telemetry.checks", "*")
 
 	NewStats(newMockCheck())

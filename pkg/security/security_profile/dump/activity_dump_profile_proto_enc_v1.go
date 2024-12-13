@@ -15,9 +15,9 @@ import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
@@ -37,7 +37,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityPro
 		Tree:            activity_tree.ToProto(input.ActivityTree),
 		Selector:        cgroupModel.WorkloadSelectorToProto(wSelector),
 	}
-	timeResolver, err := timeResolver.NewResolver()
+	timeResolver, err := stime.NewResolver()
 	if err != nil {
 		return nil, errors.New("can't init time resolver")
 	}

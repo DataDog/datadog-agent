@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -57,7 +59,7 @@ func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplex
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), compressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
 	return demux
 }
 
@@ -178,7 +180,7 @@ func TestDestroySender(t *testing.T) {
 		return aggregatorInstance.checkSamplers[checkID1].deregistered
 	}, time.Second, 10*time.Millisecond)
 
-	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
+	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false, nil))
 	assertAggSamplersLen(t, aggregatorInstance, 1)
 }
 
@@ -357,9 +359,9 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			expectedMetricSource: metrics.MetricSourceCPU,
 		},
 		{
-			name:                 "checkid ntp:1 should have MetricSourceNtp",
+			name:                 "checkid ntp:1 should have MetricSourceNTP",
 			checkID:              "ntp:1",
-			expectedMetricSource: metrics.MetricSourceNtp,
+			expectedMetricSource: metrics.MetricSourceNTP,
 		},
 		{
 			name:                 "checkid memory:1 should have MetricSourceMemory",

@@ -6,14 +6,9 @@ from datetime import datetime
 
 import requests
 
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.utils import get_metric_origin
 from tasks.release import _get_release_json_value
-
-
-def _get_build_images(ctx):
-    # We intentionally include both build images & their test suffixes in the pattern
-    # as a test image and the merged version shouldn't share their cache
-    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
-    return (t.strip() for t in tags.splitlines())
 
 
 def _get_omnibus_commits(field):
@@ -36,6 +31,7 @@ def _get_environment_for_cache() -> dict:
             'AGENT_',
             'API_KEY_',
             'APP_KEY_',
+            'ATLASSIAN_',
             'AWS_',
             'BAZEL_',
             'BETA_',
@@ -51,13 +47,14 @@ def _get_environment_for_cache() -> dict:
             'DESTINATION_',
             'DOCKER_',
             'DYNAMIC_',
-            'E2E_TESTS_',
+            'E2E_',
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
             'GITHUB_',
             'GITLAB_',
             'GIT_',
+            'INSTALLER_',
             'JIRA_',
             'K8S_',
             'KITCHEN_',
@@ -100,7 +97,9 @@ def _get_environment_for_cache() -> dict:
             "CHANNEL",
             "CHART",
             "CI",
-            "CLUSTER",
+            "CLUSTERS",
+            "CODECOV",
+            "CODECOV_TOKEN",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
@@ -116,12 +115,15 @@ def _get_environment_for_cache() -> dict:
             "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
             "GET_SOURCES_ATTEMPTS",
             "GO_TEST_SKIP_FLAKE",
+            "GONOSUMDB",
             "HELM_HOOKS_CI_IMAGE",
+            "HELM_HOOKS_PERIODICAL_REBUILD_CONDUCTOR_ENV",
             "HOME",
             "HOSTNAME",
             "HOST_IP",
             "INFOPATH",
-            "INSTALL_SCRIPT_API_KEY",
+            "INSTALL_SCRIPT_API_KEY_ORG2",
+            "INSTANCE_TYPE",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
@@ -134,19 +136,21 @@ def _get_environment_for_cache() -> dict:
             "MANPATH",
             "MESSAGE",
             "NEW_CLUSTER",
+            "NEW_CLUSTER_PR_SLACK_WORKFLOW_WEBHOOK",
             "OLDPWD",
             "PCP_DIR",
             "PACKAGE_ARCH",
+            "PIP_EXTRA_INDEX_URL",
             "PIP_INDEX_URL",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
-            "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
             "RUSTC_SHA256",
             "SIGN",
             "SHELL",
             "SHLVL",
+            "SLACK_AGENT",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
@@ -204,9 +208,7 @@ def omnibus_compute_cache_key(ctx):
     h = hashlib.sha1()
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
-    buildimages_hash = _get_build_images(ctx)
-    for img_hash in buildimages_hash:
-        h.update(str.encode(img_hash))
+    h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
     omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
     omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
@@ -234,9 +236,7 @@ def should_retry_bundle_install(res):
 def send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
     src_dir = os.environ.get('CI_PROJECT_DIR')
-    aws_cmd = "aws"
     if sys.platform == 'win32':
-        aws_cmd = "aws.cmd"
         if src_dir is None:
             src_dir = os.environ.get("REPO_ROOT", os.getcwd())
 
@@ -270,6 +270,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
         # We also provide the total duration for the omnibus build as a separate metric
@@ -284,6 +285,7 @@ def send_build_metrics(ctx, overall_duration):
                 ],
                 'unit': 'seconds',
                 'type': 0,
+                "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
             }
         )
         # Stripping might not always be enabled so we conditionally read the metric
@@ -299,6 +301,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
         # And all packagers duration as another separated metric
@@ -315,12 +318,19 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
-    dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-        hide=True,
-    ).stdout.strip()
+    if sys.platform == 'win32':
+        dd_api_key = ctx.run(
+            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+            hide=True,
+        ).stdout.strip()
+    else:
+        dd_api_key = ctx.run(
+            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            hide=True,
+        ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
     r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
     if r.ok:
@@ -332,13 +342,15 @@ def send_build_metrics(ctx, overall_duration):
 
 def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     if sys.platform == 'win32':
-        aws_cmd = "aws.cmd"
+        dd_api_key = ctx.run(
+            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+            hide=True,
+        ).stdout.strip()
     else:
-        aws_cmd = "aws"
-    dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-        hide=True,
-    ).stdout.strip()
+        dd_api_key = ctx.run(
+            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            hide=True,
+        ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
     payload = {
         'title': 'omnibus cache miss',

@@ -9,13 +9,12 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func getTaggerList(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
-	response := tagger.List()
+	response := deps.Tagger.List()
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {

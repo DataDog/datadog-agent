@@ -110,7 +110,10 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    Py_Initialize();
+    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
+    // This only effects the windows builds as linux already has the sigint handler initialized
+    // and thus python will ignore it
+    Py_InitializeEx(1);
 
     if (!Py_IsInitialized()) {
         setError("Python not initialized");
@@ -855,7 +858,7 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
         return;
     }
 
-    PyObject *py_value = PyStringFromCString(value);
+    PyObject *py_value = PyUnicode_FromString(value);
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());

@@ -27,6 +27,11 @@ updates:
       - dependency-name: github.com/ugorji/go
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -37,6 +42,9 @@ updates:
       bun:
         patterns:
           - "github.com/uptrace/bun*"
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
@@ -49,6 +57,11 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
+      # OpenTelemetry collector packages need to be updated with inv rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
+      - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -64,6 +77,8 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -79,6 +94,8 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # See https://github.com/DataDog/datadog-agent/pull/10112
       - dependency-name: github.com/mailru/easyjson
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -92,6 +109,8 @@ updates:
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -110,6 +129,9 @@ updates:
       - qa/no-code-change
     schedule:
       interval: monthly
+    ignore:
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/networkdevice/profile
@@ -121,6 +143,8 @@ updates:
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
@@ -141,6 +165,8 @@ updates:
       # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
       # https://datadoghq.atlassian.net/browse/ADXT-375
       - dependency-name: github.com/pulumi*
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
 
     schedule:
       interval: weekly
@@ -157,18 +183,9 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
-  - package-ecosystem: pip
-    directory: /test/e2e/cws-tests
-    labels:
-      - dependencies
-      - python
-      - team/agent-security
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/tooling
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 100
+    ignore:
+      # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
+      - dependency-name: golang.org/x/*
   - package-ecosystem: docker
     directory: /test/fakeintake
     labels:
@@ -192,3 +209,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
+  - package-ecosystem: maven
+    directory: Dockerfiles/agent/bouncycastle-fips
+    labels:
+      - dependencies
+      - team/agent-metrics-logs
+      - changelog/no-changelog
+    schedule:
+      interval: weekly
