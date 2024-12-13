@@ -151,6 +151,7 @@ variables:
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
   # This value is not used on windows, a specific value is provided to
   # our build containers in the windows build jobs
@@ -281,6 +282,9 @@ variables:
 #
 .if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "main"
+
+.if_not_main_branch: &if_not_main_branch
+  if: $CI_COMMIT_BRANCH != "main"
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
@@ -627,6 +631,10 @@ workflow:
       compare_to: main
     variables:
       FAST_TESTS: "true"
+
+.only_main:
+  - <<: *if_not_main_branch
+    when: never
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -977,6 +985,16 @@ workflow:
         - comp/haagent/**/*
         - pkg/aggregator/**/*
         - test/new-e2e/tests/ha-agent/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_netpath_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/networkpath/**/*
+        - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success

@@ -128,12 +128,6 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
-func (c *ntmConfig) logErrorNotImplemented(method string) error {
-	err := fmt.Errorf("not implemented: %s", method)
-	log.Error(err)
-	return err
-}
-
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -634,7 +628,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, content); err != nil {
+	if err = c.readConfigurationContent(other, model.SourceFile, content); err != nil {
 		return err
 	}
 
@@ -663,8 +657,17 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	// TODO: Implement merging, merge in the policy that was read
-	return c.logErrorNotImplemented("MergeFleetPolicy")
+	content, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	other := newInnerNode(nil)
+	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content); err != nil {
+		return err
+	}
+
+	return c.root.Merge(other)
 }
 
 // AllSettings returns all settings from the config
