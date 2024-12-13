@@ -7,6 +7,7 @@ package integrationslogs
 
 import (
 	_ "embed"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -57,6 +58,8 @@ func TestIntegrationsLogsSuite(t *testing.T) {
 			agentparams.WithLogs(),
 			agentparams.WithAgentConfig("logs_config.integrations_logs_files_max_size: 1"))))}
 
+	suiteParams = append(suiteParams, e2e.WithDevMode())
+
 	e2e.Run(t, &IntegrationsLogsSuite{}, suiteParams...)
 }
 
@@ -87,7 +90,7 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	// called, then check that each log's counter is 1 more than the previous log
 
 	tags := []string{"test:rotate"}
-	yamlData, err := generateYaml("a", true, 1024*245, 1, tags, "rotation_source", "rotation_service")
+	yamlData, err := generateYaml("a", true, 1024*230, 1, tags, "rotation_source", "rotation_service")
 	assert.NoError(v.T(), err)
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
@@ -99,7 +102,7 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 	prevLogCount := -1
 	for i := 0; i < 5; i++ {
 		assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*message.*")
+			logs, err := utils.FetchAndFilterLogs(v.Env().FakeIntake, "rotation_service", ".*counter: \\d+.*")
 			assert.NoError(c, err)
 
 			if assert.NotEmpty(c, logs) && len(logs) >= i+1 {
@@ -112,8 +115,10 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 				count, err := strconv.Atoi(number)
 				assert.Nil(v.T(), err)
 
+				fmt.Printf("iteration: %d, previous: %d, count: %d\n\n", i, prevLogCount, count)
+
 				if prevLogCount != -1 {
-					assert.Equal(v.T(), count, prevLogCount+1)
+					assert.Equal(v.T(), prevLogCount+1, count)
 				}
 
 				prevLogCount = count
