@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
 
-// team: processes
+// team: container-intake
 
 // Component is the component type.
 type Component interface {
