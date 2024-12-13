@@ -74,21 +74,26 @@ build do
     ###############################
     # Setup openssl dependency... #
     ###############################
-    mkdir "externals/openssl-bin-3.0.15/amd64/include"
+
+    # This is not necessarily the version we build, but the version
+    # The Python build system expects.
+    openssl_version = "3.0.15"
+    python_arch = "amd64"
+    mkdir "externals/openssl-bin-#{openssl_version}/#{python_arch}/include"
     # Copy the import library to have them point at our own built versions, regardless of
     # their names in usual python builds
-    copy "#{install_dir}/embedded/lib/libcrypto.dll.a", "externals/openssl-bin-3.0.15/amd64/libcrypto.lib"
-    copy "#{install_dir}/embedded/lib/libssl.dll.a", "externals/openssl-bin-3.0.15/amd64/libssl.lib"
-    copy "#{install_dir}/embedded/lib/libssl.dll.a", "externals/openssl-bin-3.0.15/amd64/libssl.lib"
+    copy "#{install_dir}/embedded/lib/libcrypto.dll.a", "externals/openssl-bin-#{openssl_version}/#{python_arch}/libcrypto.lib"
+    copy "#{install_dir}/embedded/lib/libssl.dll.a", "externals/openssl-bin-#{openssl_version}/#{python_arch}/libssl.lib"
+    copy "#{install_dir}/embedded/lib/libssl.dll.a", "externals/openssl-bin-#{openssl_version}/#{python_arch}/libssl.lib"
     # Copy the actual DLLs, be sure to keep the same name since that's what the IMPLIBs expect
-    copy "#{install_dir}/embedded/bin/libssl-3-x64.dll", "externals/openssl-bin-3.0.15/amd64/libssl-3.dll"
-    command "touch externals/openssl-bin-3.0.15/amd64/libssl-3.pdb"
-    copy "#{install_dir}/embedded/bin/libcrypto-3-x64.dll", "externals/openssl-bin-3.0.15/amd64/libcrypto-3.dll"
-    command "touch externals/openssl-bin-3.0.15/amd64/libcrypto-3.pdb"
+    copy "#{install_dir}/embedded/bin/libssl-3-x64.dll", "externals/openssl-bin-#{openssl_version}/#{python_arch}/libssl-3.dll"
+    command "touch externals/openssl-bin-#{openssl_version}/#{python_arch}/libssl-3.pdb"
+    copy "#{install_dir}/embedded/bin/libcrypto-3-x64.dll", "externals/openssl-bin-#{openssl_version}/#{python_arch}/libcrypto-3.dll"
+    command "touch externals/openssl-bin-#{openssl_version}/#{python_arch}/libcrypto-3.pdb"
     # The applink "header"
-    copy "#{install_dir}/embedded/include/openssl/applink.c", "externals/openssl-bin-3.0.15/amd64/include/"
+    copy "#{install_dir}/embedded/include/openssl/applink.c", "externals/openssl-bin-#{openssl_version}/#{python_arch}/include/"
     # And finally the headers:
-    copy "#{install_dir}/embedded/include/openssl", "externals/openssl-bin-3.0.15/amd64/include/"
+    copy "#{install_dir}/embedded/include/openssl", "externals/openssl-bin-#{openssl_version}/#{python_arch}/include/"
     # Now build python itself
     # -e to enable external libraries. They won't be fetched if already
     # present, but the modules will be built nonetheless.
@@ -97,14 +102,14 @@ build do
     # Build Python...             #
     ###############################
     command "PCbuild\\build.bat -e --pgo"
-    command "dir PCbuild/amd64/"
+    command "dir PCbuild/#{python_arch}/"
     # Install the build artifact to their expected locations
-    copy "PCbuild/amd64/*.exe", "#{windows_safe_path(python_3_embedded)}/"
-    copy "PCbuild/amd64/*.dll", "#{windows_safe_path(python_3_embedded)}/"
+    copy "PCbuild/#{python_arch}/*.exe", "#{windows_safe_path(python_3_embedded)}/"
+    copy "PCbuild/#{python_arch}/*.dll", "#{windows_safe_path(python_3_embedded)}/"
     mkdir "#{windows_safe_path(python_3_embedded)}/DLLs"
-    copy "PCbuild/amd64/*.pyd", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+    copy "PCbuild/#{python_arch}/*.pyd", "#{windows_safe_path(python_3_embedded)}/DLLs/"
     mkdir "#{windows_safe_path(python_3_embedded)}/libs"
-    copy "PCbuild/amd64/*.lib", "#{windows_safe_path(python_3_embedded)}/libs"
+    copy "PCbuild/#{python_arch}/*.lib", "#{windows_safe_path(python_3_embedded)}/libs"
     copy "Lib", "#{windows_safe_path(python_3_embedded)}/"
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
 
