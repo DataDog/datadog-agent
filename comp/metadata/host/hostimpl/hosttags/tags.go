@@ -133,6 +133,10 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
+	if conf.GetBool("ha_agent.enabled") {
+		hostTags = appendToHostTags(hostTags, []string{"agent_group:" + conf.GetString("ha_agent.group")})
+	}
+
 	gceTags := []string{}
 	providers := getProvidersDefinitionsFunc(conf)
 	for {
