@@ -26,8 +26,6 @@ func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveI
 	return loadFunctionDefinitions(dwarfData, targetFunctions, resolveInlinedProgramCounters)
 }
 
-var dwarfMap = make(map[string]*dwarf.Data)
-
 type seenTypeCounter struct {
 	parameter *ditypes.Parameter
 	count     uint8
@@ -186,9 +184,6 @@ entryLoop:
 }
 
 func loadDWARF(binaryPath string) (*dwarf.Data, error) {
-	if dwarfData, ok := dwarfMap[binaryPath]; ok {
-		return dwarfData, nil
-	}
 	elfFile, err := safeelf.Open(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open elf binary: %w", err)
@@ -198,7 +193,6 @@ func loadDWARF(binaryPath string) (*dwarf.Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve debug info from elf: %w", err)
 	}
-	dwarfMap[binaryPath] = dwarfData
 	return dwarfData, nil
 }
 
