@@ -46,7 +46,7 @@ func CreateRawSocket() (*Winrawsocket, error) {
 	return &Winrawsocket{Socket: s}, nil
 }
 
-func sendRawPacket(w *Winrawsocket, destIP net.IP, destPort uint16, payload []byte) error {
+func SendRawPacket(w *Winrawsocket, destIP net.IP, destPort uint16, payload []byte) error {
 
 	dst := destIP.To4()
 	sa := &windows.SockaddrInet4{

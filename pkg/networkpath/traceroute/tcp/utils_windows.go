@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	recvFrom = windows.Recvfrom
+	recvFrom          = windows.Recvfrom
+	handlePacketsFunc = handlePackets
 )
 
 // listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
@@ -31,16 +32,14 @@ var (
 func listenPackets(w *common.Winrawsocket, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	ip, finished, err := handlePackets(ctx, w, localIP, localPort, remoteIP, remotePort, seqNum)
+	ip, finished, err := handlePacketsFunc(ctx, w, localIP, localPort, remoteIP, remotePort, seqNum)
 	if err != nil {
 		_, canceled := err.(common.CanceledError)
 		if canceled {
 			log.Trace("timed out waiting for responses")
 			return net.IP{}, time.Time{}, nil
 		}
-		if err != nil {
-			log.Errorf("listener error: %s", err.Error())
-		}
+		log.Errorf("listener error: %s", err.Error())
 
 		return net.IP{}, time.Time{}, fmt.Errorf("error: %w", err)
 	}
