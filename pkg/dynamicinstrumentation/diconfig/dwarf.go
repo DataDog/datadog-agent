@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
-	return loadFunctionDefinitions(dwarfData, targetFunctions)
+func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveInlinedProgramCounters bool) (*ditypes.TypeMap, error) {
+	return loadFunctionDefinitions(dwarfData, targetFunctions, resolveInlinedProgramCounters)
 }
 
 var dwarfMap = make(map[string]*dwarf.Data)
@@ -35,7 +35,7 @@ type seenTypeCounter struct {
 
 var seenTypes = make(map[string]*seenTypeCounter)
 
-func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
+func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool, resolveInlinedProgramCounters bool) (*ditypes.TypeMap, error) {
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 	readingAFunction := false
@@ -83,7 +83,7 @@ entryLoop:
 			}
 		}
 
-		if entry.Tag == dwarf.TagInlinedSubroutine {
+		if resolveInlinedProgramCounters && entry.Tag == dwarf.TagInlinedSubroutine {
 			// This is a inlined function
 			for i := range entry.Field {
 				// Find it's high program counter (where it exits in the parent routine)

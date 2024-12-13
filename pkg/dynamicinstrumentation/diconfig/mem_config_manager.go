@@ -26,18 +26,20 @@ type ReaderConfigManager struct {
 	ConfigWriter *ConfigWriter
 	procTracker  *proctracker.ProcessTracker
 
-	callback configUpdateCallback
-	configs  configsByService
-	state    ditypes.DIProcs
+	callback       configUpdateCallback
+	configs        configsByService
+	state          ditypes.DIProcs
+	runtimeOptions *ditypes.RuntimeOptions
 }
 
 type readerConfigCallback func(configsByService) //nolint:unused // TODO
 type configsByService = map[ditypes.ServiceName]map[ditypes.ProbeID]rcConfig
 
-func NewReaderConfigManager() (*ReaderConfigManager, error) { //nolint:revive // TODO
+func NewReaderConfigManager(opts *ditypes.RuntimeOptions) (*ReaderConfigManager, error) { //nolint:revive // TODO
 	cm := &ReaderConfigManager{
-		callback: applyConfigUpdate,
-		state:    ditypes.NewDIProcs(),
+		callback:       applyConfigUpdate,
+		state:          ditypes.NewDIProcs(),
+		runtimeOptions: opts,
 	}
 
 	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcessInfo)
@@ -78,7 +80,7 @@ func (cm *ReaderConfigManager) update() error {
 	}
 
 	if !reflect.DeepEqual(cm.state, updatedState) {
-		err := inspectGoBinaries(updatedState)
+		err := inspectGoBinaries(cm.runtimeOptions, updatedState)
 		if err != nil {
 			return err
 		}
@@ -95,7 +97,7 @@ func (cm *ReaderConfigManager) update() error {
 			if _, tracked := cm.state[pid]; !tracked {
 				for _, probe := range procInfo.GetProbes() {
 					// install all probes from new process
-					cm.callback(procInfo, probe)
+					cm.callback(cm.runtimeOptions, procInfo, probe)
 				}
 			} else {
 				currentStateProbes := cm.state[pid].GetProbes()
@@ -103,7 +105,7 @@ func (cm *ReaderConfigManager) update() error {
 					cm.state[pid].DeleteProbe(existingProbe.ID)
 				}
 				for _, updatedProbe := range procInfo.GetProbes() {
-					cm.callback(procInfo, updatedProbe)
+					cm.callback(cm.runtimeOptions, procInfo, updatedProbe)
 				}
 			}
 		}

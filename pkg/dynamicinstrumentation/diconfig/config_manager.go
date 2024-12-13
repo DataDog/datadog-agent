@@ -47,7 +47,7 @@ type rcConfig struct {
 	}
 }
 
-type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
+type configUpdateCallback func(*ditypes.RuntimeOptions, *ditypes.ProcessInfo, *ditypes.Probe)
 
 // ConfigManager is a facility to track probe configurations for
 // instrumenting tracked processes
@@ -60,15 +60,17 @@ type ConfigManager interface {
 type RCConfigManager struct {
 	procTracker *proctracker.ProcessTracker
 
-	diProcs  ditypes.DIProcs
-	callback configUpdateCallback
+	diProcs        ditypes.DIProcs
+	callback       configUpdateCallback
+	runtimeOptions *ditypes.RuntimeOptions
 }
 
 // NewRCConfigManager creates a new configuration manager which utilizes remote-config
-func NewRCConfigManager() (*RCConfigManager, error) {
+func NewRCConfigManager(opts *ditypes.RuntimeOptions) (*RCConfigManager, error) {
 	log.Info("Creating new RC config manager")
 	cm := &RCConfigManager{
-		callback: applyConfigUpdate,
+		callback:       applyConfigUpdate,
+		runtimeOptions: opts,
 	}
 
 	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcesses)
@@ -127,8 +129,11 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
 	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
-
-	err = AnalyzeBinary(procInfo)
+	log.Infof("Installing config probe for service: %s.", svcConfigProbe.ServiceName)
+	configProbeRuntimeOpts := &ditypes.RuntimeOptions{
+		ResolveInlinedProgramCounters: false,
+	}
+	err = AnalyzeBinary(configProbeRuntimeOpts, procInfo)
 	if err != nil {
 		return fmt.Errorf("could not analyze binary for config probe: %w", err)
 	}
@@ -232,14 +237,14 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		// Check hash to see if the configuration changed
 		if configPath.Hash != probe.InstrumentationInfo.ConfigurationHash {
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
-			applyConfigUpdate(procInfo, probe)
+			applyConfigUpdate(cm.runtimeOptions, procInfo, probe)
 		}
 	}
 }
 
-func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
+func applyConfigUpdate(runtimeOptions *ditypes.RuntimeOptions, procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Tracef("Applying config update: %v", probe)
-	err := AnalyzeBinary(procInfo)
+	err := AnalyzeBinary(runtimeOptions, procInfo)
 	if err != nil {
 		log.Errorf("couldn't inspect binary: %v\n", err)
 		return
