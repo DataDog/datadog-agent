@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -133,8 +134,8 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
-	if conf.GetBool("ha_agent.enabled") {
-		hostTags = appendToHostTags(hostTags, []string{"agent_group:" + conf.GetString("ha_agent.group")})
+	if haagenthelpers.IsEnabled(conf) {
+		hostTags = appendToHostTags(hostTags, haagenthelpers.GetHaAgentTags(conf))
 	}
 
 	gceTags := []string{}
