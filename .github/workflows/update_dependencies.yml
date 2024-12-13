@@ -48,6 +48,7 @@ jobs:
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
           inv -e tidy tidy
+          echo "" > README.md #TODO: remove once ready
       - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: autocommit
         with:
@@ -66,7 +67,7 @@ jobs:
           # Generate the PR description
           cat > $TMP_PR_BODY_PATH <<- EOM
           ### What does this PR do?
-          Update all `golang.org/x/...` dependencies.
+          Update all \`golang.org/x/...\` dependencies.
 
           ### Motivation
           Keep dependencies up-to-date, benefit from bug fixes and new features.
