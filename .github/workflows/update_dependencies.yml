@@ -50,11 +50,9 @@ jobs:
           inv -e tidy tidy
       - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: autocommit
-        env:
-          BRANCH_NAME: update-golang-org-x-${{ github.run_id }}-${{ github.run_attempt }}
         with:
           commit_message: "chore(deps): update all golang.org/x/... dependencies"
-          branch: $BRANCH_NAME
+          branch: update-golang-org-x-${{ github.run_id }}-${{ github.run_attempt }}
           create_branch: true
           skip_fetch: true
       - name: Create PR
