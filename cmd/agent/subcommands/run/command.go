@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -50,8 +51,6 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -127,12 +126,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -250,7 +247,7 @@ func run(log log.Component,
 	_ systemprobemetadata.Component,
 	_ securityagentmetadata.Component,
 	statusComponent status.Component,
-	collector collector.Component,
+	// collector collector.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
@@ -319,7 +316,6 @@ func run(log log.Component,
 		invChecks,
 		logReceiver,
 		statusComponent,
-		collector,
 		cfg,
 		cloudfoundrycontainer,
 		jmxlogger,
@@ -484,8 +480,8 @@ func startAgent(
 	telemetry telemetry.Component,
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	wmeta workloadmeta.Component,
-	tagger tagger.Component,
+	_ workloadmeta.Component,
+	_ tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	_ optional.Option[logsAgent.Component],
@@ -496,10 +492,10 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
-	logReceiver optional.Option[integrations.Component],
+	_ optional.Option[integrations.Component],
 	_ status.Component,
-	collector collector.Component,
-	cfg config.Component,
+	// collector collector.Component,
+	_ config.Component,
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
@@ -583,8 +579,8 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, tagger), true)
+	// commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
+	// ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
