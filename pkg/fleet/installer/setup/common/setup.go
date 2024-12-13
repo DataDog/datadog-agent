@@ -10,11 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -32,7 +35,10 @@ var (
 type Setup struct {
 	configDir string
 	installer installer.Installer
+	start     time.Time
+	flavor    string
 
+	Out      *Output
 	Env      *env.Env
 	Ctx      context.Context
 	Span     ddtrace.Span
@@ -41,7 +47,13 @@ type Setup struct {
 }
 
 // NewSetup creates a new Setup structure with some default values.
-func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
+func NewSetup(ctx context.Context, env *env.Env, flavor string, flavorPath string, logOutput io.Writer) (*Setup, error) {
+	header := `Datadog Installer %s - https://www.datadoghq.com
+Running the %s installation script (https://github.com/DataDog/datadog-agent/tree/%s/pkg/fleet/installer/setup/%s) - %s
+`
+	start := time.Now()
+	output := &Output{tty: logOutput}
+	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
 	if env.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -49,10 +61,13 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
-	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", name))
+	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
 		configDir: configDir,
 		installer: installer,
+		start:     start,
+		flavor:    flavor,
+		Out:       output,
 		Env:       env,
 		Ctx:       ctx,
 		Span:      span,
@@ -75,30 +90,44 @@ func NewSetup(ctx context.Context, env *env.Env, name string) (*Setup, error) {
 // Run installs the packages and writes the configurations
 func (s *Setup) Run() (err error) {
 	defer func() { s.Span.Finish(tracer.WithError(err)) }()
+	s.Out.WriteString("Applying configurations...\n")
 	err = writeConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	err = s.installPackage(installerOCILayoutURL)
+	packages := resolvePackages(s.Packages)
+	s.Out.WriteString("The following packages will be installed:\n")
+	s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", "datadog-installer", version.AgentVersion))
+	for _, p := range packages {
+		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
+	}
+	err = s.installPackage("datadog-installer", installerOCILayoutURL)
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
-	packages := resolvePackages(s.Packages)
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
-		err = s.installPackage(url)
+		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
+	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
 }
 
 // installPackage mimicks the telemetry of calling the install package command
-func (s *Setup) installPackage(url string) (err error) {
+func (s *Setup) installPackage(name string, url string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("url", url)
 	span.SetTag("_top_level", 1)
-	return s.installer.Install(ctx, url, nil)
+
+	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
+	err = s.installer.Install(ctx, url, nil)
+	if err != nil {
+		return err
+	}
+	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", name))
+	return nil
 }
