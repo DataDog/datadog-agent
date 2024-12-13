@@ -152,6 +152,6 @@ func getSystemProbeBTFLoaderInfo() ([]byte, error) {
 
 func getSystemProbeSelinuxSestatus() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
-	url := sysprobeclient.DebugURL("/debug/selinux_sestatus")
+	url := sysprobeclient.DebugURL("/selinux_sestatus")
 	return getHTTPData(sysProbeClient, url)
 }

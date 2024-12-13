@@ -9,19 +9,25 @@
 package debug
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os/exec"
+	"time"
 )
 
 // HandleSelinuxSestatus reports the output of sestatus as an http result
-func HandleSelinuxSestatus(w http.ResponseWriter, _ *http.Request) {
-	cmd := exec.Command("sestatus")
+func HandleSelinuxSestatus(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sestatus")
 	output, err := cmd.CombinedOutput()
-	// don't report ExitErrors since we are using the combined output which will already include stderr
+	// exclude ExitErrors in order to report "normal" failures to the selinux_sestatus.log file
 	if err != nil && !errors.Is(err, &exec.ExitError{}) {
-		fmt.Fprintf(w, "sestatus command failed: %s", err)
+		w.WriteHeader(500)
+		fmt.Fprintf(w, "sestatus command failed: %s\n%s", err, output)
 		return
 	}
 
