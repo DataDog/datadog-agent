@@ -27,7 +27,7 @@ build do
       # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
       #
       # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-      command "#{prefix} ./Configure enable-fips"
+      command "./Configure enable-fips"
 
       command "make"
       command "make install_fips"
