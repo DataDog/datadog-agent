@@ -64,11 +64,20 @@ type serviceInfo struct {
 	cpuUsage             float64
 }
 
+type timeProvider interface {
+	Now() time.Time
+}
+
+type realTime struct{}
+
+func (realTime) Now() time.Time { return time.Now() }
+
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
 	config *discoveryConfig
 
 	mux *sync.RWMutex
+
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
@@ -89,9 +98,10 @@ type discovery struct {
 	lastCPUTimeUpdate time.Time
 
 	containerProvider proccontainers.ContainerProvider
+	timeProvider      timeProvider
 }
 
-func newDiscovery(containerProvider proccontainers.ContainerProvider) *discovery {
+func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timeProvider) *discovery {
 	return &discovery{
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
@@ -100,13 +110,14 @@ func newDiscovery(containerProvider proccontainers.ContainerProvider) *discovery
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 		containerProvider:  containerProvider,
+		timeProvider:       tp,
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
-	return newDiscovery(sharedContainerProvider), nil
+	return newDiscovery(sharedContainerProvider, realTime{}), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -709,6 +720,8 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		containersMap[c.Id] = c
 	}
 
+	now := s.timeProvider.Now().Unix()
+
 	for _, pid := range pids {
 		alivePids[pid] = struct{}{}
 
@@ -716,6 +729,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		if service == nil {
 			continue
 		}
+		service.LastHeartbeat = now
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		services = append(services, *service)

@@ -34,21 +34,16 @@ const (
 	heartbeatTime   = 15 * time.Minute
 )
 
-type serviceInfo struct {
-	service       model.Service
-	LastHeartbeat time.Time
-}
-
 type serviceEvents struct {
-	start     []serviceInfo
-	stop      []serviceInfo
-	heartbeat []serviceInfo
+	start     []model.Service
+	stop      []model.Service
+	heartbeat []model.Service
 }
 
 type discoveredServices struct {
 	ignoreProcs     map[int]bool
-	potentials      map[int]*serviceInfo
-	runningServices map[int]*serviceInfo
+	potentials      map[int]*model.Service
+	runningServices map[int]*model.Service
 
 	events serviceEvents
 }
@@ -158,32 +153,32 @@ func (c *Check) Run() error {
 	)
 	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
 
-	runningServicesByName := map[string][]*serviceInfo{}
+	runningServicesByName := make(map[string][]*model.Service)
 	for _, svc := range disc.runningServices {
-		runningServicesByName[svc.service.Name] = append(runningServicesByName[svc.service.Name], svc)
+		runningServicesByName[svc.Name] = append(runningServicesByName[svc.Name], svc)
 	}
 	for _, svcs := range runningServicesByName {
 		if len(svcs) <= 1 {
 			continue
 		}
-		for _, svc := range svcs {
-			if c.sentRepeatedEventPIDs[svc.service.PID] {
+		for _, service := range svcs {
+			if c.sentRepeatedEventPIDs[service.PID] {
 				continue
 			}
-			err := fmt.Errorf("found repeated service name: %s", svc.service.Name)
+			err := fmt.Errorf("found repeated service name: %s", service.Name)
 			telemetryFromError(errWithCode{
 				err:  err,
 				code: errorCodeRepeatedServiceName,
-				svc:  &svc.service,
+				svc:  service,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
-			c.sentRepeatedEventPIDs[svc.service.PID] = true
+			c.sentRepeatedEventPIDs[service.PID] = true
 		}
 	}
 
 	potentialNames := map[string]bool{}
-	for _, p := range disc.potentials {
-		potentialNames[p.service.Name] = true
+	for _, service := range disc.potentials {
+		potentialNames[service.Name] = true
 	}
 
 	// group events by name in order to find repeated events for the same service name.
@@ -195,15 +190,15 @@ func (c *Check) Run() error {
 		eventsByName.addHeartbeat(p)
 	}
 	for _, p := range disc.events.stop {
-		if potentialNames[p.service.Name] {
+		if potentialNames[p.Name] {
 			// we consider this situation a restart, so we skip the stop event.
-			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.service.Name)
+			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.Name)
 			continue
 		}
 		eventsByName.addStop(p)
-		if c.sentRepeatedEventPIDs[p.service.PID] {
+		if c.sentRepeatedEventPIDs[p.PID] {
 			// delete this process from the map, so we track it if the PID gets reused
-			delete(c.sentRepeatedEventPIDs, p.service.PID)
+			delete(c.sentRepeatedEventPIDs, p.PID)
 		}
 	}
 
@@ -230,31 +225,31 @@ func (c *Check) Run() error {
 
 type eventsByNameMap map[string]*serviceEvents
 
-func (m eventsByNameMap) addStart(svc serviceInfo) {
-	events, ok := m[svc.service.Name]
+func (m eventsByNameMap) addStart(service model.Service) {
+	events, ok := m[service.Name]
 	if !ok {
 		events = &serviceEvents{}
 	}
-	events.start = append(events.start, svc)
-	m[svc.service.Name] = events
+	events.start = append(events.start, service)
+	m[service.Name] = events
 }
 
-func (m eventsByNameMap) addHeartbeat(svc serviceInfo) {
-	events, ok := m[svc.service.Name]
+func (m eventsByNameMap) addHeartbeat(service model.Service) {
+	events, ok := m[service.Name]
 	if !ok {
 		events = &serviceEvents{}
 	}
-	events.heartbeat = append(events.heartbeat, svc)
-	m[svc.service.Name] = events
+	events.heartbeat = append(events.heartbeat, service)
+	m[service.Name] = events
 }
 
-func (m eventsByNameMap) addStop(svc serviceInfo) {
-	events, ok := m[svc.service.Name]
+func (m eventsByNameMap) addStop(service model.Service) {
+	events, ok := m[service.Name]
 	if !ok {
 		events = &serviceEvents{}
 	}
-	events.stop = append(events.stop, svc)
-	m[svc.service.Name] = events
+	events.stop = append(events.stop, service)
+	m[service.Name] = events
 }
 
 // Interval returns how often the check should run.
