@@ -31,7 +31,7 @@ def get_github_slack_map():
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'false', 'CI_PIPELINE_SOURCE': 'push', 'CI_PIPELINE_ID': '42'})
+    @patch.dict('os.environ', {'CI_PIPELINE_SOURCE': 'push', 'CI_PIPELINE_ID': '42'})
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     @patch('builtins.print')
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')

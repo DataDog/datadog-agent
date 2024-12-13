@@ -65,7 +65,7 @@ def notification_type():
     """
     Return the type of notification to send (related to the type of pipeline, amongst 'deploy', 'trigger' and 'merge')
     """
-    if os.environ['DEPLOY_AGENT'] == 'true':
+    if os.environ.get('DEPLOY_AGENT', '') == 'true':
         return 'deploy'
     elif os.environ['CI_PIPELINE_SOURCE'] != 'push':
         return 'trigger'
