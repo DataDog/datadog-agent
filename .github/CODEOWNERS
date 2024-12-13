@@ -653,7 +653,8 @@
 /**/go.sum                              # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/internal/tools/go.mod                @DataDog/agent-devx-loops
-/internal/tools/go.sum                @DataDog/agent-devx-loops
+/internal/tools/**/go.mod                @DataDog/agent-devx-loops
+/internal/tools/**/go.sum                @DataDog/agent-devx-loops
 
-
+/pkg/util/scrubber/go.mod                @DataDog/agent-shared-components
+/pkg/util/scrubber/go.sum                @DataDog/agent-shared-components
