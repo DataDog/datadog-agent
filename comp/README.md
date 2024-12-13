@@ -392,7 +392,7 @@ Package logsagentpipeline contains logs agent pipeline component
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: processes
+*Datadog Team*: container-intake
 
 Package process implements the "process" bundle, providing components for the Process Agent
 

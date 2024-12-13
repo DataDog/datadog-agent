@@ -161,10 +161,10 @@ require (
 	github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1
 	github.com/DataDog/ebpf-manager v0.7.4
 	github.com/DataDog/gopsutil v1.2.2
-	github.com/DataDog/nikos v1.12.7
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.21.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
+	github.com/DataDog/nikos v1.12.8
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.22.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.22.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/DataDog/viper v1.14.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.3-0.20241023200123-ab786c1724cf
@@ -307,13 +307,13 @@ require (
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.12.0
-	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
-	golang.org/x/net v0.31.0
-	golang.org/x/sync v0.9.0
+	golang.org/x/exp v0.0.0-20241210194714-1829a127f884
+	golang.org/x/net v0.32.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.28.0
-	golang.org/x/text v0.20.0
+	golang.org/x/text v0.21.0
 	golang.org/x/time v0.8.0
-	golang.org/x/tools v0.27.0
+	golang.org/x/tools v0.28.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.67.1
@@ -567,10 +567,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.32.0 // indirect
 	go.opentelemetry.io/otel/trace v1.32.0
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/mod v0.22.0
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/term v0.26.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	google.golang.org/api v0.199.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
@@ -803,10 +803,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.31.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.33.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.21.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.21.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.22.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.22.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect

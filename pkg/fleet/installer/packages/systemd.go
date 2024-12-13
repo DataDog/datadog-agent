@@ -108,7 +108,11 @@ func removeUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_unit")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
-	return os.Remove(path.Join(systemdPath, unit))
+	err = os.Remove(path.Join(systemdPath, unit))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func systemdReload(ctx context.Context) (err error) {
