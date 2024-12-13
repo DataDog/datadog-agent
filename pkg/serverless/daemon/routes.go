@@ -104,7 +104,17 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	errorMsg := r.Header.Get(invocationlifecycle.InvocationErrorMsgHeader)
+	if decodedMsg, err := base64.StdEncoding.DecodeString(errorMsg); err != nil {
+		log.Debug("Could not decode error message header")
+	} else {
+		errorMsg = string(decodedMsg)
+	}
 	errorType := r.Header.Get(invocationlifecycle.InvocationErrorTypeHeader)
+	if decodedType, err := base64.StdEncoding.DecodeString(errorType); err != nil {
+		log.Debug("Could not decode error type header")
+	} else {
+		errorType = string(decodedType)
+	}
 	errorStack := r.Header.Get(invocationlifecycle.InvocationErrorStackHeader)
 	if decodedStack, err := base64.StdEncoding.DecodeString(errorStack); err != nil {
 		log.Debug("Could not decode error stack header")
