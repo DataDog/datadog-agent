@@ -104,6 +104,8 @@ def trigger_macos(
             version_cache_file_content=version_cache,
             integrations_core_ref=integrations_core_ref,
         )
+    else:
+        raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
