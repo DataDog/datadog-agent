@@ -433,6 +433,7 @@
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
+/pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
@@ -622,6 +623,7 @@
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-agent
+/test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
 /test/new-e2e/tests/gpu                       @Datadog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry
 /test/system/                                 @DataDog/agent-shared-components
