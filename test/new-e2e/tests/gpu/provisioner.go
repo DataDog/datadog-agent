@@ -6,6 +6,7 @@
 package gpu
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -178,7 +179,7 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 // validateGPUDevices checks that there are GPU devices present and accesible
 func validateGPUDevices(e aws.Environment, vm *remote.Host) ([]pulumi.Resource, error) {
 	commands := map[string]string{
-		"pci":    "lspci -d 10de:: | grep NVIDIA",
+		"pci":    fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
 		"driver": "lsmod | grep nvidia",
 		"nvidia": "nvidia-smi -L | grep GPU",
 	}
