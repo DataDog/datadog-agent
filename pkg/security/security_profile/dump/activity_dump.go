@@ -650,9 +650,7 @@ func (ad *ActivityDump) resolveTags() error {
 		if ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Metadata.ContainerID)); err != nil {
 			return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
 		}
-	}
-
-	if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+	} else if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
 		systemdService := filepath.Base(string(ad.Metadata.CGroupContext.CGroupID))
 		serviceVersion := ""
 		servicePath := filepath.Join(systemdSystemDir, systemdService)
