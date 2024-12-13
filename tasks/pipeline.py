@@ -45,9 +45,7 @@ BOT_NAME = "github-actions[bot]"
 
 def check_deploy_pipeline(repo_branch):
     """
-    Run checks to verify a deploy pipeline is valid:
-    - it targets a valid repo branch
-    - it has matching Agent 6 and Agent 7 tags (depending on release_version_* values)
+    Run checks to verify a deploy pipeline is valid (it targets a valid repo branch)
     """
 
     # Check that the target repo branch is valid
