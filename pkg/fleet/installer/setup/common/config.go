@@ -123,7 +123,7 @@ type DatadogConfigProcessConfig struct {
 
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config,omitempty"`
+	InitConfig []any                   `yaml:"init_config"`
 	Instances  []any                   `yaml:"instances,omitempty"`
 	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
