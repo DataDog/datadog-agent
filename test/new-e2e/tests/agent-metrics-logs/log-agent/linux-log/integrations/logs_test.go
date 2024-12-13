@@ -7,7 +7,6 @@ package integrationslogs
 
 import (
 	_ "embed"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -114,8 +113,6 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileRotation() {
 				number := matches[1]
 				count, err := strconv.Atoi(number)
 				assert.Nil(v.T(), err)
-
-				fmt.Printf("iteration: %d, previous: %d, count: %d\n\n", i, prevLogCount, count)
 
 				if prevLogCount != -1 {
 					assert.Equal(v.T(), prevLogCount+1, count)
