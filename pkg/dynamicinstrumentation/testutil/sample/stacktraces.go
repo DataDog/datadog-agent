@@ -48,8 +48,8 @@ func inline_me_3() {
 
 //nolint:all
 //go:noinline
-func not_inlined() string {
-	return fmt.Sprintf("hello %d!", 42)
+func not_inlined() {
+	// return fmt.Sprintf("hello %d!", 42)
 }
 
 //nolint:all

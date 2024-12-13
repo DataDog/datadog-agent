@@ -36,6 +36,10 @@ var (
 	SliceMaxLength          = 100   // SliceMaxLength is the default limit in number of elements of a slice
 )
 
+type RuntimeOptions struct {
+	ResolveInlinedProgramCounters bool
+}
+
 // ProbeID is the unique identifier for probes
 type ProbeID = string
 
