@@ -647,7 +647,7 @@
 /internal/third_party/golang/           @DataDog/container-integrations
 
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
-# Whch bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
+# Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
 /**/go.mod                              # do not notify anyone
 /**/go.sum                              # do not notify anyone
