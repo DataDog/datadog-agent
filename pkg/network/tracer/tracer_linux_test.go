@@ -2685,7 +2685,7 @@ func (s *TracerSuite) TestTLSClassification() {
 			// or just 0 since the validation doesn't rely on the scenario for this test.
 			return port, tls.VersionTLS12
 		},
-		validation: func(t *testing.T, tr *Tracer, port uint16, scenario uint16) {
+		validation: func(t *testing.T, tr *Tracer, port uint16, _ uint16) {
 			// Verify that no TLS tags are set for this connection
 			require.Eventually(t, func() bool {
 				payload := getConnections(t, tr)
