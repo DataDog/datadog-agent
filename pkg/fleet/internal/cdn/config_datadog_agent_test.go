@@ -38,21 +38,17 @@ func TestAgentConfig(t *testing.T) {
 	overrideLayerRaw, err := json.Marshal(overrideLayer)
 	assert.NoError(t, err)
 
-	order := &orderConfig{
-		Order: []string{"base", "override"},
-	}
-
-	config, err := newAgentConfig(order, baseLayerRaw, overrideLayerRaw)
+	config, err := newAgentConfig(baseLayerRaw, overrideLayerRaw)
 	assert.NoError(t, err)
 	expectedConfig := doNotEditDisclaimer + `
 api_key: "1234"
 apm:
   enabled: true
   env: prod
-  sampling_rate: 0.5
+  sampling_rate: 0.7
 fleet_layers:
-- override
 - base
+- override
 `
 	assert.Equal(t, expectedConfig, string(config.datadog))
 }

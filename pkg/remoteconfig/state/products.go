@@ -9,6 +9,7 @@ var validProducts = map[string]struct{}{
 	ProductUpdaterCatalogDD:             {},
 	ProductUpdaterAgent:                 {},
 	ProductUpdaterTask:                  {},
+	ProductActionPlatformRunnerKeys:     {},
 	ProductAgentConfig:                  {},
 	ProductAgentFailover:                {},
 	ProductAgentTask:                    {},
@@ -31,6 +32,7 @@ var validProducts = map[string]struct{}{
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
+	ProductHaAgent:                      {},
 }
 
 const (
@@ -40,6 +42,8 @@ const (
 	ProductUpdaterAgent = "UPDATER_AGENT"
 	// ProductUpdaterTask is the product used to receive tasks to execute
 	ProductUpdaterTask = "UPDATER_TASK"
+	// ProductActionPlatformRunnerKeys is to receive signing keys for the action platform "private action runner"
+	ProductActionPlatformRunnerKeys = "AP_RUNNER_KEYS"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentFailover is to receive the multi-region failover configuration
@@ -84,4 +88,6 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
+	// ProductHaAgent is the HA Agent product
+	ProductHaAgent = "HA_AGENT"
 )

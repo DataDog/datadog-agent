@@ -43,7 +43,7 @@ datadog:
     containerCollectUsingFiles: false
 `
 	t.Parallel()
-	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
+	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
 }
 
 var minimalParams = utils.IAParams{
@@ -54,7 +54,7 @@ var minimalParams = utils.IAParams{
 
 func (s *minimalTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s)
+	utils.TestCalendarApp(s, false)
 }
 
 func (s *minimalTestSuite) TestOTLPTraces() {
@@ -87,4 +87,8 @@ func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
 
 func (s *minimalTestSuite) TestOTelFlareFiles() {
 	utils.TestOTelFlareFiles(s)
+}
+
+func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
+	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
 }

@@ -79,7 +79,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Opti
 		return err
 	}
 	// TODO Add extra logic to only tear down the External Metrics Server if only some components fail.
-	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
+	return server.GenericAPIServer.PrepareRun().RunWithContext(ctx)
 }
 
 func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Option[datadogclient.Component]) (provider.ExternalMetricsProvider, error) {

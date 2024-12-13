@@ -44,8 +44,8 @@ var pythonScript []byte
 //go:embed log-config/logger-service.sh
 var randomLogger []byte
 
-// TestE2EVMFakeintakeSuite returns the stack definition required for the log agent test suite.
-func TestE2EVMFakeintakeSuite(t *testing.T) {
+// TestVMJournaldTailingSuite returns the stack definition required for the log agent test suite.
+func TestVMJournaldTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(

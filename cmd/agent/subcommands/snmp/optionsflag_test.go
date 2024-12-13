@@ -6,17 +6,18 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var vals = OptPairs[int]{
+var opts = snmpparse.NewOptions(snmpparse.OptPairs[int]{
 	{"", 1},
 	{"TWO", 2},
 	{"three", 3},
 	{"fOUr", 4},
-}
+})
 
 var testCases = []struct {
 	choice      string
@@ -33,28 +34,9 @@ var testCases = []struct {
 	{"five", "", 0, false},
 }
 
-func TestOptions(t *testing.T) {
-	m := NewOptions(vals)
-
-	assert.Equal(t, "TWO|three|fOUr", m.OptsStr())
-	for _, tc := range testCases {
-		gotKey, ok := m.getOpt(tc.choice)
-		assert.Equal(t, tc.ok, ok)
-		if ok {
-			assert.Equal(t, tc.expectedKey, gotKey)
-		}
-		gotVal, ok := m.getVal(tc.choice)
-		assert.Equal(t, tc.ok, ok)
-		if ok {
-			assert.Equal(t, tc.expectedVal, gotVal)
-		}
-	}
-}
-
 func TestOptsFlag(t *testing.T) {
-	m := NewOptions(vals)
 	var s string
-	flag := m.Flag(&s)
+	flag := Flag(&opts, &s)
 
 	assert.Equal(t, flag.String(), "")
 	assert.Equal(t, flag.Type(), "option")

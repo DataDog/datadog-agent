@@ -67,7 +67,7 @@ func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.C
 		return nil, nil, nil, err
 	}
 
-	kindCluster, err := localKubernetes.NewKindCluster(&awsEnv, vm, awsEnv.CommonNamer().ResourceName("kind"), "kind", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := localKubernetes.NewKindCluster(&awsEnv, vm, "kind", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -114,6 +114,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 	if awsEnv.AgentDeploy() {
 		customValues := fmt.Sprintf(agentCustomValuesFmt, clusterName)
 		helmComponent, err := agent.NewHelmInstallation(awsEnv, agent.HelmInstallationArgs{
+			DualShipping: true,
 			KubeProvider: kindKubeProvider,
 			Namespace:    "datadog",
 			ValuesYAML: pulumi.AssetOrArchiveArray{

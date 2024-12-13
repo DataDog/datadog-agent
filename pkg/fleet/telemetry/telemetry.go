@@ -11,9 +11,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -51,17 +53,22 @@ type Telemetry struct {
 	listener *telemetryListener
 	server   *http.Server
 	client   *http.Client
+
+	samplingRules []tracer.SamplingRule
 }
 
+// Option is a functional option for telemetry.
+type Option func(*Telemetry)
+
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error) {
+func NewTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
 	endpoint := &traceconfig.Endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
 	}
 	listener := newTelemetryListener()
 	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
+		telemetryClient: internaltelemetry.NewClient(client, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
 		site:            site,
 		service:         service,
 		listener:        listener,
@@ -72,8 +79,11 @@ func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error
 			},
 		},
 	}
+	for _, opt := range opts {
+		opt(t)
+	}
 	t.server.Handler = t.handler()
-	return t, nil
+	return t
 }
 
 // Start starts the telemetry
@@ -88,6 +98,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 	if t.site == "datad0g.com" {
 		env = "staging"
 	}
+
 	tracer.Start(
 		tracer.WithService(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
@@ -95,6 +106,13 @@ func (t *Telemetry) Start(_ context.Context) error {
 		tracer.WithGlobalTag("site", t.site),
 		tracer.WithHTTPClient(t.client),
 		tracer.WithLogStartup(false),
+
+		// We don't need the value, we just need to enforce that it's not
+		// the default. If it is, then the tracer will try to use the socket
+		// if it exists -- and it always exists for newer agents.
+		// If the agent address is the socket, the tracer overrides WithHTTPClient to use it.
+		tracer.WithAgentAddr("192.0.2.42:12345"), // 192.0.2.0/24 is reserved
+		tracer.WithSamplingRules(t.samplingRules),
 	)
 	return nil
 }
@@ -189,10 +207,25 @@ func (addr) String() string {
 	return "local"
 }
 
-// SpanContextFromEnv injects the traceID and parentID from the environment into the context if available.
-func SpanContextFromEnv() (ddtrace.SpanContext, bool) {
-	traceID := os.Getenv(EnvTraceID)
-	parentID := os.Getenv(EnvParentID)
+// StartSpanFromEnv starts a span using the environment variables to find the parent span.
+func StartSpanFromEnv(ctx context.Context, operationName string, spanOptions ...ddtrace.StartSpanOption) (ddtrace.Span, context.Context) {
+	spanContext, ok := spanContextFromEnv()
+	if ok {
+		spanOptions = append([]ddtrace.StartSpanOption{tracer.ChildOf(spanContext)}, spanOptions...)
+	}
+	return tracer.StartSpanFromContext(ctx, operationName, spanOptions...)
+}
+
+// spanContextFromEnv injects the traceID and parentID from the environment into the context if available.
+func spanContextFromEnv() (ddtrace.SpanContext, bool) {
+	traceID, ok := os.LookupEnv(EnvTraceID)
+	if !ok {
+		traceID = strconv.FormatUint(rand.Uint64(), 10)
+	}
+	parentID, ok := os.LookupEnv(EnvParentID)
+	if !ok {
+		parentID = "0"
+	}
 	ctxCarrier := tracer.TextMapCarrier{
 		tracer.DefaultTraceIDHeader:  traceID,
 		tracer.DefaultParentIDHeader: parentID,
@@ -206,13 +239,16 @@ func SpanContextFromEnv() (ddtrace.SpanContext, bool) {
 	return spanCtx, true
 }
 
-// EnvFromSpanContext returns the environment variables for the span context.
-func EnvFromSpanContext(spanCtx ddtrace.SpanContext) []string {
-	env := []string{
+// EnvFromContext returns the environment variables for the context.
+func EnvFromContext(ctx context.Context) []string {
+	spanCtx, ok := SpanContextFromContext(ctx)
+	if !ok {
+		return []string{}
+	}
+	return []string{
 		fmt.Sprintf("%s=%d", EnvTraceID, spanCtx.TraceID()),
 		fmt.Sprintf("%s=%d", EnvParentID, spanCtx.SpanID()),
 	}
-	return env
 }
 
 // SpanContextFromContext extracts the span context from the context if available.
@@ -222,4 +258,11 @@ func SpanContextFromContext(ctx context.Context) (ddtrace.SpanContext, bool) {
 		return nil, false
 	}
 	return span.Context(), true
+}
+
+// WithSamplingRules sets the sampling rules for the telemetry.
+func WithSamplingRules(rules ...tracer.SamplingRule) Option {
+	return func(t *Telemetry) {
+		t.samplingRules = rules
+	}
 }

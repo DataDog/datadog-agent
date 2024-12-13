@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -57,7 +57,7 @@ type testOpts struct {
 	enableSBOM                                 bool
 	enableHostSBOM                             bool
 	preStartCallback                           func(test *testModule)
-	tagsResolver                               tags.Resolver
+	tagger                                     tags.Tagger
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool

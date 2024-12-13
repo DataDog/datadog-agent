@@ -15,7 +15,7 @@ import (
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -237,8 +237,8 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			reportMetric(sender.Rate, "cpu.usage.total", containerStats.CPU.UsageCoreNanoSeconds, tags)
 		}
 		if containerStats.Memory != nil {
-			reportMetric(sender.Rate, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
-			reportMetric(sender.Rate, "memory.usage", containerStats.Memory.UsageBytes, tags)
+			reportMetric(sender.Gauge, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
+			reportMetric(sender.Gauge, "memory.usage", containerStats.Memory.UsageBytes, tags)
 		}
 		reportFsMetric(sender, containerStats.Rootfs, "", tags)
 	}

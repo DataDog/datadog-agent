@@ -35,6 +35,8 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         .addr[1] = syscall->bind.addr[1],
         .family = syscall->bind.family,
         .port = syscall->bind.port,
+        .protocol = syscall->connect.protocol,
+
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -64,6 +66,8 @@ int hook_security_socket_bind(ctx_t *ctx) {
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     u16 family = 0;
+    u16 protocol = 0;
+    short socket_type = 0;
 
     // Extract IP and port from the sockaddr structure
     bpf_probe_read(&family, sizeof(family), &address->sa_family);
@@ -77,6 +81,15 @@ int hook_security_socket_bind(ctx_t *ctx) {
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
 
+    bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
+
+    // We only handle TCP and UDP sockets for now
+    if (socket_type == SOCK_STREAM) {
+        protocol = IPPROTO_TCP;
+    } else if (socket_type == SOCK_DGRAM) {
+        protocol = IPPROTO_UDP;
+    }
+
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
     if (syscall) {
@@ -84,6 +97,7 @@ int hook_security_socket_bind(ctx_t *ctx) {
         syscall->bind.addr[1] = key.addr[1];
         syscall->bind.port = key.port;
         syscall->bind.family = family;
+        syscall->connect.protocol = protocol;
     }
 
     // past this point we care only about AF_INET and AF_INET6

@@ -8,14 +8,13 @@
 package diconfig
 
 import (
-	"debug/elf"
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // inspectGoBinaries goes through each service and populates information about the binary
@@ -54,7 +53,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 	procInfo.TypeMap = typeMap
 
-	elfFile, err := elf.Open(procInfo.BinaryPath)
+	elfFile, err := safeelf.Open(procInfo.BinaryPath)
 	if err != nil {
 		return fmt.Errorf("could not open elf file %w", err)
 	}

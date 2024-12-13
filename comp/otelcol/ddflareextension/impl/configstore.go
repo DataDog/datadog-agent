@@ -10,44 +10,27 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/otelcol"
 	"gopkg.in/yaml.v2"
 )
 
 type configStore struct {
-	provided *otelcol.Config
-	enhanced *otelcol.Config
+	provided *confmap.Conf
+	enhanced *confmap.Conf
 	mu       sync.RWMutex
 }
 
 // setProvidedConf stores the config into configStoreImpl.
-func (c *configStore) setProvidedConf(config *otelcol.Config) {
+func (c *configStore) setProvidedConf(config *confmap.Conf) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.provided = config
 }
 
 // setEnhancedConf stores the config into configStoreImpl.
-func (c *configStore) setEnhancedConf(config *otelcol.Config) {
+func (c *configStore) setEnhancedConf(config *confmap.Conf) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.enhanced = config
-}
-
-func confToString(conf *otelcol.Config) (string, error) {
-	cfg := confmap.New()
-	err := cfg.Marshal(conf)
-	if err != nil {
-		return "", err
-	}
-	bytesConf, err := yaml.Marshal(cfg.ToStringMap())
-	if err != nil {
-		return "", err
-	}
-
-	return string(bytesConf), nil
 }
 
 // getProvidedConf returns a string representing the enhanced collector configuration.
@@ -55,12 +38,7 @@ func (c *configStore) getProvidedConf() (*confmap.Conf, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	conf := confmap.New()
-	err := conf.Marshal(c.provided)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
+	return c.provided, nil
 }
 
 // getEnhancedConf returns a string representing the enhanced collector configuration.
@@ -68,12 +46,7 @@ func (c *configStore) getEnhancedConf() (*confmap.Conf, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	conf := confmap.New()
-	err := conf.Marshal(c.enhanced)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
+	return c.enhanced, nil
 }
 
 // getProvidedConfAsString returns a string representing the enhanced collector configuration string.
@@ -81,7 +54,11 @@ func (c *configStore) getProvidedConfAsString() (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return confToString(c.provided)
+	bytesConf, err := yaml.Marshal(c.provided.ToStringMap())
+	if err != nil {
+		return "", err
+	}
+	return string(bytesConf), nil
 }
 
 // getEnhancedConfAsString returns a string representing the enhanced collector configuration string.
@@ -89,5 +66,9 @@ func (c *configStore) getEnhancedConfAsString() (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return confToString(c.enhanced)
+	bytesConf, err := yaml.Marshal(c.enhanced.ToStringMap())
+	if err != nil {
+		return "", err
+	}
+	return string(bytesConf), nil
 }

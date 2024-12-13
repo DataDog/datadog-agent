@@ -24,7 +24,7 @@ import (
 func TestKernelLaunchesHandled(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(0, sysCtx)
+	stream := newStreamHandler(0, "", sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -83,7 +83,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 func TestMemoryAllocationsHandled(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(0, sysCtx)
+	stream := newStreamHandler(0, "", sysCtx)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -154,7 +154,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(0, sysCtx)
+	stream := newStreamHandler(0, "", sysCtx)
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -189,7 +189,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(0, sysCtx)
+	stream := newStreamHandler(0, "", sysCtx)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -233,7 +233,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(0, sysCtx)
+	stream := newStreamHandler(0, "", sysCtx)
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -343,25 +343,25 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 
 	procBinPath := path.Join(proc, fmt.Sprintf("%d/root/%s", pid, binPath))
 	kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
+
+	fatbin := cuda.NewFatbin()
+	fatbin.AddKernel(kernKey, &cuda.CubinKernel{
+		Name:        kernName,
+		KernelSize:  kernSize,
+		SharedMem:   sharedMem,
+		ConstantMem: constantMem,
+	})
+
 	sysCtx.cudaSymbols[procBinPath] = &symbolsEntry{
 		Symbols: &cuda.Symbols{
 			SymbolTable: map[uint64]string{kernAddress: kernName},
-			Fatbin: &cuda.Fatbin{
-				Kernels: map[cuda.CubinKernelKey]*cuda.CubinKernel{
-					kernKey: {
-						Name:        kernName,
-						KernelSize:  kernSize,
-						SharedMem:   sharedMem,
-						ConstantMem: constantMem,
-					},
-				},
-			},
+			Fatbin:      fatbin,
 		},
 	}
 
 	sysCtx.deviceSmVersions = map[int]int{0: int(smVersion)}
 
-	stream := newStreamHandler(uint32(pid), sysCtx)
+	stream := newStreamHandler(uint32(pid), "", sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{

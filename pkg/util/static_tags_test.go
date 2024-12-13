@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestStaticTags(t *testing.T) {
@@ -25,11 +26,11 @@ func TestStaticTags(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
-		staticTags := GetStaticTags(context.Background())
-		assert.Equal(t, map[string]string{
-			"some":             "tag",
-			"another":          "tag",
-			"eks_fargate_node": "eksnode",
+		staticTags := GetStaticTags(context.Background(), mockConfig)
+		assert.Equal(t, map[string][]string{
+			"some":             {"tag"},
+			"another":          {"tag"},
+			"eks_fargate_node": {"eksnode"},
 		}, staticTags)
 	})
 
@@ -38,21 +39,21 @@ func TestStaticTags(t *testing.T) {
 		mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		defer mockConfig.SetWithoutSource("extra_tags", []string{})
-		staticTags := GetStaticTags(context.Background())
-		assert.Equal(t, map[string]string{
-			"some":             "tag",
-			"extra":            "tag",
-			"eks_fargate_node": "eksnode",
+		staticTags := GetStaticTags(context.Background(), mockConfig)
+		assert.Equal(t, map[string][]string{
+			"some":             {"tag"},
+			"extra":            {"tag"},
+			"eks_fargate_node": {"eksnode"},
 		}, staticTags)
 	})
 
 	t.Run("cluster name already set", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"kube_cluster_name:foo"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
-		staticTags := GetStaticTags(context.Background())
-		assert.Equal(t, map[string]string{
-			"eks_fargate_node":  "eksnode",
-			"kube_cluster_name": "foo",
+		staticTags := GetStaticTags(context.Background(), mockConfig)
+		assert.Equal(t, map[string][]string{
+			"eks_fargate_node":  {"eksnode"},
+			"kube_cluster_name": {"foo"},
 		}, staticTags)
 	})
 }
@@ -67,7 +68,7 @@ func TestStaticTagsSlice(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background())
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"some:tag",
@@ -81,7 +82,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		defer mockConfig.SetWithoutSource("extra_tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background())
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"missingcolon",
@@ -89,5 +90,35 @@ func TestStaticTagsSlice(t *testing.T) {
 			"extra:tag",
 			"eks_fargate_node:eksnode",
 		}, staticTags)
+	})
+}
+
+func TestExtraGlobalEnvTags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("tags", []string{"some:tag", "nocolon"})
+	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
+	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag", "nocolon"})
+	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag", "missingcolon"})
+
+	recordFlavor := flavor.GetFlavor()
+	defer func() {
+		flavor.SetFlavor(recordFlavor)
+	}()
+
+	t.Run("Agent extraGlobalTags", func(t *testing.T) {
+		flavor.SetFlavor(flavor.DefaultAgent)
+		globalTags := GetGlobalEnvTags(mockConfig)
+		assert.Equal(t, map[string][]string(nil), globalTags)
+	})
+
+	t.Run("ClusterAgent extraGlobalTags", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		globalTags := GetGlobalEnvTags(mockConfig)
+		assert.Equal(t, map[string][]string{
+			"some":    {"tag"},
+			"extra":   {"tag"},
+			"cluster": {"tag"},
+			"orch":    {"tag"},
+		}, globalTags)
 	})
 }
