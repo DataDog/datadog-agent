@@ -352,7 +352,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 
 		return &BoolEvaluator{
 			Value:           op(ea, eb),
-			Weight:          a.Weight + InArrayWeight*len(eb),
+			Weight:          a.Weight,
 			isDeterministic: isDc,
 		}, nil
 	}
@@ -366,7 +366,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 
 		return &BoolEvaluator{
 			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
+			Weight:          a.Weight,
 			isDeterministic: isDc,
 		}, nil
 	}
