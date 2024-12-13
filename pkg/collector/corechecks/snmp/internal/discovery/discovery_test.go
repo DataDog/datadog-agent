@@ -228,7 +228,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	}
 
 	var sess *session.MockSession
-	discovery := NewDiscovery(checkConfig, session.NewMockSession, nil)
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, agentconfig.NewMock(t))
 
 	checkDeviceOnce := func() {
 		sess = session.CreateMockSession()
@@ -316,7 +316,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 		DiscoveryAllowedFailures: 3,
 		Namespace:                "default",
 	}
-	discovery := NewDiscovery(checkConfig, session.NewMockSession, nil)
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, agentconfig.NewMock(t))
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
 	startingIP := ipAddr.Mask(ipNet.Mask)

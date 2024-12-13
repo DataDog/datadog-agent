@@ -247,7 +247,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, nil)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -278,7 +278,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, nil)
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	hostname, err := deviceCk.GetDeviceHostname()
