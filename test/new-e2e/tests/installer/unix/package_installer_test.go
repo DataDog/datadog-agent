@@ -6,6 +6,9 @@
 package installer
 
 import (
+	"strings"
+	"time"
+
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
@@ -107,15 +110,23 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	defer s.Purge()
 	assert.NoError(s.T(), err)
 
-	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Equal(s.T(), "7.58.0-installer-0.5.1\n", version)
+	versionDisk := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.Equal(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
+	assert.Eventually(s.T(), func() bool {
+		versionRunning, err := s.Env().RemoteHost.Execute("datadog-installer status")
+		return err == nil && strings.Contains(versionRunning, "7.58.0-installer-0.5.1")
+	}, 30*time.Second, 1*time.Second)
 
 	// Install from QA registry
 	err = s.RunInstallScriptWithError()
 	assert.NoError(s.T(), err)
 
-	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.NotEqual(s.T(), "7.58.0-installer-0.5.1\n", version)
+	versionDisk = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.NotEqual(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
+	assert.Eventually(s.T(), func() bool {
+		versionRunning, err := s.Env().RemoteHost.Execute("datadog-installer status")
+		return err == nil && !strings.Contains(versionRunning, "7.58.0-installer-0.5.1")
+	}, 30*time.Second, 1*time.Second)
 }
 
 func (s *packageInstallerSuite) TestInstallWithUmask() {
