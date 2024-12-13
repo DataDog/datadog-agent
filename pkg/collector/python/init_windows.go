@@ -9,8 +9,10 @@ package python
 
 import (
 	"os"
+	"path/filepath"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // Any platform-specific initialization belongs here.
@@ -20,6 +22,26 @@ func initializePlatform() error {
 	if !pkgconfigsetup.Datadog().GetBool("windows_use_pythonpath") {
 		os.Unsetenv("PYTHONPATH")
 	}
+
+	// get program data directory and set PYTHONPYCACHEPREFIX
+	pd, err := winutil.GetProgramDataDir()
+	if err != nil {
+		return err
+	}
+	pycache := filepath.Join(pd, "python-cache")
+
+	// check if path exists
+	if _, err := os.Stat(pycache); os.IsNotExist(err) {
+		// create the directory
+		if err := os.MkdirAll(pycache, 0755); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	// TODO check if we have access to the directory ?
+
+	os.Setenv("PYTHONPYCACHEPREFIX", pycache)
 
 	return nil
 }
