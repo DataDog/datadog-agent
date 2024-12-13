@@ -48,6 +48,7 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 
 	var (
 		name       string
+		isReturn   bool
 		typeFields *ditypes.Parameter
 	)
 
@@ -144,6 +145,10 @@ entryLoop:
 				name = entry.Field[i].Val.(string)
 			}
 
+			if entry.Field[i].Attr == dwarf.AttrVarParam {
+				isReturn = entry.Field[i].Val.(bool)
+			}
+
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
 
@@ -161,7 +166,7 @@ entryLoop:
 			}
 		}
 
-		if typeFields != nil {
+		if typeFields != nil && !isReturn /* we ignore return values for now */ {
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
 			result.Functions[funcName] = append(result.Functions[funcName], *typeFields)
