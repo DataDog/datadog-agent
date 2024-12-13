@@ -268,14 +268,26 @@ func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	if ad.selector != nil && ad.selector.IsReady() {
 		return ad.selector
 	}
-	imageTag := utils.GetTagValue("image_tag", ad.Tags)
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), imageTag)
-	if err != nil {
-		return nil
+
+	var selector cgroupModel.WorkloadSelector
+	var err error
+	if ad.ContainerID != "" {
+		imageTag := utils.GetTagValue("image_tag", ad.Tags)
+		selector, err = cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), imageTag)
+		if err != nil {
+			return nil
+		}
+	} else if ad.CGroupContext.CGroupID != "" {
+		selector, err = cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", ad.Tags), utils.GetTagValue("version", ad.Tags))
+		if err != nil {
+			return nil
+		}
+
 	}
+
 	ad.selector = &selector
-	// Once per workload, when tags are resolved and the firs time we successfully get the selector, tag all the existing nodes
-	ad.ActivityTree.TagAllNodes(imageTag)
+	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
+	ad.ActivityTree.TagAllNodes(selector.Image)
 	return ad.selector
 }
 
@@ -582,6 +594,9 @@ func (ad *ActivityDump) getSelectorStr() string {
 	if len(ad.Metadata.ContainerID) > 0 {
 		tags = append(tags, fmt.Sprintf("container_id:%s", ad.Metadata.ContainerID))
 	}
+	if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+		tags = append(tags, fmt.Sprintf("cgroup_id:%s", ad.Metadata.CGroupContext.CGroupID))
+	}
 	if len(ad.Tags) > 0 {
 		for _, tag := range ad.Tags {
 			if !strings.HasPrefix(tag, "container_id") {
@@ -621,6 +636,8 @@ func (ad *ActivityDump) ResolveTags() error {
 	return ad.resolveTags()
 }
 
+const systemdSystemDir = "/usr/lib/systemd/system"
+
 // resolveTags thread unsafe version ot ResolveTags
 func (ad *ActivityDump) resolveTags() error {
 	selector := ad.GetWorkloadSelector()
@@ -632,6 +649,23 @@ func (ad *ActivityDump) resolveTags() error {
 		var err error
 		if ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Metadata.ContainerID)); err != nil {
 			return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
+		}
+	}
+
+	if len(ad.Metadata.CGroupContext.CGroupID) > 0 {
+		systemdService := filepath.Base(string(ad.Metadata.CGroupContext.CGroupID))
+		serviceVersion := ""
+		servicePath := filepath.Join(systemdSystemDir, systemdService)
+
+		if ad.adm.resolvers.SBOMResolver != nil {
+			if pkg := ad.adm.resolvers.SBOMResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+				serviceVersion = pkg.Version
+			}
+		}
+
+		ad.Tags = []string{
+			"service:" + systemdService,
+			"version:" + serviceVersion,
 		}
 	}
 
