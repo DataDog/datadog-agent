@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/serverless/spanpointers"
 	"net/http"
 	"testing"
 	"time"
@@ -813,12 +814,12 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 func TestEndExecutionSpanWithSpanLinks(t *testing.T) {
 	tests := []struct {
 		name           string
-		spanPointers   []SpanPointer
+		spanPointers   []spanpointers.SpanPointer
 		expectedHashes []string
 	}{
 		{
 			name: "single span pointer",
-			spanPointers: []SpanPointer{
+			spanPointers: []spanpointers.SpanPointer{
 				{
 					Hash: "abc",
 					Kind: "aws.s3.object",
@@ -828,7 +829,7 @@ func TestEndExecutionSpanWithSpanLinks(t *testing.T) {
 		},
 		{
 			name: "multiple span pointers",
-			spanPointers: []SpanPointer{
+			spanPointers: []spanpointers.SpanPointer{
 				{
 					Hash: "def",
 					Kind: "aws.s3.object",

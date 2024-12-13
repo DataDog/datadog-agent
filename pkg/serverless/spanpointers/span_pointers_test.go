@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package invocationlifecycle
+package spanpointers
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
@@ -42,7 +42,7 @@ func TestGenerateSpanPointerHash(t *testing.T) {
 	}
 }
 
-func TestAddSpanPointersFromS3Event(t *testing.T) {
+func TestGetSpanPointersFromS3Event(t *testing.T) {
 	tests := []struct {
 		name                 string
 		event                events.S3Event
@@ -93,7 +93,7 @@ func TestAddSpanPointersFromS3Event(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple invocations - should only keep most recent pointer",
+			name: "multiple invocations",
 			event: events.S3Event{
 				Records: []events.S3EventRecord{
 					{
@@ -118,6 +118,10 @@ func TestAddSpanPointersFromS3Event(t *testing.T) {
 			},
 			expectedSpanPointers: []SpanPointer{
 				{
+					Hash: "1294423cd905a1041b4cda23022e476a",
+					Kind: s3PointerKind,
+				},
+				{
 					Hash: "e721375466d4116ab551213fdea08413",
 					Kind: s3PointerKind,
 				},
@@ -132,13 +136,7 @@ func TestAddSpanPointersFromS3Event(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lp := &LifecycleProcessor{
-				requestHandler: &RequestHandler{},
-			}
-
-			lp.addSpanPointersFromS3Event(tt.event)
-
-			assert.Equal(t, tt.expectedSpanPointers, lp.requestHandler.spanPointers)
+			assert.Equal(t, tt.expectedSpanPointers, GetSpanPointersFromS3Event(tt.event))
 		})
 	}
 }

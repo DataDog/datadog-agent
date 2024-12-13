@@ -30,7 +30,7 @@ import (
 const (
 	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
 	spanPointerLinkKind    = "span-pointer"
-	spanPointerUpDirection = "u"
+	spanPointerUpDirection = "u" // Tracers will handle cases where direction is down
 )
 
 var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.\d+)*|\d+(\.x))$`)

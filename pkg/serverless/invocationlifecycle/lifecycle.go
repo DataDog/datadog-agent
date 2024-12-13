@@ -18,6 +18,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/spanpointers"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
@@ -50,14 +51,7 @@ type RequestHandler struct {
 	inferredSpans  [2]*inferredspan.InferredSpan
 	triggerTags    map[string]string
 	triggerMetrics map[string]float64
-	spanPointers   []SpanPointer
-}
-
-// SpanPointer is a struct that stores a hash and span kind to uniquely
-// identify a S3 or DynamoDB operation.
-type SpanPointer struct {
-	Hash string
-	Kind string
+	spanPointers   []spanpointers.SpanPointer
 }
 
 // SetMetaTag sets a meta span tag. A meta tag is a tag whose value type is string.
