@@ -158,7 +158,7 @@ func gpuInstanceProvisioner(params *provisionerParams) e2e.Provisioner {
 			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerManager)), // Depend on Docker to avoid apt lock issues
 		)
 
-		// Set updater to nil as we're not using it, and
+		// Set updater to nil as we're not using it
 		env.Updater = nil
 
 		// Install the agent
