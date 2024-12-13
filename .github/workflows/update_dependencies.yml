@@ -31,6 +31,11 @@ jobs:
       - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: ".go-version"
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Update every golang.org/x/... package
         run: |
           go get -u golang.org/x/arch golang.org/x/crypto \
