@@ -6,24 +6,19 @@
 // Package udp adds a UDP traceroute implementation to the agent
 package udp
 
-import (
-	"net"
-	"time"
-)
-
 type (
 	// UDPv4 encapsulates the data needed to run
 	// a UDPv4 traceroute
 	UDPv4 struct {
-		Target   net.IP
-		srcIP    net.IP // calculated internally
-		srcPort  uint16 // calculated internally
-		DestPort uint16
-		NumPaths uint16
-		MinTTL   uint8
-		MaxTTL   uint8
-		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
-		Timeout  time.Duration // full timeout for all packets
+		// Target   net.IP
+		// srcIP    net.IP // calculated internally
+		// srcPort  uint16 // calculated internally
+		// DestPort uint16
+		// NumPaths uint16
+		// MinTTL   uint8
+		// MaxTTL   uint8
+		// Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
+		// Timeout  time.Duration // full timeout for all packets
 	}
 )
 

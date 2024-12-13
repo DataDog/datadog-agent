@@ -5,59 +5,57 @@
 package udp
 
 import (
-	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
-	log.Debugf("Running traceroute to %+v", u)
-	// Get local address for the interface that connects to this
-	// host and store in in the probe
-	//
-	// TODO: ensure we hold the UDP port created here since we can
-	addr, err := common.LocalAddrForHost(u.Target, u.DestPort)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get local address for target: %w", err)
-	}
-	u.srcIP = addr.IP
-	u.srcPort = addr.AddrPort().Port()
+	// log.Debugf("Running traceroute to %+v", u)
+	// // Get local address for the interface that connects to this
+	// // host and store in in the probe
+	// //
+	// // TODO: ensure we hold the UDP port created here since we can
+	// addr, err := common.LocalAddrForHost(u.Target, u.DestPort)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to get local address for target: %w", err)
+	// }
+	// u.srcIP = addr.IP
+	// u.srcPort = addr.AddrPort().Port()
 
-	rs, err := common.CreateRawSocket()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create raw socket: %w", err)
-	}
-	defer rs.Close()
+	// rs, err := common.CreateRawSocket()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create raw socket: %w", err)
+	// }
+	// defer rs.Close()
 
-	hops := make([]*common.Hop, 0, int(u.MaxTTL-u.MinTTL)+1)
+	// hops := make([]*common.Hop, 0, int(u.MaxTTL-u.MinTTL)+1)
 
-	for i := int(u.MinTTL); i <= int(u.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
-		hop, err := u.sendAndReceive(rs, i, seqNumber, u.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("failed to run traceroute: %w", err)
-		}
-		hops = append(hops, hop)
-		log.Tracef("Discovered hop: %+v", hop)
-		// if we've reached our destination,
-		// we're done
-		if hop.IsDest {
-			break
-		}
-	}
+	// for i := int(u.MinTTL); i <= int(u.MaxTTL); i++ {
+	// 	seqNumber := rand.Uint32()
+	// 	hop, err := u.sendAndReceive(rs, i, seqNumber, u.Timeout)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to run traceroute: %w", err)
+	// 	}
+	// 	hops = append(hops, hop)
+	// 	log.Tracef("Discovered hop: %+v", hop)
+	// 	// if we've reached our destination,
+	// 	// we're done
+	// 	if hop.IsDest {
+	// 		break
+	// 	}
+	// }
 
-	return &common.Results{
-		Source:     u.srcIP,
-		SourcePort: u.srcPort,
-		Target:     u.Target,
-		DstPort:    u.DestPort,
-		Hops:       hops,
-	}, nil
+	// return &common.Results{
+	// 	Source:     u.srcIP,
+	// 	SourcePort: u.srcPort,
+	// 	Target:     u.Target,
+	// 	DstPort:    u.DestPort,
+	// 	Hops:       hops,
+	// }, nil
+	return nil, nil
 }
 
 func (u *UDPv4) sendAndReceive(rs *common.Winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {

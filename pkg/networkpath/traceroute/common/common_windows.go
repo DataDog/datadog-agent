@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package common contains common functionality for both TCP and UDP
+// traceroute implementations
 package common
 
 import (
@@ -15,10 +18,14 @@ var (
 	sendTo = windows.Sendto
 )
 
+// Winrawsocket is a struct that encapsulates a raw socket
+// on Windows that can be used to listen to traffic on a host
+// or send raw packets from a host
 type Winrawsocket struct {
 	Socket windows.Handle
 }
 
+// Close closes the raw socket
 func (w *Winrawsocket) Close() {
 	if w.Socket != windows.InvalidHandle {
 		windows.Closesocket(w.Socket) // nolint: errcheck
@@ -26,6 +33,7 @@ func (w *Winrawsocket) Close() {
 	w.Socket = windows.InvalidHandle
 }
 
+// CreateRawSocket creates a Winrawsocket
 func CreateRawSocket() (*Winrawsocket, error) {
 	s, err := windows.Socket(windows.AF_INET, windows.SOCK_RAW, windows.IPPROTO_IP)
 	if err != nil {
@@ -46,6 +54,7 @@ func CreateRawSocket() (*Winrawsocket, error) {
 	return &Winrawsocket{Socket: s}, nil
 }
 
+// SendRawPacket sends a raw packet to a destination IP and port
 func SendRawPacket(w *Winrawsocket, destIP net.IP, destPort uint16, payload []byte) error {
 
 	dst := destIP.To4()
