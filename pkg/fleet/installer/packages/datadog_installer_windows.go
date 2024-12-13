@@ -19,6 +19,8 @@ const (
 	datadogInstaller = "datadog-installer"
 )
 
+
+
 // SetupInstaller installs and starts the installer
 func SetupInstaller(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "setup_installer")
