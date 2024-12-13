@@ -19,7 +19,7 @@ import (
 var agentNames = map[string]struct{}{
 	"datadog-agent": {}, "agent": {}, "trace-agent": {},
 	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {},
+	"dogstatsd": {}, "agent.exe": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
@@ -103,12 +103,4 @@ func isAgentProcess(pid int, processName string) (string, bool) {
 	}
 	_, ok := agentNames[processName]
 	return processName, ok
-}
-
-// FormatProcessName removes any trailing
-func FormatProcessName(rawName string) string {
-	rawName = strings.ToLower(rawName)
-	rawName = strings.TrimRight(rawName, "\x00")
-	rawName = strings.TrimSuffix(rawName, ".exe")
-	return rawName
 }

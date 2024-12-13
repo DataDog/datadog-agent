@@ -6,6 +6,7 @@
 package ports
 
 import (
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -25,23 +26,42 @@ var ntQuerySystemInformation = windows.NtQuerySystemInformation
 
 // RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
 // with SystemProcessIDInformation, which does not require elevated privileges.
+// RetrieveProcessName fetches the process name on Windows using NtQuerySystemInformation
+// with SystemProcessIDInformation, which does not require elevated privileges.
 func RetrieveProcessName(pid int, _ string) (string, error) {
 	var processInfo SystemProcessIDInformation
-	processInfo.ProcessID = uintptr(pid)
-	ret := ntQuerySystemInformation(SystemProcessIDInformationClass, unsafe.Pointer(&processInfo), uint32(unsafe.Sizeof(processInfo)), nil)
 
+	// Explicitly calculate the size of the buffer required for the process information.
+	bufferSize := uint32(unsafe.Sizeof(processInfo))
+
+	// Allocate memory for the buffer to hold the process information.
+	buffer := make([]byte, bufferSize)
+
+	// Cast the buffer pointer to the appropriate type.
+	bufferPtr := unsafe.Pointer(&buffer[0])
+
+	// Set the process ID in the buffer.
+	processInfo.ProcessID = uintptr(pid)
+
+	// Call NTQuerySystemInformation with the correct buffer size
+	ret := ntQuerySystemInformation(SystemProcessIDInformationClass, bufferPtr, bufferSize, nil)
 	if ret != nil {
 		return "", ret
 	}
 
-	// Step 1: Get a pointer to the buffer (which is a pointer to a wide string)
-	bufferPtr := processInfo.ImageName.Buffer
-	// Step 2: Convert this pointer to an unsafe.Pointer
-	unsafePtr := unsafe.Pointer(bufferPtr)
-	// Step 3: Convert that unsafe.Pointer to a *uint16
-	utf16Ptr := (*uint16)(unsafePtr)
-	// Step 4: Call windows.UTF16PtrToString on the *uint16 pointer to get a Go string
-	rawName := windows.UTF16PtrToString(utf16Ptr)
+	// Extract ImageName.Buffer from the buffer.
+	// bufferStart := uintptr(bufferPtr)
+	// imageNameBufferOffset := uintptr(unsafe.Offsetof(processInfo.ImageName.Buffer))
+	// imageNameBuffer := (*uint16)(unsafe.Pointer(bufferStart + imageNameBufferOffset))
 
-	return FormatProcessName(rawName), nil
+	// Safer version of L52-55
+	imageNameBuffer := (*uint16)(unsafe.Pointer(uintptr(bufferPtr) + uintptr(unsafe.Offsetof(processInfo.ImageName.Buffer))))
+
+	// Convert the Unicode string to a Go string.
+	rawName := windows.UTF16PtrToString(imageNameBuffer)
+	rawName = strings.ToLower(rawName)
+	rawName = strings.TrimRight(rawName, "\x00")
+	rawName = strings.TrimSuffix(rawName, ".exe")
+
+	return rawName, nil
 }
